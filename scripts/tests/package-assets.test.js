@@ -1048,9 +1048,6 @@ describe('package asset scripts', () => {
     expect(distPackageJson.files).toContain('examples');
     expect(distPackageJson.private).not.toBe(true);
     expect(distPackageJson.bundledDependencies).toBeUndefined();
-    expect(distPackageJson.optionalDependencies).toMatchObject({
-      '@organizaone/o1-code-audio-capture': rootPackageJson.version,
-    });
 
     expect(distPackageJson.optionalDependencies.sharp).toBe('0.35.4');
     expect(
@@ -1069,6 +1066,104 @@ describe('package asset scripts', () => {
         path.join(rootDir, 'dist', 'examples', 'mcp-server', 'package.json'),
       ),
     ).toBe(true);
+  });
+
+  // o1-code: the native audio-capture package is not published yet, and an
+  // unpublished optional dependency makes `npm install` of the CLI fail or
+  // warn, so the manifest lists it only when packaging it is asked for.
+  it('leaves audio-capture out of optionalDependencies by default', () => {
+    const rootDir = createFixtureRoot();
+    createBundleArtifacts(rootDir);
+    stubConsole();
+    vi.stubEnv('O1CODE_PACKAGE_AUDIO_CAPTURE', '');
+    vi.stubEnv('O1CODE_REQUIRE_AUDIO_CAPTURE_PREBUILD', '');
+
+    try {
+      preparePackage({ rootDir });
+    } finally {
+      vi.unstubAllEnvs();
+    }
+
+    const distPackageJson = JSON.parse(
+      readFileSync(path.join(rootDir, 'dist', 'package.json'), 'utf8'),
+    );
+    expect(distPackageJson.optionalDependencies).not.toHaveProperty(
+      '@organizaone/o1-code-audio-capture',
+    );
+    expect(distPackageJson.optionalDependencies.sharp).toBe('0.35.4');
+  });
+
+  it('does not check the audio-capture artifacts when not packaging them', () => {
+    const rootDir = createFixtureRoot();
+    rmSync(path.join(rootDir, 'packages', 'audio-capture', 'prebuilds'), {
+      recursive: true,
+      force: true,
+    });
+    createBundleArtifacts(rootDir);
+    stubConsole();
+
+    preparePackage({
+      rootDir,
+      packageAudioCapture: false,
+      requireNativeAudioCapture: false,
+    });
+
+    expect(console.warn).not.toHaveBeenCalledWith(
+      expect.stringContaining('audio capture package artifact'),
+    );
+  });
+
+  it('lists audio-capture in optionalDependencies when O1CODE_PACKAGE_AUDIO_CAPTURE=1', () => {
+    const rootDir = createFixtureRoot();
+    createBundleArtifacts(rootDir);
+    stubConsole();
+    vi.stubEnv('O1CODE_PACKAGE_AUDIO_CAPTURE', '1');
+
+    try {
+      preparePackage({ rootDir, requireNativeAudioCapture: false });
+    } finally {
+      vi.unstubAllEnvs();
+    }
+
+    const distPackageJson = JSON.parse(
+      readFileSync(path.join(rootDir, 'dist', 'package.json'), 'utf8'),
+    );
+    expect(distPackageJson.optionalDependencies).toMatchObject({
+      '@organizaone/o1-code-audio-capture': '0.17.0',
+    });
+  });
+
+  it('publishes publicly and links the repository, homepage and issues', () => {
+    const rootDir = createFixtureRoot();
+    writeFile(
+      rootDir,
+      'brand.json',
+      JSON.stringify({
+        identity: {
+          binName: 'o1-code',
+          repoUrl: 'https://github.com/example/o1-code',
+        },
+      }),
+    );
+    createBundleArtifacts(rootDir);
+    stubConsole();
+
+    preparePackage({ rootDir, requireNativeAudioCapture: false });
+
+    const distPackageJson = JSON.parse(
+      readFileSync(path.join(rootDir, 'dist', 'package.json'), 'utf8'),
+    );
+    expect(distPackageJson.publishConfig).toEqual({ access: 'public' });
+    expect(distPackageJson.repository).toEqual({
+      type: 'git',
+      url: 'git+https://github.com/example/o1-code.git',
+    });
+    expect(distPackageJson.homepage).toBe(
+      'https://github.com/example/o1-code#readme',
+    );
+    expect(distPackageJson.bugs).toEqual({
+      url: 'https://github.com/example/o1-code/issues',
+    });
   });
 
   it('falls back to the hoisted sharp when core has no nested copy', () => {

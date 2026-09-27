@@ -49,22 +49,27 @@ store, local detection); plan C, the OrganizaOne account login and the aipp code
 
 ### npm publication
 
-Decisions so far; the release workflow comes after the login.
+Decisions so far.
 
 - Only the CLI package, `@organizaone/o1-code`, is published for now. `audio-capture` leaves its
-  `optionalDependencies` until a prebuild pipeline exists; voice falls back to SoX/arecord. The
-  SDK, the Web Shell and the Node REPL are published only when offered.
+  `optionalDependencies` until a prebuild pipeline exists (done: `prepare:package` lists it only
+  with `O1CODE_PACKAGE_AUDIO_CAPTURE=1`); voice falls back to SoX/arecord. The SDK, the Web Shell
+  and the Node REPL are published only when offered.
 - The npm org `organizaone` exists and the maintainer owns it.
-- A lean `.github/workflows/release.yml`, triggered by a `vX.Y.Z` tag (plus manual dispatch):
-  checks that the tag matches the root version and is not already published, builds, bundles,
-  runs `prepare:package`, packs and installs the tarball in a clean directory and runs it,
-  publishes from `dist/` with `--access public`, verifies with `npm view`, and creates the GitHub
-  release from the changelog section.
+- Done: `.github/workflows/release.yml`, triggered by a `vX.Y.Z` tag (plus manual dispatch):
+  checks that the tag matches the root and CLI versions, is not already published and has a
+  changelog section, builds, bundles, runs `prepare:package` and the fast gates, packs and installs
+  the tarball in a clean prefix and runs it, publishes the tarball with `--access public`,
+  verifies with `npm view`, and creates the GitHub release from the changelog section
+  (`scripts/o1/release-notes.mjs`). The steps are in the deviations of `docs/guides/VERSIONING.md`.
 - Stable channel only: every tag goes to `latest`.
 - The first publication uses a temporary granular `NPM_TOKEN` secret, then trusted publishing
   (OIDC) configured on npmjs.com, after which the token is deleted. Provenance waits for a public
-  repository, behind a switch in the workflow.
+  repository, behind a switch in the workflow (`PUBLISH_PROVENANCE`).
 - The first npm version is 0.1.0.
+- Still open: add the `NPM_TOKEN` secret and push the first tag; move to trusted publishing after
+  the first publication and delete the token; turn provenance on when the repository is public; a
+  prebuild pipeline for `audio-capture`, which then returns to the published package.
 
 ### Unscheduled
 
