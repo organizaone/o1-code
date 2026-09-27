@@ -35,7 +35,8 @@ env:
 jobs:
   release:
     name: 'Release'
-    runs-on: 'ubuntu-latest'
+    # Same runner selection as o1-ci.yml (repository variable CI_RUNNER_LABELS).
+    runs-on: '${{ fromJSON(vars.CI_RUNNER_LABELS || ''["ubuntu-latest"]'') }}'
     timeout-minutes: 60
     permissions:
       # Creates the GitHub release and uploads the tarball to it.

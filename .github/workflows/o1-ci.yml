@@ -31,7 +31,10 @@ permissions:
 jobs:
   fast:
     name: 'Fast gates'
-    runs-on: 'ubuntu-latest'
+    # The repository variable CI_RUNNER_LABELS picks the runner, as a JSON
+    # array of labels: ["self-hosted","dokploy"] for the maintainer's runner,
+    # ["ubuntu-latest"] for GitHub's. Changing it needs no pull request.
+    runs-on: '${{ fromJSON(vars.CI_RUNNER_LABELS || ''["ubuntu-latest"]'') }}'
     timeout-minutes: 45
     env:
       # The core typecheck outgrows Node's default heap on a hosted runner.
@@ -124,7 +127,7 @@ jobs:
     name: 'Full suites'
     needs: 'fast'
     if: '${{ inputs.full }}'
-    runs-on: 'ubuntu-latest'
+    runs-on: '${{ fromJSON(vars.CI_RUNNER_LABELS || ''["ubuntu-latest"]'') }}'
     timeout-minutes: 180
     steps:
       - uses: 'actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10' # v6.0.3
@@ -133,8 +136,10 @@ jobs:
         with:
           node-version-file: '.nvmrc'
 
-      # Some suites drive a real tmux or build zip packages.
+      # Some suites drive a real tmux or build zip packages. The self-hosted
+      # runner's image carries them already and has no sudo.
       - name: 'System tools'
+        if: "${{ runner.environment == 'github-hosted' }}"
         run: 'sudo apt-get update -qq && sudo apt-get install -y -qq --no-install-recommends tmux zip unzip'
 
       - name: 'Install'
