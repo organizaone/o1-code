@@ -1,0 +1,32 @@
+id = "o1-code"
+name = "O1-Code"
+version = "0.1.0"
+schema_version = 1
+authors = ["OrganizaOne"]
+description = "O1-Code Agent Server Extension for Zed"
+repository = "https://github.com/silvioricardo87/o1-code"
+
+[agent_servers.o1-code]
+name = "O1-Code"
+icon = "o1-code.svg"
+
+[agent_servers.o1-code.targets.darwin-aarch64]
+archive = "https://registry.npmjs.org/@organizaone/o1-code/-/o1-code-0.1.0.tgz"
+cmd = "node"
+args = ["./package/cli.js", "--acp"]
+
+[agent_servers.o1-code.targets.darwin-x86_64]
+archive = "https://registry.npmjs.org/@organizaone/o1-code/-/o1-code-0.1.0.tgz"
+cmd = "node"
+args = ["./package/cli.js", "--acp"]
+
+[agent_servers.o1-code.targets.linux-x86_64]
+archive = "https://registry.npmjs.org/@organizaone/o1-code/-/o1-code-0.1.0.tgz"
+cmd = "node"
+args = ["./package/cli.js", "--acp"]
+
+[agent_servers.o1-code.targets.windows-x86_64]
+archive = "https://registry.npmjs.org/@organizaone/o1-code/-/o1-code-0.1.0.tgz"
+cmd = "node"
+args = ["./package/cli.js", "--acp"]
+

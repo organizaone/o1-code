@@ -1,0 +1,5 @@
+dist/
+build/
+*.tsbuildinfo
+.o1code_node_repl_cell_*
+src/fixtures/napi/build/

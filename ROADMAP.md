@@ -1,0 +1,127 @@
+# Roadmap
+
+What is in the tree and its state, what comes next, and what is out of scope. Delivered work is in
+[`CHANGELOG.md`](./CHANGELOG.md); the rules are in [`AGENTS.md`](./AGENTS.md).
+
+## Packages
+
+All under `@organizaone/o1-code-*`, versioned together with the CLI.
+
+| Package                                 | What it is                                                               | Status              | Pending                                                          |
+| --------------------------------------- | ------------------------------------------------------------------------ | ------------------- | ---------------------------------------------------------------- |
+| `packages/cli` (`@organizaone/o1-code`) | The `o1-code` binary, TUI, commands, `serve` daemon                      | **active**          | Publish to npm                                                   |
+| `packages/core`                         | Agent loop, tools, providers, extensions, hooks, skills, MCP             | **active**          | —                                                                |
+| `packages/acp-bridge`                   | Agent Client Protocol core (editors)                                     | dependency          | —                                                                |
+| `packages/web-shell`                    | Web interface for `o1-code serve`                                        | **active**          | Its own documentation                                            |
+| `packages/web-templates`                | Embedded web templates (includes the HTML export)                        | dependency          | —                                                                |
+| `packages/sdk-typescript`               | TypeScript SDK for programmatic use of the CLI                           | dependency          | Publish if it is ever offered                                    |
+| `packages/node-repl`                    | MCP server with a persistent Node REPL                                   | dependency          | —                                                                |
+| `packages/audio-capture`                | Native microphone capture (optional)                                     | optional dependency | Publish alongside the CLI, or voice falls back to SoX/arecord    |
+| `packages/vscode-ide-companion`         | VS Code extension (publisher `organizaone`)                              | to evaluate         | Marketplace publication                                          |
+| `packages/zed-extension`                | Zed editor extension                                                     | to evaluate         | Points to the 0.1.0 tarball, which exists only after publication |
+| `integrations/external-context`         | External context extension, reference for "extend without touching core" | to evaluate         | —                                                                |
+| `integrations/external-context-mem0`    | Mem0-compatible variant                                                  | to evaluate         | —                                                                |
+
+The container sandbox (`packages/cli/src/config/sandboxConfig.ts`) stays available and off by
+default; its image, `ghcr.io/organizaone/o1-code`, is published together with the npm package.
+
+## Next
+
+In this order.
+
+### Connect a provider: the new login
+
+Decided on a navigable mock, 2026-09-27. Terminal first, then the Web Shell, then the OrganizaOne
+account login. The terminal dialog and the Web Shell have shipped (the four entries, the credential
+store, local detection); plan C, the OrganizaOne account login and the aipp code, remains.
+
+- **Menu:** OrganizaOne; API key (one alphabetical list: Alibaba Cloud, Anthropic, DeepSeek,
+  Google Gemini, Kimi, MiniMax, ModelScope, OpenAI, xAI, Z.AI); Local (Ollama and LM Studio detected on
+  their ports, or another local server); Custom (any URL, OpenAI-compatible or Anthropic). The
+  OpenRouter and Requesty presets go; Custom covers them.
+- **OrganizaOne:** an API key against `api.organizago.com` first; account login (device code,
+  RFC 8628) and the `aipp1.` connection code show as "coming soon" until the proxy serves the
+  contract, which is written in that project.
+- **Credentials:** one file per provider under `~/.o1-code/credentials/`, owner-only; keys no
+  longer live in `settings.json`.
+- **Models:** always listed by the provider (Gemini included); a built-in list only where a
+  provider cannot list them.
+
+### npm publication
+
+Decisions so far; the release workflow comes after the login.
+
+- Only the CLI package, `@organizaone/o1-code`, is published for now. `audio-capture` leaves its
+  `optionalDependencies` until a prebuild pipeline exists; voice falls back to SoX/arecord. The
+  SDK, the Web Shell and the Node REPL are published only when offered.
+- The npm org `organizaone` exists and the maintainer owns it.
+- A lean `.github/workflows/release.yml`, triggered by a `vX.Y.Z` tag (plus manual dispatch):
+  checks that the tag matches the root version and is not already published, builds, bundles,
+  runs `prepare:package`, packs and installs the tarball in a clean directory and runs it,
+  publishes from `dist/` with `--access public`, verifies with `npm view`, and creates the GitHub
+  release from the changelog section.
+- Stable channel only: every tag goes to `latest`.
+- The first publication uses a temporary granular `NPM_TOKEN` secret, then trusted publishing
+  (OIDC) configured on npmjs.com, after which the token is deleted. Provenance waits for a public
+  repository, behind a switch in the workflow.
+- The first npm version is 0.1.0.
+
+### Unscheduled
+
+- A `/smoke` skill (container smoke gate), user-invoked only.
+- Stack profiles as installable extensions of conditional rules, principles without version pins.
+- "Approve and run as a Goal" in the Web Shell and ACP clients (the plan options are shared ids
+  across the ACP bridge, the session, the permission utilities and the Web Shell panel).
+- The Web Shell's own documentation.
+
+## Known gaps
+
+- A few tests are load-sensitive and fail only when the full suites share the machine; each passes
+  on its own: `server.test.ts` (organized session truncation), core `recall-scan-latency.test.ts`
+  (a 50 ms budget) and `code-mode.test.ts`, Web Shell `BranchPickerPopover` (focus after a
+  workspace switch); `acp-http/transport.test.ts` can leave an unhandled `fetch failed` under load.
+  CI runs the full suites only on demand.
+- `integration-tests/globalSetup.test.ts` times out outside the integration environment.
+- The Web Shell e2e smoke needs WebKit installed; its shell-card clipboard check compares text that
+  differs only in line endings on Windows.
+- A marketplace whose plugin source is the marketplace root leaves an empty `plugin<hash>`
+  directory in the installed extension (cosmetic).
+
+## Risks
+
+| Risk                                                              | Probability | Impact | Mitigation                                                                                      |
+| ----------------------------------------------------------------- | ----------- | ------ | ----------------------------------------------------------------------------------------------- |
+| `patches/ink+7.0.3.patch` conflicts with an Ink upgrade           | medium      | medium | upgrade Ink deliberately, with the patch reviewed in the same change                            |
+| Node requirement rises                                            | medium      | medium | track `engines`; document the supported version; install Node per user (nvm, fnm)               |
+| Heavy build and test (3–4 GB heap, large monorepo) on one machine | medium      | medium | scoped tests; `--cli-only`; hosted CI for the full suites; one heavy job at a time              |
+| Windows: long paths, CRLF, shell scripts                          | high        | low    | `core.longpaths`, `.gitattributes`, scripts in Node                                             |
+| npm supply chain attacks                                          | medium      | high   | `minimumReleaseAge` cooldown, frozen lockfile, hash-pinned actions                              |
+| A third-party name appears as product identity                    | low         | high   | `node scripts/o1/brand-lint.mjs` as a gate; docs and README review before publishing            |
+| Telemetry to a third party appears in some path                   | low         | high   | no collection module in the tree; review every new network endpoint                             |
+| Single maintainer                                                 | medium      | high   | small, scoped changes; CI gates on every pull request; this file and the changelog kept current |
+
+## Repository governance
+
+- `main` is protected: no direct push, not even for admins; linear history; no force push or
+  deletion.
+- Changes come in through a pull request, using `.github/pull_request_template.md`, with
+  conversations resolved before merge; no mandatory approving review, because there is a single
+  maintainer.
+- `.github/workflows/o1-ci.yml` is the only workflow. The fast checks (`Fast gates`) run on every
+  pull request to `main` and are mandatory; the full suites run on demand. A few tests are skipped
+  because they assert on release or review workflows this repository does not run; each comes back
+  together with a workflow that it can check, such as the release workflow.
+
+## Out of scope
+
+Not in the tree; they do not come back without a maintainer decision (`AGENTS.md`, rule 4):
+
+- a desktop app and a mobile shell;
+- a browser extension, a browser tool and its CDP tunnel;
+- computer use and a native driver for it;
+- messaging channels;
+- Java and Python SDKs;
+- a GitHub Action integration;
+- a second terminal renderer: Ink is the only one;
+- a second project context file: `AGENTS.md` is the only one (`context.fileName` renames it);
+- signing in with a consumer subscription of any model vendor.

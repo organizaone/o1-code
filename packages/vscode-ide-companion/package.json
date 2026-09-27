@@ -1,0 +1,305 @@
+{
+  "name": "o1-code-vscode-ide-companion",
+  "private": true,
+  "displayName": "O1-Code Companion",
+  "description": "Enable O1-Code with direct access to your VS Code workspace.",
+  "version": "0.1.0",
+  "publisher": "organizaone",
+  "icon": "assets/icon.png",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/silvioricardo87/o1-code.git",
+    "directory": "packages/vscode-ide-companion"
+  },
+  "engines": {
+    "vscode": "^1.96.0"
+  },
+  "license": "LICENSE",
+  "preview": true,
+  "categories": [
+    "AI"
+  ],
+  "keywords": [
+    "o1-code",
+    "cli",
+    "ide integration",
+    "ide companion"
+  ],
+  "activationEvents": [
+    "onStartupFinished",
+    "onView:o1-code.chatView.sidebar",
+    "onCommand:o1-code.openChat",
+    "onCommand:o1-code.focusChat",
+    "onCommand:o1-code.newConversation",
+    "onCommand:o1-code.showLogs"
+  ],
+  "contributes": {
+    "jsonValidation": [
+      {
+        "fileMatch": "**/.o1-code/settings.json",
+        "url": "./schemas/settings.schema.json"
+      }
+    ],
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "o1-code-sidebar",
+          "title": "O1-Code",
+          "icon": "assets/sidebar-icon.svg"
+        }
+      ]
+    },
+    "views": {
+      "o1-code-sidebar": [
+        {
+          "type": "webview",
+          "id": "o1-code.chatView.sidebar",
+          "name": "O1-Code",
+          "icon": "assets/sidebar-icon.svg"
+        }
+      ]
+    },
+    "languages": [
+      {
+        "id": "o1-code-diff-editable"
+      }
+    ],
+    "commands": [
+      {
+        "command": "o1-code.diff.accept",
+        "title": "O1-Code: Accept Current Diff",
+        "icon": "$(check)"
+      },
+      {
+        "command": "o1-code.diff.cancel",
+        "title": "O1-Code: Close Diff Editor",
+        "icon": "$(close)"
+      },
+      {
+        "command": "o1-code.runO1Code",
+        "title": "O1-Code: Run"
+      },
+      {
+        "command": "o1-code.showNotices",
+        "title": "O1-Code: View Third-Party Notices"
+      },
+      {
+        "command": "o1-code.openChat",
+        "title": "O1-Code: Open",
+        "icon": "./assets/icon.png"
+      },
+      {
+        "command": "o1-code.auth",
+        "title": "O1-Code: Auth"
+      },
+      {
+        "command": "o1-code.focusChat",
+        "title": "O1-Code: Focus Chat View"
+      },
+      {
+        "command": "o1-code.newConversation",
+        "title": "O1-Code: New Conversation"
+      },
+      {
+        "command": "o1-code.showLogs",
+        "title": "O1-Code: Show Logs"
+      },
+      {
+        "command": "o1-code.copyMessage",
+        "title": "%o1-code.copyMessage.title%"
+      },
+      {
+        "command": "o1-code.copyAllMessages",
+        "title": "%o1-code.copyAllMessages.title%"
+      },
+      {
+        "command": "o1-code.copyLastReply",
+        "title": "%o1-code.copyLastReply.title%"
+      }
+    ],
+    "menus": {
+      "commandPalette": [
+        {
+          "command": "o1-code.diff.accept",
+          "when": "o1-code.diff.isVisible"
+        },
+        {
+          "command": "o1-code.diff.cancel",
+          "when": "o1-code.diff.isVisible"
+        },
+        {
+          "command": "o1-code.auth"
+        },
+        {
+          "command": "o1-code.copyMessage",
+          "when": "false"
+        },
+        {
+          "command": "o1-code.copyAllMessages",
+          "when": "false"
+        },
+        {
+          "command": "o1-code.copyLastReply",
+          "when": "false"
+        }
+      ],
+      "webview/context": [
+        {
+          "command": "o1-code.copyMessage",
+          "when": "webviewSection == 'chat-messages'",
+          "group": "9_cutcopypaste@1"
+        },
+        {
+          "command": "o1-code.copyAllMessages",
+          "when": "webviewSection == 'chat-messages'",
+          "group": "9_cutcopypaste@2"
+        },
+        {
+          "command": "o1-code.copyLastReply",
+          "when": "webviewSection == 'chat-messages'",
+          "group": "9_cutcopypaste@3"
+        }
+      ],
+      "editor/title": [
+        {
+          "command": "o1-code.diff.accept",
+          "when": "o1-code.diff.isVisible",
+          "group": "navigation"
+        },
+        {
+          "command": "o1-code.diff.cancel",
+          "when": "o1-code.diff.isVisible",
+          "group": "navigation"
+        },
+        {
+          "command": "o1-code.openChat",
+          "group": "navigation"
+        }
+      ]
+    },
+    "configuration": {
+      "title": "O1-Code",
+      "properties": {
+        "o1-code.provider": {
+          "order": 0,
+          "type": "string",
+          "enum": [
+            "coding-plan",
+            "api-key"
+          ],
+          "enumDescriptions": [
+            "Alibaba Cloud Coding Plan — configurable from VS Code Settings",
+            "Configured via O1-Code: Auth or the onboarding button"
+          ],
+          "default": "coding-plan",
+          "markdownDescription": "**Coding Plan**: enter API Key + Region here to sync `~/.o1-code/settings.json`.\n\n**API Key**: use **O1-Code: Auth** or the onboarding button to configure ModelStudio or custom OpenAI-compatible providers."
+        },
+        "o1-code.apiKey": {
+          "order": 1,
+          "type": "string",
+          "default": "",
+          "markdownDescription": "API key used for **Coding Plan** settings sync. For **API Key** providers, configure the full provider details through **O1-Code: Auth**."
+        },
+        "o1-code.codingPlanRegion": {
+          "order": 2,
+          "type": "string",
+          "enum": [
+            "china",
+            "global"
+          ],
+          "enumDescriptions": [
+            "China — 阿里云百炼 (aliyun.com)",
+            "Global — Alibaba Cloud (alibabacloud.com)"
+          ],
+          "default": "china",
+          "markdownDescription": "Region for Coding Plan. _(Only used when Provider is `coding-plan`)_"
+        },
+        "o1-code.dotIndicator": {
+          "order": 3,
+          "type": "boolean",
+          "default": true,
+          "description": "Show a colored dot on the tab icon when a task completes (orange) or needs your attention (blue) while the tab is hidden."
+        },
+        "o1-code.notifications": {
+          "order": 4,
+          "type": "boolean",
+          "default": true,
+          "description": "Show notifications with sound when a task completes (at least 20 seconds) or needs your attention, while you are not actively viewing the O1-Code panel."
+        }
+      }
+    },
+    "keybindings": [
+      {
+        "command": "o1-code.diff.accept",
+        "key": "ctrl+s",
+        "when": "o1-code.diff.isVisible"
+      },
+      {
+        "command": "o1-code.diff.accept",
+        "key": "cmd+s",
+        "when": "o1-code.diff.isVisible"
+      },
+      {
+        "command": "o1-code.focusChat",
+        "key": "ctrl+shift+l",
+        "mac": "cmd+shift+l"
+      }
+    ]
+  },
+  "main": "./dist/extension.cjs",
+  "type": "module",
+  "scripts": {
+    "prepackage": "node ./scripts/prepackage.js",
+    "build": "npm run build:dev",
+    "build:dev": "npm run check-types && npm run lint && node esbuild.js",
+    "build:prod": "node esbuild.js --production",
+    "generate:notices": "node ./scripts/generate-notices.js",
+    "prepare": "npm run generate:notices",
+    "check-types": "tsc --noEmit",
+    "lint": "eslint src",
+    "watch": "npm-run-all2 -p watch:*",
+    "watch:esbuild": "node esbuild.js --watch",
+    "watch:tsc": "tsc --noEmit --watch --project tsconfig.json",
+    "package": "vsce package --no-dependencies",
+    "test": "vitest run",
+    "test:ci": "vitest run"
+  },
+  "devDependencies": {
+    "@organizaone/o1-code": "file:../cli",
+    "@types/cors": "^2.8.19",
+    "@types/express": "^5.0.3",
+    "@types/markdown-it": "^14.1.2",
+    "@types/node": "^22.0.0",
+    "@types/react": "^19.2.10",
+    "@types/react-dom": "^19.2.3",
+    "@types/semver": "^7.7.1",
+    "@types/vscode": "^1.96.0",
+    "@typescript-eslint/eslint-plugin": "^8.31.1",
+    "@typescript-eslint/parser": "^8.31.1",
+    "@vscode/vsce": "^3.9.2",
+    "esbuild": "^0.25.3",
+    "eslint": "^9.25.1",
+    "eslint-plugin-react-hooks": "^5.2.0",
+    "npm-run-all2": "^8.0.2",
+    "typescript": "^5.8.3",
+    "vitest": "^3.2.4"
+  },
+  "dependencies": {
+    "@agentclientprotocol/sdk": "^0.14.1",
+    "@modelcontextprotocol/sdk": "^1.30.0",
+    "@organizaone/o1-code-acp-bridge": "*",
+    "@organizaone/o1-code-core": "*",
+    "@organizaone/o1-code-sdk": "*",
+    "@organizaone/o1-code-web-shell": "*",
+    "cors": "^2.8.5",
+    "dotenv": "^17.1.0",
+    "express": "^5.1.0",
+    "lucide-react": "^1.24.0",
+    "markdown-it": "^14.1.0",
+    "punycode": "^2.3.1",
+    "react": "^19.2.4",
+    "react-dom": "^19.2.4",
+    "semver": "^7.7.2",
+    "zod": "^3.25.76"
+  }
+}

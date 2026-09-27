@@ -1,0 +1,57 @@
+/**
+ * @license
+ * Copyright 2026 o1-code contributors
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
+import { AuthType } from '../../core/contentGenerator.js';
+import type { ProviderConfig } from '../types.js';
+
+/** The proxy host is a constant of the preset; another host is a Custom provider. */
+export const ORGANIZAONE_ANTHROPIC_BASE_URL = 'https://api.organizago.com';
+export const ORGANIZAONE_OPENAI_BASE_URL = 'https://api.organizago.com/v1';
+export const ORGANIZAONE_ENV_KEY = 'ORGANIZAONE_API_KEY';
+
+export const organizaoneProvider: ProviderConfig = {
+  id: 'organizaone',
+  label: 'OrganizaOne',
+  description: 'Connect to OrganizaOne with your key',
+  protocol: AuthType.USE_ANTHROPIC,
+  protocolOptions: [AuthType.USE_ANTHROPIC, AuthType.USE_OPENAI],
+  baseUrlByProtocol: {
+    [AuthType.USE_ANTHROPIC]: ORGANIZAONE_ANTHROPIC_BASE_URL,
+    [AuthType.USE_OPENAI]: ORGANIZAONE_OPENAI_BASE_URL,
+  },
+  envKey: ORGANIZAONE_ENV_KEY,
+  apiKeyPlaceholder: 'device token from the OrganizaOne console',
+  // Both protocols list the account's models at /v1/models.
+  supportsModelDiscovery: true,
+  modelNamePrefix: 'OrganizaOne',
+  uiGroup: 'organizaone',
+};
+
+/**
+ * Listed in the OrganizaOne menu as "coming soon" until the proxy serves the
+ * device-authorization contract; not installable.
+ */
+export const organizaoneLoginProvider: ProviderConfig = {
+  id: 'organizaone-login',
+  label: 'Sign in with your account',
+  description: 'Sign in to OrganizaOne in the browser',
+  protocol: AuthType.USE_ANTHROPIC,
+  envKey: '',
+  modelNamePrefix: 'OrganizaOne',
+  uiGroup: 'organizaone',
+  comingSoon: true,
+};
+
+export const organizaoneAippProvider: ProviderConfig = {
+  id: 'organizaone-aipp',
+  label: 'aipp device code',
+  description: 'Paste an aipp connection code',
+  protocol: AuthType.USE_ANTHROPIC,
+  envKey: '',
+  modelNamePrefix: 'OrganizaOne',
+  uiGroup: 'organizaone',
+  comingSoon: true,
+};
