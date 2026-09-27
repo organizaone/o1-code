@@ -1,0 +1,164 @@
+# Copyright 2026 o1-code contributors
+# SPDX-License-Identifier: Apache-2.0
+#
+# o1-code npm release. A pushed vX.Y.Z tag (or a manual run naming an existing
+# tag) builds that tag, checks it, installs the packed tarball in a clean
+# prefix, publishes it to npm and creates the GitHub release from the
+# changelog. No path filter: a tag on an already-pushed commit carries no
+# changed files, and a filtered workflow would silently skip the release.
+name: 'o1-code release'
+
+on:
+  push:
+    tags: ['v*.*.*']
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'An existing tag to release, vX.Y.Z'
+        type: 'string'
+        required: true
+
+# Two runs for the same tag must never publish concurrently, and a release
+# already under way is never cancelled halfway through publishing. A manual
+# run's github.ref is the branch it was started from, so it groups by the tag
+# it names instead, spelled as the tag push spells it.
+concurrency:
+  group: "release-${{ inputs.tag && format('refs/tags/{0}', inputs.tag) || github.ref }}"
+  cancel-in-progress: false
+
+env:
+  # Provenance needs a public repository. Turn it on ('true') once the
+  # repository is public; id-token: write below is already granted for it.
+  PUBLISH_PROVENANCE: 'false'
+  PACKAGE_NAME: '@organizaone/o1-code'
+
+jobs:
+  release:
+    name: 'Release'
+    runs-on: 'ubuntu-latest'
+    timeout-minutes: 60
+    permissions:
+      # Creates the GitHub release and uploads the tarball to it.
+      contents: 'write'
+      # For npm provenance and trusted publishing; unused while provenance is off.
+      id-token: 'write'
+    env:
+      # The core typecheck outgrows Node's default heap on a hosted runner.
+      NODE_OPTIONS: '--max-old-space-size=6144'
+      TAG: "${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref_name }}"
+    steps:
+      # A malformed tag is rejected before anything is checked out; a
+      # dispatched tag that does not exist fails the checkout below.
+      - name: 'Validate the tag'
+        run: |
+          if ! printf '%s' "$TAG" | grep -Eq '^v[0-9]+\.[0-9]+\.[0-9]+$'; then
+            echo "::error::'$TAG' is not a vX.Y.Z tag"
+            exit 1
+          fi
+          echo "VERSION=${TAG#v}" >> "$GITHUB_ENV"
+
+      # The release is built from the tag, never from a branch head.
+      - uses: 'actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10' # v6.0.3
+        with:
+          ref: 'refs/tags/${{ env.TAG }}'
+          fetch-depth: 1
+
+      # registry-url writes the .npmrc that reads NODE_AUTH_TOKEN at publish.
+      - uses: 'actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e' # v6.4.0
+        with:
+          node-version-file: '.nvmrc'
+          registry-url: 'https://registry.npmjs.org'
+
+      - name: 'Install'
+        run: 'corepack pnpm install --frozen-lockfile'
+
+      # Fail fast, before the build: the tag must name the version the tree
+      # carries, that version must not be on npm yet, and it must have a
+      # changelog section to become the release notes.
+      - name: 'Check the version'
+        run: |
+          root_version="$(node -p "require('./package.json').version")"
+          cli_version="$(node -p "require('./packages/cli/package.json').version")"
+          if [ "$root_version" != "$VERSION" ]; then
+            echo "::error::Tag $TAG does not match the root package.json version $root_version"
+            exit 1
+          fi
+          if [ "$cli_version" != "$VERSION" ]; then
+            echo "::error::Tag $TAG does not match the packages/cli/package.json version $cli_version"
+            exit 1
+          fi
+          # npm view prints nothing for an unpublished version of a published
+          # package, and fails with E404 while the package does not exist.
+          published="$(npm view "$PACKAGE_NAME@$VERSION" version 2>/dev/null || true)"
+          if [ -n "$published" ]; then
+            echo "::error::$PACKAGE_NAME@$VERSION is already published"
+            exit 1
+          fi
+          node scripts/o1/release-notes.mjs "$VERSION" > "$RUNNER_TEMP/release-notes.md"
+
+      - name: 'Build'
+        run: |
+          npm run build -- --cli-only
+          npm run bundle
+          npm run prepare:package
+
+      # The fast gates of o1-ci.yml, on the exact tree being published.
+      - name: 'Fast checks'
+        run: |
+          npm run typecheck
+          npm run lint
+          node scripts/o1/brand-lint.mjs
+          node scripts/o1/smoke.mjs
+          node scripts/o1/provider-smoke.mjs
+          node --test scripts/o1/*.test.mjs
+          npm run test:scripts
+
+      # What users install is the tarball, not dist/: install it globally
+      # into a throwaway prefix, from a directory outside the repository, and
+      # run the installed command.
+      - name: 'Pack and try the tarball'
+        run: |
+          mkdir -p "$RUNNER_TEMP/pack" "$RUNNER_TEMP/try" "$RUNNER_TEMP/prefix"
+          tarball_name="$(cd dist && npm pack --pack-destination "$RUNNER_TEMP/pack" | tail -n 1)"
+          tarball="$RUNNER_TEMP/pack/$tarball_name"
+          echo "TARBALL=$tarball" >> "$GITHUB_ENV"
+          cd "$RUNNER_TEMP/try"
+          npm_config_prefix="$RUNNER_TEMP/prefix" npm install -g "$tarball"
+          installed_version="$("$RUNNER_TEMP/prefix/bin/o1-code" --version)"
+          echo "o1-code --version: $installed_version"
+          if [ "$installed_version" != "$VERSION" ]; then
+            echo "::error::The installed o1-code reports $installed_version, expected $VERSION"
+            exit 1
+          fi
+          "$RUNNER_TEMP/prefix/bin/o1-code" --help > /dev/null
+
+      # The granular NPM_TOKEN secret is temporary: trusted publishing (OIDC)
+      # replaces it after the first publication, and the token is deleted.
+      - name: 'Publish'
+        env:
+          NODE_AUTH_TOKEN: '${{ secrets.NPM_TOKEN }}'
+        run: 'npm publish "$TARBALL" --access public --provenance="$PUBLISH_PROVENANCE"'
+
+      # The registry can take a moment to serve a new version.
+      - name: 'Verify'
+        run: |
+          for attempt in 1 2 3 4 5 6 7 8 9 10; do
+            published="$(npm view "$PACKAGE_NAME@$VERSION" version 2>/dev/null || true)"
+            if [ "$published" = "$VERSION" ]; then
+              echo "$PACKAGE_NAME@$VERSION is on npm"
+              exit 0
+            fi
+            echo "Attempt $attempt: $PACKAGE_NAME@$VERSION not visible yet"
+            [ "$attempt" -lt 10 ] && sleep 15
+          done
+          echo "::error::$PACKAGE_NAME@$VERSION did not appear on npm"
+          exit 1
+
+      - name: 'GitHub release'
+        env:
+          GH_TOKEN: '${{ github.token }}'
+        run: |
+          gh release create "$TAG" "$TARBALL" \
+            --verify-tag \
+            --title "o1-code $VERSION" \
+            --notes-file "$RUNNER_TEMP/release-notes.md"

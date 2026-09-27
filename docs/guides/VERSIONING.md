@@ -162,3 +162,19 @@ Bumping the version (Step 5) and releasing are different events. A release is th
   extension manifest and the sandbox image tag to it: the monorepo releases in lockstep.
 - **Starting point.** The version line starts at `0.1.0`. The release scripts count only tags whose
   commit carries `brand.json`.
+- **Release.** A pushed `vX.Y.Z` tag drives `.github/workflows/release.yml`, which also runs by
+  hand for an existing tag. It builds the tag and, in order: checks that the tag equals the version
+  of the root and `packages/cli` manifests, that the version is not on npm yet and that
+  `CHANGELOG.md` has its section; builds, bundles and runs `prepare:package`; runs the fast gates;
+  packs `dist/`, installs the tarball globally into a temporary prefix and runs
+  `o1-code --version` and `--help`; publishes the tarball to npm as `@organizaone/o1-code`
+  (`latest`, public); polls `npm view` until the version appears; creates the GitHub release with
+  the notes from `node scripts/o1/release-notes.mjs <version>` and the tarball attached.
+- **Release credentials.** The publish reads the repository secret `NPM_TOKEN`, a granular token
+  meant only for the first publication; trusted publishing replaces it afterwards. No token lives in
+  the repository.
+- **Release switches.** `PUBLISH_PROVENANCE` at the top of the workflow stays `'false'` until the
+  repository is public. `prepare:package` lists `@organizaone/o1-code-audio-capture` in the
+  package's `optionalDependencies`, and checks its artifacts, only with
+  `O1CODE_PACKAGE_AUDIO_CAPTURE=1` (or `O1CODE_REQUIRE_AUDIO_CAPTURE_PREBUILD=1`, which also makes
+  missing artifacts an error); without it, voice falls back to SoX or arecord.

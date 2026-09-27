@@ -39,18 +39,27 @@ export function preparePackage({
   rootDir = defaultRootDir,
   requireNativeAudioCapture = process.env
     .O1CODE_REQUIRE_AUDIO_CAPTURE_PREBUILD === '1',
+  // o1-code: the native audio-capture package has no prebuild pipeline and is
+  // not published, and an unpublished optional dependency makes `npm install`
+  // of the CLI fail or warn. It is packaged only on request; voice falls back
+  // to SoX/arecord without it. Requiring the prebuild implies packaging it.
+  packageAudioCapture = process.env.O1CODE_PACKAGE_AUDIO_CAPTURE === '1',
   maxPackageUnpackedBytes = DEFAULT_MAX_NPM_PACKAGE_UNPACKED_BYTES,
 } = {}) {
   const distDir = path.join(rootDir, 'dist');
+  const includeAudioCapture = packageAudioCapture || requireNativeAudioCapture;
 
   verifyBundleArtifacts(rootDir, distDir);
   copyDocumentationFiles(rootDir, distDir);
   copyLocales(rootDir, distDir);
   copyExtensionExamples(rootDir, distDir);
   verifyNativeAudioCapturePackage(rootDir, distDir, {
+    enabled: includeAudioCapture,
     required: requireNativeAudioCapture,
   });
-  writeDistPackageJson(rootDir, distDir);
+  writeDistPackageJson(rootDir, distDir, {
+    includeAudioCapture,
+  });
   assertNoSensitivePackageScanLiterals(distDir);
   assertPreparedPackageSize(distDir, maxPackageUnpackedBytes);
   printPackageStructure(distDir);
@@ -161,9 +170,11 @@ function copyExtensionExamples(rootDir, distDir) {
   }
 }
 
-function verifyNativeAudioCapturePackage(rootDir, distDir, { required } = {}) {
-  console.log('Verifying native audio capture package...');
-
+function verifyNativeAudioCapturePackage(
+  rootDir,
+  distDir,
+  { enabled = true, required } = {},
+) {
   const addonSrc = path.join(rootDir, 'packages', 'audio-capture');
   const addonDest = path.join(
     distDir,
@@ -178,6 +189,14 @@ function verifyNativeAudioCapturePackage(rootDir, distDir, { required } = {}) {
   ];
 
   fs.rmSync(addonDest, { recursive: true, force: true });
+
+  if (!enabled) {
+    console.log(
+      'Skipping native audio capture package (set O1CODE_PACKAGE_AUDIO_CAPTURE=1 to include it)',
+    );
+    return;
+  }
+  console.log('Verifying native audio capture package...');
 
   for (const requiredPath of requiredPaths) {
     if (!fs.existsSync(requiredPath)) {
@@ -269,7 +288,7 @@ function hasFileMatching(dir, predicate) {
   return false;
 }
 
-function writeDistPackageJson(rootDir, distDir) {
+function writeDistPackageJson(rootDir, distDir, { includeAudioCapture } = {}) {
   console.log('Creating package.json for distribution...');
 
   const cliEntryPath = path.join(distDir, 'cli-entry.js');
@@ -339,14 +358,19 @@ function writeDistPackageJson(rootDir, distDir) {
   const cliPackageName = fs.existsSync(cliManifestPath)
     ? JSON.parse(fs.readFileSync(cliManifestPath, 'utf-8')).name
     : (brand.identity?.npmName ?? rootPackageJson.name);
+  const repoUrl = brand.identity?.repoUrl;
   const distPackageJson = {
     name: cliPackageName,
     version: rootPackageJson.version,
     description:
       rootPackageJson.description || 'O1-Code - AI-powered coding assistant',
-    repository: brand.identity?.repoUrl
-      ? { type: 'git', url: `git+${brand.identity.repoUrl}.git` }
+    repository: repoUrl
+      ? { type: 'git', url: `git+${repoUrl}.git` }
       : rootPackageJson.repository,
+    homepage: repoUrl ? `${repoUrl}#readme` : rootPackageJson.homepage,
+    bugs: repoUrl ? { url: `${repoUrl}/issues` } : rootPackageJson.bugs,
+    // A scoped package is private by default on npm.
+    publishConfig: { access: 'public' },
     type: 'module',
     main: 'cli.js',
     bin: {
@@ -381,7 +405,9 @@ function writeDistPackageJson(rootDir, distDir) {
     config: rootPackageJson.config,
     dependencies: {},
     optionalDependencies: {
-      '@organizaone/o1-code-audio-capture': rootPackageJson.version,
+      ...(includeAudioCapture
+        ? { '@organizaone/o1-code-audio-capture': rootPackageJson.version }
+        : {}),
       ...nodePtyPins,
       '@teddyzhu/clipboard': '0.0.5',
       '@teddyzhu/clipboard-darwin-arm64': '0.0.5',
