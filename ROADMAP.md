@@ -112,10 +112,12 @@ Decisions so far.
 - Changes come in through a pull request, using `.github/pull_request_template.md`, with
   conversations resolved before merge; no mandatory approving review, because there is a single
   maintainer.
-- `.github/workflows/o1-ci.yml` is the only workflow. The fast checks (`Fast gates`) run on every
-  pull request to `main` and are mandatory; the full suites run on demand. A few tests are skipped
-  because they assert on release or review workflows this repository does not run; each comes back
-  together with a workflow that it can check, such as the release workflow.
+- Two workflows: `.github/workflows/o1-ci.yml` (the fast checks, `Fast gates`, on every pull
+  request to `main`, mandatory; the full suites on demand) and `release.yml` (a `vX.Y.Z` tag
+  publishes to npm). Both run on the runner the repository variable `CI_RUNNER_LABELS` names:
+  the maintainer's self-hosted runner on Dokploy (`["self-hosted","dokploy"]`, no Actions
+  minutes spent) or GitHub's (`["ubuntu-latest"]`); changing it needs no pull request. A few
+  tests are skipped because they assert on review workflows this repository does not run.
 
 ## Out of scope
 
