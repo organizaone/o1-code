@@ -436,7 +436,9 @@ function ModelIdsStep({
     usePreselect && preselect ? preselect : selectedModelIds;
   const [selectedRecommendationKeys, setSelectedRecommendationKeys] = useState(
     () =>
-      usePreselect
+      // A draft carried over a reload was checked on the list: keep every
+      // model the provider still serves checked, not only the built-ins.
+      usePreselect || draftModelIds !== undefined
         ? orderSelectedModelKeys(initialModelIds, modelOptions, builtInModelIds)
         : getRecommendedSelections(
             initialModelIds,
@@ -807,6 +809,10 @@ function DiscoveringModelIdsStep({
   flow: ProviderSetupFlow;
 }): React.JSX.Element {
   const keyCheck = flow.state.keyCheck;
+  // Only a list the key step actually got is reused. A check that timed out
+  // or failed on the network says nothing about the provider, so the first
+  // visit asks again instead of opening on an empty list.
+  const reusableCheck = keyCheck?.status === 'ok' ? keyCheck : undefined;
   // Each ctrl+r asks the provider again; the key step's answer serves the first.
   const [attempt, setAttempt] = useState(0);
   const [snapshot, setSnapshot] = useState<{
@@ -814,7 +820,7 @@ function DiscoveringModelIdsStep({
     source: ModelRecommendationSource;
     verified: boolean;
   } | null>(() =>
-    keyCheck ? snapshotOf(keyCheck, config.models ?? []) : null,
+    reusableCheck ? snapshotOf(reusableCheck, config.models ?? []) : null,
   );
   const baseUrl = flow.state.baseUrl;
   const apiKey = flow.state.apiKey;
@@ -827,10 +833,15 @@ function DiscoveringModelIdsStep({
   // The answer is handed to the flow, which changes `keyCheck`: an attempt
   // already answered is not asked again.
   const answeredAttemptRef = useRef<number | null>(null);
+  // A reload that fails keeps the provider's list already on screen.
+  const providerSnapshotRef = useRef(
+    snapshot?.source === 'provider' ? snapshot : null,
+  );
+  const [reloadFailed, setReloadFailed] = useState(false);
 
   useEffect(() => {
-    // The key step already asked the provider: nothing to fetch again.
-    if (keyCheck && attempt === 0) return;
+    // The key step already got the list: nothing to fetch again.
+    if (reusableCheck && attempt === 0) return;
     if (answeredAttemptRef.current === attempt) return;
     const controller = new AbortController();
     let active = true;
@@ -851,7 +862,17 @@ function DiscoveringModelIdsStep({
         return;
       }
       answeredAttemptRef.current = attempt;
-      setSnapshot(snapshotOf(result, builtInModels));
+      const next = snapshotOf(result, builtInModels);
+      if (next.source === 'provider') {
+        providerSnapshotRef.current = next;
+        setReloadFailed(false);
+        setSnapshot(next);
+      } else if (providerSnapshotRef.current) {
+        setReloadFailed(true);
+        setSnapshot(providerSnapshotRef.current);
+      } else {
+        setSnapshot(next);
+      }
       // The review reads the answer from the flow. A failed attempt says
       // nothing new about the key, so an earlier answer stands.
       if (result.status === 'ok' || !keyCheck) setKeyCheckRef.current(result);
@@ -861,15 +882,27 @@ function DiscoveringModelIdsStep({
       active = false;
       controller.abort();
     };
-  }, [apiKey, baseUrl, protocol, config.models, keyCheck, attempt]);
+  }, [
+    apiKey,
+    baseUrl,
+    protocol,
+    config.models,
+    keyCheck,
+    reusableCheck,
+    attempt,
+  ]);
 
   // What the person had chosen when they asked for the list again: the new
   // step starts from it.
   const draftRef = useRef<string[] | undefined>(undefined);
   const [draftModelIds, setDraftModelIds] = useState<string[] | undefined>();
 
-  // Without the provider's list there is only typing: offer to ask again.
-  const canFetchAgain = snapshot?.source === 'fallback';
+  // The list can be asked for again at any time: a provider that just
+  // enabled a model, or a list that failed to load.
+  const canFetchAgain = snapshot !== null;
+  const listFailed =
+    reloadFailed ||
+    (snapshot?.source === 'fallback' && snapshot.models.length === 0);
   useKeypress(
     (key) => {
       if (key.ctrl && key.name === 'r') {
@@ -899,6 +932,15 @@ function DiscoveringModelIdsStep({
 
   return (
     <Box flexDirection="column">
+      {listFailed && (
+        <Box marginTop={1}>
+          <Text color={theme.status.warning}>
+            {t(
+              'The provider list could not be read · ctrl+r fetches the models again',
+            )}
+          </Text>
+        </Box>
+      )}
       <ModelIdsStep
         key={attempt}
         config={config}
@@ -921,19 +963,11 @@ function DiscoveringModelIdsStep({
             : undefined
         }
       />
-      {canFetchAgain && (
-        <Box marginTop={1}>
-          <Text color={extendedTheme.text.muted}>
-            {/* With a list on screen its header already says the provider's
-                list is unavailable; without one, this line says it. */}
-            {snapshot.models.length > 0
-              ? t('ctrl+r fetches the models again')
-              : t(
-                  'The provider list could not be read · ctrl+r fetches the models again',
-                )}
-          </Text>
-        </Box>
-      )}
+      <Box marginTop={1}>
+        <Text color={extendedTheme.text.muted}>
+          {t('ctrl+r fetches the models again')}
+        </Text>
+      </Box>
     </Box>
   );
 }
