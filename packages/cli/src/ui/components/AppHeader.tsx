@@ -4,7 +4,6 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { useState } from 'react';
 import { Box } from 'ink';
 import { Header } from './Header.js';
 import { WelcomeScreen } from './WelcomeScreen.js';
@@ -15,7 +14,6 @@ import { useTerminalSize } from '../hooks/useTerminalSize.js';
 import { useSystemMemory } from '../hooks/use-system-memory.js';
 import { useMCPHealth } from '../hooks/useMCPHealth.js';
 import { useLogoAnimation } from '../hooks/use-logo-animation.js';
-import { resolveLogoStyle } from '../utils/logo-style.js';
 import { BRAND } from '../../generated/brand.js';
 
 interface AppHeaderProps {
@@ -33,8 +31,7 @@ export const AppHeader = ({ version, pinned = false }: AppHeaderProps) => {
   const { columns } = useTerminalSize();
   const memory = useSystemMemory();
   const mcp = useMCPHealth();
-  const [logoStyle] = useState(resolveLogoStyle);
-  const logoAnimation = useLogoAnimation(pinned && logoStyle === 'blocks');
+  const logoAnimation = useLogoAnimation(pinned);
   if (config.getScreenReader()) return pinned ? <Box height={2} /> : null;
   const header = (
     <Header
@@ -46,7 +43,6 @@ export const AppHeader = ({ version, pinned = false }: AppHeaderProps) => {
       updateVersion={uiState.updateInfo?.update?.latest}
       mcpOfflineCount={mcp.disconnectedCount}
       logoAnimation={logoAnimation}
-      logoStyle={logoStyle}
     />
   );
   if (!pinned) return header;

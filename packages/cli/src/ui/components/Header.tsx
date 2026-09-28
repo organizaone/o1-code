@@ -25,7 +25,6 @@ import {
   type SystemMemory,
 } from '../hooks/use-system-memory.js';
 import { O1Logo, O1Wordmark } from './O1Logo.js';
-import type { LogoStyle } from '../utils/logo-style.js';
 import { AnimatedLogo, type AnimatedLogoProps } from './AnimatedLogo.js';
 
 export interface HeaderProps {
@@ -41,8 +40,6 @@ export interface HeaderProps {
    * which the animation uses, so it is one row taller.
    */
   logoAnimation?: AnimatedLogoProps;
-  /** `wordmark` draws the one-line logo where block elements show seams. */
-  logoStyle?: LogoStyle;
 }
 
 const SEP = ' · ';
@@ -159,7 +156,6 @@ export const Header: React.FC<HeaderProps> = ({
   updateVersion,
   mcpOfflineCount,
   logoAnimation,
-  logoStyle = 'blocks',
 }) => {
   const tier = getLayoutTier(columns);
   const marginX = sideMargin(tier);
@@ -206,13 +202,7 @@ export const Header: React.FC<HeaderProps> = ({
   return (
     <Box flexDirection="column" marginX={marginX} width={width}>
       <Box width={width} justifyContent="space-between">
-        {logoStyle === 'wordmark' ? (
-          <O1Wordmark />
-        ) : logoAnimation ? (
-          <AnimatedLogo {...logoAnimation} />
-        ) : (
-          <O1Logo />
-        )}
+        {logoAnimation ? <AnimatedLogo {...logoAnimation} /> : <O1Logo />}
         <Box flexDirection="column" alignItems="flex-end" flexShrink={0}>
           {logoAnimation && <Text> </Text>}
           {versionText}

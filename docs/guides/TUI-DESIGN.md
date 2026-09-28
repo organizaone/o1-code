@@ -82,11 +82,6 @@ brand, "-CODE" in primary text.
 
 Under 80 columns it becomes `O1Wordmark`: `O1-CODE.` in bold on one line, same colours.
 
-**Terminal.app gets the wordmark at every width, and no animation** (`utils/logo-style.ts`, from
-`TERM_PROGRAM=Apple_Terminal`). It draws block elements from the font, which does not fill the
-cell, so each pixel of the logo shows a seam, even at line spacing 1.0. Terminals that draw block
-elements themselves (iTerm2, Ghostty, kitty, Windows Terminal) keep the pixel logo.
-
 Rejected, so they do not come back: a drop shadow (too heavy for a 4-px font, needs per-cell
 background colour, and opens gaps in fonts with taller line height), italics, gradients, a
 box-drawing outline, and the 6-row "ANSI Shadow" font.
