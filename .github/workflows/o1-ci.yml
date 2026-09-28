@@ -119,18 +119,22 @@ jobs:
           npm run build -- --cli-only
           npm run bundle
 
-      - name: 'Publish the bundle artifact'
+      - name: 'Publish the build artifact'
         uses: 'actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a' # v7.0.1
         with:
-          name: 'dist'
-          path: 'dist/'
+          name: 'build'
+          path: |
+            dist/
+            packages/*/dist/
           retention-days: 14
           if-no-files-found: 'error'
 
   # The gates below run on pull requests, merge groups and manual runs, never
-  # on a push to main: the merge was already validated by then. Lint and
-  # typecheck resolve workspace types from the source through tsconfig paths,
-  # so they need only the generated sources, not the build.
+  # on a push to main: the merge was already validated by then. Lint reads
+  # only sources. Typecheck and the script tests consume the build through
+  # the artifact: project references resolve declaration outputs under
+  # packages/*/dist (TS6305 without them), and the core-subpath guard
+  # resolves exports into the same directories.
 
   lint:
     name: 'Lint'
@@ -178,6 +182,12 @@ jobs:
       - name: 'Install'
         run: 'corepack pnpm install --frozen-lockfile'
 
+      - name: 'Restore the build'
+        uses: 'actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c' # v8.0.1
+        with:
+          name: 'build'
+          path: '.'
+
       - name: 'Generate'
         run: 'npm run generate'
 
@@ -189,7 +199,7 @@ jobs:
     needs: 'classify'
     if: "${{ needs.classify.outputs.docs_only != 'true' && needs.classify.outputs.fork_pr != 'true' && github.event_name != 'push' }}"
     runs-on: '${{ fromJSON(vars.CI_RUNNER_LABELS || ''["ubuntu-latest"]'') }}'
-    timeout-minutes: 30
+    timeout-minutes: 15
     env:
       NODE_OPTIONS: '--max-old-space-size=6144'
     steps:
@@ -204,15 +214,14 @@ jobs:
       - name: 'Install'
         run: 'corepack pnpm install --frozen-lockfile'
 
+      - name: 'Restore the build'
+        uses: 'actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c' # v8.0.1
+        with:
+          name: 'build'
+          path: '.'
+
       - name: 'Generate'
         run: 'npm run generate'
-
-      # The inherited script tests assert on the built workspace: the
-      # core-subpath guard resolves specifiers through the package exports
-      # into packages/*/dist. Build what the old single job built before
-      # running them, so the lane stays independent of the build job.
-      - name: 'Build'
-        run: 'npm run build -- --cli-only'
 
       - name: 'Fork script tests'
         run: 'node --test scripts/o1/*.test.mjs'
@@ -243,11 +252,11 @@ jobs:
       - name: 'Install'
         run: 'corepack pnpm install --frozen-lockfile'
 
-      - name: 'Restore the bundle'
+      - name: 'Restore the build'
         uses: 'actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c' # v8.0.1
         with:
-          name: 'dist'
-          path: 'dist'
+          name: 'build'
+          path: '.'
 
       - name: 'Web Shell tests'
         working-directory: 'packages/web-shell'
@@ -273,11 +282,11 @@ jobs:
       - name: 'Install'
         run: 'corepack pnpm install --frozen-lockfile'
 
-      - name: 'Restore the bundle'
+      - name: 'Restore the build'
         uses: 'actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c' # v8.0.1
         with:
-          name: 'dist'
-          path: 'dist'
+          name: 'build'
+          path: '.'
 
       - name: 'Brand lint'
         run: 'node scripts/o1/brand-lint.mjs'
