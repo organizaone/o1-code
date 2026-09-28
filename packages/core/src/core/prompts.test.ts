@@ -207,18 +207,44 @@ describe('Core System Prompt (prompts.ts)', () => {
     );
   });
 
-  it('does not tell the model to enter plan mode without user opt-in', () => {
+  it('enters plan mode only on a user request or large open gaps', () => {
     vi.stubEnv('SANDBOX', undefined);
     const prompt = getCoreSystemPrompt();
 
     expect(prompt).toContain(
-      'Do not enter plan mode or call enter_plan_mode on your own',
+      'Call enter_plan_mode only when the user asks for plan mode or to plan this work (in any language)',
     );
+    expect(prompt).toContain('complexity alone is not a reason');
     expect(prompt).toContain(
-      'Use plan mode only when the user explicitly asks you to switch to plan mode',
+      'When asked for a plan, deliver it and make no edits until told to proceed.',
     );
     expect(prompt).not.toContain(
       'When the work requires a shared plan before execution, enter plan mode',
+    );
+  });
+
+  it('routes work through skills and ranks user instructions above them', () => {
+    vi.stubEnv('SANDBOX', undefined);
+    const prompt = getCoreSystemPrompt();
+
+    expect(prompt).toContain('Before acting, check the available skills');
+    expect(prompt).toContain(
+      'User instructions and AGENTS.md outrank a skill; a loaded skill outranks these defaults.',
+    );
+  });
+
+  it('asks for fresh evidence before claiming a result', () => {
+    vi.stubEnv('SANDBOX', undefined);
+    const prompt = getCoreSystemPrompt();
+
+    expect(prompt).toContain(
+      'Claim results only from output seen after your last edit',
+    );
+    expect(prompt).toContain(
+      'A test that would pass without your change proves nothing.',
+    );
+    expect(prompt).toContain(
+      'Verify each review comment against the code before changing anything.',
     );
   });
 

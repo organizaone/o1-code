@@ -31,16 +31,17 @@ export interface EnterPlanModeParams {
   userRequested?: boolean;
 }
 
-const enterPlanModeToolDescription = `Use this tool only after the user explicitly asks to switch into plan mode or confirms they want plan mode. Entering plan mode is a privilege reduction, so it does not require user confirmation at execution time.
+const enterPlanModeToolDescription = `Use this tool only when the user asks for plan mode or asks you to plan this work (in any language), or when the request leaves gaps large enough that settling them before any edit is clearly better. Entering plan mode is a privilege reduction, so it does not require user confirmation at execution time.
 
 ## When to Use This Tool
-Use this tool when the user has opted into plan mode for a task that should be read-only while the plan is formed, such as multi-file changes, design choices, or ambiguous requirements.
+- The user asked for plan mode, or asked you to plan the work ("plan", "planejar", "planifier", and the like).
+- The request leaves open decisions (scope, design, data, behaviour) that would change what you edit, and settling them first is clearly better than starting.
 
 ## When NOT to Use This Tool
 Do not use this tool just because a task involves planning, is complex, or requires investigation. In the current mode, you can still think, inspect files, ask clarifying questions, and present a plan without switching modes.
 
 ## Important
-If plan mode seems helpful but the user has not asked for it, ask first. Do NOT use this tool if the user has explicitly asked you not to use plan mode.`;
+Do NOT use this tool if the user has explicitly asked you not to use plan mode.`;
 
 const enterPlanModeToolSchemaData: FunctionDeclaration = {
   name: 'enter_plan_mode',
@@ -51,7 +52,7 @@ const enterPlanModeToolSchemaData: FunctionDeclaration = {
       userRequested: {
         type: 'boolean',
         description:
-          'Set to true ONLY when the user explicitly asked for plan mode in this turn, or explicitly confirmed they want it. Leave unset (or false) when you are deciding to plan on your own without the user asking. In YOLO mode, an explicit user request will not take effect unless this is true.',
+          'Set to true ONLY when the user explicitly asked for plan mode, or asked you to plan this work, in this turn, or explicitly confirmed they want it. Leave unset (or false) when you are deciding to plan on your own without the user asking. In YOLO mode, an explicit user request will not take effect unless this is true.',
       },
     },
     additionalProperties: false,
