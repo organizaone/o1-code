@@ -366,9 +366,9 @@ jobs:
 
   # One job per package: independent, re-runnable, and the packages that
   # never had CI (sdk-typescript, acp-bridge, node-repl, vscode-ide-companion,
-  # audio-capture) finally run their suites. Vitest transforms TypeScript
-  # itself, so only core and cli, whose suites assert on built output, run
-  # the build first.
+  # audio-capture) finally run their suites. Every suite consumes the build
+  # artifact: vitest resolves workspace imports through the package exports
+  # into packages/*/dist, and the core and cli suites assert on built output.
   full:
     name: 'Full suites (${{ matrix.package }})'
     needs: 'fast'
@@ -406,9 +406,14 @@ jobs:
       - name: 'Install'
         run: 'corepack pnpm install --frozen-lockfile'
 
-      - name: 'Build'
-        if: "${{ matrix.package == 'core' || matrix.package == 'cli' }}"
-        run: 'npm run build -- --cli-only'
+      - name: 'Restore the build'
+        uses: 'actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c' # v8.0.1
+        with:
+          name: 'build'
+          path: '.'
+
+      - name: 'Generate'
+        run: 'npm run generate'
 
       - name: 'Git identity for the suites that commit'
         run: |
