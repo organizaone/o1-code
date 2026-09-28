@@ -155,11 +155,14 @@ jobs:
           echo "::error::$PACKAGE_NAME@$VERSION did not appear on npm"
           exit 1
 
+      # Through the REST API rather than the gh CLI, which the self-hosted
+      # runner's image does not carry. Idempotent: a re-run reuses the release
+      # and skips an asset already attached.
       - name: 'GitHub release'
         env:
           GH_TOKEN: '${{ github.token }}'
         run: |
-          gh release create "$TAG" "$TARBALL" \
-            --verify-tag \
+          node scripts/o1/github-release.mjs "$TAG" \
             --title "o1-code $VERSION" \
-            --notes-file "$RUNNER_TEMP/release-notes.md"
+            --notes-file "$RUNNER_TEMP/release-notes.md" \
+            --asset "$TARBALL"
