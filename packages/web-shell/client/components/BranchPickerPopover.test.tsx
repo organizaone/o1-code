@@ -4299,6 +4299,13 @@ describe('BranchPickerPopover remotes view', () => {
     expect(
       document.body.querySelector('[data-testid="remotes-back"]'),
     ).toBeNull();
+    // The open effect re-runs on the switch and focuses the search box 50ms
+    // later. Let that legitimate move land before the baseline is taken:
+    // on a loaded machine it otherwise fires between the baseline and the
+    // settle, and the assertion below blames the settle for it.
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 60));
+    });
     // The settle lands after the switch: it must not move focus ANYWHERE
     // (search box, back button, a re-rendered row). The saved target was
     // cleared at view-exit, and a ref-restore onto a detached node is a
