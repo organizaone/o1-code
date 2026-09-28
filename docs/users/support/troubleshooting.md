@@ -34,7 +34,7 @@ This guide provides solutions to common issues and debugging tips, including top
 ## Frequently asked questions (FAQs)
 
 - **Q: How do I update O1-Code to the latest version?**
-  - A: Pull the latest changes in your clone, then run `corepack pnpm install --frozen-lockfile`, `npm run build -- --cli-only` and `npm run bundle`.
+  - A: O1-Code checks npm for a newer release at startup and updates itself unless `general.enableAutoUpdate` is `false`. To update by hand, run `/update` inside O1-Code or `npm install -g @organizaone/o1-code@latest`. If you run it from a clone, pull the latest changes, then run `corepack pnpm install --frozen-lockfile`, `npm run build -- --cli-only` and `npm run bundle`.
 
 - **Q: Where are the O1-Code configuration or settings files stored?**
   - A: The O1-Code configuration is stored in two `settings.json` files:
@@ -63,7 +63,7 @@ This guide provides solutions to common issues and debugging tips, including top
   - **Cause:** The CLI is not correctly installed or it is not in your system's `PATH`.
   - **Solution:**
     - Check that npm's global binary directory (`npm prefix -g`, plus `/bin` on macOS and Linux) is in your `PATH`, and restart your terminal.
-    - Reinstall with `npm install -g @organizaone/o1-code`, or run it without installing: `npx @organizaone/o1-code`.
+    - Reinstall with `npm install -g @organizaone/o1-code@latest`, or run it without installing: `npx @organizaone/o1-code@latest`.
     - From a clone of the repository, run `npm link` after `npm run bundle`, or run the bundle directly with `node dist/cli.js`. See [Build from source](../../developers/build-from-source.md).
 
 - **Error: `MODULE_NOT_FOUND` or import errors.**

@@ -1,6 +1,6 @@
 # Build from source
 
-Most people install o1-code from npm: `npm install -g @organizaone/o1-code`. Build from source
+Most people install o1-code from npm: `npm install -g @organizaone/o1-code@latest`. Build from source
 when you want to run an unreleased change, work on the code, or package it yourself.
 
 ## Requirements

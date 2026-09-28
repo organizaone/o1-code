@@ -386,6 +386,7 @@ function writeDistPackageJson(rootDir, distDir, { includeAudioCapture } = {}) {
     version: rootPackageJson.version,
     description:
       rootPackageJson.description || 'O1-Code - AI-powered coding assistant',
+    license: rootPackageJson.license,
     repository: repoUrl
       ? { type: 'git', url: `git+${repoUrl}.git` }
       : rootPackageJson.repository,

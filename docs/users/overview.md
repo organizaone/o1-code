@@ -8,7 +8,7 @@ commands and works through multi-step tasks, with the model provider you choose.
 Install O1-Code from npm (Node.js 22 or later), then start it in a project:
 
 ```bash
-npm install -g @organizaone/o1-code
+npm install -g @organizaone/o1-code@latest
 cd your-project
 o1-code
 ```

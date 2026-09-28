@@ -9,10 +9,7 @@
   <a href="https://www.npmjs.com/package/@organizaone/o1-code"><img alt="npm version" src="https://img.shields.io/npm/v/@organizaone/o1-code"></a>
   <a href="https://www.npmjs.com/package/@organizaone/o1-code"><img alt="npm downloads" src="https://img.shields.io/npm/dm/@organizaone/o1-code"></a>
   <a href="https://nodejs.org/"><img alt="Node.js" src="https://img.shields.io/node/v/@organizaone/o1-code"></a>
-  <a href="./LICENSE"><img alt="License" src="https://img.shields.io/npm/l/@organizaone/o1-code"></a>
-  <a href="https://github.com/silvioricardo87/o1-code/actions/workflows/o1-ci.yml"><img alt="CI" src="https://github.com/silvioricardo87/o1-code/actions/workflows/o1-ci.yml/badge.svg?branch=main"></a>
-  <a href="https://github.com/silvioricardo87/o1-code/releases"><img alt="Release" src="https://img.shields.io/github/v/release/silvioricardo87/o1-code"></a>
-  <a href="https://github.com/silvioricardo87/o1-code/commits/main"><img alt="Last commit" src="https://img.shields.io/github/last-commit/silvioricardo87/o1-code"></a>
+  <a href="./LICENSE"><img alt="License: Apache-2.0" src="https://img.shields.io/badge/license-Apache--2.0-blue"></a>
 </p>
 
 o1-code reads your project, edits files, runs commands and works through multi-step tasks, asking
@@ -26,11 +23,11 @@ running on your machine, or any OpenAI-compatible or Anthropic endpoint by its b
 ## Install
 
 ```bash
-npm install -g @organizaone/o1-code
+npm install -g @organizaone/o1-code@latest
 ```
 
 Requires [Node.js](https://nodejs.org/) 22 or later, on Windows, macOS or Linux. No administrator
-rights and no compiler. To try it without installing, run `npx @organizaone/o1-code`. To run an
+rights and no compiler. To try it without installing, run `npx @organizaone/o1-code@latest`. To run an
 unreleased change, see [Build from source](./docs/developers/build-from-source.md).
 
 ## Get started
