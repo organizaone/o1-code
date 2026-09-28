@@ -26,8 +26,8 @@ follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   `reasoning_effort`, the field the proxy reads, instead of a nested field it ignored.
 - Connecting a provider keeps the reasoning efforts each model declares in the model list
   (`reasoning.efforts` and `reasoning.default`; a Claude CLI model of the proxy takes every level),
-  so the effort is sent only to models that take it. Providers connected before this release get
-  it by connecting again with `/auth`.
+  which is what sends the effort in the field the proxy reads. Providers connected before this
+  release get it by connecting again with `/auth`.
 - The footer shows `reasoning default` for a model that takes an effort when none was chosen.
 
 ### Documentation

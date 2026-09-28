@@ -42,8 +42,7 @@ function isReasoningEffort(value: unknown): value is ReasoningEffort {
  * What a model list says about reasoning effort. The OrganizaOne proxy states
  * it per model as `reasoning: { efforts, default }`; until it does, a model it
  * runs through Claude CLI (`owned_by: "claude-cli"`) takes the whole ladder,
- * which is what the proxy applies. Anything else says nothing, and a model
- * that says nothing is not sent an effort it may not accept.
+ * which is what the proxy applies. Anything else says nothing about effort.
  */
 function readReasoning(item: object): ModelReasoningCapabilities | undefined {
   const declared = (item as { reasoning?: unknown }).reasoning;
