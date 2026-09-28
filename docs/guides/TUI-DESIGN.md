@@ -165,7 +165,12 @@ settings (`ui.customAsciiArt`, `ui.hideBanner`, …) are gone and ignored if pre
 
 ### Conversation
 
-- **User message:** `❯` in brand, text in primary.
+- **User message:** `❯` in brand, text in primary. The message that started the running turn
+  shows the turn's state in that column (`utils/turn-marker.ts`): a spinner in brand while nothing
+  has appeared under it yet, `❯` again with a muted `…` after the text once the agent shows
+  something, and `✓` (`glyphs().done`) in brand once the turn ends. A cancelled or failed turn
+  leaves `❯`, as do messages restored from an earlier session (`hooks/use-turn-outcome.ts` records
+  the outcome on the item).
 - **Tool row** (`shared/ToolStatusIndicator.tsx`): marker in the category colour, label padded to
   11 columns so tool names line up, then the tool and its target. A spinner replaces the marker
   while it runs, with the elapsed time. Under 40 columns of content only the marker stays.

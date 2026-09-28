@@ -7,6 +7,12 @@ follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Terminal interface
+
+- The message that started a turn shows the turn's state in its prefix column: a spinner while
+  the agent has shown nothing yet, `❯` with `…` after the text once something appears, and `✓`
+  when the turn ends. A cancelled or failed turn leaves `❯`.
+
 ### Documentation
 
 - The README opens on what o1-code is and how to install it from npm, with screenshots of the

@@ -225,6 +225,12 @@ export type HistoryItemUser = HistoryItemBase & {
    * ambiguous model-history behavior must set this explicitly.
    */
   sentToModel?: boolean;
+  /**
+   * How the turn this message started ended. Set once, when the turn
+   * settles; undefined while it runs, for messages that never started a
+   * turn, and for messages restored from an earlier session.
+   */
+  turnOutcome?: 'done' | 'cancelled' | 'error';
 };
 
 export type HistoryItemLlm = HistoryItemBase & {

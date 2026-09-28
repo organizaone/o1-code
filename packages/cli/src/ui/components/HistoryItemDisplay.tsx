@@ -12,6 +12,7 @@ import {
   sanitizeSensitiveText,
 } from '../utils/textUtils.js';
 import { ToolCallStatus, type HistoryItem } from '../types.js';
+import type { LiveTurnMarker } from '../utils/turn-marker.js';
 import { ProviderRetryBox } from './messages/ProviderRetryBox.js';
 import {
   UserMessage,
@@ -105,6 +106,11 @@ interface HistoryItemDisplayProps {
    * Used to expand/collapse the whole group as a unit on click.
    */
   thoughtHeadId?: number;
+  /**
+   * For the user message that started the running turn: whether the agent
+   * has shown anything for it yet. Undefined for every other item.
+   */
+  turnMarker?: LiveTurnMarker;
 }
 
 /**
@@ -375,6 +381,7 @@ const HistoryItemDisplayComponent: React.FC<HistoryItemDisplayProps> = ({
   thoughtExpanded,
   fullDetail = false,
   thoughtHeadId,
+  turnMarker,
 }) => {
   const marginTop = getHistoryItemMarginTop(item);
 
@@ -411,7 +418,13 @@ const HistoryItemDisplayComponent: React.FC<HistoryItemDisplayProps> = ({
     >
       {/* Render standard message types */}
       {itemForDisplay.type === 'user' && (
-        <UserMessage text={itemForDisplay.text} />
+        <UserMessage
+          text={itemForDisplay.text}
+          marker={
+            turnMarker ??
+            (itemForDisplay.turnOutcome === 'done' ? 'done' : undefined)
+          }
+        />
       )}
       {itemForDisplay.type === 'notification' && (
         <InfoMessage text={itemForDisplay.text} />

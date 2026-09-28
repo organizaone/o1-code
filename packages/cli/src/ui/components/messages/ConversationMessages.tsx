@@ -25,6 +25,7 @@ import { sanitizeTerminalText } from '../../utils/textUtils.js';
 import { formatDuration } from '../../utils/displayUtils.js';
 import type { InlineImageData } from '../../types.js';
 import { TerminalImage } from '../TerminalImage.js';
+import { Spinner } from '../RespondingSpinner.js';
 import { formatInlineImageOverflow } from '../../utils/inline-image-parts.js';
 
 const debugLogger = createDebugLogger('THINK_RENDER');
@@ -36,6 +37,7 @@ export const toggleKeyHint = 'ctrl+o';
 
 interface UserMessageProps {
   text: string;
+  marker?: UserTurnMarker;
 }
 
 interface UserShellMessageProps {
@@ -93,6 +95,10 @@ interface PrefixedTextMessageProps {
   ariaLabel?: string;
   marginTop?: number;
   alignSelf?: 'auto' | 'flex-start' | 'center' | 'flex-end';
+  /** Drawn in the prefix column instead of `prefix`, which still sets the width. */
+  prefixNode?: React.ReactNode;
+  /** Muted text after the message, on its last line. */
+  suffix?: string;
 }
 
 interface PrefixedMarkdownMessageProps {
@@ -134,6 +140,8 @@ const PrefixedTextMessage: React.FC<PrefixedTextMessageProps> = ({
   ariaLabel,
   marginTop = 0,
   alignSelf,
+  prefixNode,
+  suffix,
 }) => {
   const prefixWidth = getPrefixWidth(prefix);
 
@@ -145,13 +153,18 @@ const PrefixedTextMessage: React.FC<PrefixedTextMessageProps> = ({
       alignSelf={alignSelf}
     >
       <Box width={prefixWidth} flexShrink={0}>
-        <Text color={prefixColor} aria-label={ariaLabel}>
-          {prefix}
-        </Text>
+        {prefixNode ?? (
+          <Text color={prefixColor} aria-label={ariaLabel}>
+            {prefix}
+          </Text>
+        )}
       </Box>
       <Box flexGrow={1}>
         <Text wrap="wrap" color={textColor}>
           {text}
+          {suffix !== undefined && (
+            <Text color={extendedTheme.text.muted}>{suffix}</Text>
+          )}
         </Text>
       </Box>
     </Box>
@@ -269,12 +282,30 @@ const ContinuationMarkdownMessage: React.FC<
   );
 };
 
-export const UserMessage: React.FC<UserMessageProps> = ({ text }) => (
+/**
+ * The state of the turn a user message started, shown in its prefix column:
+ * `waiting` (a spinner: nothing has arrived yet), `running` (the prompt glyph
+ * back, with `…` after the text), `done` (the done glyph). Undefined draws the
+ * plain prompt glyph: no turn, a cancelled or failed one, or a message
+ * restored from an earlier session.
+ */
+export type UserTurnMarker = 'waiting' | 'running' | 'done';
+
+export const UserMessage: React.FC<UserMessageProps> = ({ text, marker }) => (
   // The TUI paints no background of its own; user messages render directly on
   // the terminal background so they blend in across terminals and themes.
   <PrefixedTextMessage
     text={text}
-    prefix={glyphs().prompt}
+    prefix={marker === 'done' ? glyphs().done : glyphs().prompt}
+    prefixNode={
+      marker === 'waiting' ? (
+        <Spinner
+          color={extendedTheme.ui.brand}
+          altText={SCREEN_READER_USER_PREFIX}
+        />
+      ) : undefined
+    }
+    suffix={marker === 'running' ? ' …' : undefined}
     prefixColor={extendedTheme.ui.brand}
     textColor={theme.text.primary}
     ariaLabel={SCREEN_READER_USER_PREFIX}
