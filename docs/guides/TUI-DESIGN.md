@@ -285,7 +285,13 @@ never leaves; it only shortens from the start.
   `rule` for autocomplete suggestions (`/`, `@`), amber for approval, red for provider errors.
 - **Model list** (`ModelDialog.tsx`): title bold primary, subtitle `the current one is marked` in
   muted, current model with a green dot. After a switch, the conversation logs
-  `model switched to <model> · <size> ctx` and the footer names the new model.
+  `model switched to <model> · <size> ctx` and the footer names the new model. For the main
+  model, an `Effort` row lists `default` and the tiers the highlighted model takes, the chosen one
+  as `‹ tier ›` in bold brand, the rest secondary; ←/→ move along it and the choice applies with the
+  switch (`↑↓ navigate · ←→ effort · enter select · esc close`). A tier the next model lacks shows
+  as its nearest one.
+- **Effort** (`EffortDialog.tsx`): `default` first (the model/provider decides, and the saved tier
+  is cleared), then the model's tiers; it opens on the current one.
 - **Slash/@ suggestions:** name in a 28-column column, detail in muted, footer
   `↑↓ navigate · tab complete · enter select · esc close`. Lists filter on every key.
 - **Connect provider** (`auth/AuthDialog.tsx`, `ProviderSetupSteps.tsx`): brand-bordered box, the path

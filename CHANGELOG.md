@@ -11,6 +11,10 @@ follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 - A message you sent now stands apart from the reply and the tool rows: a brand-coloured bar runs
   down every line of it and its text is brand soft, instead of the same colour as everything else.
+- `/model` sets the reasoning effort along with the model: ←/→ move along `default` and the
+  tiers the highlighted model takes, and Enter applies both.
+- `/effort` offers `default` first, which clears the saved tier so the model/provider decides;
+  `/effort default` does the same. The effort picker is translated to Portuguese.
 - The text in the input can be selected by dragging over it, like the conversation, and is copied
   on release. A click without a drag still places the cursor.
 - While monitors run, the activity line shows `● monitoring (N)` next to `info`, `reading` and the

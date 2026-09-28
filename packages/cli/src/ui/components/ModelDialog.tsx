@@ -28,6 +28,16 @@ import { useKeypress } from '../hooks/useKeypress.js';
 import { extendedTheme, theme } from '../semantic-colors.js';
 import { glyphs } from '../glyphs.js';
 import { DescriptiveRadioButtonSelect } from './shared/DescriptiveRadioButtonSelect.js';
+import {
+  clampReasoningEffort,
+  parseModelReasoningCapabilities,
+  reasoningEffortsForCapability,
+} from '@organizaone/o1-code-core/core/reasoning-effort.js';
+import { REASONING_EFFORT_DEFAULT } from '../../acp-integration/model-configuration.js';
+import {
+  applyEffortSelection,
+  type EffortSelection,
+} from '../commands/effort-utils.js';
 import { ConfigContext } from '../contexts/ConfigContext.js';
 import { UIStateContext, type UIState } from '../contexts/UIStateContext.js';
 import { useSettings } from '../contexts/SettingsContext.js';
@@ -692,6 +702,15 @@ export function ModelDialog({
         (key.name === 'left' && isAuxiliaryModelMode)
       ) {
         closeWithoutSelection();
+        return;
+      }
+      if (
+        (key.name === 'left' || key.name === 'right') &&
+        shownEffort !== undefined
+      ) {
+        const index = effortOptions.indexOf(shownEffort);
+        const next = effortOptions[index + (key.name === 'right' ? 1 : -1)];
+        if (next) setEffortChoice(next);
       }
     },
     { isActive: true },
@@ -737,6 +756,38 @@ export function ModelDialog({
       },
     );
   }, [highlightedValue, preferredKey, availableModelEntries]);
+
+  // ←/→ pick the effort the chosen model runs with: `default`, then the tiers
+  // the highlighted model declares (the whole ladder when it declares none).
+  // Only the main model has one; the auxiliary pickers use ← to close.
+  const [initialEffort] = useState<EffortSelection>(
+    () => config?.getReasoningEffort?.() ?? REASONING_EFFORT_DEFAULT,
+  );
+  const [effortChoice, setEffortChoice] =
+    useState<EffortSelection>(initialEffort);
+  const effortOptions = useMemo((): EffortSelection[] => {
+    if (isAuxiliaryModelMode || !highlightedEntry) return [];
+    const tiers = reasoningEffortsForCapability(
+      parseModelReasoningCapabilities(
+        highlightedEntry.model.capabilities?.reasoning,
+      ),
+    );
+    return tiers.length > 0 ? [REASONING_EFFORT_DEFAULT, ...tiers] : [];
+  }, [isAuxiliaryModelMode, highlightedEntry]);
+  // A tier the next model lacks shows (and applies) as its nearest one.
+  const shownEffort: EffortSelection | undefined =
+    effortOptions.length === 0
+      ? undefined
+      : effortChoice === REASONING_EFFORT_DEFAULT ||
+          effortOptions.includes(effortChoice)
+        ? effortChoice
+        : clampReasoningEffort(
+            effortChoice,
+            effortOptions.filter(
+              (option): option is Exclude<EffortSelection, 'default'> =>
+                option !== REASONING_EFFORT_DEFAULT,
+            ),
+          );
 
   const handleSelect = useCallback(
     async (selected: string) => {
@@ -1022,12 +1073,19 @@ export function ModelDialog({
         );
         return;
       }
+      // The picker's effort rides on the switch; left alone, the model keeps
+      // the session's effort as before.
+      if (shownEffort !== undefined && shownEffort !== initialEffort) {
+        applyEffortSelection(config, settings, shownEffort);
+      }
       closeLatchRef.current = true;
       onClose();
     },
     [
       authType,
       config,
+      shownEffort,
+      initialEffort,
       onClose,
       settings,
       uiState,
@@ -1142,6 +1200,25 @@ export function ModelDialog({
             label="API Key"
             value={highlightedEntry.model.envKey ?? t('(not set)')}
           />
+          {shownEffort !== undefined && (
+            <DetailRow
+              label={t('Effort')}
+              value={effortOptions.map((option, index) => (
+                <Text key={option}>
+                  {index > 0 && (
+                    <Text color={extendedTheme.ui.separator}>{' · '}</Text>
+                  )}
+                  {option === shownEffort ? (
+                    <Text color={extendedTheme.ui.brand} bold>
+                      {`‹ ${option} ›`}
+                    </Text>
+                  ) : (
+                    <Text color={theme.text.secondary}>{option}</Text>
+                  )}
+                </Text>
+              ))}
+            />
+          )}
         </Box>
       )}
 
@@ -1155,7 +1232,9 @@ export function ModelDialog({
 
       <Box marginTop={1} flexDirection="column">
         <Text color={theme.text.secondary}>
-          {t('↑↓ navigate · enter select · esc close')}
+          {effortOptions.length > 0
+            ? t('↑↓ navigate · ←→ effort · enter select · esc close')
+            : t('↑↓ navigate · enter select · esc close')}
         </Text>
       </Box>
     </Box>

@@ -11,12 +11,17 @@ import { theme } from '../semantic-colors.js';
 import { REASONING_EFFORT_TIERS } from '@organizaone/o1-code-core/core/reasoning-effort.js';
 import type { ReasoningEffort } from '@organizaone/o1-code-core/core/reasoning-effort.js';
 import { RadioButtonSelect } from './shared/RadioButtonSelect.js';
+import { REASONING_EFFORT_DEFAULT } from '../../acp-integration/model-configuration.js';
+import type { EffortSelection } from '../commands/effort-utils.js';
 import { useKeypress } from '../hooks/useKeypress.js';
 import { t } from '../../i18n/index.js';
 
 interface EffortDialogProps {
-  /** Callback when a tier is chosen; `undefined` means the dialog was cancelled. */
-  onSelect: (effort: ReasoningEffort | undefined) => void;
+  /**
+   * Callback with the choice: a tier, or `default` to clear it; `undefined`
+   * means the dialog was cancelled.
+   */
+  onSelect: (selection: EffortSelection | undefined) => void;
 
   /** The currently active effort, used to pre-select the list. */
   currentEffort?: ReasoningEffort;
@@ -26,7 +31,7 @@ interface EffortDialogProps {
 export const EFFORT_DESCRIPTIONS: Record<ReasoningEffort, string> = {
   low: 'Fastest and cheapest; least reasoning.',
   medium: 'Balanced speed, cost, and reasoning.',
-  high: 'Default — strong reasoning for hard tasks.',
+  high: 'Strong reasoning for hard tasks.',
   xhigh: 'Extended reasoning for agentic/coding work.',
   max: 'Maximum reasoning; highest cost and latency.',
 };
@@ -36,23 +41,29 @@ export function EffortDialog({
   currentEffort,
   efforts = REASONING_EFFORT_TIERS,
 }: EffortDialogProps): React.JSX.Element {
-  const items = efforts.map((tier) => ({
-    label: `${tier} — ${t(EFFORT_DESCRIPTIONS[tier])}`,
-    value: tier,
-    key: tier,
-  }));
+  const items = [
+    {
+      label: `${REASONING_EFFORT_DEFAULT} — ${t('The model/provider decides; no tier of its own.')}`,
+      value: REASONING_EFFORT_DEFAULT as EffortSelection,
+      key: REASONING_EFFORT_DEFAULT,
+    },
+    ...efforts.map((tier) => ({
+      label: `${tier} — ${t(EFFORT_DESCRIPTIONS[tier])}`,
+      value: tier as EffortSelection,
+      key: tier,
+    })),
+  ];
 
-  // Pre-select only a tier this model actually exposes. An unset effort starts
-  // at the top rather than highlighting 'high', and so does a tier the global
+  // Unset starts on `default`, which is what it is. A tier the global
   // `model.reasoningEffort` carried over from another model (only ACP sessions
-  // reconcile it) — either way the cursor must not read as "this tier is
-  // current", or a bare Enter silently overwrites the stored value with it.
+  // reconcile it) is not offered here, so it starts on `default` too rather
+  // than on a tier that would read as current.
   const configuredIndex = currentEffort ? efforts.indexOf(currentEffort) : -1;
-  const initialIndex = Math.max(0, configuredIndex);
+  const initialIndex = configuredIndex + 1;
 
   const handleSelect = useCallback(
-    (effort: ReasoningEffort) => {
-      onSelect(effort);
+    (selection: EffortSelection) => {
+      onSelect(selection);
     },
     [onSelect],
   );
@@ -89,15 +100,13 @@ export function EffortDialog({
         isFocused
         showNumbers
       />
-      {configuredIndex === -1 && (
+      {currentEffort && configuredIndex === -1 && (
         <Box marginTop={1}>
           <Text color={theme.text.secondary} wrap="truncate">
-            {currentEffort
-              ? t(
-                  '{{effort}} is not available for this model — using the model/provider default.',
-                  { effort: currentEffort },
-                )
-              : t('No effort configured — using the model/provider default.')}
+            {t(
+              '{{effort}} is not available for this model — using the model/provider default.',
+              { effort: currentEffort },
+            )}
           </Text>
         </Box>
       )}

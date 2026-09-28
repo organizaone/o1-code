@@ -12,14 +12,15 @@ import type {
 } from './types.js';
 import { CommandKind } from './types.js';
 import { t } from '../../i18n/index.js';
-import { getPersistScopeForModelSelection } from '../../config/modelProvidersScope.js';
 import {
-  applyReasoningEffort,
   normalizeReasoningEffort,
   REASONING_EFFORT_TIERS,
 } from '@organizaone/o1-code-core';
-import { formatEffortChangeMessage } from './effort-utils.js';
-import { getReasoningEffortsForConfig } from '../../acp-integration/model-configuration.js';
+import { applyEffortSelection } from './effort-utils.js';
+import {
+  getReasoningEffortsForConfig,
+  REASONING_EFFORT_DEFAULT,
+} from '../../acp-integration/model-configuration.js';
 
 const TIER_LIST = REASONING_EFFORT_TIERS.join(', ');
 
@@ -36,7 +37,7 @@ export const effortCommand: SlashCommand = {
   // (no tier auto-selected), while `/effort <tier>` still sets one directly. A
   // completion function would surface the tiers as submenu-like entries and let
   // Enter auto-pick the first one, which we don't want here.
-  argumentHint: '[low|medium|high|xhigh|max]',
+  argumentHint: '[default|low|medium|high|xhigh|max]',
   kind: CommandKind.BUILT_IN,
   supportedModes: ['interactive', 'non_interactive', 'acp'] as const,
   action: async (
@@ -90,8 +91,9 @@ export const effortCommand: SlashCommand = {
       };
     }
 
-    const tier = normalizeReasoningEffort(args);
-    if (!tier || !availableTiers.includes(tier)) {
+    const wantsDefault = args.toLowerCase() === REASONING_EFFORT_DEFAULT;
+    const tier = wantsDefault ? undefined : normalizeReasoningEffort(args);
+    if (!wantsDefault && (!tier || !availableTiers.includes(tier))) {
       return {
         type: 'message',
         messageType: 'error',
@@ -110,21 +112,17 @@ export const effortCommand: SlashCommand = {
       };
     }
 
-    // Apply at runtime (takes effect next turn) and persist for future sessions.
-    // Provider adapters clamp the tier to what the active model supports.
-    applyReasoningEffort(config, tier);
-    if (context.executionPolicy?.persistModelSelection !== false) {
-      settings.setValue(
-        getPersistScopeForModelSelection(settings),
-        'model.reasoningEffort',
-        tier,
-      );
-    }
-
+    // Applies at runtime (takes effect next turn) and persists for future
+    // sessions; provider adapters clamp a tier to what the model supports.
     return {
       type: 'message',
       messageType: 'info',
-      content: formatEffortChangeMessage(config, tier),
+      content: applyEffortSelection(
+        config,
+        settings,
+        tier ?? REASONING_EFFORT_DEFAULT,
+        context.executionPolicy?.persistModelSelection !== false,
+      ),
     };
   },
 };

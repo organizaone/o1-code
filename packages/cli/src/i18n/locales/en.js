@@ -8,6 +8,14 @@
 // The key serves as both the translation key and the default English text
 
 export default {
+  'The model/provider decides; no tier of its own.':
+    'The model/provider decides; no tier of its own.',
+  'Strong reasoning for hard tasks.': 'Strong reasoning for hard tasks.',
+  'Reasoning effort: default (the model/provider decides).':
+    'Reasoning effort: default (the model/provider decides).',
+  Effort: 'Effort',
+  '↑↓ navigate · ←→ effort · enter select · esc close':
+    '↑↓ navigate · ←→ effort · enter select · esc close',
   'Open the background tasks (monitors, shells, agents)':
     'Open the background tasks (monitors, shells, agents)',
   'monitoring ({{count}})': 'monitoring ({{count}})',
