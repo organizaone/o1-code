@@ -15,7 +15,7 @@ import {
   toggleKeyHint,
   UserMessage,
 } from './ConversationMessages.js';
-import { setGlyphMode } from '../../glyphs.js';
+import { glyphs, setGlyphMode } from '../../glyphs.js';
 
 vi.mock('../TerminalImage.js', () => ({
   TerminalImage: ({
@@ -36,6 +36,26 @@ describe('<UserMessage />', () => {
   it('prefixes the text with the prompt glyph', () => {
     const frame = render(<UserMessage text="hello" />).lastFrame() ?? '';
     expect(frame.replaceAll('︎', '').trim()).toBe('❯ hello');
+  });
+
+  it('replaces the glyph with a spinner while the turn has shown nothing', () => {
+    const frame =
+      render(<UserMessage text="hello" marker="waiting" />).lastFrame() ?? '';
+    const [glyph, ...rest] = frame.trim().split(' ');
+    expect(glyphs().spinnerFrames).toContain(glyph);
+    expect(rest.join(' ')).toBe('hello');
+  });
+
+  it('keeps the glyph and trails an ellipsis while the turn runs', () => {
+    const frame =
+      render(<UserMessage text="hello" marker="running" />).lastFrame() ?? '';
+    expect(frame.replaceAll('︎', '').trim()).toBe('❯ hello …');
+  });
+
+  it('shows the done glyph once the turn ended', () => {
+    const frame =
+      render(<UserMessage text="hello" marker="done" />).lastFrame() ?? '';
+    expect(frame.trim()).toBe(`${glyphs().done} hello`);
   });
 });
 

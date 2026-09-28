@@ -15,6 +15,7 @@ import {
   type RefObject,
 } from 'react';
 import type { HistoryItem, HistoryItemWithoutId } from '../types.js';
+import { getLiveTurn } from '../utils/turn-marker.js';
 import {
   isHistoryItemVisibleAfterRestore,
   StreamingState,
@@ -452,6 +453,19 @@ export const MainContent = ({
     embeddedShellFocused: uiState.embeddedShellFocused,
     isEditorDialogOpen: uiState.isEditorDialogOpen,
   };
+  // The user message that started the running turn shows the turn's state
+  // in its prefix column. Read as two primitives, not through a ref: a
+  // change must rebuild `renderVirtualItem` so the memoized item re-renders,
+  // since nothing else about that item changes when the turn starts or
+  // ends; and primitives keep the callback stable across every other
+  // render.
+  const liveTurn = getLiveTurn(
+    uiState.streamingState,
+    uiState.history,
+    pendingHistoryItems,
+  );
+  const liveTurnItemId = liveTurn?.itemId;
+  const liveTurnMarker = liveTurn?.marker;
   const pendingAvailableTerminalHeight =
     pendingHistoryItems.length > 0 && uiState.constrainHeight
       ? availableTerminalHeight
@@ -523,6 +537,7 @@ export const MainContent = ({
           sourceCopyIndexOffsets={sourceCopyIndexOffsets}
           thoughtHeadId={thoughtHeadIdByItemRef.current.get(item)}
           fullDetail={fullDetail}
+          turnMarker={liveTurnItemId === item.id ? liveTurnMarker : undefined}
         />
       );
     },
@@ -535,6 +550,8 @@ export const MainContent = ({
       fullDetail,
       pendingAvailableTerminalHeight,
       uiState.constrainHeight,
+      liveTurnItemId,
+      liveTurnMarker,
     ],
   );
 
@@ -648,6 +665,9 @@ export const MainContent = ({
                 sourceCopyIndexOffsets={sourceCopyIndexOffsets}
                 thoughtHeadId={thoughtHeadIdByItem.get(h)}
                 fullDetail={fullDetail}
+                turnMarker={
+                  liveTurnItemId === h.id ? liveTurnMarker : undefined
+                }
               />
             ),
           ),
