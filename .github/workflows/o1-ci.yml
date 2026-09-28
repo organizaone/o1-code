@@ -164,7 +164,7 @@ jobs:
 
   typecheck:
     name: 'Typecheck'
-    needs: 'classify'
+    needs: ['classify', 'build']
     if: "${{ needs.classify.outputs.docs_only != 'true' && needs.classify.outputs.fork_pr != 'true' && github.event_name != 'push' }}"
     runs-on: '${{ fromJSON(vars.CI_RUNNER_LABELS || ''["ubuntu-latest"]'') }}'
     timeout-minutes: 20
@@ -196,7 +196,7 @@ jobs:
 
   scripts:
     name: 'Script tests'
-    needs: 'classify'
+    needs: ['classify', 'build']
     if: "${{ needs.classify.outputs.docs_only != 'true' && needs.classify.outputs.fork_pr != 'true' && github.event_name != 'push' }}"
     runs-on: '${{ fromJSON(vars.CI_RUNNER_LABELS || ''["ubuntu-latest"]'') }}'
     timeout-minutes: 15
