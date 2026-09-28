@@ -5,13 +5,15 @@ commands and works through multi-step tasks, with the model provider you choose.
 
 ## Get started
 
-O1-Code is built from source for now; the [Quickstart](./quickstart.md) walks through it. Once the
-`o1-code` command is on your `PATH`:
+Install O1-Code from npm (Node.js 22 or later), then start it in a project:
 
 ```bash
+npm install -g @organizaone/o1-code
 cd your-project
 o1-code
 ```
+
+The [Quickstart](./quickstart.md) walks through the first session.
 
 On first launch you are asked to connect a model provider: a built-in provider with an API key, or a
 **Custom** provider given by its base URL (any OpenAI-compatible or Anthropic endpoint, including a

@@ -114,13 +114,23 @@ function verifyBundleArtifacts(rootDir, distDir) {
 
 function copyDocumentationFiles(rootDir, distDir) {
   console.log('Copying documentation files...');
-  const filesToCopy = ['README.md', 'LICENSE', 'NOTICE'];
-  for (const file of filesToCopy) {
-    const sourcePath = path.join(rootDir, file);
+  // The package README is the one npm shows: shorter than the repository's,
+  // with absolute links and no images, since npm serves neither relative
+  // paths nor a private repository's files.
+  const packageReadme = path.join(rootDir, 'packages', 'cli', 'README.md');
+  const readmeSource = fs.existsSync(packageReadme)
+    ? packageReadme
+    : path.join(rootDir, 'README.md');
+  const filesToCopy = [
+    ['README.md', readmeSource],
+    ['LICENSE', path.join(rootDir, 'LICENSE')],
+    ['NOTICE', path.join(rootDir, 'NOTICE')],
+  ];
+  for (const [file, sourcePath] of filesToCopy) {
     const destPath = path.join(distDir, file);
     if (fs.existsSync(sourcePath)) {
       fs.copyFileSync(sourcePath, destPath);
-      console.log(`Copied ${file}`);
+      console.log(`Copied ${file} from ${path.relative(rootDir, sourcePath)}`);
     } else {
       console.warn(`Warning: ${file} not found at ${sourcePath}`);
     }

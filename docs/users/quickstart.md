@@ -13,23 +13,20 @@ Make sure you have:
 
 ## Step 1: Install O1-Code
 
-O1-Code is not published to npm yet; you build it from source. You need Node.js 22 or later
-([nodejs.org](https://nodejs.org/en/download)) and Corepack (on Node 26, install it with
-`npm i -g corepack`).
+You need Node.js 22 or later ([nodejs.org](https://nodejs.org/en/download)). Then install the
+package globally:
 
 ```bash
-git clone https://github.com/silvioricardo87/o1-code.git
-cd o1-code
-git config core.longpaths true   # needed on Windows
-corepack pnpm install --frozen-lockfile
-npm run build -- --cli-only
-npm run bundle
-npm link                         # puts `o1-code` on your PATH
+npm install -g @organizaone/o1-code
 ```
+
+Check the installation with `o1-code --version`. To update later, run the same command again.
 
 > [!note]
 >
-> Restart your terminal if `o1-code` is not found right after `npm link`.
+> If `o1-code` is not found, make sure npm's global binary directory (`npm prefix -g`) is in your
+> `PATH`, then restart your terminal. To run an unreleased change instead, see
+> [Build from source](../developers/build-from-source.md).
 
 ## Step 2: Connect a model provider
 
