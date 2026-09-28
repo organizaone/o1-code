@@ -70,6 +70,12 @@ export const COMPAT_GLYPHS: GlyphSet = {
   borderStyle: 'single',
 };
 
+/** The top edge of a box, for rows that draw it themselves around a title. */
+export const TOP_FRAME = {
+  round: { topLeft: '╭', top: '─', topRight: '╮' },
+  single: { topLeft: '┌', top: '─', topRight: '┐' },
+} as const;
+
 export function resolveGlyphMode(
   setting: string | undefined,
   env: NodeJS.ProcessEnv,

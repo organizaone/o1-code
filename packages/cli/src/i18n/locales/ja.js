@@ -7,6 +7,16 @@
 // Japanese translations for O1-Code CLI
 
 export default {
+  Update: 'アップデート',
+  "What's new in {{version}}": '{{version}} の新機能',
+  'Updated from {{from}} to {{to}}': '{{from}} から {{to}} に更新されました',
+  'and {{count}} more': 'ほか {{count}} 件',
+  'full notes': '詳細',
+  'O1-Code {{version}} installed': 'O1-Code {{version}} をインストールしました',
+  'The update to {{version}} failed': '{{version}} への更新に失敗しました',
+  'O1-Code {{version}} is available': 'O1-Code {{version}} が利用可能です',
+  'It takes effect the next time you open O1-Code.':
+    '次回 O1-Code を起動したときに反映されます。',
   'Open the background tasks (monitors, shells, agents)':
     'バックグラウンドタスクを開く（モニター、シェル、エージェント）',
   'monitoring ({{count}})': '監視中 ({{count}})',

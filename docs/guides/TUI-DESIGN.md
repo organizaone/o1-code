@@ -183,6 +183,14 @@ settings (`ui.customAsciiArt`, `ui.hideBanner`, …) are gone and ignored if pre
 - **Status lines** (`messages/StatusMessages.tsx`): info `●`, success `✓`, warning `!`, error `✕`,
   retry `↻`. The warning prefix is ASCII on purpose: `△` drew two columns in Windows Terminal and
   broke the conversation's right border.
+- **Update notice** (`messages/UpdateNotice.tsx`): an update of O1-Code itself gets a frame, brand
+  (red when it failed), with the title set into the top edge in bold primary: `Update` with
+  `✓ O1-Code X installed` (success mark) and `It takes effect the next time you open O1-Code.`
+  (muted), or `What's new in X` on the first run of a new version, with `Updated from A to X`,
+  up to four highlights (brand dot, primary text) and `and N more · full notes: <url>`. The
+  highlights are the first sentence of each entry of the version's `CHANGELOG.md` section, which
+  the bundle carries as `release-notes.json`; the version the last run opened is kept in
+  `~/.o1-code/last-seen-version`.
 - **Provider error being retried** (`messages/ProviderRetryBox.tsx`): red box, the reason, a live
   `Retrying in Ns — esc to give up (attempt/max)`, then `Retrying…` with a spinner. The footer shows
   failed meanwhile.
@@ -228,6 +236,11 @@ of the status rows right above the input.
   (block, or underline under tmux) sits on the same cell as the terminal's. See
   `terminalShowsInputCursor` in `utils/software-cursor.ts`.
 - `@path` and `/command` tokens in accent. A large paste becomes a `[Pasted Content N chars]` token.
+- **Session name:** set into the top border on the right (`/rename`); the rule before it takes only
+  the room the name leaves, so the border keeps the input's width.
+- **End-of-line cursor:** a styled space and nothing after it. A zero-width space used to follow
+  it: Ink counts U+200B as one column and VTE (GNOME Terminal, Ptyxis) as none, which pulled the
+  right border in by one column.
 - **Selecting text:** with mouse tracking on, a drag over the typed text selects it like the
   conversation does (same highlight, copied on release); a click without a drag places the cursor,
   on release, so it never repaints a selection being made.

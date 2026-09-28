@@ -9,6 +9,16 @@
 // then extensively hand-corrected for Taiwan vocabulary conventions.
 // This file is the authoritative source — do not overwrite with auto-generated output.
 export default {
+  Update: '更新',
+  "What's new in {{version}}": '{{version}} 新功能',
+  'Updated from {{from}} to {{to}}': '已從 {{from}} 更新到 {{to}}',
+  'and {{count}} more': '還有 {{count}} 項',
+  'full notes': '完整說明',
+  'O1-Code {{version}} installed': '已安裝 O1-Code {{version}}',
+  'The update to {{version}} failed': '更新到 {{version}} 失敗',
+  'O1-Code {{version}} is available': 'O1-Code {{version}} 可用',
+  'It takes effect the next time you open O1-Code.':
+    '下次開啟 O1-Code 時生效。',
   'Open the background tasks (monitors, shells, agents)':
     '開啟背景工作（監視器、shell、代理）',
   'monitoring ({{count}})': '監視中 ({{count}})',

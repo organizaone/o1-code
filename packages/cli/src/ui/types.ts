@@ -284,6 +284,27 @@ export type HistoryItemSuccess = HistoryItemBase & {
   text: string;
 };
 
+/**
+ * An update of O1-Code itself, in its own framed notice so it is not lost
+ * among the other status lines: found and being installed, installed, failed,
+ * or the highlights of the version this run is the first to open.
+ */
+export type HistoryItemUpdateNotice = HistoryItemBase & {
+  type: 'update_notice';
+  status: 'available' | 'installed' | 'failed' | 'whats_new';
+  version?: string;
+  /** For `whats_new`: the version the previous run opened. */
+  fromVersion?: string;
+  /** A detail line, such as the manual command or the failure reason. */
+  text?: string;
+  /** For `whats_new`: the first highlights of the release notes. */
+  highlights?: string[];
+  /** For `whats_new`: highlights left out of the list. */
+  moreCount?: number;
+  /** For `whats_new`: the full release notes. */
+  notesUrl?: string;
+};
+
 export type HistoryItemRetryCountdown = HistoryItemBase & {
   type: 'retry_countdown';
   text: string;
@@ -798,6 +819,7 @@ export type HistoryItemWithoutId =
   | HistoryItemLlmThought
   | HistoryItemLlmThoughtContent
   | HistoryItemInfo
+  | HistoryItemUpdateNotice
   | HistoryItemError
   | HistoryItemWarning
   | HistoryItemSuccess

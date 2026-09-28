@@ -481,8 +481,9 @@ describe('setUpdateHandler', () => {
 
     expect(addItem).toHaveBeenCalledWith(
       {
-        type: MessageType.INFO,
-        text: 'Update successful!',
+        type: 'update_notice',
+        status: 'installed',
+        version: undefined,
       },
       expect.any(Number),
     );
@@ -498,8 +499,9 @@ describe('setUpdateHandler', () => {
 
     expect(addItem).toHaveBeenCalledWith(
       {
-        type: MessageType.INFO,
-        text: 'Update successful! The new version will be used on your next run.',
+        type: 'update_notice',
+        status: 'installed',
+        version: undefined,
       },
       expect.any(Number),
     );
@@ -515,7 +517,9 @@ describe('setUpdateHandler', () => {
 
     expect(addItem).toHaveBeenCalledWith(
       {
-        type: MessageType.ERROR,
+        type: 'update_notice',
+        status: 'failed',
+        version: undefined,
         text: 'Automatic update failed. Please try updating manually.',
       },
       expect.any(Number),
@@ -545,7 +549,7 @@ describe('setUpdateHandler', () => {
     cleanup();
   });
 
-  it('should keep rendering update-failed as an error when severity is explicit error', () => {
+  it('should render a failed installation as the red update notice', () => {
     const isIdleRef = { current: true };
     const { cleanup } = setUpdateHandler(addItem, setUpdateInfo, isIdleRef);
 
@@ -556,7 +560,9 @@ describe('setUpdateHandler', () => {
 
     expect(addItem).toHaveBeenCalledWith(
       {
-        type: MessageType.ERROR,
+        type: 'update_notice',
+        status: 'failed',
+        version: undefined,
         text: 'Automatic update failed. Please try updating manually.',
       },
       expect.any(Number),
@@ -610,8 +616,9 @@ describe('setUpdateHandler', () => {
 
     expect(addItem).toHaveBeenCalledWith(
       {
-        type: MessageType.INFO,
-        text: 'Update successful!',
+        type: 'update_notice',
+        status: 'installed',
+        version: undefined,
       },
       expect.any(Number),
     );
@@ -637,7 +644,9 @@ describe('setUpdateHandler', () => {
 
     expect(addItem).toHaveBeenCalledWith(
       {
-        type: MessageType.ERROR,
+        type: 'update_notice',
+        status: 'failed',
+        version: undefined,
         text: 'Update failed',
       },
       expect.any(Number),
@@ -670,8 +679,9 @@ describe('setUpdateHandler', () => {
     expect(addItem).toHaveBeenNthCalledWith(
       2,
       {
-        type: MessageType.INFO,
-        text: 'Success!',
+        type: 'update_notice',
+        status: 'installed',
+        version: undefined,
       },
       expect.any(Number),
     );

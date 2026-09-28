@@ -78,6 +78,7 @@ import {
 } from '../utils/measure-element-position.js';
 import { useTerminalSize } from '../hooks/useTerminalSize.js';
 import { ICON } from '../constants.js';
+import { UpdateNotice } from './messages/UpdateNotice.js';
 
 interface HistoryItemDisplayProps {
   item: HistoryItem;
@@ -505,6 +506,9 @@ const HistoryItemDisplayComponent: React.FC<HistoryItemDisplayProps> = ({
       )}
       {itemForDisplay.type === 'success' && (
         <SuccessMessage text={itemForDisplay.text} />
+      )}
+      {itemForDisplay.type === 'update_notice' && (
+        <UpdateNotice {...itemForDisplay} />
       )}
       {itemForDisplay.type === 'warning' && (
         <WarningMessage text={itemForDisplay.text} />

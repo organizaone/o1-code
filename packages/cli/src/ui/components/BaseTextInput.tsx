@@ -31,7 +31,7 @@ import stringWidth from 'string-width';
 import { cpSlice, cpLen, truncateToWidth } from '../utils/textUtils.js';
 import { extendedTheme, theme } from '../semantic-colors.js';
 import { t } from '../../i18n/index.js';
-import { glyphs } from '../glyphs.js';
+import { glyphs, TOP_FRAME } from '../glyphs.js';
 import {
   renderSoftwareCursor,
   terminalShowsInputCursor,
@@ -44,11 +44,6 @@ export const INPUT_MAX_VISIBLE_LINES = 6;
 // Top border around the label: `╭─ ` before it, ` ──╮` after it.
 const LABEL_RESERVED_COLUMNS = 7;
 // Top-border characters of Ink's `round` and `single` border styles.
-const TOP_FRAME = {
-  round: { topLeft: '╭', top: '─', topRight: '╮' },
-  single: { topLeft: '┌', top: '─', topRight: '┐' },
-} as const;
-
 // ─── Types ──────────────────────────────────────────────────
 
 export interface RenderLineOptions {

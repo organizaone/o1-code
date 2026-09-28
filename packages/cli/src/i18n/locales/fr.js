@@ -7,6 +7,17 @@
 // Traductions françaises pour O1-Code CLI
 
 export default {
+  Update: 'Mise à jour',
+  "What's new in {{version}}": 'Nouveautés de la {{version}}',
+  'Updated from {{from}} to {{to}}': 'Mis à jour de la {{from}} vers la {{to}}',
+  'and {{count}} more': 'et {{count}} de plus',
+  'full notes': 'notes complètes',
+  'O1-Code {{version}} installed': 'O1-Code {{version}} installé',
+  'The update to {{version}} failed':
+    'La mise à jour vers la {{version}} a échoué',
+  'O1-Code {{version}} is available': 'O1-Code {{version}} est disponible',
+  'It takes effect the next time you open O1-Code.':
+    "S'applique à la prochaine ouverture d'O1-Code.",
   'Open the background tasks (monitors, shells, agents)':
     'Ouvrir les tâches en arrière-plan (moniteurs, shells, agents)',
   'monitoring ({{count}})': 'surveillance ({{count}})',

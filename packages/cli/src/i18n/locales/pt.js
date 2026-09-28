@@ -7,6 +7,16 @@
 // Portuguese translations for O1-Code CLI (pt-BR)
 
 export default {
+  Update: 'Atualização',
+  "What's new in {{version}}": 'Novidades da {{version}}',
+  'Updated from {{from}} to {{to}}': 'Atualizado da {{from}} para a {{to}}',
+  'and {{count}} more': 'e mais {{count}}',
+  'full notes': 'notas completas',
+  'O1-Code {{version}} installed': 'O1-Code {{version}} instalado',
+  'The update to {{version}} failed': 'A atualização para a {{version}} falhou',
+  'O1-Code {{version}} is available': 'O1-Code {{version}} disponível',
+  'It takes effect the next time you open O1-Code.':
+    'Vale na próxima vez que você abrir o O1-Code.',
   'Reasoning Effort': 'Intensidade de raciocínio',
   '(applied across all providers; clamped per model)':
     '(vale para todos os provedores; ajustada por modelo)',

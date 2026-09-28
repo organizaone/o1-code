@@ -199,13 +199,19 @@ export function setUpdateHandler(
     }
   };
 
+  // The version the last update-received named, for the notices that follow.
+  let pendingVersion: string | undefined;
+
   const handleUpdateReceived = (info: UpdateObject) => {
     setUpdateInfo(info);
+    pendingVersion = info.update.latest;
     const savedMessage = info.message;
     setTimeout(() => {
       if (!successfullyInstalled) {
         addItemOrDefer({
-          type: MessageType.INFO,
+          type: 'update_notice',
+          status: 'available',
+          version: info.update.latest,
           text: savedMessage,
         });
       }
@@ -218,21 +224,30 @@ export function setUpdateHandler(
     severity?: 'error' | 'warning';
   }) => {
     setUpdateInfo(null);
+    // Background update-check failures are emitted with severity 'warning'
+    // and stay a status line; a failed installation gets the red notice.
+    if (data?.severity === 'warning') {
+      addItemOrDefer({
+        type: MessageType.WARNING,
+        text: data.message ?? t(UPDATE_FAILED_MESSAGE),
+      });
+      return;
+    }
     addItemOrDefer({
-      // Background update-check failures are emitted with severity 'warning';
-      // actual update installation failures stay errors.
-      type:
-        data?.severity === 'warning' ? MessageType.WARNING : MessageType.ERROR,
+      type: 'update_notice',
+      status: 'failed',
+      version: pendingVersion,
       text: data?.message ?? t(UPDATE_FAILED_MESSAGE),
     });
   };
 
-  const handleUpdateSuccess = (data?: { message?: string }) => {
+  const handleUpdateSuccess = (_data?: { message?: string }) => {
     successfullyInstalled = true;
     setUpdateInfo(null);
     addItemOrDefer({
-      type: MessageType.INFO,
-      text: data?.message ?? t(UPDATE_SUCCESS_MESSAGE),
+      type: 'update_notice',
+      status: 'installed',
+      version: pendingVersion,
     });
   };
 
