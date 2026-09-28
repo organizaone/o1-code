@@ -199,22 +199,9 @@ jobs:
         if: "${{ steps.version.outputs.already != 'true' }}"
         env:
           NODE_AUTH_TOKEN: '${{ secrets.NPM_TOKEN }}'
+        # A zero exit means the registry accepted the version. It can take
+        # several minutes more to show in `npm view`; nothing here waits.
         run: 'npm publish "$TARBALL" --access public --provenance="$PUBLISH_PROVENANCE"'
-
-      # The registry can take a moment to serve a new version.
-      - name: 'Verify'
-        run: |
-          for attempt in 1 2 3 4 5 6 7 8 9 10; do
-            published="$(npm view "$PACKAGE_NAME@$VERSION" version 2>/dev/null || true)"
-            if [ "$published" = "$VERSION" ]; then
-              echo "$PACKAGE_NAME@$VERSION is on npm"
-              exit 0
-            fi
-            echo "Attempt $attempt: $PACKAGE_NAME@$VERSION not visible yet"
-            [ "$attempt" -lt 10 ] && sleep 15
-          done
-          echo "::error::$PACKAGE_NAME@$VERSION did not appear on npm"
-          exit 1
 
       # Through the REST API. Idempotent: a re-run reuses the release and
       # skips an asset already attached.

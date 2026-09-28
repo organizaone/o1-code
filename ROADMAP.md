@@ -59,9 +59,9 @@ Decisions so far.
 - Done: `.github/workflows/release.yml`, triggered by a `vX.Y.Z` tag (plus manual dispatch):
   checks that the tag matches the root and CLI versions, is not already published and has a
   changelog section, builds, bundles, runs `prepare:package` and the fast gates, packs and installs
-  the tarball in a clean prefix and runs it, publishes the tarball with `--access public`,
-  verifies with `npm view`, and creates the GitHub release from the changelog section
-  (`scripts/o1/release-notes.mjs`). The steps are in the deviations of `docs/guides/VERSIONING.md`.
+  the tarball in a clean prefix and runs it, publishes the tarball with `--access public` and
+  creates the GitHub release from the changelog section (`scripts/o1/release-notes.mjs`). The steps
+  are in the deviations of `docs/guides/VERSIONING.md`.
 - Stable channel only: every tag goes to `latest`.
 - The first publications use a temporary granular `NPM_TOKEN` secret, then trusted publishing
   (OIDC) configured on npmjs.com, after which the token is deleted. Provenance turns itself on once

@@ -168,7 +168,7 @@ Bumping the version (Step 5) and releasing are different events. A release is th
   `CHANGELOG.md` has its section; builds, bundles and runs `prepare:package`; runs the fast gates;
   packs `dist/`, installs the tarball globally into a temporary prefix and runs
   `o1-code --version` and `--help`; publishes the tarball to npm as `@organizaone/o1-code`
-  (`latest`, public); polls `npm view` until the version appears; creates the GitHub release with
+  (`latest`, public), without waiting for the registry to show it; creates the GitHub release with
   the notes from `node scripts/o1/release-notes.mjs <version>` and the tarball attached.
 - **Release credentials.** The release job runs in the `npm` environment, which deploys only from
   `v*.*.*` tags and waits for the maintainer's approval. The publish reads `NPM_TOKEN`, a granular
