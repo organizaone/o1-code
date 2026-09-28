@@ -258,7 +258,8 @@ export interface OpenDialogActionReturn {
     | 'mcp'
     | 'rewind'
     | 'diff'
-    | 'stats';
+    | 'stats'
+    | 'background_tasks';
 }
 
 /**

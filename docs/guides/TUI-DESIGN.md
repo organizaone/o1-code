@@ -38,7 +38,7 @@ not have. Themes that do not declare extended colours get them derived from thei
 | separator              | `extendedTheme.ui.separator`                | `#3a4258` | `#b4bfd0` | `·` and `│`, empty bar cells, inactive chips                      |
 | rule                   | `extendedTheme.ui.rule`, `theme.border.default` | `#2a3550` | `#cfd7e4` | conversation border, autocomplete box, unfocused input        |
 | brand                  | `extendedTheme.ui.brand`, `theme.border.focused` | `#6e9bff` | `#2b5bd7` | logo, `❯`, selection arrow, focused input, dialogs asking a choice |
-| brand soft             | `extendedTheme.ui.brandSoft`                | `#8fb2ff` | `#2f5fdb` | default/auto mode label, active skill, update notice              |
+| brand soft             | `extendedTheme.ui.brandSoft`                | `#8fb2ff` | `#2f5fdb` | default/auto mode label, active skill, update notice, user message text, `monitoring` chip |
 | accent (purple)        | `theme.text.accent`                         | `#a48bff` | `#6547c9` | branch, memory bar, assistant `◆`, `@path` and `/command` in input |
 | code (teal)            | `theme.text.code`                           | `#3fc7d6` | `#0a6d78` | inline code and paths                                             |
 | success                | `theme.status.success`                      | `#3fd07f` | `#157a44` | online, added lines, current model dot                            |
@@ -165,7 +165,9 @@ settings (`ui.customAsciiArt`, `ui.hideBanner`, …) are gone and ignored if pre
 
 ### Conversation
 
-- **User message:** `❯` in brand, text in primary. The message that started the running turn
+- **User message:** a bar (`glyphs().userBar`, `▎`, `│` in compatible mode) in brand on every line,
+  then `❯` in brand and the text in brand soft, so a prompt stands apart from the reply and the
+  tool rows without painting a background. The message that started the running turn
   shows the turn's state in that column (`utils/turn-marker.ts`): a spinner in brand while nothing
   has appeared under it yet, `❯` again with a muted `…` after the text once the agent shows
   something, and `✓` (`glyphs().done`) in brand once the turn ends. A cancelled or failed turn
@@ -201,6 +203,14 @@ of the status rows right above the input.
 - Left: the five category chips. The active one has its dot in the category colour and its label
   bold primary; the others a separator-coloured dot and a muted label. Active is the category of
   the running tool, `info` while the agent thinks or answers, none when idle.
+- After the chips, while monitors watch: `● monitoring (N)` in brand soft bold. The background
+  tasks pill on the right then leaves running monitors out of its count.
+- **Reaching the background tasks:** while background work runs, the first ↑ from an empty
+  composer focuses them (the
+  `monitoring` chip, or the pill when no monitor runs), shown in inverse with
+  `enter open · ↑ history · esc back`; Enter opens the dialog, ↓ or Esc goes back to the input,
+  and ↑ goes on into history. `/tasks` opens the same dialog. ↓ no longer reaches them: they sit
+  above the input.
 - Right, each only when present: background tasks pill, `plan 2/4` (count bold primary), active
   skill (`● name`, brand soft bold, no "skill" label), goal, scheduled tasks, skills pending review,
   active workflow.
@@ -218,6 +228,9 @@ of the status rows right above the input.
   (block, or underline under tmux) sits on the same cell as the terminal's. See
   `terminalShowsInputCursor` in `utils/software-cursor.ts`.
 - `@path` and `/command` tokens in accent. A large paste becomes a `[Pasted Content N chars]` token.
+- **Selecting text:** with mouse tracking on, a drag over the typed text selects it like the
+  conversation does (same highlight, copied on release); a click without a drag places the cursor,
+  on release, so it never repaints a selection being made.
 - **Multiline:** grows up to 6 visible lines (`INPUT_MAX_VISIBLE_LINES`). With more than one line,
   `N lines · enter sends · shift+enter new line` shows on the right; scrolled, the first visible row
   is `↑ N lines above`.
@@ -272,7 +285,13 @@ never leaves; it only shortens from the start.
   `rule` for autocomplete suggestions (`/`, `@`), amber for approval, red for provider errors.
 - **Model list** (`ModelDialog.tsx`): title bold primary, subtitle `the current one is marked` in
   muted, current model with a green dot. After a switch, the conversation logs
-  `model switched to <model> · <size> ctx` and the footer names the new model.
+  `model switched to <model> · <size> ctx` and the footer names the new model. For the main
+  model, an `Effort` row lists `default` and the tiers the highlighted model takes, the chosen one
+  as `‹ tier ›` in bold brand, the rest secondary; ←/→ move along it and the choice applies with the
+  switch (`↑↓ navigate · ←→ effort · enter select · esc close`). A tier the next model lacks shows
+  as its nearest one.
+- **Effort** (`EffortDialog.tsx`): `default` first (the model/provider decides, and the saved tier
+  is cleared), then the model's tiers; it opens on the current one.
 - **Slash/@ suggestions:** name in a 28-column column, detail in muted, footer
   `↑↓ navigate · tab complete · enter select · esc close`. Lists filter on every key.
 - **Connect provider** (`auth/AuthDialog.tsx`, `ProviderSetupSteps.tsx`): brand-bordered box, the path

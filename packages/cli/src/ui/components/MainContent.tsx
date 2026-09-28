@@ -138,11 +138,14 @@ const virtualIsStaticItem = (item: VpItem) =>
 
 interface MainContentProps {
   footerRef?: RefObject<DOMElement | null>;
+  /** The input's lines container: its text can be selected like the conversation. */
+  inputLinesRef?: RefObject<DOMElement | null>;
   scrollActionsRef?: RefObject<ScrollActions | null>;
 }
 
 export const MainContent = ({
   footerRef,
+  inputLinesRef,
   scrollActionsRef,
 }: MainContentProps) => {
   const { version } = useAppContext();
@@ -606,9 +609,9 @@ export const MainContent = ({
           eventsPaused={contextMenuOpen !== null}
           getViewportRect={() => scrollRef.current?.getViewportRect() ?? null}
           getAdditionalSelectableRects={() =>
-            footerRef?.current
-              ? [measureElementPosition(footerRef.current)]
-              : []
+            [footerRef?.current, inputLinesRef?.current]
+              .filter((node): node is DOMElement => Boolean(node))
+              .map((node) => measureElementPosition(node))
           }
           getScrollState={() =>
             scrollRef.current?.getScrollState() ?? {

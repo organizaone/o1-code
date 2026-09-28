@@ -4,8 +4,8 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import { Box, Text } from 'ink';
 import { render } from 'ink-testing-library';
-import { Text } from 'ink';
 import { vi } from 'vitest';
 import {
   AssistantMessage,
@@ -35,13 +35,28 @@ vi.mock('../TerminalImage.js', () => ({
 describe('<UserMessage />', () => {
   it('prefixes the text with the prompt glyph', () => {
     const frame = render(<UserMessage text="hello" />).lastFrame() ?? '';
-    expect(frame.replaceAll('︎', '').trim()).toBe('❯ hello');
+    expect(frame.replaceAll('︎', '').trim()).toBe('▎ ❯ hello');
+  });
+
+  it('draws the bar on every line of a wrapped message', () => {
+    const lines = (
+      render(
+        <Box width={20}>
+          <UserMessage text="one two three four five six seven" />
+        </Box>,
+      ).lastFrame() ?? ''
+    )
+      .split('\n')
+      .filter((line) => line.trim());
+    expect(lines.length).toBeGreaterThan(1);
+    for (const line of lines) expect(line.startsWith('▎')).toBe(true);
   });
 
   it('replaces the glyph with a spinner while the turn has shown nothing', () => {
     const frame =
       render(<UserMessage text="hello" marker="waiting" />).lastFrame() ?? '';
-    const [glyph, ...rest] = frame.trim().split(' ');
+    const [bar, glyph, ...rest] = frame.trim().split(' ');
+    expect(bar).toBe('▎');
     expect(glyphs().spinnerFrames).toContain(glyph);
     expect(rest.join(' ')).toBe('hello');
   });
@@ -49,13 +64,13 @@ describe('<UserMessage />', () => {
   it('keeps the glyph and trails an ellipsis while the turn runs', () => {
     const frame =
       render(<UserMessage text="hello" marker="running" />).lastFrame() ?? '';
-    expect(frame.replaceAll('︎', '').trim()).toBe('❯ hello …');
+    expect(frame.replaceAll('︎', '').trim()).toBe('▎ ❯ hello …');
   });
 
   it('shows the done glyph once the turn ended', () => {
     const frame =
       render(<UserMessage text="hello" marker="done" />).lastFrame() ?? '';
-    expect(frame.trim()).toBe(`${glyphs().done} hello`);
+    expect(frame.trim()).toBe(`▎ ${glyphs().done} hello`);
   });
 });
 

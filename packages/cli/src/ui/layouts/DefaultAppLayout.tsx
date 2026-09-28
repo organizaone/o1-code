@@ -44,6 +44,7 @@ const PinnedHeader: React.FC = () => {
 export const DefaultAppLayout: React.FC = () => {
   const uiState = useUIState();
   const footerRef = useRef<DOMElement>(null);
+  const inputLinesRef = useRef<DOMElement | null>(null);
   const scrollActionsRef = useRef<ScrollActions | null>(null);
   const scrollActions = useMemo<ScrollActions>(
     () => ({
@@ -109,6 +110,7 @@ export const DefaultAppLayout: React.FC = () => {
           {/* Main view: conversation history + main composer / dialogs */}
           <MainContent
             footerRef={footerRef}
+            inputLinesRef={inputLinesRef}
             scrollActionsRef={scrollActionsRef}
           />
           <Box flexDirection="column" ref={uiState.mainControlsRef}>
@@ -147,7 +149,7 @@ export const DefaultAppLayout: React.FC = () => {
                     />
                   </Box>
                 )}
-                <Composer footerRef={footerRef} />
+                <Composer footerRef={footerRef} inputLinesRef={inputLinesRef} />
               </>
             )}
             <ExitWarning />

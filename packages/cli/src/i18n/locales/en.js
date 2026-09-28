@@ -8,6 +8,18 @@
 // The key serves as both the translation key and the default English text
 
 export default {
+  'The model/provider decides; no tier of its own.':
+    'The model/provider decides; no tier of its own.',
+  'Strong reasoning for hard tasks.': 'Strong reasoning for hard tasks.',
+  'Reasoning effort: default (the model/provider decides).':
+    'Reasoning effort: default (the model/provider decides).',
+  Effort: 'Effort',
+  '↑↓ navigate · ←→ effort · enter select · esc close':
+    '↑↓ navigate · ←→ effort · enter select · esc close',
+  'Open the background tasks (monitors, shells, agents)':
+    'Open the background tasks (monitors, shells, agents)',
+  'monitoring ({{count}})': 'monitoring ({{count}})',
+  'enter open · ↑ history · esc back': 'enter open · ↑ history · esc back',
   'Cannot disable an extension-provided MCP server here.':
     'Cannot disable an extension-provided MCP server here.',
   'Cleared authentication for "{{name}}".':
@@ -400,8 +412,6 @@ export default {
     'Invalid approval mode "{{arg}}". Valid modes: {{modes}}',
   'Approval mode set to "{{mode}}"': 'Approval mode set to "{{mode}}"',
   'View or change the language setting': 'View or change the language setting',
-  'List background tasks (text dump — interactive dialog opens via the footer pill)':
-    'List background tasks (text dump — interactive dialog opens via the footer pill)',
   'Delete a previous session': 'Delete a previous session',
   'Run installation and environment diagnostics':
     'Run installation and environment diagnostics',

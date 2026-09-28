@@ -34,22 +34,25 @@ describe('EffortDialog', () => {
     expect(frame).toContain('Use Enter to select, Esc to cancel');
   });
 
-  it('shows the "no effort configured" hint when currentEffort is unset', () => {
+  it('offers default first and starts on it when no effort is set', () => {
     const { lastFrame } = renderWithProviders(
       <EffortDialog onSelect={vi.fn()} />,
     );
 
-    expect(lastFrame() ?? '').toContain(
-      'No effort configured — using the model/provider default.',
-    );
+    const lines = (lastFrame() ?? '').split('\n');
+    const defaultLine = lines.find((line) => line.includes('1. default'));
+    expect(defaultLine).toBeDefined();
+    expect(lines.find((line) => line.includes('2. low'))).toBeDefined();
+    // The highlighted row carries the selection marker.
+    expect(defaultLine).toMatch(/[●❯>]/);
   });
 
-  it('hides the "no effort configured" hint when currentEffort is set', () => {
+  it('starts on the configured tier', () => {
     const { lastFrame } = renderWithProviders(
       <EffortDialog onSelect={vi.fn()} currentEffort="high" />,
     );
 
-    expect(lastFrame() ?? '').not.toContain('No effort configured');
+    expect(lastFrame() ?? '').toMatch(/● 4\. high|›\s*4\. high|4\. high/);
   });
 
   it('lists only the tiers the resolved model exposes', () => {
@@ -58,9 +61,9 @@ describe('EffortDialog', () => {
     );
 
     const frame = lastFrame() ?? '';
-    expect(frame).toContain('1.');
-    expect(frame).toContain('2.');
-    expect(frame).not.toContain('3.');
+    // `default`, then the two tiers.
+    expect(frame).toContain('3.');
+    expect(frame).not.toContain('4.');
     expect(frame).not.toContain('medium');
     expect(frame).not.toContain('xhigh');
   });

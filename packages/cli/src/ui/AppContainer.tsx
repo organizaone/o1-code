@@ -1957,6 +1957,8 @@ export const AppContainer = (props: AppContainerProps) => {
   const { isMcpDialogOpen, openMcpDialog, closeMcpDialog } = useMcpDialog();
   const { isHooksDialogOpen, openHooksDialog, closeHooksDialog } =
     useHooksDialog();
+  const { openDialog: openBackgroundTasksDialog } =
+    useBackgroundTaskViewActions();
   const { isStatsDialogOpen, openStatsDialog, closeStatsDialog } =
     useStatsDialog();
 
@@ -2113,6 +2115,7 @@ export const AppContainer = (props: AppContainerProps) => {
       openMcpDialog,
       openHooksDialog,
       openStatsDialog,
+      openBackgroundTasksDialog,
       openResumeDialog,
       openRewindSelector: () => openRewindSelectorRef.current(),
       openDiffDialog,
@@ -2146,6 +2149,7 @@ export const AppContainer = (props: AppContainerProps) => {
       openMcpDialog,
       openHooksDialog,
       openStatsDialog,
+      openBackgroundTasksDialog,
       openResumeDialog,
       handleResume,
       handleBranch,

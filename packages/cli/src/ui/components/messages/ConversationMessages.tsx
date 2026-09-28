@@ -291,27 +291,47 @@ const ContinuationMarkdownMessage: React.FC<
  */
 export type UserTurnMarker = 'waiting' | 'running' | 'done';
 
+// A left bar on every line of the message, in place of a background band: the
+// TUI paints no background, and the bar still groups a wrapped prompt.
+const userMessageBar = (bar: string) => ({
+  topLeft: '',
+  top: '',
+  topRight: '',
+  left: bar,
+  bottomLeft: '',
+  bottom: '',
+  bottomRight: '',
+  right: '',
+});
+
 export const UserMessage: React.FC<UserMessageProps> = ({ text, marker }) => (
-  // The TUI paints no background of its own; user messages render directly on
-  // the terminal background so they blend in across terminals and themes.
-  <PrefixedTextMessage
-    text={text}
-    prefix={marker === 'done' ? glyphs().done : glyphs().prompt}
-    prefixNode={
-      marker === 'waiting' ? (
-        <Spinner
-          color={extendedTheme.ui.brand}
-          altText={SCREEN_READER_USER_PREFIX}
-        />
-      ) : undefined
-    }
-    suffix={marker === 'running' ? ' …' : undefined}
-    prefixColor={extendedTheme.ui.brand}
-    textColor={theme.text.primary}
-    ariaLabel={SCREEN_READER_USER_PREFIX}
-    alignSelf="flex-start"
+  <Box
+    borderStyle={userMessageBar(glyphs().userBar)}
+    borderTop={false}
+    borderRight={false}
+    borderBottom={false}
+    borderLeftColor={extendedTheme.ui.brand}
+    paddingLeft={1}
     marginTop={1}
-  />
+    alignSelf="flex-start"
+  >
+    <PrefixedTextMessage
+      text={text}
+      prefix={marker === 'done' ? glyphs().done : glyphs().prompt}
+      prefixNode={
+        marker === 'waiting' ? (
+          <Spinner
+            color={extendedTheme.ui.brand}
+            altText={SCREEN_READER_USER_PREFIX}
+          />
+        ) : undefined
+      }
+      suffix={marker === 'running' ? ' …' : undefined}
+      prefixColor={extendedTheme.ui.brand}
+      textColor={extendedTheme.ui.brandSoft}
+      ariaLabel={SCREEN_READER_USER_PREFIX}
+    />
+  </Box>
 );
 
 export const UserShellMessage: React.FC<UserShellMessageProps> = ({ text }) => {

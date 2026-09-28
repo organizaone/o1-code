@@ -19,8 +19,8 @@
  * and AgentComposer (with minimal customization).
  */
 
-import type { ReactNode } from 'react';
-import { useCallback, useRef } from 'react';
+import type { MutableRefObject, ReactNode } from 'react';
+import { useCallback, useLayoutEffect, useRef } from 'react';
 import { Box, Text, type DOMElement, useBoxMetrics, useCursor } from 'ink';
 import type { TextBuffer } from './shared/text-buffer.js';
 import { TextInputMouseController } from './shared/TextInputMouseController.js';
@@ -73,6 +73,11 @@ export interface RenderLineOptions {
 export interface BaseTextInputProps {
   /** The text buffer driving this input. */
   buffer: TextBuffer;
+  /**
+   * Receives the lines container, so the screen's drag-to-select can take
+   * the typed text (and only it: no border, no prompt glyph).
+   */
+  selectableLinesRef?: MutableRefObject<DOMElement | null>;
   /** Called when the user submits (Enter). Buffer is cleared automatically. */
   onSubmit: (text: string) => void;
   /**
@@ -220,6 +225,7 @@ export const BaseTextInput = ({
   isActive = true,
   renderLine = defaultRenderLine,
   mouseEnabled = false,
+  selectableLinesRef,
 }: BaseTextInputProps): ReactNode => {
   // ── Keyboard handling ──
 
@@ -338,6 +344,17 @@ export const BaseTextInput = ({
   const boxRef = useRef<DOMElement | null>(null);
   const linesRef = useRef<DOMElement | null>(null);
   const { hasMeasured } = useBoxMetrics(linesRef);
+  // Synced after every render: the lines container is swapped for the
+  // placeholder while the input is empty.
+  useLayoutEffect(() => {
+    if (selectableLinesRef) selectableLinesRef.current = linesRef.current;
+  });
+  useLayoutEffect(
+    () => () => {
+      if (selectableLinesRef) selectableLinesRef.current = null;
+    },
+    [selectableLinesRef],
+  );
   const { setCursorPosition } = useCursor();
   const cursorPosition = getPhysicalCursorPosition(linesRef.current, {
     hasMeasured,

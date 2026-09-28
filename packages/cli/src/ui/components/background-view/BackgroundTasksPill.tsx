@@ -101,6 +101,15 @@ function groupAndFormat(entries: readonly DialogEntry[]): string {
   return parts.join(', ');
 }
 
+/**
+ * Monitors still watching. The activity line shows them as its own
+ * `monitoring` chip, so the pill leaves them out.
+ */
+export function countRunningMonitors(entries: readonly DialogEntry[]): number {
+  return entries.filter((e) => e.kind === 'monitor' && e.status === 'running')
+    .length;
+}
+
 function formatCount(kind: keyof typeof KIND_NAMES, n: number): string {
   const names = KIND_NAMES[kind];
   return `${n} ${n === 1 ? names.singular : names.plural}`;
@@ -112,24 +121,17 @@ export const BackgroundTasksPill: React.FC = () => {
 
   const onKeypress = useCallback(
     (key: Key) => {
-      // `return`, down, and the readline-style Ctrl+N all open the dialog.
-      // This is focus-chain handling rather than selection-list handling
-      // (see keyBindings.ts SELECTION_DOWN), so keep the matcher inline.
-      // Down completes the focus chain Composer ↓ → AgentTabBar ↓ → Pill ↓ → Dialog,
-      // so users can `↓ ↓ (↓)` their way from an empty composer
-      // straight into the roster without having to remember the
-      // Enter shortcut. The LiveAgentPanel's overflow callout
-      // (`↓ to view all`) relies on this; without a Down handler
-      // the chain dead-ends at the highlighted pill.
-      if (
-        key.name === 'return' ||
-        key.name === 'down' ||
-        (key.ctrl && key.name === 'n')
-      ) {
+      // The indicator sits on the activity line, above the composer: ↑ from
+      // an empty composer reaches it, Enter opens the dialog, ↓ or Esc goes
+      // back down, and ↑ goes on into history (the composer handles that). This is focus-chain handling rather than
+      // selection-list handling (see keyBindings.ts SELECTION_DOWN), so keep
+      // the matcher inline. The Arena tab bar below the composer still hands
+      // its ↓ here, and Enter then opens the dialog.
+      if (key.name === 'return') {
         openDialog();
       } else if (
-        key.name === 'up' ||
-        (key.ctrl && key.name === 'p') ||
+        key.name === 'down' ||
+        (key.ctrl && key.name === 'n') ||
         key.name === 'escape'
       ) {
         setPillFocused(false);
@@ -149,7 +151,11 @@ export const BackgroundTasksPill: React.FC = () => {
 
   if (entries.length === 0) return null;
 
-  const label = getPillLabel(entries);
+  // With monitors running, the `monitoring` chip carries the focus highlight.
+  const monitoring = countRunningMonitors(entries);
+  const label = getPillLabel(
+    entries.filter((e) => !(e.kind === 'monitor' && e.status === 'running')),
+  );
   const needsApproval = hasPendingApproval(entries);
   const largeWorkflow = hasLargeWorkflow(entries);
 
@@ -158,12 +164,21 @@ export const BackgroundTasksPill: React.FC = () => {
       {/* Truncate every node: the pill shares the footer's shrinkable hint
           row, where a default-wrap child grows the footer mid-turn once the
           queued-count badge squeezes the row. */}
-      <Text color={theme.text.secondary} wrap="truncate">
-        {' · '}
-      </Text>
-      <Text inverse={pillFocused} wrap="truncate">
-        {label}
-      </Text>
+      {label && (
+        <>
+          <Text color={theme.text.secondary} wrap="truncate">
+            {' · '}
+          </Text>
+          <Text inverse={pillFocused && monitoring === 0} wrap="truncate">
+            {label}
+          </Text>
+        </>
+      )}
+      {pillFocused && (
+        <Text color={theme.text.secondary} wrap="truncate">
+          {`  ${t('enter open · ↑ history · esc back')}`}
+        </Text>
+      )}
       {needsApproval && (
         <Text color={theme.status.warning} wrap="truncate">
           {` ⚠ ${t('needs approval')}`}

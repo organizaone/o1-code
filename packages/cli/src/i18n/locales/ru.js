@@ -8,6 +8,10 @@
 // Ключ служит одновременно ключом перевода и текстом по умолчанию
 
 export default {
+  'Open the background tasks (monitors, shells, agents)':
+    'Открыть фоновые задачи (мониторы, оболочки, агенты)',
+  'monitoring ({{count}})': 'мониторинг ({{count}})',
+  'enter open · ↑ history · esc back': 'enter открыть · ↑ история · esc назад',
   // ============================================================================
   // Справка / Компоненты интерфейса
   // ============================================================================
@@ -157,8 +161,6 @@ export default {
     'Режим подтверждения установлен на "{{mode}}"',
   'View or change the language setting':
     'Просмотр или изменение настроек языка',
-  'List background tasks (text dump — interactive dialog opens via the footer pill)':
-    'Показать фоновые задачи (текстовый вывод; интерактивный диалог открывается через плашку внизу экрана)',
   'Delete a previous session': 'Удалить предыдущую сессию',
   'Run installation and environment diagnostics':
     'Запустить диагностику установки и окружения',

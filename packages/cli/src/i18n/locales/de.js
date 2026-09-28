@@ -8,6 +8,10 @@
 // Deutsche Übersetzungen für O1-Code CLI
 
 export default {
+  'Open the background tasks (monitors, shells, agents)':
+    'Hintergrundaufgaben öffnen (Monitore, Shells, Agenten)',
+  'monitoring ({{count}})': 'überwacht ({{count}})',
+  'enter open · ↑ history · esc back': 'Enter öffnen · ↑ Verlauf · Esc zurück',
   // ============================================================================
   // Help / UI Components
   // ============================================================================
@@ -132,8 +136,6 @@ export default {
     'Genehmigungsmodus für Werkzeugnutzung anzeigen oder ändern',
   'View or change the language setting':
     'Spracheinstellung anzeigen oder ändern',
-  'List background tasks (text dump — interactive dialog opens via the footer pill)':
-    'Hintergrundaufgaben auflisten (Textausgabe; der interaktive Dialog lässt sich über die Schaltfläche in der Fußzeile öffnen)',
   'Delete a previous session': 'Eine frühere Sitzung löschen',
   'Run installation and environment diagnostics':
     'Installations- und Umgebungsdiagnosen ausführen',

@@ -6,17 +6,17 @@
 
 import { useState, useCallback } from 'react';
 import type { Config } from '@organizaone/o1-code-core/config/config.js';
-import type { ReasoningEffort } from '@organizaone/o1-code-core/core/reasoning-effort.js';
-import { applyReasoningEffort } from '@organizaone/o1-code-core/core/reasoning-effort.js';
 import type { LoadedSettings } from '../../config/settings.js';
-import { getPersistScopeForModelSelection } from '../../config/modelProvidersScope.js';
 import { MessageType, type HistoryItemWithoutId } from '../types.js';
-import { formatEffortChangeMessage } from '../commands/effort-utils.js';
+import {
+  applyEffortSelection,
+  type EffortSelection,
+} from '../commands/effort-utils.js';
 
 interface UseEffortCommandReturn {
   isEffortDialogOpen: boolean;
   openEffortDialog: () => void;
-  handleEffortSelect: (effort: ReasoningEffort | undefined) => void;
+  handleEffortSelect: (selection: EffortSelection | undefined) => void;
 }
 
 export const useEffortCommand = (
@@ -31,29 +31,19 @@ export const useEffortCommand = (
   }, []);
 
   const handleEffortSelect = useCallback(
-    (effort: ReasoningEffort | undefined) => {
+    (selection: EffortSelection | undefined) => {
       try {
-        if (!effort) {
+        if (!selection) {
           // User cancelled the dialog — leave the current effort unchanged.
           return;
         }
-        // Apply at runtime (next turn) and persist for future sessions; provider
-        // adapters clamp the tier to what the active model supports.
-        applyReasoningEffort(config, effort);
-        loadedSettings.setValue(
-          getPersistScopeForModelSelection(loadedSettings),
-          'model.reasoningEffort',
-          effort,
-        );
-        // Report the outcome in-chat instead of silently closing (the status
-        // line is the only other signal). The setter no-ops when thinking is
-        // explicitly disabled (`reasoning: false`): the tier is still persisted
-        // for future sessions, but say it won't take effect until thinking is
-        // re-enabled.
+        // Applies at runtime (next turn) and persists for future sessions;
+        // provider adapters clamp a tier to what the active model supports.
+        const text = applyEffortSelection(config, loadedSettings, selection);
         if (addItem) {
           const feedbackItem: HistoryItemWithoutId & Record<string, unknown> = {
             type: MessageType.INFO,
-            text: formatEffortChangeMessage(config, effort),
+            text,
           };
           addItem(feedbackItem, Date.now());
           config.getChatRecordingService?.()?.recordSlashCommand({

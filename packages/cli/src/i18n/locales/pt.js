@@ -7,6 +7,35 @@
 // Portuguese translations for O1-Code CLI (pt-BR)
 
 export default {
+  'Reasoning Effort': 'Intensidade de raciocínio',
+  '(applied across all providers; clamped per model)':
+    '(vale para todos os provedores; ajustada por modelo)',
+  'The model/provider decides; no tier of its own.':
+    'O modelo/provedor decide; nenhum nível próprio.',
+  'Fastest and cheapest; least reasoning.':
+    'Mais rápido e barato; menos raciocínio.',
+  'Balanced speed, cost, and reasoning.':
+    'Equilíbrio entre velocidade, custo e raciocínio.',
+  'Strong reasoning for hard tasks.': 'Raciocínio forte para tarefas difíceis.',
+  'Extended reasoning for agentic/coding work.':
+    'Raciocínio estendido para trabalho de agente/código.',
+  'Maximum reasoning; highest cost and latency.':
+    'Raciocínio máximo; maior custo e latência.',
+  '{{effort}} is not available for this model — using the model/provider default.':
+    '{{effort}} não está disponível para este modelo — usando o padrão do modelo/provedor.',
+  '(Use Enter to select, Esc to cancel)':
+    '(Enter para selecionar, Esc para cancelar)',
+  'Reasoning effort: default (the model/provider decides).':
+    'Intensidade de raciocínio: padrão (o modelo/provedor decide).',
+  'Reasoning effort: {{tier}} (requested; the effective tier depends on the active provider/model).':
+    'Intensidade de raciocínio: {{tier}} (solicitada; o nível efetivo depende do provedor/modelo ativo).',
+  Effort: 'Raciocínio',
+  '↑↓ navigate · ←→ effort · enter select · esc close':
+    '↑↓ navegar · ←→ raciocínio · enter selecionar · esc fechar',
+  'Open the background tasks (monitors, shells, agents)':
+    'Abrir as tarefas em segundo plano (monitores, shells, agentes)',
+  'monitoring ({{count}})': 'monitorando ({{count}})',
+  'enter open · ↑ history · esc back': 'enter abre · ↑ histórico · esc volta',
   // ============================================================================
   // Help / UI Components
   // ============================================================================
@@ -149,8 +178,6 @@ export default {
     'Modo de aprovação definido como "{{mode}}"',
   'View or change the language setting':
     'Ver ou alterar a configuração de idioma',
-  'List background tasks (text dump — interactive dialog opens via the footer pill)':
-    'Listar tarefas em segundo plano (saída em texto; a caixa de diálogo interativa pode ser aberta pelo indicador no rodapé)',
   'Delete a previous session': 'Excluir uma sessão anterior',
   'Run installation and environment diagnostics':
     'Executar diagnósticos de instalação e ambiente',

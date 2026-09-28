@@ -14,7 +14,10 @@ import { UIStateContext, type UIState } from '../contexts/UIStateContext.js';
 import { StreamingState } from '../types.js';
 import { GitZone } from './footer-zones.js';
 
-vi.mock('./background-view/BackgroundTasksPill.js', () => ({
+vi.mock('./background-view/BackgroundTasksPill.js', async (importOriginal) => ({
+  ...(await importOriginal<
+    typeof import('./background-view/BackgroundTasksPill.js')
+  >()),
   BackgroundTasksPill: () => null,
 }));
 vi.mock('./GoalPill.js', () => ({
@@ -41,6 +44,12 @@ describe('ActivityChips', () => {
     expect(text(<ActivityChips tier="full" active="execute" />)).toBe(
       '● info  ● reading  ● writing  ● running  ● done',
     );
+  });
+
+  it('adds a monitoring chip while monitors watch', () => {
+    expect(
+      text(<ActivityChips tier="full" active="read" monitoring={2} />),
+    ).toBe('● info  ● reading  ● writing  ● running  ● done  ● monitoring (2)');
   });
 
   it('keeps only the active label under 80 columns', () => {

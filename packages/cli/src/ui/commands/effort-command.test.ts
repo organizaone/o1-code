@@ -140,6 +140,20 @@ describe('effortCommand', () => {
     expect(res).toMatchObject({ messageType: 'info' });
   });
 
+  it('clears the tier with default, leaving it to the model/provider', async () => {
+    const res = await effortCommand.action!(context, 'default');
+    expect(setReasoningEffort).toHaveBeenCalledWith(undefined);
+    expect(setValue).toHaveBeenCalledWith(
+      expect.anything(),
+      'model.reasoningEffort',
+      undefined,
+    );
+    expect(res).toMatchObject({
+      messageType: 'info',
+      content: expect.stringContaining('default'),
+    });
+  });
+
   it('keeps a valid tier session-local when persistence is disabled', async () => {
     const res = await effortCommand.action!(
       {
@@ -260,6 +274,8 @@ describe('effortCommand', () => {
     // No completion so bare `/effort` opens the picker instead of auto-picking
     // the first tier; `/effort <tier>` still parses in the action above.
     expect(effortCommand.completion).toBeUndefined();
-    expect(effortCommand.argumentHint).toBe('[low|medium|high|xhigh|max]');
+    expect(effortCommand.argumentHint).toBe(
+      '[default|low|medium|high|xhigh|max]',
+    );
   });
 });
