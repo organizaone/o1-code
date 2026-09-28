@@ -115,6 +115,7 @@ import {
 import process from 'node:process';
 import { useTurnStartedAt } from './hooks/use-turn-clock.js';
 import { useTurnStartIndex } from './hooks/use-turn-start-index.js';
+import { useTurnOutcome } from './hooks/use-turn-outcome.js';
 
 /**
  * Window in which mcp-client-update events are coalesced before the cli calls
@@ -2412,6 +2413,9 @@ export const AppContainer = (props: AppContainerProps) => {
   }, [config, historyManager, settings.merged]);
 
   const cancelHandlerRef = useRef<(info?: CancelSubmitInfo) => void>(() => {});
+  // The user item of the turn the last cancel aborted; useTurnOutcome reads
+  // and clears it when the stream settles.
+  const cancelledTurnItemIdRef = useRef<number | null>(null);
   const midTurnDrainRef = useRef<UseMessageQueueReturn['drainQueue'] | null>(
     null,
   );
@@ -2487,6 +2491,12 @@ export const AppContainer = (props: AppContainerProps) => {
   );
   cancelOngoingRequestRef.current = cancelOngoingRequest;
   clearPendingStateRef.current = clearPendingState;
+  useTurnOutcome(
+    streamingState,
+    historyManager.history,
+    historyManager.updateItem,
+    cancelledTurnItemIdRef,
+  );
 
   // Now that streamingState is available, keep isIdleRef in sync and
   // flush any deferred update notifications when the model finishes responding.
@@ -3442,6 +3452,7 @@ export const AppContainer = (props: AppContainerProps) => {
 
   cancelHandlerRef.current = useCallback(
     (info?: CancelSubmitInfo) => {
+      cancelledTurnItemIdRef.current = info?.lastTurnUserItem?.id ?? null;
       // Combine the React-state pending items (slash command, retry countdown,
       // tool group, etc.) with the synchronous snapshot of the LLM pending
       // item from `useLlmStream`. The snapshot closes the race where a
