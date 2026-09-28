@@ -7,6 +7,8 @@ follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.2.1] - 2026-09-28
+
 ### Terminal interface
 
 - A message you sent now stands apart from the reply and the tool rows: a brand-coloured bar runs
