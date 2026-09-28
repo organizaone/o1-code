@@ -8,6 +8,8 @@
 // Ключ служит одновременно ключом перевода и текстом по умолчанию
 
 export default {
+  'O1-Code was updated': 'O1-Code обновлён',
+  'The update failed': 'Не удалось обновить',
   Update: 'Обновление',
   "What's new in {{version}}": 'Что нового в {{version}}',
   'Updated from {{from}} to {{to}}': 'Обновлено с {{from}} до {{to}}',

@@ -49,6 +49,16 @@ describe('<UpdateNotice />', () => {
     );
   });
 
+  it('reads well without a known version', () => {
+    const text = [
+      ...frame(<UpdateNotice status="installed" />),
+      ...frame(<UpdateNotice status="failed" text="npm exited 1" />),
+    ].join('\n');
+    expect(text).toContain('O1-Code was updated');
+    expect(text).toContain('The update failed');
+    expect(text).not.toMatch(/ {2}(installed|failed)/);
+  });
+
   it('names the version and the reason when the update failed', () => {
     const text = frame(
       <UpdateNotice status="failed" version="0.2.2" text="npm exited 1" />,

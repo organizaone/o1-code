@@ -8,6 +8,8 @@
 // Deutsche Übersetzungen für O1-Code CLI
 
 export default {
+  'O1-Code was updated': 'O1-Code wurde aktualisiert',
+  'The update failed': 'Die Aktualisierung ist fehlgeschlagen',
   Update: 'Aktualisierung',
   "What's new in {{version}}": 'Neu in {{version}}',
   'Updated from {{from}} to {{to}}': 'Von {{from}} auf {{to}} aktualisiert',

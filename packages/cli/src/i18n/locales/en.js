@@ -8,6 +8,8 @@
 // The key serves as both the translation key and the default English text
 
 export default {
+  'O1-Code was updated': 'O1-Code was updated',
+  'The update failed': 'The update failed',
   Update: 'Update',
   "What's new in {{version}}": "What's new in {{version}}",
   'Updated from {{from}} to {{to}}': 'Updated from {{from}} to {{to}}',

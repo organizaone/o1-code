@@ -7,6 +7,8 @@
 // Japanese translations for O1-Code CLI
 
 export default {
+  'O1-Code was updated': 'O1-Code を更新しました',
+  'The update failed': '更新に失敗しました',
   Update: 'アップデート',
   "What's new in {{version}}": '{{version}} の新機能',
   'Updated from {{from}} to {{to}}': '{{from}} から {{to}} に更新されました',

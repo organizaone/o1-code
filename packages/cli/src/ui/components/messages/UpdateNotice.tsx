@@ -116,13 +116,13 @@ export const UpdateNotice: React.FC<UpdateNoticeProps> = ({
               <Text color={theme.text.primary} bold>
                 {` ${
                   status === 'installed'
-                    ? t('O1-Code {{version}} installed', {
-                        version: version ?? '',
-                      })
+                    ? version
+                      ? t('O1-Code {{version}} installed', { version })
+                      : t('O1-Code was updated')
                     : status === 'failed'
-                      ? t('The update to {{version}} failed', {
-                          version: version ?? '',
-                        })
+                      ? version
+                        ? t('The update to {{version}} failed', { version })
+                        : t('The update failed')
                       : t('O1-Code {{version}} is available', {
                           version: version ?? '',
                         })

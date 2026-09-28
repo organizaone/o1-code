@@ -7,6 +7,8 @@
 // Portuguese translations for O1-Code CLI (pt-BR)
 
 export default {
+  'O1-Code was updated': 'O1-Code atualizado',
+  'The update failed': 'A atualização falhou',
   Update: 'Atualização',
   "What's new in {{version}}": 'Novidades da {{version}}',
   'Updated from {{from}} to {{to}}': 'Atualizado da {{from}} para a {{to}}',

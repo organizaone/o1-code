@@ -9,6 +9,8 @@
 // then extensively hand-corrected for Taiwan vocabulary conventions.
 // This file is the authoritative source — do not overwrite with auto-generated output.
 export default {
+  'O1-Code was updated': 'O1-Code 已更新',
+  'The update failed': '更新失敗',
   Update: '更新',
   "What's new in {{version}}": '{{version}} 新功能',
   'Updated from {{from}} to {{to}}': '已從 {{from}} 更新到 {{to}}',
