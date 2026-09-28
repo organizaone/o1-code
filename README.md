@@ -1,7 +1,3 @@
-<p align="center">
-  <img src="docs/assets/readme/welcome.png" alt="o1-code running in a terminal: the welcome screen" width="880">
-</p>
-
 <h1 align="center">o1-code</h1>
 
 <p align="center">
@@ -23,6 +19,10 @@ o1-code reads your project, edits files, runs commands and works through multi-s
 before it changes anything. It talks to the model provider you choose: a built-in preset, a model
 running on your machine, or any OpenAI-compatible or Anthropic endpoint by its base URL.
 
+<p align="center">
+  <img src="docs/assets/readme/welcome.png" alt="o1-code open in a terminal: the start screen with the model, the branch and the first hints" width="880">
+</p>
+
 ## Install
 
 ```bash
@@ -43,10 +43,6 @@ o1-code
 **1. Connect a provider.** On first launch you choose how to connect. Run `/auth` at any time to
 change it.
 
-<p align="center">
-  <img src="docs/assets/readme/connect-provider.png" alt="The Connect a provider dialog: OrganizaOne, API key, Local, Custom" width="880">
-</p>
-
 - **API key** for a built-in provider: Anthropic, OpenAI, Google Gemini, DeepSeek, xAI, Kimi,
   MiniMax, Z.AI and others. The key is stored in `~/.o1-code/credentials/`, never in settings.
 - **Local** models on this machine: Ollama and LM Studio are detected on their ports; any other
@@ -63,10 +59,6 @@ add input validation to POST /todos: reject an empty title with a 400, and add a
 
 **3. Approve.** o1-code shows the edit or the command before it runs and waits for you. Press
 `Shift+Tab` to change the approval mode, `/help` to list the commands, `?` for the shortcuts.
-
-<p align="center">
-  <img src="docs/assets/readme/session.png" alt="o1-code proposing a code change and asking for approval" width="880">
-</p>
 
 ## Features
 
