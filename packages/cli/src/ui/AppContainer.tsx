@@ -222,6 +222,7 @@ import { migrateTomlCommands } from '../services/command-migration-tool.js';
 import { sendNotification } from '../services/notificationService.js';
 import { type UpdateObject } from './utils/updateCheck.js';
 import { setUpdateHandler } from './handleAutoUpdate.js';
+import { takeWhatsNew, whatsNewNotice } from './utils/whats-new.js';
 import { registerCleanup, runExitCleanup } from '../utils/cleanup.js';
 import {
   useMessageQueue,
@@ -1477,15 +1478,16 @@ export const AppContainer = (props: AppContainerProps) => {
     flush: () => void;
   } | null>(null);
 
+  const addUpdateItem = historyManager.addItem;
   useEffect(() => {
-    const handler = setUpdateHandler(
-      historyManager.addItem,
-      setUpdateInfo,
-      isIdleRef,
-    );
+    const handler = setUpdateHandler(addUpdateItem, setUpdateInfo, isIdleRef);
     updateHandlerRef.current = handler;
+    // The first run of a new version says what changed. takeWhatsNew records
+    // the version, so a re-run of this effect finds nothing new.
+    const whatsNew = takeWhatsNew(config.getCliVersion?.() ?? '');
+    if (whatsNew) addUpdateItem(whatsNewNotice(whatsNew), Date.now());
     return () => handler?.cleanup();
-  }, [historyManager.addItem]);
+  }, [addUpdateItem, config]);
 
   // Derive widths for InputPrompt using shared helper
   const { inputWidth, suggestionsWidth } = useMemo(() => {

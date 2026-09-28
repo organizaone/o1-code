@@ -6,7 +6,7 @@
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render } from 'ink-testing-library';
-import type { DOMElement } from 'ink';
+import { Box, type DOMElement } from 'ink';
 import {
   BaseTextInput,
   defaultRenderLine,
@@ -171,6 +171,27 @@ describe('BaseTextInput', () => {
     unmount();
 
     expect(mockSetCursorPosition).not.toHaveBeenCalled();
+  });
+
+  it('keeps a labelled top border inside the input box', () => {
+    // The rule used to be sized from the whole terminal, pushing the label
+    // and the corner past the box's right edge.
+    const { lastFrame } = render(
+      <Box width={40} flexDirection="column">
+        <BaseTextInput
+          buffer={createBuffer()}
+          onSubmit={vi.fn()}
+          placeholder="Type here"
+          topRightLabel="config-fedora"
+        />
+      </Box>,
+    );
+    const [top, middle, bottom] = (lastFrame() ?? '').split('\n');
+    expect(top).toMatch(/─ config-fedora ──╮$/);
+    expect(top).not.toContain('…');
+    expect([...top!]).toHaveLength(40);
+    expect([...middle!]).toHaveLength(40);
+    expect([...bottom!]).toHaveLength(40);
   });
 
   it('draws no cursor on the placeholder where the terminal shows it', () => {
@@ -391,23 +412,34 @@ describe('defaultRenderLine', () => {
     expect(lastFrame()).toContain(`he${renderSoftwareCursor('l')}lo`);
   });
 
-  it('renders the software cursor as a trailing space', () => {
-    const { lastFrame } = render(
-      <>
-        {defaultRenderLine({
-          lineText: 'hello',
-          isOnCursorLine: true,
-          cursorCol: 5,
-          showCursor: true,
-          visualLineIndex: 0,
-          absoluteVisualIndex: 0,
-          buffer: createBuffer(),
-          scrollVisualRow: 0,
-        })}
-      </>,
-    );
+  it('renders the software cursor as a trailing space, with no zero-width space', () => {
+    // A styled cell is not trimmed, so nothing has to follow it. U+200B used
+    // to: Ink counts it as one column and VTE as none, which pulled the right
+    // border in by one column in GNOME Terminal and Ptyxis.
+    const level = chalk.level;
+    chalk.level = 3;
+    try {
+      const { lastFrame } = render(
+        <>
+          {defaultRenderLine({
+            lineText: 'hello',
+            isOnCursorLine: true,
+            cursorCol: 5,
+            showCursor: true,
+            visualLineIndex: 0,
+            absoluteVisualIndex: 0,
+            buffer: createBuffer(),
+            scrollVisualRow: 0,
+          })}
+        </>,
+      );
 
-    expect(lastFrame()).toContain(`hello${renderSoftwareCursor(' ')}`);
+      const frame = lastFrame() ?? '';
+      expect(frame).toContain(`hello${renderSoftwareCursor(' ')}`);
+      expect(frame).not.toContain('\u200B');
+    } finally {
+      chalk.level = level;
+    }
   });
 
   it('draws no cursor of its own where the terminal shows it', () => {

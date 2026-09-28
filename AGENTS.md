@@ -139,7 +139,10 @@ Run one heavy job at a time — a build, a bundle or a full suite. Parallel runs
 memory.
 
 `main` is protected: every change reaches it through a pull request whose CI fast gates pass, with a
-linear history. A change to the terminal interface follows `docs/guides/TUI-DESIGN.md`.
+linear history. Nothing is pushed and no pull request is opened without the maintainer's OK for that
+change, and before any push the fast gates run locally first (the command list is in the
+deviations of `docs/guides/TASK-COMPLETION.md`, including `npm run test:scripts`). A change to the
+terminal interface follows `docs/guides/TUI-DESIGN.md`.
 
 Autonomous rounds are triggered by `AUTORUN` and closed by `HALT`, per
 `docs/guides/AUTONOMOUS-EXECUTION.md`. The first response after the trigger opens with the confirmation

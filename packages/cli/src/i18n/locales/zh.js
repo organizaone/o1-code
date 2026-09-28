@@ -7,6 +7,18 @@
 // Chinese translations for O1-Code CLI
 
 export default {
+  'O1-Code was updated': 'O1-Code 已更新',
+  'The update failed': '更新失败',
+  Update: '更新',
+  "What's new in {{version}}": '{{version}} 新功能',
+  'Updated from {{from}} to {{to}}': '已从 {{from}} 更新到 {{to}}',
+  'and {{count}} more': '还有 {{count}} 项',
+  'full notes': '完整说明',
+  'O1-Code {{version}} installed': '已安装 O1-Code {{version}}',
+  'The update to {{version}} failed': '更新到 {{version}} 失败',
+  'O1-Code {{version}} is available': 'O1-Code {{version}} 可用',
+  'It takes effect the next time you open O1-Code.':
+    '下次打开 O1-Code 时生效。',
   'Open the background tasks (monitors, shells, agents)':
     '打开后台任务（监视器、shell、代理）',
   'monitoring ({{count}})': '监视中 ({{count}})',

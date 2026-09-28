@@ -424,6 +424,7 @@ function writeDistPackageJson(rootDir, distDir, { includeAudioCapture } = {}) {
       'web-shell',
       'export-transcript-document.js',
       'export-transcript-document.css',
+      'release-notes.json',
     ],
     config: rootPackageJson.config,
     dependencies: {},

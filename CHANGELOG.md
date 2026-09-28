@@ -7,6 +7,15 @@ follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Terminal interface
+
+- An update of O1-Code stands out: a framed notice says it was installed and applies on the next
+  run, or why it failed, instead of a plain status line. The first run of a new version shows
+  what is new in it, with a link to the full release notes.
+- The input keeps its borders aligned in GNOME Terminal and Ptyxis: the right border no longer
+  moves one column in when the cursor is at the end of the line, and a session name set with
+  `/rename` no longer breaks the top border.
+
 ## [0.2.1] - 2026-09-28
 
 ### Terminal interface

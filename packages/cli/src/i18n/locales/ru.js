@@ -8,6 +8,18 @@
 // Ключ служит одновременно ключом перевода и текстом по умолчанию
 
 export default {
+  'O1-Code was updated': 'O1-Code обновлён',
+  'The update failed': 'Не удалось обновить',
+  Update: 'Обновление',
+  "What's new in {{version}}": 'Что нового в {{version}}',
+  'Updated from {{from}} to {{to}}': 'Обновлено с {{from}} до {{to}}',
+  'and {{count}} more': 'и ещё {{count}}',
+  'full notes': 'полные заметки',
+  'O1-Code {{version}} installed': 'O1-Code {{version}} установлен',
+  'The update to {{version}} failed': 'Не удалось обновить до {{version}}',
+  'O1-Code {{version}} is available': 'Доступен O1-Code {{version}}',
+  'It takes effect the next time you open O1-Code.':
+    'Вступит в силу при следующем запуске O1-Code.',
   'Open the background tasks (monitors, shells, agents)':
     'Открыть фоновые задачи (мониторы, оболочки, агенты)',
   'monitoring ({{count}})': 'мониторинг ({{count}})',

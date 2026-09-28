@@ -2162,14 +2162,13 @@ export const InputPrompt: React.FC<InputPromptProps> = ({
               );
             }
           }
-          if (drawCursor) {
-            renderedLine.push(<Text key="ghost-zwsp">{`\u200B`}</Text>);
-          }
         } else if (!terminalShowsInputCursor()) {
-          // Add zero-width space after cursor to prevent Ink from trimming trailing whitespace
+          // No zero-width space after the cursor cell: Ink counts U+200B as
+          // one column and VTE (GNOME Terminal, Ptyxis) as none, which pulled
+          // the input's right border one column in on every cursor-at-end row.
           renderedLine.push(
             <Text key={`cursor-end-${cursorVisualColAbsolute}`}>
-              {showCursorOpt ? renderSoftwareCursor(' ') + '\u200B' : ' \u200B'}
+              {showCursorOpt ? renderSoftwareCursor(' ') : ' '}
             </Text>,
           );
         }

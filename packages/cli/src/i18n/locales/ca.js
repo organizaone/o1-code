@@ -7,6 +7,19 @@
 // Traduccions en català per al CLI de O1-Code per Jordi Mas i Hernàndez <jmas@softcatala.org>
 
 export default {
+  'O1-Code was updated': 'O1-Code actualitzat',
+  'The update failed': "L'actualització ha fallat",
+  Update: 'Actualització',
+  "What's new in {{version}}": 'Novetats de la {{version}}',
+  'Updated from {{from}} to {{to}}': 'Actualitzat de la {{from}} a la {{to}}',
+  'and {{count}} more': 'i {{count}} més',
+  'full notes': 'notes completes',
+  'O1-Code {{version}} installed': 'O1-Code {{version}} instal·lat',
+  'The update to {{version}} failed':
+    "L'actualització a la {{version}} ha fallat",
+  'O1-Code {{version}} is available': 'O1-Code {{version}} disponible',
+  'It takes effect the next time you open O1-Code.':
+    "S'aplica la propera vegada que obris O1-Code.",
   'Open the background tasks (monitors, shells, agents)':
     'Obre les tasques en segon pla (monitors, shells, agents)',
   'monitoring ({{count}})': 'monitoritzant ({{count}})',

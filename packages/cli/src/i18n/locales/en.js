@@ -8,6 +8,18 @@
 // The key serves as both the translation key and the default English text
 
 export default {
+  'O1-Code was updated': 'O1-Code was updated',
+  'The update failed': 'The update failed',
+  Update: 'Update',
+  "What's new in {{version}}": "What's new in {{version}}",
+  'Updated from {{from}} to {{to}}': 'Updated from {{from}} to {{to}}',
+  'and {{count}} more': 'and {{count}} more',
+  'full notes': 'full notes',
+  'O1-Code {{version}} installed': 'O1-Code {{version}} installed',
+  'The update to {{version}} failed': 'The update to {{version}} failed',
+  'O1-Code {{version}} is available': 'O1-Code {{version}} is available',
+  'It takes effect the next time you open O1-Code.':
+    'It takes effect the next time you open O1-Code.',
   'The model/provider decides; no tier of its own.':
     'The model/provider decides; no tier of its own.',
   'Strong reasoning for hard tasks.': 'Strong reasoning for hard tasks.',
