@@ -7,6 +7,8 @@ follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-09-28
+
 ### Terminal interface
 
 - The message that started a turn shows the turn's state in its prefix column: a spinner while
