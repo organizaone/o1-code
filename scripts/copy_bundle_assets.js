@@ -477,16 +477,24 @@ export function copyBundleAssets({ root = defaultRoot } = {}) {
   }
 
   // The highlights of every release, for the "What's new" notice the first
-  // run of a new version shows, offline.
-  writeFileSync(
-    join(distDir, 'release-notes.json'),
-    `${JSON.stringify(
-      buildReleaseHighlights(readFileSync(join(root, 'CHANGELOG.md'), 'utf8')),
-      null,
-      2,
-    )}\n`,
-  );
-  console.log('Wrote release-notes.json to dist/');
+  // run of a new version shows, offline. A tree without a changelog ships
+  // none, and the notice stays silent.
+  const changelogPath = join(root, 'CHANGELOG.md');
+  if (existsSync(changelogPath)) {
+    writeFileSync(
+      join(distDir, 'release-notes.json'),
+      `${JSON.stringify(
+        buildReleaseHighlights(readFileSync(changelogPath, 'utf8')),
+        null,
+        2,
+      )}\n`,
+    );
+    console.log('Wrote release-notes.json to dist/');
+  } else {
+    console.warn(
+      'Warning: CHANGELOG.md not found; dist/ will carry no release-notes.json.',
+    );
+  }
 
   // Stamp what the review sources looked like at build time. `/review` drives
   // the bundle, not the working tree, so a review command edited after this
