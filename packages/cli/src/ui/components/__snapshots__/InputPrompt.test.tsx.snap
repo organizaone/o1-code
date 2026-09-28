@@ -26,7 +26,7 @@ exports[`InputPrompt > command search (Ctrl+R when not in shell) > expands and c
 
 exports[`InputPrompt > command search (Ctrl+R when not in shell) > renders match window and expanded view (snapshots) > command-search-collapsed-match 1`] = `
 "╭──────────────────────────────────────────────────────────────────────────────────────────────────╮
-│ (r:)  commit ​                                                                                   │
+│ (r:)  commit                                                                                     │
 ╰──────────────────────────────────────────────────────────────────────────────────────────────────╯
   ╭──────────────────────────────────────────────────────────────────────────────╮
   │ ❯ git commit -m "feat: add search" in src/app                                │
@@ -36,7 +36,7 @@ exports[`InputPrompt > command search (Ctrl+R when not in shell) > renders match
 
 exports[`InputPrompt > command search (Ctrl+R when not in shell) > renders match window and expanded view (snapshots) > command-search-expanded-match 1`] = `
 "╭──────────────────────────────────────────────────────────────────────────────────────────────────╮
-│ (r:)  commit ​                                                                                   │
+│ (r:)  commit                                                                                     │
 ╰──────────────────────────────────────────────────────────────────────────────────────────────────╯
   ╭──────────────────────────────────────────────────────────────────────────────╮
   │ ❯ git commit -m "feat: add search" in src/app                                │

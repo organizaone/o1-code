@@ -129,7 +129,7 @@ export function defaultRenderLine({
     return (
       <Text>
         {lineText}
-        {renderSoftwareCursor(' ') + '\u200B'}
+        {renderSoftwareCursor(' ')}
       </Text>
     );
   }
@@ -392,16 +392,26 @@ export const BaseTextInput = ({
       {renderedLabel && (
         // The label sits inside the top border, so the input keeps its height
         // when a session name or voice status appears mid-turn.
+        // The rule starts from zero width and takes only what the label leaves:
+        // sized from its content (the whole terminal width) it pushed the
+        // label and the corner past the input's right edge.
         <Box>
           <Text color={resolvedBorderColor}>{frame.topLeft}</Text>
-          <Box flexGrow={1} overflow="hidden">
-            <Text color={resolvedBorderColor} wrap="truncate">
-              {frame.top.repeat(columns)}
+          <Box
+            flexGrow={1}
+            flexShrink={1}
+            flexBasis={0}
+            height={1}
+            overflow="hidden"
+          >
+            {/* Clipped, not truncated: truncation ends the rule with "…". */}
+            <Text color={resolvedBorderColor}>{frame.top.repeat(columns)}</Text>
+          </Box>
+          <Box flexShrink={0}>
+            <Text color={resolvedBorderColor}>
+              {` ${renderedLabel} ${frame.top.repeat(2)}${frame.topRight}`}
             </Text>
           </Box>
-          <Text color={resolvedBorderColor}>
-            {` ${renderedLabel} ${frame.top.repeat(2)}${frame.topRight}`}
-          </Text>
         </Box>
       )}
       <Box
