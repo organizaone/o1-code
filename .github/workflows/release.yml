@@ -44,7 +44,7 @@ jobs:
     permissions:
       # Creates the GitHub release and uploads the tarball to it.
       contents: 'write'
-      # For npm provenance and trusted publishing; unused while provenance is off.
+      # For trusted publishing and npm provenance.
       id-token: 'write'
       # Downloads the bundle artifact from the CI run of the tagged commit.
       actions: 'read'
@@ -69,7 +69,7 @@ jobs:
           ref: 'refs/tags/${{ env.TAG }}'
           fetch-depth: 1
 
-      # registry-url writes the .npmrc that reads NODE_AUTH_TOKEN at publish.
+      # registry-url points npm at the public registry for the publish below.
       - uses: 'actions/setup-node@820762786026740c76f36085b0efc47a31fe5020' # v7.0.0
         with:
           node-version-file: '.nvmrc'
@@ -193,15 +193,17 @@ jobs:
           fi
           "$installed_dir/vendor/ripgrep/$(node -p 'process.arch + "-" + process.platform')/rg" --version
 
-      # The granular NPM_TOKEN secret is temporary: trusted publishing (OIDC)
-      # replaces it after the first publication, and the token is deleted.
+      # Trusted publishing: npm exchanges the job's OIDC token (id-token: write)
+      # for a short-lived publish credential, for this repository, release.yml
+      # and the npm environment only. No token is stored anywhere. It needs
+      # npm 11.5.1 or later; Node 22 ships npm 10.
+      # A zero exit means the registry accepted the version. It can take
+      # several minutes more to show in `npm view`; nothing here waits.
       - name: 'Publish'
         if: "${{ steps.version.outputs.already != 'true' }}"
-        env:
-          NODE_AUTH_TOKEN: '${{ secrets.NPM_TOKEN }}'
-        # A zero exit means the registry accepted the version. It can take
-        # several minutes more to show in `npm view`; nothing here waits.
-        run: 'npm publish "$TARBALL" --access public --provenance="$PUBLISH_PROVENANCE"'
+        run: |
+          npm install -g npm@^11.5.1
+          npm publish "$TARBALL" --access public --provenance="$PUBLISH_PROVENANCE"
 
       # Through the REST API. Idempotent: a re-run reuses the release and
       # skips an asset already attached.

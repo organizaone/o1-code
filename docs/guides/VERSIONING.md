@@ -171,9 +171,9 @@ Bumping the version (Step 5) and releasing are different events. A release is th
   (`latest`, public), without waiting for the registry to show it; creates the GitHub release with
   the notes from `node scripts/o1/release-notes.mjs <version>` and the tarball attached.
 - **Release credentials.** The release job runs in the `npm` environment, which deploys only from
-  `v*.*.*` tags and waits for the maintainer's approval. The publish reads `NPM_TOKEN`, a granular
-  token meant only for the first publications; trusted publishing (OIDC) replaces it afterwards.
-  No token lives in the repository.
+  `v*.*.*` tags and waits for the maintainer's approval. The publish uses npm trusted publishing
+  (OIDC), bound on npmjs.com to this repository, `release.yml` and the `npm` environment. No token
+  is stored, in the repository or in its secrets.
 - **Runners.** Both workflows run on GitHub-hosted runners (`ubuntu-latest`). Self-hosted runners
   are not used: on a public repository a fork pull request would run its own copy of the workflow
   on them.

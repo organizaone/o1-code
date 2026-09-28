@@ -63,12 +63,12 @@ Decisions so far.
   creates the GitHub release from the changelog section (`scripts/o1/release-notes.mjs`). The steps
   are in the deviations of `docs/guides/VERSIONING.md`.
 - Stable channel only: every tag goes to `latest`.
-- The first publications use a temporary granular `NPM_TOKEN` secret, then trusted publishing
-  (OIDC) configured on npmjs.com, after which the token is deleted. Provenance turns itself on once
-  the repository is public (`PUBLISH_PROVENANCE`).
+- The first publications (0.1.0 to 0.2.1) used a temporary granular `NPM_TOKEN` secret; releases
+  now publish through trusted publishing (OIDC) configured on npmjs.com, with provenance, since the
+  repository is public.
 - Done: `@organizaone/o1-code@0.1.0` is on npm (`latest`), with the GitHub release `v0.1.0`.
-- Still open: move to trusted publishing and delete the token; a prebuild pipeline for
-  `audio-capture`, which then returns to the published package.
+- Still open: a prebuild pipeline for `audio-capture`, which then returns to the published
+  package.
 
 ### Unscheduled
 
