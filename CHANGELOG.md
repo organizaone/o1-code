@@ -17,7 +17,7 @@ follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - The text in the input can be selected by dragging over it, like the conversation, and is copied
   on release. A click without a drag still places the cursor.
 - While monitors run, the activity line shows `● monitoring (N)` next to `info`, `reading` and the
-  others. The first ↑ from an empty input focuses the background tasks, with
+  others. While background work runs, the first ↑ from an empty input focuses it, with
   `enter open · ↑ history · esc back`; Enter opens the dialog, and ↑ goes on into history. ↓ no
   longer goes up to them. `/tasks` opens the same dialog instead of printing a list.
 

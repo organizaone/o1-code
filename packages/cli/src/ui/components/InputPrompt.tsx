@@ -901,11 +901,19 @@ export const InputPrompt: React.FC<InputPromptProps> = ({
   );
 
   // The background-tasks indicator sits on the activity line, above the
-  // composer, so it is reached going up: the first ↑ from an empty composer
-  // lands on it, the next one goes on into history. Returns whether it took
-  // the key.
+  // composer, so it is reached going up: while background work is live, the
+  // first ↑ from an empty composer lands on it and the next one goes on into
+  // history. Returns whether it took the key.
   const ascendToBackgroundTasks = useCallback((): boolean => {
-    if (bgEntries.length === 0 || buffer.text.length > 0) return false;
+    // Only live work takes the key: finished entries stay listed for the
+    // session, and would otherwise tax every recall with an extra ↑.
+    const live = bgEntries.some(
+      (e) =>
+        e.status === 'running' ||
+        e.status === 'paused' ||
+        e.status === 'pausing',
+    );
+    if (!live || buffer.text.length > 0) return false;
     setBgPillFocused(true);
     return true;
   }, [bgEntries, buffer.text, setBgPillFocused]);

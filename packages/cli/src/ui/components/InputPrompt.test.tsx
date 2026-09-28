@@ -6390,6 +6390,31 @@ describe('InputPrompt', () => {
       unmount();
     });
 
+    it('Up recalls history when every background task has finished', async () => {
+      const scrollBy = vi.fn();
+      (mockInputHistory.navigateUp as Mock).mockReturnValue(true);
+      mockedUseBackgroundTaskViewState.mockReturnValue({
+        entries: [{ kind: 'monitor', monitorId: 'm-1', status: 'completed' }],
+        selectedIndex: 0,
+        dialogMode: 'closed',
+        dialogOpen: false,
+        pillFocused: false,
+        livePanelFocused: false,
+        livePanelSelectedIndex: 0,
+      } as unknown as ReturnType<typeof useBackgroundTaskViewState>);
+      mockBuffer.setText('');
+      mockBuffer.visualCursor = [0, 0];
+      const { stdin, unmount } = renderVp(scrollBy, () => false);
+      await wait();
+
+      stdin.write('\u001B[A'); // Up arrow
+      await wait();
+
+      expect(mockViewActions.setBgPillFocused).not.toHaveBeenCalled();
+      expect(mockInputHistory.navigateUp).toHaveBeenCalled();
+      unmount();
+    });
+
     it('Up focuses the background-tasks indicator instead of scrolling', async () => {
       // ↑ from an empty composer is the keyboard route to the indicator, so
       // the scroll fallback yields while there are background tasks.

@@ -210,7 +210,8 @@ of the status rows right above the input.
   the running tool, `info` while the agent thinks or answers, none when idle.
 - After the chips, while monitors watch: `● monitoring (N)` in brand soft bold. The background
   tasks pill on the right then leaves running monitors out of its count.
-- **Reaching the background tasks:** the first ↑ from an empty composer focuses them (the
+- **Reaching the background tasks:** while background work runs, the first ↑ from an empty
+  composer focuses them (the
   `monitoring` chip, or the pill when no monitor runs), shown in inverse with
   `enter open · ↑ history · esc back`; Enter opens the dialog, ↓ or Esc goes back to the input,
   and ↑ goes on into history. `/tasks` opens the same dialog. ↓ no longer reaches them: they sit
