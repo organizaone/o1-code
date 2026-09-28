@@ -9,6 +9,10 @@
 // then extensively hand-corrected for Taiwan vocabulary conventions.
 // This file is the authoritative source — do not overwrite with auto-generated output.
 export default {
+  'Open the background tasks (monitors, shells, agents)':
+    '開啟背景工作（監視器、shell、代理）',
+  'monitoring ({{count}})': '監視中 ({{count}})',
+  'enter open · ↑ history · esc back': 'enter 開啟 · ↑ 歷史 · esc 返回',
   'Cannot disable an extension-provided MCP server here.':
     '無法在此處停用擴展提供的 MCP 伺服器。',
   'Cleared authentication for "{{name}}".': '已清空 "{{name}}" 的認證資訊。',
@@ -372,8 +376,6 @@ export default {
     '無效的審批模式 "{{arg}}"。有效模式：{{modes}}',
   'Approval mode set to "{{mode}}"': '審批模式已設置為 "{{mode}}"',
   'View or change the language setting': '查看或更改語言設置',
-  'List background tasks (text dump — interactive dialog opens via the footer pill)':
-    '列出背景任務（文字列表；互動式對話框可透過頁腳中的「背景任務」入口開啟）',
   'Delete a previous session': '刪除先前的會話',
   'Run installation and environment diagnostics': '執行安裝與環境診斷',
   'Browse dynamic model catalogs and choose which models stay enabled locally':

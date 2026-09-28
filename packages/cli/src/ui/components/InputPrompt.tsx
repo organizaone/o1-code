@@ -877,39 +877,38 @@ export const InputPrompt: React.FC<InputPromptProps> = ({
 
   // Down from an empty composer (bottom edge, history exhausted), in visual
   // top→bottom order: live agent panel (if bg sub-agents) → tab bar (if
-  // Arena) → background-tasks pill (if bg entries) → stay put. Always
-  // consumes the key. When both an Arena tab bar and the pill are shown,
-  // ↓ stops at the tab bar; AgentTabBar's own ↓ then descends into the pill.
+  // Arena) → stay put. Always consumes the key.
   const descendFromComposer = useCallback((): boolean => {
     if (getVisibleBgAgents().length > 0) {
       setLivePanelFocused(true);
     } else if (hasAgents) {
       setAgentTabBarFocused(true);
-    } else if (bgEntries.length > 0) {
-      // No live-agent panel and no Arena tab bar to descend into, but the
-      // background-tasks pill IS shown (e.g. a workflow run with no live
-      // sub-agents) — focus it so ↓ still reaches the dialog. Without this
-      // branch a workflow-only session can never open the BackgroundTasksDialog
-      // (and thus never reach the per-run detail view or the save action).
-      setBgPillFocused(true);
     }
     return true;
   }, [
     getVisibleBgAgents,
     hasAgents,
-    bgEntries,
     setLivePanelFocused,
     setAgentTabBarFocused,
-    setBgPillFocused,
   ]);
 
   // Mirror of descendFromComposer's target condition: the VP-mode scroll
   // fallback must yield to it, because descending is the only keyboard route
-  // into the live agent panel, the Arena tab bar and the background-tasks pill.
+  // into the live agent panel and the Arena tab bar.
   const hasComposerDescendTarget = useCallback(
-    () => getVisibleBgAgents().length > 0 || hasAgents || bgEntries.length > 0,
-    [getVisibleBgAgents, hasAgents, bgEntries],
+    () => getVisibleBgAgents().length > 0 || hasAgents,
+    [getVisibleBgAgents, hasAgents],
   );
+
+  // The background-tasks indicator sits on the activity line, above the
+  // composer, so it is reached going up: the first ↑ from an empty composer
+  // lands on it, the next one goes on into history. Returns whether it took
+  // the key.
+  const ascendToBackgroundTasks = useCallback((): boolean => {
+    if (bgEntries.length === 0 || buffer.text.length > 0) return false;
+    setBgPillFocused(true);
+    return true;
+  }, [bgEntries, buffer.text, setBgPillFocused]);
 
   // Single source of truth for "is there a suggestion the user can accept right
   // now": the live followup suggestion if visible, otherwise the persisted
@@ -1045,6 +1044,18 @@ export const InputPrompt: React.FC<InputPromptProps> = ({
           setLivePanelFocused(false);
           return false;
         }
+        return true;
+      }
+
+      // ↑ past the background-tasks indicator carries on into history, so
+      // reaching the indicator first never costs the recall of a prompt.
+      if (
+        bgPillFocused &&
+        !agentTabBarFocused &&
+        keyMatchers[Command.NAVIGATION_UP](key)
+      ) {
+        setBgPillFocused(false);
+        if (inputHistory.navigateUp()) buffer.moveToOffset(0);
         return true;
       }
 
@@ -1708,6 +1719,7 @@ export const InputPrompt: React.FC<InputPromptProps> = ({
             buffer.move('home');
             return true;
           }
+          if (ascendToBackgroundTasks()) return true;
           if (inputHistory.navigateUp()) {
             buffer.moveToOffset(0);
           }
@@ -1746,11 +1758,14 @@ export const InputPrompt: React.FC<InputPromptProps> = ({
           // the transcript actually overflows: in a short conversation there is
           // nothing to scroll and ↑ must keep recalling history rather than
           // going dead.
+          // The background-tasks indicator takes the key before scrolling,
+          // as the agent surfaces do going down: ↑ is its only route.
           if (
             isVpMode &&
             buffer.text.length === 0 &&
             scrollActions?.hasScrollableTranscript()
           ) {
+            if (ascendToBackgroundTasks()) return true;
             scrollActions.scrollBy(-1);
             return true;
           }
@@ -1759,6 +1774,7 @@ export const InputPrompt: React.FC<InputPromptProps> = ({
             buffer.move('home');
             return true;
           }
+          if (ascendToBackgroundTasks()) return true;
           if (inputHistory.navigateUp()) {
             buffer.moveToOffset(0);
           }
@@ -1958,6 +1974,8 @@ export const InputPrompt: React.FC<InputPromptProps> = ({
     [
       focus,
       buffer,
+      ascendToBackgroundTasks,
+      setBgPillFocused,
       completion,
       slashCommands,
       shellModeActive,

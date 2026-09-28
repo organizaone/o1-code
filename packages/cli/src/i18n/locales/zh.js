@@ -7,6 +7,10 @@
 // Chinese translations for O1-Code CLI
 
 export default {
+  'Open the background tasks (monitors, shells, agents)':
+    '打开后台任务（监视器、shell、代理）',
+  'monitoring ({{count}})': '监视中 ({{count}})',
+  'enter open · ↑ history · esc back': 'enter 打开 · ↑ 历史 · esc 返回',
   'Cannot disable an extension-provided MCP server here.':
     '无法在此处禁用扩展提供的 MCP 服务器。',
   'Cleared authentication for "{{name}}".': '已清空 "{{name}}" 的认证信息。',
@@ -389,8 +393,6 @@ export default {
     '无效的审批模式 "{{arg}}"。有效模式：{{modes}}',
   'Approval mode set to "{{mode}}"': '审批模式已设置为 "{{mode}}"',
   'View or change the language setting': '查看或更改语言设置',
-  'List background tasks (text dump — interactive dialog opens via the footer pill)':
-    '列出后台任务（文本列表；交互式对话框可通过页脚中的“后台任务”入口打开）',
   'Delete a previous session': '删除先前的会话',
   'Run installation and environment diagnostics': '运行安装和环境诊断',
   'Browse dynamic model catalogs and choose which models stay enabled locally':

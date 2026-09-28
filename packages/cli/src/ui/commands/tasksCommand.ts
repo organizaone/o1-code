@@ -154,9 +154,7 @@ function taskOutputPath(entry: TaskEntry): string | undefined {
 export const tasksCommand: SlashCommand = {
   name: 'tasks',
   get description() {
-    return t(
-      'List background tasks (text dump — interactive dialog opens via the footer pill)',
-    );
+    return t('Open the background tasks (monitors, shells, agents)');
   },
   kind: CommandKind.BUILT_IN,
   // Kept on all three modes: the interactive dialog (reachable via ↓ +
@@ -202,25 +200,14 @@ export const tasksCommand: SlashCommand = {
       };
     }
 
+    // With a TTY the dialog is the richer surface: detail view, live
+    // updates, cancel. Headless and ACP consumers keep the text dump below.
+    if (context.executionMode === 'interactive') {
+      return { type: 'dialog' as const, dialog: 'background_tasks' as const };
+    }
+
     const now = Date.now();
     const lines: string[] = [];
-    // Soft redirect: in interactive mode the dialog is richer (per-entry
-    // detail view, live updates, cancel keybinding). Don't show the hint
-    // in non_interactive / acp — those consumers have no dialog to point
-    // at and the noise just clutters their output. The wording avoids
-    // pinning a single-key path because Down may pass through the Arena
-    // agent tab bar first when subagents are present (`InputPrompt`
-    // focus chain: agent tab bar → bg pill); calling it "the footer
-    // Background tasks pill" lets the user reach it however the focus
-    // chain routes them today.
-    if (context.executionMode === 'interactive') {
-      lines.push(
-        t(
-          'Tip: focus the Background tasks pill in the footer (use ↓ from an empty composer) and press Enter for the interactive dialog with detail view + live updates.',
-        ),
-        '',
-      );
-    }
     lines.push(`Background tasks (${entries.length} total)`, '');
     for (const entry of entries) {
       const endTime = entry.endTime ?? now;

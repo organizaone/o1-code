@@ -89,7 +89,7 @@ describe('tasksCommand', () => {
     getMonitors = vi.fn().mockReturnValue([]);
     // Override createMockCommandContext's `'interactive'` default so the
     // hint-suppression tests below see the expected default-no-hint
-    // behaviour. The `shows the dialog hint only in interactive mode`
+    // behaviour. The `opens the dialog in interactive mode`
     // and `acp mode` tests rebind their own context with the mode they
     // care about; the rest don't assert on the hint so this default
     // doesn't affect their expectations.
@@ -295,15 +295,14 @@ describe('tasksCommand', () => {
     expect(result.content).not.toContain('1 events');
   });
 
-  it('shows the dialog hint only in interactive mode', async () => {
+  it('opens the dialog in interactive mode and prints the list elsewhere', async () => {
     getShells.mockReturnValue([entry({ shellId: 'bg_x' })]);
 
-    // non_interactive (default in beforeEach) — no hint.
-    const noHint = await tasksCommand.action!(context, '');
-    if (!noHint || noHint.type !== 'message') throw new Error('no result');
-    expect(noHint.content).not.toContain('Tip:');
+    // non_interactive (default in beforeEach): the text dump.
+    const dump = await tasksCommand.action!(context, '');
+    if (!dump || dump.type !== 'message') throw new Error('no result');
+    expect(dump.content).toContain('Background tasks (1 total)');
 
-    // Re-bind the same config under an interactive context.
     const interactiveCtx = createMockCommandContext({
       executionMode: 'interactive',
       services: {
@@ -314,16 +313,10 @@ describe('tasksCommand', () => {
         },
       },
     } as unknown as Parameters<typeof createMockCommandContext>[0]);
-    const withHint = await tasksCommand.action!(interactiveCtx, '');
-    if (!withHint || withHint.type !== 'message') throw new Error('no result');
-    expect(withHint.content).toContain('Tip:');
-    // Pin the actual key path so a regression that goes back to the
-    // wrong `Ctrl+T` text (which is bound to the MCP descriptions
-    // toggle, not the Background tasks dialog) fails loudly.
-    expect(withHint.content).toContain('↓');
-    expect(withHint.content).toContain('Enter');
-    expect(withHint.content).not.toContain('Ctrl+T');
-    expect(withHint.content).toContain('Background tasks (1 total)');
+    await expect(tasksCommand.action!(interactiveCtx, '')).resolves.toEqual({
+      type: 'dialog',
+      dialog: 'background_tasks',
+    });
   });
 
   it('suppresses the dialog hint in acp mode (no dialog to point at)', async () => {

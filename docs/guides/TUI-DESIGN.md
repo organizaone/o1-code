@@ -38,7 +38,7 @@ not have. Themes that do not declare extended colours get them derived from thei
 | separator              | `extendedTheme.ui.separator`                | `#3a4258` | `#b4bfd0` | `·` and `│`, empty bar cells, inactive chips                      |
 | rule                   | `extendedTheme.ui.rule`, `theme.border.default` | `#2a3550` | `#cfd7e4` | conversation border, autocomplete box, unfocused input        |
 | brand                  | `extendedTheme.ui.brand`, `theme.border.focused` | `#6e9bff` | `#2b5bd7` | logo, `❯`, selection arrow, focused input, dialogs asking a choice |
-| brand soft             | `extendedTheme.ui.brandSoft`                | `#8fb2ff` | `#2f5fdb` | default/auto mode label, active skill, update notice              |
+| brand soft             | `extendedTheme.ui.brandSoft`                | `#8fb2ff` | `#2f5fdb` | default/auto mode label, active skill, update notice, user message text, `monitoring` chip |
 | accent (purple)        | `theme.text.accent`                         | `#a48bff` | `#6547c9` | branch, memory bar, assistant `◆`, `@path` and `/command` in input |
 | code (teal)            | `theme.text.code`                           | `#3fc7d6` | `#0a6d78` | inline code and paths                                             |
 | success                | `theme.status.success`                      | `#3fd07f` | `#157a44` | online, added lines, current model dot                            |
@@ -208,6 +208,13 @@ of the status rows right above the input.
 - Left: the five category chips. The active one has its dot in the category colour and its label
   bold primary; the others a separator-coloured dot and a muted label. Active is the category of
   the running tool, `info` while the agent thinks or answers, none when idle.
+- After the chips, while monitors watch: `● monitoring (N)` in brand soft bold. The background
+  tasks pill on the right then leaves running monitors out of its count.
+- **Reaching the background tasks:** the first ↑ from an empty composer focuses them (the
+  `monitoring` chip, or the pill when no monitor runs), shown in inverse with
+  `enter open · ↑ history · esc back`; Enter opens the dialog, ↓ or Esc goes back to the input,
+  and ↑ goes on into history. `/tasks` opens the same dialog. ↓ no longer reaches them: they sit
+  above the input.
 - Right, each only when present: background tasks pill, `plan 2/4` (count bold primary), active
   skill (`● name`, brand soft bold, no "skill" label), goal, scheduled tasks, skills pending review,
   active workflow.

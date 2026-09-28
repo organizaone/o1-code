@@ -18,7 +18,11 @@ import {
   type ActivityCategory,
 } from '../utils/activity-category.js';
 import { getActiveSkill } from '../utils/active-skill.js';
-import { BackgroundTasksPill } from './background-view/BackgroundTasksPill.js';
+import {
+  BackgroundTasksPill,
+  countRunningMonitors,
+} from './background-view/BackgroundTasksPill.js';
+import { useBackgroundTaskViewState } from '../contexts/BackgroundTaskViewContext.js';
 import {
   GoalPill,
   isLiveGoalSnapshot,
@@ -43,7 +47,11 @@ export function planProgress(
 export const ActivityChips: React.FC<{
   tier: LayoutTier;
   active: ActivityCategory | null;
-}> = ({ tier, active }) => {
+  /** Monitors still watching; a `monitoring` chip follows the categories. */
+  monitoring?: number;
+  /** The chip holds the background-tasks focus (↑ from the composer). */
+  monitoringFocused?: boolean;
+}> = ({ tier, active, monitoring = 0, monitoringFocused = false }) => {
   const wide = atLeast(tier, 'compact');
   return (
     <Text wrap="truncate">
@@ -72,6 +80,19 @@ export const ActivityChips: React.FC<{
           </Text>
         );
       })}
+      {monitoring > 0 && (
+        <Text>
+          {wide ? '  ' : ' '}
+          <Text color={extendedTheme.ui.brandSoft}>{glyphs().dot}</Text>
+          <Text
+            color={extendedTheme.ui.brandSoft}
+            bold
+            inverse={monitoringFocused}
+          >
+            {` ${t('monitoring ({{count}})', { count: String(monitoring) })}`}
+          </Text>
+        </Text>
+      )}
     </Text>
   );
 };
@@ -88,6 +109,9 @@ export const ActivityLine: React.FC = () => {
     uiState.streamingState,
   );
   const plan = planProgress(uiState.stickyTodos);
+  const { entries: backgroundEntries, pillFocused } =
+    useBackgroundTaskViewState();
+  const monitoring = countRunningMonitors(backgroundEntries);
   // The skill leaves the line below 100 columns, before the indicators the
   // product already had (spec §8).
   const skill = atLeast(tier, 'medium')
@@ -108,7 +132,12 @@ export const ActivityLine: React.FC = () => {
       justifyContent="space-between"
     >
       <Box flexShrink={1} minWidth={0}>
-        <ActivityChips tier={tier} active={active} />
+        <ActivityChips
+          tier={tier}
+          active={active}
+          monitoring={monitoring}
+          monitoringFocused={pillFocused && monitoring > 0}
+        />
       </Box>
       <Box flexShrink={1} minWidth={0} marginLeft={1}>
         <Text color={extendedTheme.text.muted} wrap="truncate">

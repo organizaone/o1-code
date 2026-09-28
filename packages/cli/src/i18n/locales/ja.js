@@ -7,6 +7,10 @@
 // Japanese translations for O1-Code CLI
 
 export default {
+  'Open the background tasks (monitors, shells, agents)':
+    'バックグラウンドタスクを開く（モニター、シェル、エージェント）',
+  'monitoring ({{count}})': '監視中 ({{count}})',
+  'enter open · ↑ history · esc back': 'enter で開く · ↑ 履歴 · esc で戻る',
   // ============================================================================
   // Help / UI Components
   // ============================================================================
@@ -112,8 +116,6 @@ export default {
   'View or change the approval mode for tool usage':
     'ツール使用の承認モードを表示または変更',
   'View or change the language setting': '言語設定を表示または変更',
-  'List background tasks (text dump — interactive dialog opens via the footer pill)':
-    'バックグラウンドタスクを一覧表示する（テキスト出力。対話式ダイアログはフッターのタスク表示から開けます）',
   'Delete a previous session': '以前のセッションを削除する',
   'Run installation and environment diagnostics':
     'インストールと環境の診断を実行する',

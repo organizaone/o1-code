@@ -12,7 +12,9 @@
  */
 export const MUST_TRANSLATE_KEYS = [
   'View or change the language setting',
-  'List background tasks (text dump — interactive dialog opens via the footer pill)',
+  'Open the background tasks (monitors, shells, agents)',
+  'monitoring ({{count}})',
+  'enter open · ↑ history · esc back',
   'Delete a previous session',
   'Run installation and environment diagnostics',
   'Browse dynamic model catalogs and choose which models stay enabled locally',

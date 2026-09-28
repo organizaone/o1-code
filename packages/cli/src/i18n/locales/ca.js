@@ -7,6 +7,10 @@
 // Traduccions en català per al CLI de O1-Code per Jordi Mas i Hernàndez <jmas@softcatala.org>
 
 export default {
+  'Open the background tasks (monitors, shells, agents)':
+    'Obre les tasques en segon pla (monitors, shells, agents)',
+  'monitoring ({{count}})': 'monitoritzant ({{count}})',
+  'enter open · ↑ history · esc back': 'enter obre · ↑ historial · esc torna',
   // ============================================================================
   // Ajuda / Components de la interfície
   // ============================================================================
@@ -155,8 +159,6 @@ export default {
   'Approval mode set to "{{mode}}"': 'Mode d\'aprovació establert a "{{mode}}"',
   'View or change the language setting':
     "Mostra o canvia la configuració d'idioma",
-  'List background tasks (text dump — interactive dialog opens via the footer pill)':
-    "Llista les tasques en segon pla (sortida de text; el diàleg interactiu es pot obrir des de l'indicador del peu de pàgina)",
   'Delete a previous session': 'Suprimeix una sessió anterior',
   'Run installation and environment diagnostics':
     "Executa els diagnòstics d'instal·lació i d'entorn",

@@ -7,6 +7,7 @@
 import { describe, it, expect } from 'vitest';
 import type { DialogEntry } from '../../hooks/useBackgroundTaskView.js';
 import {
+  countRunningMonitors,
   getPillLabel,
   hasLargeWorkflow,
   hasPendingApproval,
@@ -110,6 +111,18 @@ function workflowApproval(approvalId: string): WorkflowApproval {
     at: 0,
   };
 }
+
+describe('countRunningMonitors', () => {
+  it('counts only monitors still watching', () => {
+    expect(
+      countRunningMonitors([
+        monitorEntry({ monitorId: 'a' }),
+        monitorEntry({ monitorId: 'b', status: 'completed' }),
+        monitorEntry({ monitorId: 'c' }),
+      ]),
+    ).toBe(2);
+  });
+});
 
 describe('getPillLabel', () => {
   it('uses singular form for one running agent', () => {

@@ -5866,12 +5866,10 @@ describe('InputPrompt', () => {
       unmount();
     });
 
-    it('arrow Down focuses the background-tasks pill when only the pill is shown (workflow-only session)', async () => {
-      // Branch 3 of descendFromComposer: no Arena roster (agents empty) and no
-      // live bg-agent panel, but a workflow run keeps the background-tasks pill
-      // on screen. ↓ from the empty composer must focus the pill so the run's
-      // detail/save dialog stays reachable — without this branch a
-      // workflow-only session could never open it.
+    it('arrow Up lands on the background-tasks indicator before history, and goes on into it', async () => {
+      // The indicator sits on the activity line above the composer, so ↑
+      // reaches it; ↓ no longer does.
+      (mockInputHistory.navigateUp as Mock).mockReturnValue(true);
       (mockInputHistory.navigateDown as Mock).mockReturnValue(false);
       mockedUseAgentViewState.mockReturnValue({
         activeView: 'main',
@@ -5882,7 +5880,7 @@ describe('InputPrompt', () => {
         agentApprovalModes: new Map(),
       } as unknown as ReturnType<typeof useAgentViewState>);
       mockedUseBackgroundTaskViewState.mockReturnValue({
-        entries: [{ kind: 'workflow', runId: 'wf-1', status: 'running' }],
+        entries: [{ kind: 'monitor', monitorId: 'm-1', status: 'running' }],
         selectedIndex: 0,
         dialogMode: 'closed',
         dialogOpen: false,
@@ -5898,13 +5896,33 @@ describe('InputPrompt', () => {
       );
       await wait();
 
-      stdin.write('[B'); // Down arrow at the bottom edge
+      stdin.write('\u001B[B'); // Down arrow
       await wait();
+      expect(mockViewActions.setBgPillFocused).not.toHaveBeenCalled();
 
+      stdin.write('\u001B[A'); // Up arrow: the indicator first
+      await wait();
       expect(mockViewActions.setBgPillFocused).toHaveBeenCalledWith(true);
-      expect(mockViewActions.setAgentTabBarFocused).not.toHaveBeenCalled();
-      expect(mockViewActions.setLivePanelFocused).not.toHaveBeenCalled();
+      expect(mockInputHistory.navigateUp).not.toHaveBeenCalled();
       unmount();
+
+      // With the indicator focused, the next ↑ goes on into history.
+      mockedUseBackgroundTaskViewState.mockReturnValue({
+        entries: [{ kind: 'monitor', monitorId: 'm-1', status: 'running' }],
+        selectedIndex: 0,
+        dialogMode: 'closed',
+        dialogOpen: false,
+        pillFocused: true,
+        livePanelFocused: false,
+        livePanelSelectedIndex: 0,
+      } as unknown as ReturnType<typeof useBackgroundTaskViewState>);
+      const focused = renderWithProviders(<InputPrompt {...props} />);
+      await wait();
+      focused.stdin.write('\u001B[A');
+      await wait();
+      expect(mockViewActions.setBgPillFocused).toHaveBeenLastCalledWith(false);
+      expect(mockInputHistory.navigateUp).toHaveBeenCalled();
+      focused.unmount();
     });
 
     it('Down at the bottom of the live agent panel descends to the agent tab bar', async () => {
@@ -6372,14 +6390,12 @@ describe('InputPrompt', () => {
       unmount();
     });
 
-    it('Down still descends to the background-tasks pill instead of scrolling', async () => {
-      // ↓ from an empty composer is the only keyboard route into the pill, so
-      // the scroll fallback has to yield whenever a descend target is on
-      // screen — otherwise a workflow-only session could never open it.
+    it('Up focuses the background-tasks indicator instead of scrolling', async () => {
+      // ↑ from an empty composer is the keyboard route to the indicator, so
+      // the scroll fallback yields while there are background tasks.
       const scrollBy = vi.fn();
-      (mockInputHistory.navigateDown as Mock).mockReturnValue(false);
       mockedUseBackgroundTaskViewState.mockReturnValue({
-        entries: [{ kind: 'workflow', runId: 'wf-1', status: 'running' }],
+        entries: [{ kind: 'monitor', monitorId: 'm-1', status: 'running' }],
         selectedIndex: 0,
         dialogMode: 'closed',
         dialogOpen: false,
@@ -6392,7 +6408,7 @@ describe('InputPrompt', () => {
       const { stdin, unmount } = renderVp(scrollBy);
       await wait();
 
-      stdin.write('\u001B[B'); // Down arrow
+      stdin.write('\u001B[A'); // Up arrow
       await wait();
 
       expect(mockViewActions.setBgPillFocused).toHaveBeenCalledWith(true);

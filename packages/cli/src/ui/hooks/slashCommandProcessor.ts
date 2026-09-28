@@ -206,6 +206,7 @@ export interface SlashCommandProcessorActions {
   openMcpDialog: () => void;
   openHooksDialog: () => void;
   openStatsDialog: () => void;
+  openBackgroundTasksDialog: () => void;
   openRewindSelector: () => void;
   openDiffDialog: () => void;
   openHelpDialog: () => void;
@@ -1293,6 +1294,9 @@ export const useSlashCommandProcessor = (
                       return { type: 'handled' };
                     case 'stats':
                       actions.openStatsDialog();
+                      return { type: 'handled' };
+                    case 'background_tasks':
+                      actions.openBackgroundTasksDialog();
                       return { type: 'handled' };
                     case 'approval-mode':
                       actions.openApprovalModeDialog();
