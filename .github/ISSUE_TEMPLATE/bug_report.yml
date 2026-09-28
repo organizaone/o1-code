@@ -1,0 +1,48 @@
+name: Bug report
+description: Something in o1-code does not work as documented.
+labels: ['bug']
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Search the open issues first. Remove API keys, tokens and private paths from anything you paste.
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened
+      description: What you did, what you expected, and what happened instead.
+    validations:
+      required: true
+  - type: textarea
+    id: reproduce
+    attributes:
+      label: Steps to reproduce
+      placeholder: |
+        1. Run `o1-code` in …
+        2. …
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: o1-code version
+      description: The output of `o1-code --version`.
+    validations:
+      required: true
+  - type: input
+    id: environment
+    attributes:
+      label: Operating system and terminal
+      placeholder: macOS 26, Terminal.app · Windows 11, Windows Terminal · Ubuntu 24.04, GNOME Terminal
+    validations:
+      required: true
+  - type: input
+    id: provider
+    attributes:
+      label: Provider and model
+      placeholder: OrganizaOne, claude-opus-5-5 · Custom (OpenAI-compatible), …
+  - type: textarea
+    id: output
+    attributes:
+      label: Output or screenshot
+      description: Error messages, logs or a screenshot of the terminal.

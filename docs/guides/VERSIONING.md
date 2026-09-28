@@ -168,13 +168,17 @@ Bumping the version (Step 5) and releasing are different events. A release is th
   `CHANGELOG.md` has its section; builds, bundles and runs `prepare:package`; runs the fast gates;
   packs `dist/`, installs the tarball globally into a temporary prefix and runs
   `o1-code --version` and `--help`; publishes the tarball to npm as `@organizaone/o1-code`
-  (`latest`, public); polls `npm view` until the version appears; creates the GitHub release with
+  (`latest`, public), without waiting for the registry to show it; creates the GitHub release with
   the notes from `node scripts/o1/release-notes.mjs <version>` and the tarball attached.
-- **Release credentials.** The publish reads the repository secret `NPM_TOKEN`, a granular token
-  meant only for the first publication; trusted publishing replaces it afterwards. No token lives in
-  the repository.
-- **Release switches.** `PUBLISH_PROVENANCE` at the top of the workflow stays `'false'` until the
-  repository is public. `prepare:package` lists `@organizaone/o1-code-audio-capture` in the
+- **Release credentials.** The release job runs in the `npm` environment, which deploys only from
+  `v*.*.*` tags and waits for the maintainer's approval. The publish uses npm trusted publishing
+  (OIDC), bound on npmjs.com to this repository, `release.yml` and the `npm` environment. No token
+  is stored, in the repository or in its secrets.
+- **Runners.** Both workflows run on GitHub-hosted runners (`ubuntu-latest`). Self-hosted runners
+  are not used: on a public repository a fork pull request would run its own copy of the workflow
+  on them.
+- **Release switches.** `PUBLISH_PROVENANCE` turns itself on when the repository is public (npm
+  provenance needs a public repository and a GitHub-hosted runner). `prepare:package` lists `@organizaone/o1-code-audio-capture` in the
   package's `optionalDependencies`, and checks its artifacts, only with
   `O1CODE_PACKAGE_AUDIO_CAPTURE=1` (or `O1CODE_REQUIRE_AUDIO_CAPTURE_PREBUILD=1`, which also makes
   missing artifacts an error); without it, voice falls back to SoX or arecord.

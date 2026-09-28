@@ -5,16 +5,16 @@
 # the change was already validated as a pull request and in the merge queue,
 # and the release workflow restores the artifact instead of building again.
 # The full suites run on demand, one matrix job per package, since on every
-# push they would hold the two self-hosted runners for hours.
+# push they would take hours of runner time.
 #
 # A change that touches only documentation gets the documentation checks and
 # nothing else: the summary job keeps its name, so the required check still
 # reports, but it finishes in a couple of minutes instead of twenty.
 #
-# Fork pull requests never run on these runners: the classifier fails the
-# summary job instead, and the maintainer merges a reviewed fork contribution
-# manually. The guard is dormant while the repository is private, since every
-# pull request then comes from the repository itself.
+# Every job runs on GitHub-hosted runners. A fork pull request runs the same
+# checks once the maintainer approves its workflow run: the `pull_request`
+# event gives it a read-only token and no secrets, and no self-hosted runner
+# is involved, so the pull request's own copy of this file changes nothing.
 name: 'o1-code CI'
 
 on:
@@ -42,16 +42,10 @@ permissions:
 jobs:
   classify:
     name: 'Classify the change'
-    # The repository variable CI_RUNNER_LABELS picks the runner, as a JSON
-    # array of labels: ["self-hosted","dokploy"] for the maintainer's runners,
-    # ["ubuntu-latest"] for GitHub's. Changing it needs no pull request.
-    # The pinned action versions run on Node 24, which a self-hosted runner
-    # only provides from application version 2.327.1.
-    runs-on: '${{ fromJSON(vars.CI_RUNNER_LABELS || ''["ubuntu-latest"]'') }}'
+    runs-on: 'ubuntu-latest'
     timeout-minutes: 10
     outputs:
       docs_only: '${{ steps.change.outputs.docs_only }}'
-      fork_pr: '${{ steps.change.outputs.fork_pr }}'
     steps:
       - uses: 'actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1' # v7.0.1
         with:
@@ -66,15 +60,9 @@ jobs:
         env:
           EVENT: '${{ github.event_name }}'
           BASE_SHA: '${{ github.event.pull_request.base.sha || github.event.before }}'
-          HEAD_REPO: '${{ github.event.pull_request.head.repo.full_name }}'
-          REPO: '${{ github.repository }}'
         run: |
-          fork_pr=false
-          if [ "$EVENT" = 'pull_request' ] && [ -n "$HEAD_REPO" ] && [ "$HEAD_REPO" != "$REPO" ]; then
-            fork_pr=true
-          fi
           docs_only=false
-          if [ "$fork_pr" = 'false' ] && { [ "$EVENT" = 'pull_request' ] || [ "$EVENT" = 'push' ]; }; then
+          if [ "$EVENT" = 'pull_request' ] || [ "$EVENT" = 'push' ]; then
             if [ -n "$BASE_SHA" ] && ! printf '%s' "$BASE_SHA" | grep -q '^0*$'; then
               if git fetch --no-tags --depth=1 origin "$BASE_SHA" 2>/dev/null; then
                 changed="$(git diff --name-only "$BASE_SHA" HEAD)"
@@ -86,9 +74,7 @@ jobs:
             fi
           fi
           echo "docs_only=$docs_only" >> "$GITHUB_OUTPUT"
-          echo "fork_pr=$fork_pr" >> "$GITHUB_OUTPUT"
           echo "Documentation only: $docs_only"
-          echo "Fork pull request: $fork_pr"
 
   # Runs on every event except documentation-only changes: the pull request
   # and the merge group need the bundle, and a push to main publishes the
@@ -96,8 +82,8 @@ jobs:
   build:
     name: 'Build'
     needs: 'classify'
-    if: "${{ needs.classify.outputs.docs_only != 'true' && needs.classify.outputs.fork_pr != 'true' }}"
-    runs-on: '${{ fromJSON(vars.CI_RUNNER_LABELS || ''["ubuntu-latest"]'') }}'
+    if: "${{ needs.classify.outputs.docs_only != 'true' }}"
+    runs-on: 'ubuntu-latest'
     timeout-minutes: 45
     env:
       # The core typecheck outgrows Node's default heap on a hosted runner.
@@ -146,8 +132,8 @@ jobs:
   lint:
     name: 'Lint'
     needs: 'classify'
-    if: "${{ needs.classify.outputs.docs_only != 'true' && needs.classify.outputs.fork_pr != 'true' && github.event_name != 'push' }}"
-    runs-on: '${{ fromJSON(vars.CI_RUNNER_LABELS || ''["ubuntu-latest"]'') }}'
+    if: "${{ needs.classify.outputs.docs_only != 'true' && github.event_name != 'push' }}"
+    runs-on: 'ubuntu-latest'
     timeout-minutes: 25
     env:
       NODE_OPTIONS: '--max-old-space-size=6144'
@@ -172,8 +158,8 @@ jobs:
   typecheck:
     name: 'Typecheck'
     needs: ['classify', 'build']
-    if: "${{ needs.classify.outputs.docs_only != 'true' && needs.classify.outputs.fork_pr != 'true' && github.event_name != 'push' }}"
-    runs-on: '${{ fromJSON(vars.CI_RUNNER_LABELS || ''["ubuntu-latest"]'') }}'
+    if: "${{ needs.classify.outputs.docs_only != 'true' && github.event_name != 'push' }}"
+    runs-on: 'ubuntu-latest'
     timeout-minutes: 20
     env:
       NODE_OPTIONS: '--max-old-space-size=6144'
@@ -204,8 +190,8 @@ jobs:
   scripts:
     name: 'Script tests'
     needs: ['classify', 'build']
-    if: "${{ needs.classify.outputs.docs_only != 'true' && needs.classify.outputs.fork_pr != 'true' && github.event_name != 'push' }}"
-    runs-on: '${{ fromJSON(vars.CI_RUNNER_LABELS || ''["ubuntu-latest"]'') }}'
+    if: "${{ needs.classify.outputs.docs_only != 'true' && github.event_name != 'push' }}"
+    runs-on: 'ubuntu-latest'
     timeout-minutes: 15
     env:
       NODE_OPTIONS: '--max-old-space-size=6144'
@@ -242,8 +228,8 @@ jobs:
   web-shell:
     name: 'Web Shell tests'
     needs: ['classify', 'build']
-    if: "${{ needs.classify.outputs.docs_only != 'true' && needs.classify.outputs.fork_pr != 'true' && github.event_name != 'push' }}"
-    runs-on: '${{ fromJSON(vars.CI_RUNNER_LABELS || ''["ubuntu-latest"]'') }}'
+    if: "${{ needs.classify.outputs.docs_only != 'true' && github.event_name != 'push' }}"
+    runs-on: 'ubuntu-latest'
     timeout-minutes: 25
     env:
       NODE_OPTIONS: '--max-old-space-size=6144'
@@ -272,8 +258,8 @@ jobs:
   smoke:
     name: 'Brand and smoke'
     needs: ['classify', 'build']
-    if: "${{ needs.classify.outputs.docs_only != 'true' && needs.classify.outputs.fork_pr != 'true' && github.event_name != 'push' }}"
-    runs-on: '${{ fromJSON(vars.CI_RUNNER_LABELS || ''["ubuntu-latest"]'') }}'
+    if: "${{ needs.classify.outputs.docs_only != 'true' && github.event_name != 'push' }}"
+    runs-on: 'ubuntu-latest'
     timeout-minutes: 15
     env:
       NODE_OPTIONS: '--max-old-space-size=6144'
@@ -306,8 +292,8 @@ jobs:
   docs:
     name: 'Documentation checks'
     needs: 'classify'
-    if: "${{ needs.classify.outputs.docs_only == 'true' && needs.classify.outputs.fork_pr != 'true' && github.event_name != 'push' }}"
-    runs-on: '${{ fromJSON(vars.CI_RUNNER_LABELS || ''["ubuntu-latest"]'') }}'
+    if: "${{ needs.classify.outputs.docs_only == 'true' && github.event_name != 'push' }}"
+    runs-on: 'ubuntu-latest'
     timeout-minutes: 15
     steps:
       - uses: 'actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1' # v7.0.1
@@ -330,8 +316,8 @@ jobs:
           node scripts/o1/check-guides.mjs
 
   # The required check. It always reports on pull requests, merge groups and
-  # manual runs, and fails closed: a failed or cancelled gate, or a fork pull
-  # request, fails here instead of leaving the check silently skipped.
+  # manual runs, and fails closed: a failed or cancelled gate fails here
+  # instead of leaving the check silently skipped.
   fast:
     name: 'Fast gates'
     needs:
@@ -346,18 +332,13 @@ jobs:
         'docs',
       ]
     if: "${{ always() && github.event_name != 'push' }}"
-    runs-on: '${{ fromJSON(vars.CI_RUNNER_LABELS || ''["ubuntu-latest"]'') }}'
+    runs-on: 'ubuntu-latest'
     timeout-minutes: 5
     steps:
       - name: 'Report the gates'
         env:
-          FORK_PR: '${{ needs.classify.outputs.fork_pr }}'
           RESULTS: '${{ toJSON(needs.*.result) }}'
         run: |
-          if [ "$FORK_PR" = 'true' ]; then
-            echo "::error::Fork pull requests do not run on these runners; the maintainer merges reviewed fork contributions manually"
-            exit 1
-          fi
           if printf '%s' "$RESULTS" | grep -Eq '"(failure|cancelled)"'; then
             echo "::error::A fast gate did not pass: $RESULTS"
             exit 1
@@ -384,7 +365,7 @@ jobs:
           - 'node-repl'
           - 'vscode-ide-companion'
           - 'audio-capture'
-    runs-on: '${{ fromJSON(vars.CI_RUNNER_LABELS || ''["ubuntu-latest"]'') }}'
+    runs-on: 'ubuntu-latest'
     timeout-minutes: 180
     env:
       NODE_OPTIONS: '--max-old-space-size=3072'
@@ -397,10 +378,8 @@ jobs:
         with:
           node-version-file: '.nvmrc'
 
-      # Some suites drive a real tmux or build zip packages. The self-hosted
-      # runners carry them already and have no sudo.
+      # Some suites drive a real tmux or build zip packages.
       - name: 'System tools'
-        if: "${{ runner.environment == 'github-hosted' }}"
         run: 'sudo apt-get update -qq && sudo apt-get install -y -qq --no-install-recommends tmux zip unzip'
 
       - name: 'Install'
