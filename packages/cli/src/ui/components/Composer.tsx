@@ -5,7 +5,13 @@
  */
 
 import { Box, Text, useIsScreenReaderEnabled, type DOMElement } from 'ink';
-import { useCallback, useRef, useState, type RefObject } from 'react';
+import {
+  useCallback,
+  useRef,
+  useState,
+  type MutableRefObject,
+  type RefObject,
+} from 'react';
 import { LiveLoadingIndicator } from './LoadingIndicator.js';
 import { InputPrompt } from './InputPrompt.js';
 import { Footer } from './Footer.js';
@@ -23,9 +29,11 @@ import { t } from '../../i18n/index.js';
 
 interface ComposerProps {
   footerRef?: RefObject<DOMElement | null>;
+  /** Receives the input's lines container, for the screen's drag-to-select. */
+  inputLinesRef?: MutableRefObject<DOMElement | null>;
 }
 
-export const Composer = ({ footerRef }: ComposerProps) => {
+export const Composer = ({ footerRef, inputLinesRef }: ComposerProps) => {
   const config = useConfig();
   const isScreenReaderEnabled = useIsScreenReaderEnabled();
   const uiState = useUIState();
@@ -133,6 +141,7 @@ export const Composer = ({ footerRef }: ComposerProps) => {
       {uiState.isInputActive && (
         <InputPrompt
           buffer={uiState.buffer}
+          selectableLinesRef={inputLinesRef}
           inputWidth={uiState.inputWidth}
           suggestionsWidth={uiState.suggestionsWidth}
           onSubmit={uiActions.handleFinalSubmit}

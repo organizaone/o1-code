@@ -93,24 +93,32 @@ describe('TextInputMouseController', () => {
     return call[0];
   }
 
-  it('moves the cursor to the clicked offset on left-press', () => {
+  const click = (
+    handler: (event: MouseEvent) => void,
+    at: { row: number; col: number },
+  ) => {
+    handler(makeEvent({ name: 'left-press', ...at }));
+    handler(makeEvent({ name: 'left-release', ...at }));
+  };
+
+  it('moves the cursor to the clicked offset once the click is released', () => {
     const handler = mountAndGetHandler();
     // row 6 → visual row 0 ('abc'); col 4 → text col 1 → between 'a' and 'b'.
-    handler(makeEvent({ name: 'left-press', row: 6, col: 4 }));
+    click(handler, { row: 6, col: 4 });
     expect(moveToOffset).toHaveBeenCalledWith(1);
   });
 
   it('maps a click on the second visual line through the newline', () => {
     const handler = mountAndGetHandler();
     // row 7 → visual row 1 ('def'); col 4 → text col 1 → logical (1,1) → offset 5.
-    handler(makeEvent({ name: 'left-press', row: 7, col: 4 }));
+    click(handler, { row: 7, col: 4 });
     expect(moveToOffset).toHaveBeenCalledWith(5);
   });
 
   it('applies the visual scroll offset', () => {
     const handler = mountAndGetHandler(makeBuffer({ visualScrollRow: 1 }));
     // row 6 → visual row 0 + scroll 1 = absolute visual row 1 ('def').
-    handler(makeEvent({ name: 'left-press', row: 6, col: 3 }));
+    click(handler, { row: 6, col: 3 });
     // col 3 → text col 0 → start of 'def' → offset 4.
     expect(moveToOffset).toHaveBeenCalledWith(4);
   });
@@ -133,26 +141,35 @@ describe('TextInputMouseController', () => {
     const handler = mountAndGetHandler();
     // row 6 → layoutRow = 6 - 1 - (-4) = 9; clickVisualRow = 9 - 9 = 0 ('abc');
     // col 4 → text col 1 → offset 1.
-    handler(makeEvent({ name: 'left-press', row: 6, col: 4 }));
+    click(handler, { row: 6, col: 4 });
     expect(moveToOffset).toHaveBeenCalledWith(1);
   });
 
   it('clamps a click in the prefix columns to the line start', () => {
     const handler = mountAndGetHandler();
     // col 1 < lines x (2) → clickVisualCol clamps to 0 → start of line → offset 0.
-    handler(makeEvent({ name: 'left-press', row: 6, col: 1 }));
+    click(handler, { row: 6, col: 1 });
     expect(moveToOffset).toHaveBeenCalledWith(0);
   });
 
   it('ignores clicks above or below the rendered lines', () => {
     const handler = mountAndGetHandler();
-    handler(makeEvent({ name: 'left-press', row: 5, col: 4 })); // row above lines (y=5 → visual -0? )
-    handler(makeEvent({ name: 'left-press', row: 99, col: 4 })); // far below
+    click(handler, { row: 5, col: 4 }); // row above lines (y=5 → visual -0? )
+    click(handler, { row: 99, col: 4 }); // far below
     // row 5 → clickVisualRow = 5-1-5 = -1 (above) → ignored; row 99 → below → ignored.
     expect(moveToOffset).not.toHaveBeenCalled();
   });
 
-  it('ignores non-left-press events (hover, release, scroll)', () => {
+  it('leaves the cursor alone at press and after a drag, which selects', () => {
+    const handler = mountAndGetHandler();
+    handler(makeEvent({ name: 'left-press', row: 6, col: 4 }));
+    expect(moveToOffset).not.toHaveBeenCalled();
+    handler(makeEvent({ name: 'move', row: 6, col: 6 }));
+    handler(makeEvent({ name: 'left-release', row: 6, col: 6 }));
+    expect(moveToOffset).not.toHaveBeenCalled();
+  });
+
+  it('ignores events without a press (hover, release, scroll)', () => {
     const handler = mountAndGetHandler();
     handler(makeEvent({ name: 'move', row: 6, col: 4 }));
     handler(makeEvent({ name: 'left-release', row: 6, col: 4 }));

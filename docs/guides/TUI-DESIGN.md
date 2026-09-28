@@ -225,6 +225,9 @@ of the status rows right above the input.
   (block, or underline under tmux) sits on the same cell as the terminal's. See
   `terminalShowsInputCursor` in `utils/software-cursor.ts`.
 - `@path` and `/command` tokens in accent. A large paste becomes a `[Pasted Content N chars]` token.
+- **Selecting text:** with mouse tracking on, a drag over the typed text selects it like the
+  conversation does (same highlight, copied on release); a click without a drag places the cursor,
+  on release, so it never repaints a selection being made.
 - **Multiline:** grows up to 6 visible lines (`INPUT_MAX_VISIBLE_LINES`). With more than one line,
   `N lines · enter sends · shift+enter new line` shows on the right; scrolled, the first visible row
   is `↑ N lines above`.

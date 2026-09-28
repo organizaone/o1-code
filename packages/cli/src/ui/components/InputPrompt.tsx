@@ -5,6 +5,7 @@
  */
 
 import type React from 'react';
+import type { DOMElement } from 'ink';
 import { useCallback, useEffect, useMemo, useState, useRef } from 'react';
 import { Box, Text } from 'ink';
 import {
@@ -179,6 +180,8 @@ export function expandPendingPastePlaceholders(
 }
 
 export interface InputPromptProps {
+  /** Receives the input's lines container, for the screen's drag-to-select. */
+  selectableLinesRef?: React.MutableRefObject<DOMElement | null>;
   buffer: TextBuffer;
   onSubmit: (
     value: string,
@@ -239,6 +242,7 @@ const LARGE_PASTE_LINE_THRESHOLD = 10;
 
 export const InputPrompt: React.FC<InputPromptProps> = ({
   buffer,
+  selectableLinesRef,
   onSubmit,
   userMessages,
   onClearScreen,
@@ -2412,6 +2416,7 @@ export const InputPrompt: React.FC<InputPromptProps> = ({
       />
       <BaseTextInput
         buffer={buffer}
+        selectableLinesRef={selectableLinesRef}
         onSubmit={handleSubmitAndClear}
         onKeypress={handleInput}
         showCursor={showCursor}
