@@ -17,6 +17,7 @@
 
 import { readFileSync } from 'node:fs';
 import { basename } from 'node:path';
+import { pathToFileURL } from 'node:url';
 
 const API = 'https://api.github.com';
 const UPLOADS = 'https://uploads.github.com';
@@ -186,10 +187,13 @@ async function main() {
   for (const name of result.uploaded) console.log(`Uploaded ${name}`);
 }
 
+// The guard compares through pathToFileURL: on POSIX an absolute argv[1]
+// concatenated after `file:///` yields four slashes and never matches
+// import.meta.url, so main() silently never ran and the workflow's release
+// step exited green without creating anything.
 if (
   process.argv[1] &&
-  import.meta.url ===
-    new URL(`file:///${process.argv[1].replace(/\\/g, '/')}`).href
+  import.meta.url === pathToFileURL(process.argv[1]).href
 ) {
   main().catch((error) => {
     console.error(error instanceof Error ? error.message : String(error));
