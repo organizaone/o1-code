@@ -306,6 +306,18 @@ function writeDistPackageJson(rootDir, distDir, { includeAudioCapture } = {}) {
   fs.chmodSync(cliEntryPath, 0o755);
   console.log('Created dist cli-entry.js wrapper');
 
+  // dist/ can arrive through a CI artifact, which drops Unix modes, so the
+  // bundled ripgrep binaries get their execute bit back here.
+  const ripgrepDir = path.join(distDir, 'vendor', 'ripgrep');
+  if (fs.existsSync(ripgrepDir)) {
+    for (const platformDir of fs.readdirSync(ripgrepDir)) {
+      const rgPath = path.join(ripgrepDir, platformDir, 'rg');
+      if (fs.existsSync(rgPath)) {
+        fs.chmodSync(rgPath, 0o755);
+      }
+    }
+  }
+
   const rootPackageJson = JSON.parse(
     fs.readFileSync(path.join(rootDir, 'package.json'), 'utf-8'),
   );
@@ -374,6 +386,7 @@ function writeDistPackageJson(rootDir, distDir, { includeAudioCapture } = {}) {
     version: rootPackageJson.version,
     description:
       rootPackageJson.description || 'O1-Code - AI-powered coding assistant',
+    license: rootPackageJson.license,
     repository: repoUrl
       ? { type: 'git', url: `git+${repoUrl}.git` }
       : rootPackageJson.repository,

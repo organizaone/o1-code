@@ -25,6 +25,14 @@ vi.mock('node:child_process', () => ({
   execFile: childProcessMock.execFile,
 }));
 
+const fsPromisesMock = vi.hoisted(() => ({
+  chmod: vi.fn(),
+}));
+
+vi.mock('node:fs/promises', () => ({
+  chmod: fsPromisesMock.chmod,
+}));
+
 type RipgrepTestError = Error & {
   code?: string | number | undefined | null;
   signal?: string | null;
@@ -739,6 +747,38 @@ describe('ripgrepUtils', () => {
       });
       expect(childProcessMock.execFile.mock.calls[0][0]).toBe('rg');
     });
+
+    it.skipIf(process.platform === 'win32')(
+      'restores the execute bit on the bundled binary instead of falling back',
+      async () => {
+        vi.mocked(fileExists).mockResolvedValue(true);
+        vi.mocked(isCommandAvailable).mockReturnValue({
+          available: false,
+          error: undefined,
+        });
+        let executable = false;
+        fsPromisesMock.chmod.mockImplementation(async () => {
+          executable = true;
+        });
+        vi.mocked(execCommand).mockImplementation(async (command: string) => {
+          if (!executable) {
+            throw Object.assign(new Error(`spawn ${command} EACCES`), {
+              code: 'EACCES',
+            });
+          }
+          return { stdout: 'ripgrep 14.1.1', stderr: '', code: 0 };
+        });
+
+        await expect(resolveRipgrep(true)).resolves.toMatchObject({
+          mode: 'builtin',
+        });
+        await expect(canUseRipgrep(true)).resolves.toBe(true);
+        expect(fsPromisesMock.chmod).toHaveBeenCalledWith(
+          expect.stringMatching(/rg$/),
+          0o755,
+        );
+      },
+    );
 
     it('reports the bundled failure when no system rg is installed', async () => {
       vi.mocked(fileExists).mockResolvedValue(true);

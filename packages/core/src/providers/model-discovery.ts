@@ -6,6 +6,11 @@
 
 import { fetchWithPolicy } from '../utils/fetch.js';
 import type { ModelSpec } from './types.js';
+import type { ModelReasoningCapabilities } from '../models/types.js';
+import {
+  REASONING_EFFORT_TIERS,
+  type ReasoningEffort,
+} from '../core/reasoning-effort.js';
 import { anthropicSdkBaseUrl } from '../core/anthropicContentGenerator/o1-base-url.js';
 
 const DISCOVERY_TIMEOUT_MS = 5000;
@@ -26,6 +31,44 @@ interface DiscoverProviderModelsOptions {
 interface DiscoveredModel {
   id: string;
   created?: number;
+  reasoning?: ModelReasoningCapabilities;
+}
+
+function isReasoningEffort(value: unknown): value is ReasoningEffort {
+  return REASONING_EFFORT_TIERS.includes(value as ReasoningEffort);
+}
+
+/**
+ * What a model list says about reasoning effort. The OrganizaOne proxy states
+ * it per model as `reasoning: { efforts, default }`; until it does, a model it
+ * runs through Claude CLI (`owned_by: "claude-cli"`) takes the whole ladder,
+ * which is what the proxy applies. Anything else says nothing about effort.
+ */
+function readReasoning(item: object): ModelReasoningCapabilities | undefined {
+  const declared = (item as { reasoning?: unknown }).reasoning;
+  let efforts: ReasoningEffort[] = [];
+  let defaultEffort: ReasoningEffort | undefined;
+  if (declared && typeof declared === 'object') {
+    const { efforts: listed, default: preset } = declared as {
+      efforts?: unknown;
+      default?: unknown;
+    };
+    if (Array.isArray(listed)) {
+      efforts = REASONING_EFFORT_TIERS.filter((tier) => listed.includes(tier));
+    }
+    if (isReasoningEffort(preset) && efforts.includes(preset)) {
+      defaultEffort = preset;
+    }
+  } else if ((item as { owned_by?: unknown }).owned_by === 'claude-cli') {
+    efforts = [...REASONING_EFFORT_TIERS];
+  }
+  if (efforts.length === 0) return undefined;
+  return {
+    thinking: true,
+    efforts,
+    ...(defaultEffort ? { defaultEffort } : {}),
+    disableField: 'reasoning_effort',
+  };
 }
 
 function readModels(value: unknown): DiscoveredModel[] | null {
@@ -60,9 +103,11 @@ function readModels(value: unknown): DiscoveredModel[] | null {
         typeof created === 'number' && Number.isFinite(created) && created >= 0
           ? created
           : undefined;
+      const reasoning = readReasoning(item);
       models.push({
         id: trimmedId,
         ...(creationTime === undefined ? {} : { created: creationTime }),
+        ...(reasoning ? { reasoning } : {}),
       });
     }
   }
@@ -114,7 +159,11 @@ function mergeModelSpecs(
       (left, right) => (right.created ?? 0) - (left.created ?? 0),
     );
   }
-  return orderedModels.map(({ id }) => staticModelsById.get(id) ?? { id });
+  return orderedModels.map(
+    ({ id, reasoning }) =>
+      staticModelsById.get(id) ??
+      (reasoning ? { id, capabilities: { reasoning } } : { id }),
+  );
 }
 
 /** The wire protocol a provider speaks; it decides how its models are listed. */

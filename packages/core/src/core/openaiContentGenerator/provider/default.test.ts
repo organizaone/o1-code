@@ -140,6 +140,21 @@ describe('DefaultOpenAICompatibleProvider', () => {
       });
     });
 
+    it('names the agent to the OrganizaOne proxy', () => {
+      const organizaOne = new DefaultOpenAICompatibleProvider(
+        {
+          ...mockContentGeneratorConfig,
+          baseUrl: 'https://api.organizago.com/v1',
+        } as ContentGeneratorConfig,
+        mockCliConfig,
+      );
+
+      expect(organizaOne.buildHeaders()).toEqual({
+        'User-Agent': `O1Code/1.0.0 (${process.platform}; ${process.arch})`,
+        'X-Title': 'o1-code',
+      });
+    });
+
     it('should merge customHeaders with defaults (and allow overrides)', () => {
       const providerWithCustomHeaders = new DefaultOpenAICompatibleProvider(
         {

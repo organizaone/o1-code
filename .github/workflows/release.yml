@@ -183,6 +183,14 @@ jobs:
             exit 1
           fi
           "$RUNNER_TEMP/prefix/bin/o1-code" --help > /dev/null
+          # A mode lost on the way to the tarball broke search in 0.2.0.
+          installed_dir="$RUNNER_TEMP/prefix/lib/node_modules/@organizaone/o1-code"
+          not_executable="$(find "$installed_dir/vendor/ripgrep" -type f -name rg ! -perm -u+x)"
+          if [ -n "$not_executable" ]; then
+            echo "::error::Bundled ripgrep is not executable: $not_executable"
+            exit 1
+          fi
+          "$installed_dir/vendor/ripgrep/$(node -p 'process.arch + "-" + process.platform')/rg" --version
 
       # The granular NPM_TOKEN secret is temporary: trusted publishing (OIDC)
       # replaces it after the first publication, and the token is deleted.

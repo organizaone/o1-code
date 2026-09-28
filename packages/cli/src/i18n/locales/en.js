@@ -1962,6 +1962,7 @@ export default {
   EDITS: 'EDITS',
   AUTO: 'AUTO',
   'reasoning off': 'reasoning off',
+  'reasoning default': 'reasoning default',
   'reasoning {{effort}}': 'reasoning {{effort}}',
   low: 'low',
   medium: 'medium',

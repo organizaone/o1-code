@@ -23,6 +23,10 @@ import { isOpenRouterHostname } from './openrouter.js';
 import { resolveReasoningForModel } from '../../reasoning-overrides.js';
 import { createDebugLogger } from '../../../utils/debugLogger.js';
 import { buildOutboundFetch } from '../../outbound-fetch.js';
+import {
+  isOrganizaOneBaseUrl,
+  ORGANIZAONE_CLIENT_HEADERS,
+} from '../../../providers/presets/organizaone.js';
 
 const debugLogger = createDebugLogger('DefaultOpenAICompatibleProvider');
 
@@ -96,9 +100,10 @@ export class DefaultOpenAICompatibleProvider
   buildHeaders(): Record<string, string | undefined> {
     const version = this.cliConfig.getCliVersion() || 'unknown';
     const userAgent = `O1Code/${version} (${process.platform}; ${process.arch})`;
-    const { customHeaders } = this.contentGeneratorConfig;
+    const { customHeaders, baseUrl } = this.contentGeneratorConfig;
     const defaultHeaders = {
       'User-Agent': userAgent,
+      ...(isOrganizaOneBaseUrl(baseUrl) ? ORGANIZAONE_CLIENT_HEADERS : {}),
     };
 
     return customHeaders

@@ -2583,6 +2583,7 @@ export default {
   EDITS: 'EDITS',
   AUTO: 'AUTO',
   'reasoning off': '推論オフ',
+  'reasoning default': '推論 既定',
   'reasoning {{effort}}': '推論 {{effort}}',
   low: '低',
   medium: '中',

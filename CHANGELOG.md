@@ -7,6 +7,36 @@ follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Fixed
+
+- Search works again after installing from npm. 0.2.0 shipped its bundled ripgrep without the
+  execute permission, so every start warned "Ripgrep not available … EACCES" and fell back to the
+  slower built-in grep. The package ships the binary executable again, the release refuses a
+  tarball where it is not, and an install of 0.2.0 repairs itself on the next start.
+- Connecting a provider: when checking the key timed out or hit a network error, the model step
+  opened with no list and only going back to the key brought it. The model step now asks the
+  provider again on its own, `ctrl+r` reloads the list at any time (the models already checked
+  stay checked), and a list that cannot be read says so at the top of the step.
+
+### OrganizaOne
+
+- Requests to the OrganizaOne proxy name the agent: `X-Title: o1-code` and an `O1Code/<version>`
+  User-Agent, instead of presenting as Claude CLI on the Anthropic protocol.
+- The reasoning effort reaches the proxy on the OpenAI protocol as well: it is sent as
+  `reasoning_effort`, the field the proxy reads, instead of a nested field it ignored.
+- Connecting a provider keeps the reasoning efforts each model declares in the model list
+  (`reasoning.efforts` and `reasoning.default`; a Claude CLI model of the proxy takes every level),
+  which is what sends the effort in the field the proxy reads. Providers connected before this
+  release get it by connecting again with `/auth`.
+- The footer shows `reasoning default` for a model that takes an effort when none was chosen.
+
+### Documentation
+
+- Every install instruction uses `@organizaone/o1-code@latest`, and the troubleshooting FAQ
+  explains the automatic update and `/update` instead of rebuilding a clone.
+- The npm package declares its Apache-2.0 license, and the README drops the badges a private
+  repository cannot serve.
+
 ## [0.2.0] - 2026-09-28
 
 ### Terminal interface

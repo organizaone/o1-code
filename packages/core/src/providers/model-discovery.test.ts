@@ -43,6 +43,52 @@ describe('checkProviderKey', () => {
     expect(init?.headers).toMatchObject({ Authorization: 'Bearer sk-good' });
   });
 
+  it('reads the reasoning effort each model declares', async () => {
+    respond(200, {
+      data: [
+        {
+          id: 'declared',
+          reasoning: { efforts: ['max', 'low', 'bogus'], default: 'low' },
+        },
+        { id: 'cli-run', owned_by: 'claude-cli' },
+        { id: 'passthrough', owned_by: 'zai' },
+      ],
+    });
+    const result = await checkProviderKey({
+      protocol: 'openai',
+      baseUrl: 'https://api.example.test/v1',
+      apiKey: 'sk-good',
+      staticModels: [],
+    });
+    expect(result).toEqual({
+      status: 'ok',
+      models: [
+        {
+          id: 'declared',
+          capabilities: {
+            reasoning: {
+              thinking: true,
+              efforts: ['low', 'max'],
+              defaultEffort: 'low',
+              disableField: 'reasoning_effort',
+            },
+          },
+        },
+        {
+          id: 'cli-run',
+          capabilities: {
+            reasoning: {
+              thinking: true,
+              efforts: ['low', 'medium', 'high', 'xhigh', 'max'],
+              disableField: 'reasoning_effort',
+            },
+          },
+        },
+        { id: 'passthrough' },
+      ],
+    });
+  });
+
   it('reports a key the provider refuses', async () => {
     respond(401);
     await expect(

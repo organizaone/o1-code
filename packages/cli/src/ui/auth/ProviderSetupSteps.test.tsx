@@ -985,6 +985,67 @@ describe('ProviderSetupSteps', () => {
     unmount();
   });
 
+  it('asks again when the key step could not reach the provider', async () => {
+    checkProviderKeyMock.mockResolvedValueOnce({
+      status: 'ok',
+      models: [{ id: 'served-model' }],
+    });
+    const flow = createModelIdsFlow({ modelIds: '' });
+    enableDiscovery(flow);
+    // The key step timed out: that says nothing about the list.
+    flow.state.keyCheck = { status: 'unavailable' };
+
+    const { lastFrame, unmount } = renderWithProviders(
+      <ProviderSetupSteps flow={flow} />,
+    );
+    await act(async () => {
+      await Promise.resolve();
+    });
+
+    expect(checkProviderKeyMock).toHaveBeenCalledTimes(1);
+    expect(lastFrame()).toContain('served-model');
+    expect(lastFrame()).not.toContain('could not be read');
+    unmount();
+  });
+
+  it('keeps the provider list on screen when fetching it again fails', async () => {
+    checkProviderKeyMock.mockResolvedValueOnce({ status: 'unavailable' });
+    const flow = createModelIdsFlow({ modelIds: '' });
+    enableDiscovery(flow);
+    flow.state.keyCheck = { status: 'ok', models: [{ id: 'served-model' }] };
+
+    const { lastFrame, unmount } = renderWithProviders(
+      <ProviderSetupSteps flow={flow} />,
+    );
+    await act(async () => {
+      await Promise.resolve();
+    });
+    expect(checkProviderKeyMock).not.toHaveBeenCalled();
+    expect(lastFrame()).toContain('ctrl+r fetches the models again');
+
+    await act(async () => {
+      for (const handler of [...activeKeypressHandlers]) {
+        handler({
+          name: 'r',
+          sequence: '\u0012',
+          ctrl: true,
+          meta: false,
+          shift: false,
+          paste: false,
+        });
+      }
+    });
+    await act(async () => {
+      await Promise.resolve();
+    });
+
+    expect(checkProviderKeyMock).toHaveBeenCalledTimes(1);
+    const frame = lastFrame() ?? '';
+    expect(frame).toContain('served-model');
+    expect(frame).toContain('The provider list could not be read');
+    unmount();
+  });
+
   it('offers to fetch the models again when the provider list could not be read', async () => {
     checkProviderKeyMock.mockResolvedValueOnce({ status: 'unavailable' });
     checkProviderKeyMock.mockResolvedValueOnce({

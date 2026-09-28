@@ -22,8 +22,14 @@ import { useConfig } from '../contexts/ConfigContext.js';
 import { useSettings } from '../contexts/SettingsContext.js';
 import { useVimModeState } from '../contexts/VimModeContext.js';
 import { Spinner } from './RespondingSpinner.js';
-import { GitZone, ModeZone, UsageZone } from './footer-zones.js';
+import {
+  GitZone,
+  ModeZone,
+  REASONING_DEFAULT,
+  UsageZone,
+} from './footer-zones.js';
 import { getReasoningForDisplay } from '../../acp-integration/model-configuration.js';
+import { resolveReasoningForModel } from '@organizaone/o1-code-core/core/reasoning-overrides.js';
 import { t } from '../../i18n/index.js';
 import { useKeypressContext } from '../contexts/KeypressContext.js';
 import { StreamingState } from '../types.js';
@@ -45,14 +51,21 @@ const PasteProgressBar: React.FC<{ progress: PasteProgress }> = ({
   );
 };
 
-/** The reasoning effort to show, `false` when off, undefined when unknown. */
+/**
+ * The reasoning effort to show, `false` when off, `default` when the model
+ * takes an effort but none was chosen, undefined when unknown.
+ */
 function readReasoning(config: Config): string | false | undefined {
   const generationConfig = config.getContentGeneratorConfig();
   if (!generationConfig) return undefined;
   try {
     const reasoning = getReasoningForDisplay(config, generationConfig);
     if (reasoning === false) return false;
-    return (reasoning as { effort?: string } | undefined)?.effort;
+    const effort = (reasoning as { effort?: string } | undefined)?.effort;
+    if (effort) return effort;
+    return resolveReasoningForModel(config, generationConfig)
+      ? REASONING_DEFAULT
+      : undefined;
   } catch {
     // A partial model configuration has no reasoning to show.
     return undefined;

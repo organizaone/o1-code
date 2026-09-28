@@ -186,6 +186,8 @@ export interface ProviderSetupInputs {
   modelIds: string[];
   /** Pre-built model configs (e.g. a model-list update). Overrides modelIds. */
   prebuiltModels?: ProviderModelConfig[];
+  /** What the provider listed, so a chosen model keeps what it declared. */
+  discoveredModels?: readonly ModelSpec[];
   advancedConfig?: {
     /** Replace all advanced form controls; omitted fields otherwise stay unchanged. */
     replaceExisting?: boolean;

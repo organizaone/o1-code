@@ -433,6 +433,7 @@ export default {
   EDITS: 'EDIÇÕES',
   AUTO: 'AUTO',
   'reasoning off': 'raciocínio desligado',
+  'reasoning default': 'raciocínio padrão',
   'reasoning {{effort}}': 'raciocínio {{effort}}',
   low: 'baixo',
   medium: 'médio',

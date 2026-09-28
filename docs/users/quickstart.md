@@ -17,7 +17,7 @@ You need Node.js 22 or later ([nodejs.org](https://nodejs.org/en/download)). The
 package globally:
 
 ```bash
-npm install -g @organizaone/o1-code
+npm install -g @organizaone/o1-code@latest
 ```
 
 Check the installation with `o1-code --version`. To update later, run the same command again.
