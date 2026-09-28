@@ -29,16 +29,17 @@ concurrency:
   cancel-in-progress: false
 
 env:
-  # Provenance needs a public repository. Turn it on ('true') once the
-  # repository is public; id-token: write below is already granted for it.
-  PUBLISH_PROVENANCE: 'false'
+  # npm provenance needs a public repository and a GitHub-hosted runner: it
+  # turns itself on once the repository is public (id-token: write below).
+  PUBLISH_PROVENANCE: "${{ github.event.repository.private && 'false' || 'true' }}"
   PACKAGE_NAME: '@organizaone/o1-code'
 
 jobs:
   release:
     name: 'Release'
-    # Same runner selection as o1-ci.yml (repository variable CI_RUNNER_LABELS).
-    runs-on: '${{ fromJSON(vars.CI_RUNNER_LABELS || ''["ubuntu-latest"]'') }}'
+    runs-on: 'ubuntu-latest'
+    # Deploys only from v*.*.* tags, after the maintainer approves the run.
+    environment: 'npm'
     timeout-minutes: 60
     permissions:
       # Creates the GitHub release and uploads the tarball to it.
@@ -215,9 +216,8 @@ jobs:
           echo "::error::$PACKAGE_NAME@$VERSION did not appear on npm"
           exit 1
 
-      # Through the REST API rather than the gh CLI, which the self-hosted
-      # runners do not carry. Idempotent: a re-run reuses the release
-      # and skips an asset already attached.
+      # Through the REST API. Idempotent: a re-run reuses the release and
+      # skips an asset already attached.
       - name: 'GitHub release'
         env:
           GH_TOKEN: '${{ github.token }}'

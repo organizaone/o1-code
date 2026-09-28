@@ -52,6 +52,9 @@ The full cycle is in [`docs/guides/TASK-COMPLETION.md`](./docs/guides/TASK-COMPL
 verified. The CI fast gates must pass before merge, history stays linear, and review conversations
 must be resolved. A TUI change carries a screenshot of the real app.
 
+Pull requests from forks are welcome. Their CI run starts once a maintainer approves it, and it runs
+without access to the repository's secrets. Only maintainers merge, tag and release.
+
 ## Proposing a feature
 
 Extension mechanisms come first: skills, hooks, MCP, rules, output styles, themes and

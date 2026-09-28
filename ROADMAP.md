@@ -63,13 +63,12 @@ Decisions so far.
   verifies with `npm view`, and creates the GitHub release from the changelog section
   (`scripts/o1/release-notes.mjs`). The steps are in the deviations of `docs/guides/VERSIONING.md`.
 - Stable channel only: every tag goes to `latest`.
-- The first publication uses a temporary granular `NPM_TOKEN` secret, then trusted publishing
-  (OIDC) configured on npmjs.com, after which the token is deleted. Provenance waits for a public
-  repository, behind a switch in the workflow (`PUBLISH_PROVENANCE`).
+- The first publications use a temporary granular `NPM_TOKEN` secret, then trusted publishing
+  (OIDC) configured on npmjs.com, after which the token is deleted. Provenance turns itself on once
+  the repository is public (`PUBLISH_PROVENANCE`).
 - Done: `@organizaone/o1-code@0.1.0` is on npm (`latest`), with the GitHub release `v0.1.0`.
-- Still open: move to trusted publishing and delete the token; turn provenance on when the
-  repository is public; a prebuild pipeline for `audio-capture`, which then returns to the
-  published package.
+- Still open: move to trusted publishing and delete the token; a prebuild pipeline for
+  `audio-capture`, which then returns to the published package.
 
 ### Unscheduled
 
@@ -114,10 +113,9 @@ Decisions so far.
   maintainer.
 - Two workflows: `.github/workflows/o1-ci.yml` (the fast checks, `Fast gates`, on every pull
   request to `main`, mandatory; the full suites on demand) and `release.yml` (a `vX.Y.Z` tag
-  publishes to npm). Both run on the runner the repository variable `CI_RUNNER_LABELS` names:
-  the maintainer's self-hosted runner on Dokploy (`["self-hosted","dokploy"]`, no Actions
-  minutes spent) or GitHub's (`["ubuntu-latest"]`); changing it needs no pull request. A few
-  tests are skipped because they assert on review workflows this repository does not run.
+  publishes to npm). Both run on GitHub-hosted runners; a fork pull request runs the same checks
+  once the maintainer approves its workflow run. A few tests are skipped because they assert on
+  review workflows this repository does not run.
 
 ## Out of scope
 
