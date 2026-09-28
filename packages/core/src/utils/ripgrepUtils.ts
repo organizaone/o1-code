@@ -4,6 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import { chmod } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { execFile } from 'node:child_process';
@@ -283,6 +284,45 @@ export async function ensureMacBinarySigned(
   await execCommand('xattr', ['-d', 'com.apple.quarantine', binaryPath]);
 }
 
+function isPermissionDenied(error: unknown): boolean {
+  return (
+    typeof error === 'object' &&
+    error !== null &&
+    (error as NodeJS.ErrnoException).code === 'EACCES'
+  );
+}
+
+/**
+ * Probes the selection, restoring the execute bit on the bundled binary once
+ * if the spawn is refused. A package can reach users with the bit stripped
+ * (0.2.0 did), and the install directory is usually the user's own.
+ */
+async function ensureBundledRipgrepRuns(
+  selection: RipgrepSelection,
+): Promise<void> {
+  try {
+    await ensureRipgrepHealthy(selection);
+  } catch (error) {
+    if (
+      selection.mode !== 'builtin' ||
+      process.platform === 'win32' ||
+      !isPermissionDenied(error)
+    ) {
+      throw error;
+    }
+    try {
+      await chmod(selection.command, 0o755);
+    } catch (chmodError) {
+      debugLogger.warn(
+        `Could not restore the execute bit on ${selection.command}: ${chmodError}`,
+      );
+      throw error;
+    }
+    debugLogger.debug(`Restored the execute bit on ${selection.command}.`);
+    await ensureRipgrepHealthy(selection);
+  }
+}
+
 /**
  * Resolves ripgrep and verifies it actually runs.
  *
@@ -299,7 +339,7 @@ async function resolveHealthyRipgrep(
   }
 
   try {
-    await ensureRipgrepHealthy(selection);
+    await ensureBundledRipgrepRuns(selection);
     return selection;
   } catch (error) {
     if (selection.mode !== 'builtin') {
