@@ -64,18 +64,15 @@ ops/
 .superpowers/
 pr_body.md
 
-# Editors and other coding agents' state; the project's own skills for
-# them are tracked (a directory excluded whole cannot be re-included, so
-# `.claude/*` rather than `.claude`).
+# Editors and coding agents' local state and configuration: nothing of it
+# is versioned; the repository's instructions live in AGENTS.md.
 .idea
 *.iml
 .vscode/*.local.json
 .cursor
 .qoder
 .codex
-.claude/*
-!.claude/skills/
-!.claude/skills/**
+.claude/
 .worktrees/
 .playwright-mcp/
 .codegraph
