@@ -165,7 +165,9 @@ settings (`ui.customAsciiArt`, `ui.hideBanner`, …) are gone and ignored if pre
 
 ### Conversation
 
-- **User message:** `❯` in brand, text in primary. The message that started the running turn
+- **User message:** a bar (`glyphs().userBar`, `▎`, `│` in compatible mode) in brand on every line,
+  then `❯` in brand and the text in brand soft, so a prompt stands apart from the reply and the
+  tool rows without painting a background. The message that started the running turn
   shows the turn's state in that column (`utils/turn-marker.ts`): a spinner in brand while nothing
   has appeared under it yet, `❯` again with a muted `…` after the text once the agent shows
   something, and `✓` (`glyphs().done`) in brand once the turn ends. A cancelled or failed turn

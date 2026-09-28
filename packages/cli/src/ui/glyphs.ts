@@ -23,6 +23,8 @@ export interface GlyphSet {
   branchPrefix: string;
   barFull: string;
   barEmpty: string;
+  /** Drawn on every line of a user message. */
+  userBar: string;
   queued: string;
   agent: string;
   failed: string;
@@ -39,6 +41,7 @@ export const FULL_GLYPHS: GlyphSet = {
   branchPrefix: '⎇ ',
   barFull: '▰',
   barEmpty: '▱',
+  userBar: '▎',
   queued: '↳',
   agent: `◆${VS15}`,
   failed: '✗',
@@ -55,6 +58,7 @@ export const COMPAT_GLYPHS: GlyphSet = {
   branchPrefix: '',
   barFull: '█',
   barEmpty: '░',
+  userBar: '│',
   queued: `→${VS15}`,
   agent: '*',
   failed: 'x',
