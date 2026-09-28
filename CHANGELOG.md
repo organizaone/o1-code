@@ -7,6 +7,15 @@ follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Documentation
+
+- The README opens on what o1-code is and how to install it from npm, with screenshots of the
+  terminal interface and links to the feature documentation; building from source moved to
+  `docs/developers/build-from-source.md`.
+- The npm package ships its own README (`packages/cli/README.md`), written for the registry page.
+- The Quickstart, the overview, the troubleshooting page and the uninstall page install from npm
+  instead of a clone.
+
 ## [0.1.0] - 2026-09-27
 
 The first release of o1-code, a coding agent for the terminal.

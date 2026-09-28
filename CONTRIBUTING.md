@@ -21,8 +21,9 @@ npm run build -- --cli-only
 npm run bundle
 ```
 
-Node 22 or later. On Node 26, install Corepack with `npm i -g corepack`. Toolchain details and the
-Windows rules are in [`docs/guides/STACK-O1-CODE.md`](./docs/guides/STACK-O1-CODE.md).
+Node 22 or later. On Node 26, install Corepack with `npm i -g corepack`. The longer walkthrough is
+[Build from source](./docs/developers/build-from-source.md); toolchain details and the Windows
+rules are in [`docs/guides/STACK-O1-CODE.md`](./docs/guides/STACK-O1-CODE.md).
 
 ## Make a change
 

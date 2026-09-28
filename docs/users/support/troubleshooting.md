@@ -62,8 +62,9 @@ This guide provides solutions to common issues and debugging tips, including top
 - **Error: Command not found (when attempting to run O1-Code with `o1-code`).**
   - **Cause:** The CLI is not correctly installed or it is not in your system's `PATH`.
   - **Solution:**
-    - Run `npm link` from the root of your clone after `npm run bundle`, and check that npm's global binary directory (`npm prefix -g`) is in your `PATH`.
-    - You can also run the bundle directly: `node dist/cli.js` from the root of your clone.
+    - Check that npm's global binary directory (`npm prefix -g`, plus `/bin` on macOS and Linux) is in your `PATH`, and restart your terminal.
+    - Reinstall with `npm install -g @organizaone/o1-code`, or run it without installing: `npx @organizaone/o1-code`.
+    - From a clone of the repository, run `npm link` after `npm run bundle`, or run the bundle directly with `node dist/cli.js`. See [Build from source](../../developers/build-from-source.md).
 
 - **Error: `MODULE_NOT_FOUND` or import errors.**
   - **Cause:** Dependencies are not installed correctly, or the project hasn't been built.

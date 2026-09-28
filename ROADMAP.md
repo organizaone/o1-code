@@ -66,10 +66,10 @@ Decisions so far.
 - The first publication uses a temporary granular `NPM_TOKEN` secret, then trusted publishing
   (OIDC) configured on npmjs.com, after which the token is deleted. Provenance waits for a public
   repository, behind a switch in the workflow (`PUBLISH_PROVENANCE`).
-- The first npm version is 0.1.0.
-- Still open: add the `NPM_TOKEN` secret and push the first tag; move to trusted publishing after
-  the first publication and delete the token; turn provenance on when the repository is public; a
-  prebuild pipeline for `audio-capture`, which then returns to the published package.
+- Done: `@organizaone/o1-code@0.1.0` is on npm (`latest`), with the GitHub release `v0.1.0`.
+- Still open: move to trusted publishing and delete the token; turn provenance on when the
+  repository is public; a prebuild pipeline for `audio-capture`, which then returns to the
+  published package.
 
 ### Unscheduled
 
