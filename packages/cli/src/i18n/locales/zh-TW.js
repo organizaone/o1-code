@@ -2488,6 +2488,7 @@ export default {
   EDITS: '編輯',
   AUTO: '自動',
   'reasoning off': '推理關閉',
+  'reasoning default': '推理 預設',
   'reasoning {{effort}}': '推理 {{effort}}',
   low: '低',
   medium: '中',

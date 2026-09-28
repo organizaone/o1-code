@@ -275,11 +275,16 @@ function buildModelConfigs(
     // No predefined models (custom provider) — use advancedConfig
     const advCfg = inputs.advancedConfig;
     const displayName = (id: string) => (prefix ? `[${prefix}] ${id}` : id);
+    const discovered = new Map(
+      (inputs.discoveredModels ?? []).map((spec) => [spec.id, spec]),
+    );
     models = inputs.modelIds.map((id) => {
       const genConfig = buildAdvancedGenerationConfig(advCfg, protocol);
+      const capabilities = discovered.get(id)?.capabilities;
       return {
         id,
         name: displayName(id),
+        ...(capabilities ? { capabilities } : {}),
         baseUrl: inputs.baseUrl,
         envKey,
         credential,

@@ -57,6 +57,9 @@ function modeColor(mode: ApprovalMode): string {
 
 const Sep = () => <Text color={extendedTheme.ui.separator}>{SEP}</Text>;
 
+/** A model that takes an effort, running on the one its provider picks. */
+export const REASONING_DEFAULT = 'default';
+
 export const ModeZone: React.FC<{
   tier: LayoutTier;
   mode: ApprovalMode;
@@ -70,9 +73,11 @@ export const ModeZone: React.FC<{
       ? ''
       : reasoning === false
         ? t('reasoning off')
-        : atLeast(tier, 'medium')
-          ? t('reasoning {{effort}}', { effort: t(reasoning) })
-          : t(reasoning);
+        : reasoning === REASONING_DEFAULT
+          ? t('reasoning default')
+          : atLeast(tier, 'medium')
+            ? t('reasoning {{effort}}', { effort: t(reasoning) })
+            : t(reasoning);
   return (
     <Text color={extendedTheme.text.muted} wrap="truncate">
       <Text color={modeColor(mode)} bold>

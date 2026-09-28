@@ -470,6 +470,30 @@ describe('buildInstallPlan', () => {
     expect(models?.[0]?.generationConfig).toBeUndefined();
   });
 
+  it('keeps what the provider declared for each chosen model', () => {
+    const reasoning = {
+      thinking: true as const,
+      efforts: ['low', 'high'] as const,
+      disableField: 'reasoning_effort' as const,
+    };
+    const config = makeConfig({ models: undefined, modelNamePrefix: '' });
+    const plan = buildInstallPlan(config, {
+      baseUrl: 'https://custom.com/v1',
+      apiKey: 'sk-custom',
+      modelIds: ['thinker', 'plain'],
+      discoveredModels: [
+        { id: 'thinker', capabilities: { reasoning } },
+        { id: 'plain' },
+        { id: 'not-chosen', capabilities: { reasoning } },
+      ],
+    });
+
+    const models = plan.modelProviders?.[0]?.models ?? [];
+    expect(models.map((model) => model.id)).toEqual(['thinker', 'plain']);
+    expect(models[0]?.capabilities).toEqual({ reasoning });
+    expect(models[1]?.capabilities).toBeUndefined();
+  });
+
   it('builds custom model configs with advancedConfig', () => {
     const config = makeConfig({ models: undefined, modelNamePrefix: 'C' });
     const plan = buildInstallPlan(config, {

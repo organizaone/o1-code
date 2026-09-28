@@ -2825,6 +2825,7 @@ export default {
   EDITS: 'BEARBEITUNGEN',
   AUTO: 'AUTO',
   'reasoning off': 'Reasoning aus',
+  'reasoning default': 'Reasoning Standard',
   'reasoning {{effort}}': 'Reasoning {{effort}}',
   low: 'niedrig',
   medium: 'mittel',

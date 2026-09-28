@@ -2822,6 +2822,7 @@ export default {
   EDITS: 'MODIFS',
   AUTO: 'AUTO',
   'reasoning off': 'raisonnement désactivé',
+  'reasoning default': 'raisonnement par défaut',
   'reasoning {{effort}}': 'raisonnement {{effort}}',
   low: 'faible',
   medium: 'moyen',

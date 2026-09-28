@@ -396,6 +396,9 @@ export function useProviderSetupFlow(
         baseUrl: baseUrl.trim(),
         apiKey: apiKey.trim(),
         modelIds: normalizeModelIds(modelIds),
+        ...(keyCheck?.status === 'ok'
+          ? { discoveredModels: keyCheck.models }
+          : {}),
         advancedConfig: hasAdvanced
           ? {
               enableThinking: thinkingEnabled || undefined,
@@ -413,6 +416,7 @@ export function useProviderSetupFlow(
       baseUrl,
       apiKey,
       modelIds,
+      keyCheck,
       modalityEnabled,
       modalityImage,
       modalityVideo,

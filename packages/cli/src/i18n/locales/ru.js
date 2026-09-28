@@ -2794,6 +2794,7 @@ export default {
   EDITS: 'EDITS',
   AUTO: 'AUTO',
   'reasoning off': 'рассуждение выкл.',
+  'reasoning default': 'рассуждение по умолчанию',
   'reasoning {{effort}}': 'рассуждение {{effort}}',
   low: 'низкое',
   medium: 'среднее',

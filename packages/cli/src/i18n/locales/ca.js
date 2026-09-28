@@ -2950,6 +2950,7 @@ export default {
   EDITS: 'EDICIONS',
   AUTO: 'AUTO',
   'reasoning off': 'raonament desactivat',
+  'reasoning default': 'raonament per defecte',
   'reasoning {{effort}}': 'raonament {{effort}}',
   low: 'baix',
   medium: 'mitjà',

@@ -2690,6 +2690,7 @@ export default {
   EDITS: '编辑',
   AUTO: '自动',
   'reasoning off': '推理关闭',
+  'reasoning default': '推理 默认',
   'reasoning {{effort}}': '推理 {{effort}}',
   low: '低',
   medium: '中',

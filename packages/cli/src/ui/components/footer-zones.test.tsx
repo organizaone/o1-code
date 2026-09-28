@@ -12,6 +12,7 @@ import { ApprovalMode } from '@organizaone/o1-code-core/config/approval-mode.js'
 import {
   GitZone,
   ModeZone,
+  REASONING_DEFAULT,
   UsageZone,
   formatTokens,
   formatTurnTime,
@@ -64,6 +65,16 @@ describe('footer zones', () => {
         />,
       ),
     ).toBe('● DEFAULT │ m · reasoning off · Safe Mode');
+    expect(
+      text(
+        <ModeZone
+          tier="full"
+          mode={ApprovalMode.DEFAULT}
+          model="m"
+          reasoning={REASONING_DEFAULT}
+        />,
+      ),
+    ).toBe('● DEFAULT │ m · reasoning default');
   });
 
   it('shows the branch and the diff, and nothing without a branch', () => {
