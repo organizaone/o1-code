@@ -1,6 +1,6 @@
 ---
 name: extension-creator
-description: Create, scaffold, customize, validate, and locally test O1-Code extensions. Use when the user wants a new O1-Code extension, needs help choosing an extension template, wants to add AGENTS.md context, commands, skills, agents, MCP servers, settings, hooks, or LSP servers, or asks how to link and test an extension locally. Invoke with `/extension-creator` followed by an extension path and optional template name.
+description: 'Use when the user wants to create, scaffold, customize, validate or locally test an O1-Code extension (context, commands, skills, agents, MCP servers, settings, hooks, LSP): /extension-creator <path> [template].'
 argument-hint: '<extension-path> [template]'
 allowedTools:
   - run_shell_command

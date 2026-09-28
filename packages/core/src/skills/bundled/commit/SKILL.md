@@ -1,6 +1,6 @@
 ---
 name: commit
-description: Turn the uncommitted changes in the current git repository into one commit per logical change, with messages in the repository's own style, asking for confirmation before each commit. Use when the user asks to commit their work, split changes into commits, or write commit messages. Usage - /commit, or /commit <what changed> to give the intent behind the changes. It only commits; it never pushes.
+description: "Use when the user asks to commit work or write commit messages: one commit per logical change, in the repository's style, confirmed one by one (/commit, /commit <what changed>). It never pushes."
 argument-hint: '[what changed, optional]'
 allowedTools:
   - run_shell_command

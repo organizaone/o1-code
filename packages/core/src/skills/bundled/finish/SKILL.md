@@ -1,6 +1,6 @@
 ---
 name: finish
-description: Close a unit of change in the current project - build, lint on the whole project, typecheck, the tests in the reach of the change, a documentation check and the version step when the project declares one - then report what ran and what did not. Use when the user says the work is done, asks to finish, wrap up, or verify a change before committing. Usage - /finish to check and report, /finish --fix to also fix what fails and sync the docs, /finish --full to run the full test suite as well. It stops before the commit and offers /commit.
+description: 'Use when the work is done and needs its closing checks (build, lint, typecheck, tests in reach, docs) before a commit: /finish to check and report, /finish --fix to also fix, /finish --full for the whole suite; it then offers /commit.'
 argument-hint: '[--fix] [--full]'
 allowedTools:
   - run_shell_command
