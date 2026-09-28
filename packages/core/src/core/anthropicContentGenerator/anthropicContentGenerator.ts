@@ -54,6 +54,10 @@ import { createDebugLogger } from '../../utils/debugLogger.js';
 import { runtimeDiagnostics } from '../../utils/runtimeDiagnostics.js';
 import { createChildAbortController } from '../../utils/abortController.js';
 import {
+  isOrganizaOneBaseUrl,
+  ORGANIZAONE_CLIENT_HEADERS,
+} from '../../providers/presets/organizaone.js';
+import {
   tokenLimit,
   hasExplicitOutputLimit,
   defaultOutputCeiling,
@@ -258,7 +262,10 @@ export class AnthropicContentGenerator implements ContentGenerator {
     // obscure that coupling and tempt a future contributor to split one
     // half of the bundle without the other.
     const useProxyIdentity = !isAnthropicNativeBaseUrl(contentGeneratorConfig);
-    const defaultHeaders = this.buildHeaders(useProxyIdentity);
+    const defaultHeaders = this.buildHeaders(
+      useProxyIdentity,
+      isOrganizaOneBaseUrl(resolveEffectiveBaseUrl(contentGeneratorConfig)),
+    );
     const baseURL = anthropicSdkBaseUrl(contentGeneratorConfig.baseUrl);
     // Configure fetch options for proxy support and timeout handling.
     // With proxy, dispatcher timeouts are disabled so SDK timeout controls the
@@ -434,7 +441,10 @@ export class AnthropicContentGenerator implements ContentGenerator {
   ): Promise<EmbedContentResponse> {
     throw new Error('Anthropic does not support embeddings.');
   }
-  private buildHeaders(useProxyIdentity: boolean): Record<string, string> {
+  private buildHeaders(
+    useProxyIdentity: boolean,
+    organizaOne: boolean,
+  ): Record<string, string> {
     // Beta headers are computed per-request in buildPerRequestHeaders so they
     // stay in sync with what the request body actually carries.
     // Constructor headers carry User-Agent, the
@@ -451,15 +461,20 @@ export class AnthropicContentGenerator implements ContentGenerator {
     // CLI in Anthropic's logs/quotas, and we don't ship the proxy-specific
     // `x-app` header. Predicate is computed once at construction and shared
     // with the auth-mode decision so the bundle stays internally consistent.
-    const userAgent = useProxyIdentity
+    // The OrganizaOne proxy is the exception: it has no client rules and
+    // records the agent it sees, so it gets the truthful identity while
+    // keeping the proxy auth mode.
+    const claimsClaudeCli = useProxyIdentity && !organizaOne;
+    const userAgent = claimsClaudeCli
       ? `claude-cli/${version} (external, cli)`
       : `O1Code/${version} (${process.platform}; ${process.arch})`;
     const { customHeaders } = this.contentGeneratorConfig;
 
     const headers: Record<string, string> = {
       'User-Agent': userAgent,
+      ...(organizaOne ? ORGANIZAONE_CLIENT_HEADERS : {}),
     };
-    if (useProxyIdentity) {
+    if (claimsClaudeCli) {
       headers['x-app'] = 'cli';
     }
     if (customHeaders) {

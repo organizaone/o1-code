@@ -231,6 +231,29 @@ describe('AnthropicContentGenerator', () => {
     expect(body.messages.at(-1)?.role).toBe('user');
   });
 
+  it('tells the OrganizaOne proxy who is calling, keeping the proxy auth', async () => {
+    const { AnthropicContentGenerator } = await importGenerator();
+    void new AnthropicContentGenerator(
+      {
+        model: 'claude-test',
+        apiKey: 'test-key',
+        baseUrl: 'https://api.organizago.com',
+        timeout: 10_000,
+        maxRetries: 2,
+        samplingParams: {},
+        schemaCompliance: 'auto',
+      },
+      mockConfig,
+    );
+
+    const headers = (anthropicState.constructorOptions?.['defaultHeaders'] ||
+      {}) as Record<string, string>;
+    expect(headers['User-Agent']).toMatch(/^O1Code\/1\.2\.3 /);
+    expect(headers['X-Title']).toBe('o1-code');
+    expect(headers['x-app']).toBeUndefined();
+    expect(anthropicState.constructorOptions?.['authToken']).toBe('test-key');
+  });
+
   it('uses claude-cli identity (User-Agent + x-app + Bearer auth) for non-Anthropic baseURLs', async () => {
     // Non-Anthropic-native baseURL → Acme-style proxy path:
     //  - User-Agent presents as `claude-cli/<version> (external, cli)`

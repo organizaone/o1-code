@@ -5,12 +5,37 @@
  */
 
 import { AuthType } from '../../core/contentGenerator.js';
+import { BRAND } from '../../generated/brand.js';
 import type { ProviderConfig } from '../types.js';
 
 /** The proxy host is a constant of the preset; another host is a Custom provider. */
 export const ORGANIZAONE_ANTHROPIC_BASE_URL = 'https://api.organizago.com';
 export const ORGANIZAONE_OPENAI_BASE_URL = 'https://api.organizago.com/v1';
 export const ORGANIZAONE_ENV_KEY = 'ORGANIZAONE_API_KEY';
+
+const ORGANIZAONE_HOST = new URL(ORGANIZAONE_ANTHROPIC_BASE_URL).hostname;
+
+/**
+ * Whether requests go to the OrganizaOne proxy. Decided from the URL rather
+ * than from the preset, so a provider saved before a release also gets what
+ * the proxy expects.
+ */
+export function isOrganizaOneBaseUrl(baseUrl: string | undefined): boolean {
+  if (!baseUrl) return false;
+  try {
+    return new URL(baseUrl).hostname.toLowerCase() === ORGANIZAONE_HOST;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * The proxy records the calling agent from `X-Title` before `User-Agent`
+ * (ai-proxy-provider, request-origin.ts).
+ */
+export const ORGANIZAONE_CLIENT_HEADERS: Readonly<Record<string, string>> = {
+  'X-Title': BRAND.productName,
+};
 
 export const organizaoneProvider: ProviderConfig = {
   id: 'organizaone',
