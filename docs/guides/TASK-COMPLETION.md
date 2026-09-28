@@ -170,6 +170,26 @@ For an exception commit:
   has a single maintainer, so no approving review is required; the independent review agent and
   the self-review below stand in for it. The pull request follows
   `.github/pull_request_template.md`. The changelog is `CHANGELOG.md`.
+- **Additional gate before any push, the CI fast gates run locally.** A pull request must not be
+  the first place a gate runs: each push starts a pipeline, and a red one costs a round trip.
+  Before pushing a branch, run what the fast gates run, in this order (one heavy job at a time):
+
+  ```bash
+  npm run build -- --cli-only && npm run bundle
+  npm run lint && npm run typecheck
+  node --test scripts/o1/*.test.mjs && npm run test:scripts
+  node scripts/o1/brand-lint.mjs && node scripts/o1/smoke.mjs && node scripts/o1/provider-smoke.mjs
+  ```
+
+  Add `cd packages/web-shell && npx vitest run --config vitest.config.ts` when the change touches
+  the Web Shell, and `npx prettier --check <changed .md files>` plus
+  `node scripts/o1/check-guides.mjs` when it touches documentation. The scoped product tests of
+  Step 3 still apply. `npm run test:scripts` is easy to forget and is the one that tests the
+  build and packaging scripts (`scripts/*.js`): a change there is not verified without it.
+- **Pull requests only with the maintainer's OK.** Work stays in local commits until the
+  maintainer approves proposing it: a branch is pushed and a pull request opened (or an open one
+  updated) only after that OK, for that change. Approval to merge one pull request does not
+  extend to opening another. Changes are batched so that one pipeline run covers them.
 - **Additional gate before Step 6, self-review of the diff.** Before declaring a change done,
   reread the whole diff in open-ended passes, **assuming each green test may be asserting the wrong thing**: check what the test observes, not
   only that it passes. A test that would also pass without the change proves nothing about it.

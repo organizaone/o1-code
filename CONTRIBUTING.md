@@ -33,10 +33,15 @@ rules are in [`docs/guides/STACK-O1-CODE.md`](./docs/guides/STACK-O1-CODE.md).
 3. Before you open the pull request, run:
 
    ```bash
+   npm run build -- --cli-only && npm run bundle
    npm run lint && npm run typecheck
-   node scripts/o1/brand-lint.mjs
-   node scripts/o1/smoke.mjs
+   node --test scripts/o1/*.test.mjs && npm run test:scripts
+   node scripts/o1/brand-lint.mjs && node scripts/o1/smoke.mjs && node scripts/o1/provider-smoke.mjs
    ```
+
+   These are the checks the CI's fast gates run; add the Web Shell tests or the documentation
+   checks when the change touches them (see the deviations of
+   [`docs/guides/TASK-COMPLETION.md`](./docs/guides/TASK-COMPLETION.md)).
 
 4. Update the docs in `docs/users/` when a user would notice the change, and add an entry under
    `[Unreleased]` in [`CHANGELOG.md`](./CHANGELOG.md).
