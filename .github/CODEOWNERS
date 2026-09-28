@@ -1,0 +1,5 @@
+# Review routing only: required code-owner review stays off while the
+# repository has a single maintainer, since an author cannot approve their
+# own pull request.
+* @silvioricardo87
+/.github/ @silvioricardo87
