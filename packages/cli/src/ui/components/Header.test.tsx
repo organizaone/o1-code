@@ -51,6 +51,13 @@ describe('<Header />', () => {
     ).toBe(true);
   });
 
+  it('draws the one-line wordmark where block elements show seams', () => {
+    const lines = renderHeader({ logoStyle: 'wordmark' });
+    expect(lines[0]).toMatch(/^ {2}O1-CODE\./);
+    expect(lines.join('\n')).not.toMatch(/[█▀▄]/);
+    expect(lines[0]!.trimEnd().endsWith('v0.1.0 · ORGANIZAONE')).toBe(true);
+  });
+
   it('drops ctrl+c under 120 columns and @ files and the bar under 100', () => {
     const medium = renderHeader({ columns: 100 });
     expect(medium[3]).not.toContain('ctrl+c');

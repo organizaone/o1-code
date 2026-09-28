@@ -187,9 +187,21 @@ describe('<AppHeader pinned /> logo animation', () => {
   beforeEach(() => {
     vi.useFakeTimers();
     useKeypressMock.mockClear();
+    // The logo style follows the terminal; pin one that draws block elements.
+    vi.stubEnv('TERM_PROGRAM', 'ghostty');
   });
   afterEach(() => {
     vi.useRealTimers();
+    vi.unstubAllEnvs();
+  });
+
+  it('draws the still wordmark in Terminal.app, whose block elements show seams', () => {
+    vi.stubEnv('TERM_PROGRAM', 'Apple_Terminal');
+    const { lastFrame } = renderPinned();
+    expect(animating(lastFrame())).toBe(false);
+    expect(lines(lastFrame())[1]).toContain('O1-CODE.');
+    expect(lastFrame()).not.toMatch(/[█▀▄]/);
+    expect(lines(lastFrame())).toHaveLength(getFixedHeaderHeight(120));
   });
 
   it('animates in the blank row and keeps the pinned height during and after', () => {
