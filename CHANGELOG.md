@@ -7,6 +7,8 @@ follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.2.2] - 2026-09-28
+
 ### Terminal interface
 
 - An update of O1-Code stands out: a framed notice says it was installed and applies on the next
