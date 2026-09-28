@@ -189,7 +189,7 @@ jobs:
     needs: 'classify'
     if: "${{ needs.classify.outputs.docs_only != 'true' && needs.classify.outputs.fork_pr != 'true' && github.event_name != 'push' }}"
     runs-on: '${{ fromJSON(vars.CI_RUNNER_LABELS || ''["ubuntu-latest"]'') }}'
-    timeout-minutes: 15
+    timeout-minutes: 30
     env:
       NODE_OPTIONS: '--max-old-space-size=6144'
     steps:
@@ -206,6 +206,13 @@ jobs:
 
       - name: 'Generate'
         run: 'npm run generate'
+
+      # The inherited script tests assert on the built workspace: the
+      # core-subpath guard resolves specifiers through the package exports
+      # into packages/*/dist. Build what the old single job built before
+      # running them, so the lane stays independent of the build job.
+      - name: 'Build'
+        run: 'npm run build -- --cli-only'
 
       - name: 'Fork script tests'
         run: 'node --test scripts/o1/*.test.mjs'
