@@ -174,6 +174,11 @@ Bumping the version (Step 5) and releasing are different events. A release is th
   `v*.*.*` tags and waits for the maintainer's approval. The publish uses npm trusted publishing
   (OIDC), bound on npmjs.com to this repository, `release.yml` and the `npm` environment. No token
   is stored, in the repository or in its secrets.
+- **Dependencies.** Dependabot alerts are on; its automatic security-update pull requests are off.
+  Before each release, and whenever a critical or high alert arrives, the maintainer reviews the
+  open alerts, separates what reaches the published package from development-only tooling, and
+  lands the fixes together in one pull request that runs the full suites (`workflow_dispatch`
+  with `full`). A major upgrade of a tool (the test runner, the bundler) is a change of its own.
 - **Runners.** Both workflows run on GitHub-hosted runners (`ubuntu-latest`). Self-hosted runners
   are not used: on a public repository a fork pull request would run its own copy of the workflow
   on them.
