@@ -52,12 +52,15 @@ describe('EnterPlanModeTool', () => {
       expect(tool.kind).toBe('think');
     });
 
-    it('should require user opt-in in the tool description', () => {
+    it('limits entry to a user request or large open gaps, never complexity alone', () => {
       expect(tool.description).toContain(
-        'only after the user explicitly asks to switch into plan mode',
+        'only when the user asks for plan mode or asks you to plan this work (in any language)',
       );
       expect(tool.description).toContain(
-        'If plan mode seems helpful but the user has not asked for it, ask first',
+        'when the request leaves gaps large enough that settling them before any edit is clearly better',
+      );
+      expect(tool.description).toContain(
+        'Do not use this tool just because a task involves planning, is complex',
       );
       expect(tool.description).not.toContain(
         'before doing uncertain or complex work',

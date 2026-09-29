@@ -7,6 +7,19 @@ follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Agent
+
+- Five new bundled skills: `tdd` (a test that fails first, for the stated reason, then passes),
+  `debugging` (trace the cause before changing anything), `design` (settle the shape of a feature
+  before its plan), `write-plan` (a plan with one verifiable task per step) and `execute-plan`
+  (work the plan task by task, each committed on its own). `new-app` opens with `design`.
+- The system prompt asks the agent to consult its skills before acting, to claim a result only
+  from output seen after its last edit, and to treat a test that passes without the change as no
+  proof; it enters plan mode when asked, when the request says to plan, or when the gaps are large.
+  Every bundled skill's description says when to use it, so the listing reads as a menu.
+- A headless run (`-p`) no longer ends with an empty result when the last turn was a tool call or
+  a Goal update: the last report the agent wrote is kept, followed by the ended Goal's state.
+
 ## [0.2.2] - 2026-09-28
 
 ### Terminal interface

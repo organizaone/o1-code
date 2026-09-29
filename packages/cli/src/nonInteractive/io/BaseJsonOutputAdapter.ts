@@ -76,6 +76,12 @@ export interface ResultOptions {
   readonly summary?: string;
   readonly subtype?: string;
   /**
+   * The Goal's state when the run ended (status and reason). Added to the
+   * result when the run ended on a message without text, which is how a Goal
+   * that closes itself through `update_goal` finishes.
+   */
+  readonly goalState?: string;
+  /**
    * Payload that the model submitted via the synthetic `structured_output`
    * tool. When set, `result` is forced to the JSON-stringified form and a
    * top-level `structured_result` field is added to the result message.
@@ -161,6 +167,11 @@ export abstract class BaseJsonOutputAdapter {
 
   // Last assistant message for result generation
   protected lastAssistantMessage: CLIAssistantMessage | null = null;
+
+  // Last assistant message that carried text. A run can end on a message that
+  // holds only a tool call (a Goal's closing `update_goal`, say), after the
+  // report was already written; the result then falls back to that report.
+  protected lastAssistantTextMessage: CLIAssistantMessage | null = null;
 
   // Track permission denials (execution denied tool calls)
   protected permissionDenials: CLIPermissionDenial[] = [];
@@ -859,6 +870,9 @@ export abstract class BaseJsonOutputAdapter {
    */
   protected updateLastAssistantMessage(message: CLIAssistantMessage): void {
     this.lastAssistantMessage = message;
+    if (extractTextFromBlocks(message.message.content).trim()) {
+      this.lastAssistantTextMessage = message;
+    }
   }
 
   // ========== Shared Content Block Methods ==========
@@ -1258,11 +1272,23 @@ export abstract class BaseJsonOutputAdapter {
     lastAssistantMessage: CLIAssistantMessage | null,
   ): CLIResultMessage {
     const usage = options.usage ?? createExtendedUsage();
+    const lastText = lastAssistantMessage
+      ? extractTextFromBlocks(lastAssistantMessage.message.content)
+      : '';
     const resultText =
       options.summary ??
-      (lastAssistantMessage
-        ? extractTextFromBlocks(lastAssistantMessage.message.content)
-        : '');
+      (lastText.trim()
+        ? lastText
+        : [
+            this.lastAssistantTextMessage
+              ? extractTextFromBlocks(
+                  this.lastAssistantTextMessage.message.content,
+                )
+              : '',
+            options.goalState ?? '',
+          ]
+            .filter((part) => part.trim())
+            .join('\n\n'));
 
     const baseUuid = randomUUID();
     const baseSessionId = this.getSessionId();

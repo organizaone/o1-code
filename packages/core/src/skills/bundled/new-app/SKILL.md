@@ -4,6 +4,8 @@ description: Workflow for creating new applications from scratch. Covers require
 when_to_use: When the user asks to create a new application, project, website, game, mobile app, CLI tool, or library from scratch.
 ---
 
+Load the `design` skill first: a new application is an architectural request, and that skill settles the requirements and the approach with the user. This skill adds the technology defaults and the delivery steps below.
+
 **Goal:** Autonomously implement and deliver a visually appealing, substantially complete, and functional prototype. Utilize all tools at your disposal to implement the application. Some tools you may especially find useful are 'write_file', 'edit' and 'run_shell_command'.
 
 1. **Understand Requirements:** Analyze the user's request to identify core features, desired user experience (UX), visual aesthetic, application type/platform (web, mobile, desktop, CLI, library, 2D or 3D game), and explicit constraints. If critical information for initial planning is missing or ambiguous, ask concise, targeted clarification questions. Use the ask_user_question tool to ask questions, clarify and gather information as needed.
