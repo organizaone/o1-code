@@ -162,6 +162,11 @@ export abstract class BaseJsonOutputAdapter {
   // Last assistant message for result generation
   protected lastAssistantMessage: CLIAssistantMessage | null = null;
 
+  // Last assistant message that carried text. A run can end on a message that
+  // holds only a tool call (a Goal's closing `update_goal`, say), after the
+  // report was already written; the result then falls back to that report.
+  protected lastAssistantTextMessage: CLIAssistantMessage | null = null;
+
   // Track permission denials (execution denied tool calls)
   protected permissionDenials: CLIPermissionDenial[] = [];
 
@@ -859,6 +864,9 @@ export abstract class BaseJsonOutputAdapter {
    */
   protected updateLastAssistantMessage(message: CLIAssistantMessage): void {
     this.lastAssistantMessage = message;
+    if (extractTextFromBlocks(message.message.content).trim()) {
+      this.lastAssistantTextMessage = message;
+    }
   }
 
   // ========== Shared Content Block Methods ==========
@@ -1258,11 +1266,14 @@ export abstract class BaseJsonOutputAdapter {
     lastAssistantMessage: CLIAssistantMessage | null,
   ): CLIResultMessage {
     const usage = options.usage ?? createExtendedUsage();
+    const lastText = lastAssistantMessage
+      ? extractTextFromBlocks(lastAssistantMessage.message.content)
+      : '';
     const resultText =
       options.summary ??
-      (lastAssistantMessage
-        ? extractTextFromBlocks(lastAssistantMessage.message.content)
-        : '');
+      (lastText.trim() || !this.lastAssistantTextMessage
+        ? lastText
+        : extractTextFromBlocks(this.lastAssistantTextMessage.message.content));
 
     const baseUuid = randomUUID();
     const baseSessionId = this.getSessionId();

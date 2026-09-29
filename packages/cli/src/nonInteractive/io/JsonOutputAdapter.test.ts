@@ -418,6 +418,35 @@ describe('JsonOutputAdapter', () => {
       expect(resultMessage.num_turns).toBe(1);
     });
 
+    it('keeps the report when the run ends on a tool-call-only message', () => {
+      // A Goal writes its report, then closes itself with update_goal.
+      adapter.startAssistantMessage();
+      adapter.processEvent({
+        type: LlmEventType.ToolCallRequest,
+        value: {
+          callId: 'tool-call-1',
+          name: 'update_goal',
+          args: { status: 'complete' },
+          isClientInitiated: false,
+          prompt_id: 'prompt-1',
+        },
+      });
+      adapter.finalizeAssistantMessage();
+
+      adapter.emitResult({
+        isError: false,
+        durationMs: 1000,
+        apiDurationMs: 800,
+        numTurns: 2,
+      });
+
+      const parsed = JSON.parse(stdoutWriteSpy.mock.calls[0][0] as string);
+      const resultMessage = parsed.find(
+        (msg: { type?: string }) => msg.type === 'result',
+      );
+      expect(resultMessage.result).toBe('Response text');
+    });
+
     it('should emit success result as text to stdout in text mode', () => {
       vi.mocked(mockConfig.getOutputFormat).mockReturnValue(OutputFormat.TEXT);
 

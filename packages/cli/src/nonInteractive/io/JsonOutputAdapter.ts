@@ -8,6 +8,7 @@ import type { Config, ToolCallRequestInfo } from '@organizaone/o1-code-core';
 import type { CLIAssistantMessage, CLIMessage } from '../types.js';
 import {
   BaseJsonOutputAdapter,
+  extractTextFromBlocks,
   type JsonOutputAdapterInterface,
   type ResultOptions,
 } from './BaseJsonOutputAdapter.js';
@@ -25,6 +26,8 @@ export class JsonOutputAdapter
   private readonly messages: CLIMessage[] = [];
   private attemptMessageCheckpoint = 0;
   private lastAssistantMessageAtAttemptStart: CLIAssistantMessage | null = null;
+  private lastAssistantTextMessageAtAttemptStart: CLIAssistantMessage | null =
+    null;
 
   constructor(config: Config) {
     super(config);
@@ -57,6 +60,7 @@ export class JsonOutputAdapter
   override startAssistantMessage(): void {
     this.attemptMessageCheckpoint = this.messages.length;
     this.lastAssistantMessageAtAttemptStart = this.lastAssistantMessage;
+    this.lastAssistantTextMessageAtAttemptStart = this.lastAssistantTextMessage;
     super.startAssistantMessage();
   }
 
@@ -89,6 +93,12 @@ export class JsonOutputAdapter
             (message): message is CLIAssistantMessage =>
               message.type === 'assistant',
           ) ?? this.lastAssistantMessageAtAttemptStart;
+        this.lastAssistantTextMessage =
+          this.messages.findLast(
+            (message): message is CLIAssistantMessage =>
+              message.type === 'assistant' &&
+              extractTextFromBlocks(message.message.content).trim() !== '',
+          ) ?? this.lastAssistantTextMessageAtAttemptStart;
       }
     } else {
       // Keep system/control metadata (notably model_fallback), but retract
@@ -102,6 +112,8 @@ export class JsonOutputAdapter
         ...retained,
       );
       this.lastAssistantMessage = this.lastAssistantMessageAtAttemptStart;
+      this.lastAssistantTextMessage =
+        this.lastAssistantTextMessageAtAttemptStart;
     }
     super.restartAttempt(preserveText, discardedToolCalls);
   }
