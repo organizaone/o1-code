@@ -76,6 +76,12 @@ export interface ResultOptions {
   readonly summary?: string;
   readonly subtype?: string;
   /**
+   * The Goal's state when the run ended (status and reason). Added to the
+   * result when the run ended on a message without text, which is how a Goal
+   * that closes itself through `update_goal` finishes.
+   */
+  readonly goalState?: string;
+  /**
    * Payload that the model submitted via the synthetic `structured_output`
    * tool. When set, `result` is forced to the JSON-stringified form and a
    * top-level `structured_result` field is added to the result message.
@@ -1271,9 +1277,18 @@ export abstract class BaseJsonOutputAdapter {
       : '';
     const resultText =
       options.summary ??
-      (lastText.trim() || !this.lastAssistantTextMessage
+      (lastText.trim()
         ? lastText
-        : extractTextFromBlocks(this.lastAssistantTextMessage.message.content));
+        : [
+            this.lastAssistantTextMessage
+              ? extractTextFromBlocks(
+                  this.lastAssistantTextMessage.message.content,
+                )
+              : '',
+            options.goalState ?? '',
+          ]
+            .filter((part) => part.trim())
+            .join('\n\n'));
 
     const baseUuid = randomUUID();
     const baseSessionId = this.getSessionId();

@@ -297,6 +297,20 @@ export function formatGoalState(
   return lines.join('\n');
 }
 
+/**
+ * The Goal's state for the headless result, when a Goal stopped running
+ * (complete, blocked, paused, ...) in this session; undefined otherwise.
+ */
+function endedGoalState(config: Config): string | undefined {
+  try {
+    const snapshot = config.getGoalRuntime().getSnapshot();
+    if (!snapshot.goal || snapshot.goal.status === 'active') return undefined;
+    return formatGoalState(snapshot, 'status');
+  } catch {
+    return undefined;
+  }
+}
+
 async function claimUserGoalTurn(
   runtime: GoalRuntime,
   turnKey: string,
@@ -3245,6 +3259,7 @@ export async function runNonInteractive(
             numTurns: turnCount,
             usage,
             stats,
+            goalState: endedGoalState(config),
           });
           return 0;
         }
