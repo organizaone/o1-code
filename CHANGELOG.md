@@ -7,6 +7,8 @@ follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-09-29
+
 ### Agent
 
 - Five new bundled skills: `tdd` (a test that fails first, for the stated reason, then passes),
