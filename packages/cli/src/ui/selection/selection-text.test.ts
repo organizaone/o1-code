@@ -88,6 +88,27 @@ describe('SelectionState', () => {
   });
 });
 
+describe('getSelectedText clipped to the selectable region', () => {
+  // A bordered box whose text area is columns 2..6 of each row.
+  const frame = () => frameFromLines(['│ hello │', '│ world │']);
+  const region = { x: 2, y: 0, width: 5, height: 2 };
+
+  it('copies no border or padding from the rows of a bordered region', () => {
+    const text = getSelectedText(
+      frame(),
+      { sx: 2, sy: 0, ex: 6, ey: 1 },
+      region,
+    );
+    expect(text).toBe('hello\nworld');
+  });
+
+  it('still copies whole rows when no region is given', () => {
+    expect(getSelectedText(frame(), { sx: 2, sy: 0, ex: 6, ey: 1 })).toBe(
+      'hello │\n│ world',
+    );
+  });
+});
+
 describe('getSelectedText', () => {
   it('extracts a partial single row', () => {
     const frame = frameFromLines(['hello world']);

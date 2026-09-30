@@ -18,6 +18,9 @@ follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - The first request after `/auth` no longer fails with 401 until a restart. The interactive process
   did not know which key variables it had exported from the credential store, so a newly saved key
   could not replace the old one.
+- Copying a selection from the prompt input yields the typed text: no border or padding
+  characters, soft-wrapped rows joined back, typed newlines kept. Selections elsewhere no longer
+  copy cells past the edge of their region.
 
 ## [0.3.0] - 2026-09-29
 

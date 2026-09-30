@@ -18,7 +18,6 @@ import {
   getScreenBuffer,
   type ScreenBuffer,
 } from '../selection/screen-buffer.js';
-import { getSelectedText } from '../selection/selection-text.js';
 import {
   terminalToGrid,
   snapWideChar,
@@ -302,12 +301,12 @@ export function ContentMouseController(
             },
           });
         }
-        const range = propsRef.current.selectionQueryRef?.current?.getRange();
-        if (range) {
+        const query = propsRef.current.selectionQueryRef?.current;
+        if (query?.getRange()) {
           // Snapshot the selected text now rather than at execute time: the
           // frame can keep streaming while the menu is open, and re-deriving
           // a stale range against new cells would copy the wrong text.
-          const selectionText = getSelectedText(frame, range);
+          const selectionText = query.getText();
           if (selectionText) {
             items.push({
               id: 'copy-selection',

@@ -17,6 +17,7 @@ import {
   type ScreenBuffer,
 } from '../selection/screen-buffer.js';
 import { MULTI_CLICK_MS } from '../selection/use-text-selection.js';
+import { getSelectedText } from '../selection/selection-text.js';
 import { ContentMouseController } from './ContentMouseController.js';
 import { ContextMenuProvider, useContextMenu } from './ContextMenuContext.js';
 
@@ -169,8 +170,15 @@ describe('ContentMouseController', () => {
       latestSelectedIndex = menuContext.selectedIndex;
       return null;
     };
+    // getText reads the frame at call time, like the real controller, so the
+    // snapshot test below still proves the text is taken when the menu opens.
     const selectionQueryRef = {
-      current: selectionRange ? { getRange: () => selectionRange } : null,
+      current: selectionRange
+        ? {
+            getRange: () => selectionRange,
+            getText: () => getSelectedText(frame, selectionRange),
+          }
+        : null,
     };
     render(
       <ContextMenuProvider>

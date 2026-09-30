@@ -32,6 +32,9 @@ import { cpSlice, cpLen, truncateToWidth } from '../utils/textUtils.js';
 import { extendedTheme, theme } from '../semantic-colors.js';
 import { t } from '../../i18n/index.js';
 import { glyphs, TOP_FRAME } from '../glyphs.js';
+import { measureElementPosition } from '../utils/measure-element-position.js';
+import { visualRangeToText } from '../utils/input-mouse.js';
+import { setSelectionTextSource } from '../selection/selection-text-sources.js';
 import {
   renderSoftwareCursor,
   terminalShowsInputCursor,
@@ -343,6 +346,26 @@ export const BaseTextInput = ({
   // placeholder while the input is empty.
   useLayoutEffect(() => {
     if (selectableLinesRef) selectableLinesRef.current = linesRef.current;
+    const node = linesRef.current;
+    if (!node) return;
+    // A selection over the text copies what was typed: grid cells map to
+    // visual rows and columns of this container (scroll included), then to
+    // buffer offsets, so wraps rejoin and typed newlines stay.
+    setSelectionTextSource(node, (selection) => {
+      if (buffer.text.length === 0) return null;
+      const rect = measureElementPosition(node);
+      const lastRow = linesToRender.length - 1;
+      const toCell = (x: number, y: number) => ({
+        row: scrollVisualRow + Math.min(Math.max(y - rect.y, 0), lastRow),
+        col: Math.max(0, x - rect.x),
+      });
+      return visualRangeToText(
+        buffer,
+        toCell(selection.sx, selection.sy),
+        toCell(selection.ex, selection.ey),
+      );
+    });
+    return () => setSelectionTextSource(node, null);
   });
   useLayoutEffect(
     () => () => {

@@ -54,6 +54,7 @@ import {
 import { ContentMouseController } from '../context-menu/ContentMouseController.js';
 import { useContextMenu } from '../context-menu/ContextMenuContext.js';
 import { measureElementPosition } from '../utils/measure-element-position.js';
+import { getSelectionTextSource } from '../selection/selection-text-sources.js';
 
 // Limit LLM messages to a very high number of lines to mitigate performance
 // issues in the worst case if we somehow get an enormous model response.
@@ -611,7 +612,11 @@ export const MainContent = ({
           getAdditionalSelectableRects={() =>
             [footerRef?.current, inputLinesRef?.current]
               .filter((node): node is DOMElement => Boolean(node))
-              .map((node) => measureElementPosition(node))
+              .map((node) => ({
+                ...measureElementPosition(node),
+                // The prompt input copies the text that was typed.
+                copyText: getSelectionTextSource(node),
+              }))
           }
           getScrollState={() =>
             scrollRef.current?.getScrollState() ?? {

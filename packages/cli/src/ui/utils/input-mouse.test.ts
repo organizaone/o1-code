@@ -7,8 +7,59 @@
 import { describe, it, expect } from 'vitest';
 import {
   visualClickToOffset,
+  visualRangeToText,
   type ClickableBufferState,
 } from './input-mouse.js';
+
+describe('visualRangeToText', () => {
+  // 'hello world' wrapped at width 5: the wrap eats the space.
+  const wrapped: ClickableBufferState = {
+    lines: ['hello world'],
+    allVisualLines: ['hello', 'world'],
+    visualToLogicalMap: [
+      [0, 0],
+      [0, 6],
+    ],
+  };
+  const twoLines: ClickableBufferState = {
+    lines: ['abc', 'def'],
+    allVisualLines: ['abc', 'def'],
+    visualToLogicalMap: [
+      [0, 0],
+      [1, 0],
+    ],
+  };
+
+  it('joins a soft wrap back into one line, with the space it ate', () => {
+    expect(
+      visualRangeToText(wrapped, { row: 0, col: 0 }, { row: 1, col: 4 }),
+    ).toBe('hello world');
+  });
+
+  it('keeps a typed newline as a newline', () => {
+    expect(
+      visualRangeToText(twoLines, { row: 0, col: 0 }, { row: 1, col: 2 }),
+    ).toBe('abc\ndef');
+  });
+
+  it('copies a partial range, end cell included', () => {
+    expect(
+      visualRangeToText(twoLines, { row: 0, col: 2 }, { row: 1, col: 1 }),
+    ).toBe('c\nde');
+  });
+
+  it('treats cells past the end of a row as the end of its line', () => {
+    expect(
+      visualRangeToText(twoLines, { row: 0, col: 40 }, { row: 1, col: 40 }),
+    ).toBe('\ndef');
+  });
+
+  it('returns null for a row outside the buffer', () => {
+    expect(
+      visualRangeToText(twoLines, { row: 0, col: 0 }, { row: 5, col: 0 }),
+    ).toBeNull();
+  });
+});
 
 describe('visualClickToOffset', () => {
   it('maps a click within a single logical line to the char boundary', () => {
