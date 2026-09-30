@@ -74,7 +74,7 @@ afterEach(() => vi.unstubAllEnvs());
 
 describe('released Responses configuration', () => {
   it.each(['openai-responses', 'gateway', 'openai'])(
-    'reconfigures only the selected %s route and preserves references and siblings',
+    'reconfigures only the selected %s route and keeps its endpoint and service siblings',
     async (providerId) => {
       vi.stubEnv('RELEASED_KEY', 'test-only-old');
       const mapping = { [providerId]: 'openai-responses' };
@@ -123,16 +123,19 @@ describe('released Responses configuration', () => {
         doRefreshAuth: false,
       });
       const result = adapter.getModelProviders();
-      if (providerId !== 'openai') expect(result[providerId]).toEqual(siblings);
+      // The same model at another endpoint is another conversation provider,
+      // which an install does not keep; the endpoint's own chat route and the
+      // image route stay.
+      const kept = siblings.filter((model) => model.baseUrl === baseUrl);
+      if (providerId !== 'openai') expect(result[providerId]).toEqual(kept);
       const registry = new ModelRegistry(result, mapping);
       expect(
         registry.getModel(AuthType.USE_OPENAI_RESPONSES, 'same', baseUrl)
           ?.envKey,
       ).toBe('RELEASED_KEY');
       expect(
-        registry.getModel(AuthType.USE_OPENAI_RESPONSES, 'same', `${baseUrl}/`)
-          ?.envKey,
-      ).toBe('SLASH_KEY');
+        registry.getModel(AuthType.USE_OPENAI_RESPONSES, 'same', `${baseUrl}/`),
+      ).toBeUndefined();
       expect(
         registry.getModel(AuthType.USE_OPENAI, 'same', baseUrl)?.envKey,
       ).toBe('CHAT_KEY');

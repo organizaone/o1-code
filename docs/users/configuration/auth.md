@@ -230,7 +230,9 @@ o1-code --model "claude-sonnet-4-20250514"
 
 Run `/auth`, choose **API key** (or **OrganizaOne**), pick a provider and enter its API key. O1-Code
 fills in the provider's base URL and offers its models; you choose which ones to configure. The
-result is a `modelProviders` entry like the ones in Option 1, which you can edit later. OpenRouter
+result is a `modelProviders` entry like the ones in Option 1, which you can edit later. It replaces
+the conversation models of the provider you used before, so `/model` lists only the current one;
+the new key takes effect at once, without a restart. OpenRouter
 and Requesty no longer have presets: connect them through **Custom** with their base URL; an entry
 you already saved keeps working.
 

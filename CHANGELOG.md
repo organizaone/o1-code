@@ -7,6 +7,18 @@ follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Changed
+
+- `/auth` keeps one provider for conversation: connecting a provider replaces the conversation
+  models of the others, so `/model` lists only the current provider. Image, voice and realtime
+  routes stay, and so do saved keys.
+
+### Fixed
+
+- The first request after `/auth` no longer fails with 401 until a restart. The interactive process
+  did not know which key variables it had exported from the credential store, so a newly saved key
+  could not replace the old one.
+
 ## [0.3.0] - 2026-09-29
 
 ### Agent

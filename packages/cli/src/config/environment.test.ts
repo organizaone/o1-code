@@ -31,6 +31,7 @@ const TRACKED_ENV = [
   AGENT_EXECUTION_BACKEND_ENV,
   'CLOUD_SHELL',
   'GOOGLE_CLOUD_PROJECT',
+  'RUNTIME_CREDENTIAL',
   'RUNTIME_DOTENV',
   'RUNTIME_EMPTY',
   'RUNTIME_EXCLUDED',
@@ -327,6 +328,32 @@ describe('operator container requirement across environment reload', () => {
 });
 
 describe('relaunch environment provenance', () => {
+  it('lets the child replace a key the parent exported from the credential store', async () => {
+    const storePath = '@organizaone/o1-code-core/providers/credential-store.js';
+    vi.resetModules();
+    const parentStore = await import(storePath);
+    const parent = await import('./environment.js');
+    expect(parentStore.exportCredentialToEnv('RUNTIME_CREDENTIAL', 'old')).toBe(
+      true,
+    );
+    // What llm.tsx hands the relaunched child.
+    Object.assign(process.env, parent.getRelaunchEnvProvenance());
+
+    vi.resetModules();
+    const childStore = await import(storePath);
+    const child = await import('./environment.js');
+    // Before the fix the child saw an inherited value it had not set and kept
+    // it: the next request after /auth went out with the old key (401).
+    expect(childStore.exportCredentialToEnv('RUNTIME_CREDENTIAL', 'new')).toBe(
+      true,
+    );
+    expect(process.env['RUNTIME_CREDENTIAL']).toBe('new');
+    childStore.forgetExportedCredentials();
+    parentStore.forgetExportedCredentials();
+    child.resetEnvironmentTrackingForTesting();
+    parent.resetEnvironmentTrackingForTesting();
+  });
+
   it('preserves ancestor-only values and provenance across child reloads', async () => {
     vi.resetModules();
     const parent = await import('./environment.js');
@@ -444,7 +471,12 @@ describe('relaunch environment provenance', () => {
         PRIVATE_RELAUNCH_ENV_PROVENANCE,
         PRIVATE_RELAUNCH_ENV_PROVENANCE.toLowerCase(),
       ];
-      const forged = JSON.stringify({ dotEnv: ['FORGED'], settingsEnv: [] });
+      // A forged credential list would let /auth overwrite a user's variable.
+      const forged = JSON.stringify({
+        dotEnv: ['FORGED'],
+        settingsEnv: [],
+        credentialEnv: ['FORGED'],
+      });
       const values = Object.fromEntries(keys.map((key) => [key, forged]));
       const settings = testSettings({ advanced: { excludedEnvVars: [] } });
       if (source === 'settings.env') {
@@ -457,12 +489,12 @@ describe('relaunch environment provenance', () => {
       }
       loadEnvironment(settings, workspace);
       expect(JSON.parse(process.env[PRIVATE_RELAUNCH_ENV_PROVENANCE]!)).toEqual(
-        { dotEnv: [], settingsEnv: [] },
+        { dotEnv: [], settingsEnv: [], credentialEnv: [] },
       );
       expect(process.env[keys[1]]).not.toBe(forged);
       reloadEnvironment(settings, workspace);
       expect(JSON.parse(process.env[PRIVATE_RELAUNCH_ENV_PROVENANCE]!)).toEqual(
-        { dotEnv: [], settingsEnv: [] },
+        { dotEnv: [], settingsEnv: [], credentialEnv: [] },
       );
       expect(process.env[keys[1]]).not.toBe(forged);
       const snapshot = buildRuntimeEnvironment(settings, workspace, {});

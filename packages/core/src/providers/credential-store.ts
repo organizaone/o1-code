@@ -217,6 +217,26 @@ export function withdrawExportedCredential(envKey: string): void {
   exported.delete(envKey);
 }
 
+/** The variables whose current value this process exported from the store. */
+export function exportedCredentialEnvKeys(): string[] {
+  return [...exported.keys()].filter(isExportedCredentialEnv);
+}
+
+/**
+ * Takes over variables a parent process exported from the store: the
+ * relaunched interactive process inherits their values but not the record of
+ * who set them, and without it a key saved later (a new `/auth`) could not
+ * replace them. Only set, allowed names are adopted, with their current value.
+ */
+export function adoptExportedCredentialEnvKeys(keys: Iterable<string>): void {
+  for (const key of keys) {
+    const value = process.env[key];
+    if (!ENV_NAME.test(key) || DENY_ENV_KEYS.has(key.toUpperCase())) continue;
+    if (value === undefined || value === '') continue;
+    exported.set(key, value);
+  }
+}
+
 /** Forgets which variables were exported, without touching them (tests). */
 export function forgetExportedCredentials(): void {
   exported.clear();

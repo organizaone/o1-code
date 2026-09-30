@@ -306,10 +306,13 @@ describe('createLoadedSettingsAdapter', () => {
           customHeaders: { 'X-Route': '${RELEASED_HEADER}' },
         },
       };
+      // A service route: an install keeps it (conversation models of other
+      // providers are not kept), so its placeholders must survive the rewrite.
       const sibling = {
         id: 'keep',
         baseUrl: '${RELEASED_URL}',
         envKey: 'SIBLING_KEY',
+        imageOnly: true,
         generationConfig: {
           customHeaders: { 'X-Rotated': '${RELEASED_KEY}' },
         },

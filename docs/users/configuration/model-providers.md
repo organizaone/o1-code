@@ -20,6 +20,15 @@ Use `modelProviders` to declare models per provider id that the `/model` picker 
 
 > [!note]
 >
+> **`/auth` keeps one provider for conversation.** Connecting a provider with `/auth` replaces the
+> conversation models of every other provider in your user `settings.json` with the ones you just
+> picked, so `/model` lists only the current provider. Image, voice and realtime routes stay, and
+> so do the keys saved in `~/.o1-code/credentials/`: going back to a provider does not ask for its
+> key again. To offer several providers at once, declare them here by hand and do not run `/auth`
+> afterwards, or it replaces them.
+
+> [!note]
+>
 > **Hot reload vs. restart:** `modelProviders` edits in `settings.json` are picked up by a running interactive session without a restart (the file watcher debounces ~300ms; reopen `/model` to see new entries, the current selection is kept). Changing the active model's `wireApi` creates a different route; select that route explicitly or restart to use it. Invalid API edits leave the prior registry usable. `providerProtocol` is read once at startup and **requires a restart**.
 
 ### Image generation routes

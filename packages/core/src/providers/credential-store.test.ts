@@ -9,6 +9,8 @@ import * as os from 'node:os';
 import * as path from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
+  adoptExportedCredentialEnvKeys,
+  exportedCredentialEnvKeys,
   exportCredentialToEnv,
   forgetExportedCredentials,
   isExportedCredentialEnv,
@@ -167,6 +169,28 @@ describe('exportCredentialToEnv', () => {
       expect(process.env[name]).toBe(before);
     },
   );
+
+  it('names the variables it exported, for a child process to adopt', () => {
+    exportCredentialToEnv('O1_EXPORT_KEY', 'saved');
+    process.env['O1_USER_KEY'] = 'from-shell';
+    expect(exportedCredentialEnvKeys()).toEqual(['O1_EXPORT_KEY']);
+  });
+
+  it('replaces a key a parent process exported once the child adopts it', () => {
+    // The relaunched child inherits the value but not the record of who set
+    // it: without adopting, an /auth that saves a new key cannot replace it.
+    process.env['O1_EXPORT_KEY'] = 'old';
+    expect(exportCredentialToEnv('O1_EXPORT_KEY', 'new')).toBe(false);
+    adoptExportedCredentialEnvKeys(['O1_EXPORT_KEY']);
+    expect(exportCredentialToEnv('O1_EXPORT_KEY', 'new')).toBe(true);
+    expect(process.env['O1_EXPORT_KEY']).toBe('new');
+  });
+
+  it('adopts only set, valid names', () => {
+    adoptExportedCredentialEnvKeys(['O1_EXPORT_KEY', 'PATH', 'not a name']);
+    expect(isExportedCredentialEnv('O1_EXPORT_KEY')).toBe(false);
+    expect(isExportedCredentialEnv('PATH')).toBe(false);
+  });
 
   it('withdraws a value it exported', () => {
     exportCredentialToEnv('O1_EXPORT_KEY', 'saved');
