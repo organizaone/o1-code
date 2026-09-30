@@ -231,28 +231,111 @@ describe('AnthropicContentGenerator', () => {
     expect(body.messages.at(-1)?.role).toBe('user');
   });
 
-  it('tells the OrganizaOne proxy who is calling, keeping the proxy auth', async () => {
-    const { AnthropicContentGenerator } = await importGenerator();
-    void new AnthropicContentGenerator(
-      {
-        model: 'claude-test',
-        apiKey: 'test-key',
-        baseUrl: 'https://api.organizago.com',
-        timeout: 10_000,
-        maxRetries: 2,
-        samplingParams: {},
-        schemaCompliance: 'auto',
+  describe('effort on the OrganizaOne proxy', () => {
+    const declared = {
+      capabilities: {
+        reasoning: {
+          thinking: true,
+          efforts: ['low', 'medium', 'high'],
+          disableField: 'reasoning_effort',
+        },
       },
-      mockConfig,
-    );
+    };
+    const run = async (
+      reasoning: ContentGeneratorConfig['reasoning'],
+      baseUrl = 'https://api.organizago.com',
+      model: object = declared,
+    ) => {
+      const { AnthropicContentGenerator } = await importGenerator();
+      mockConfig.getResolvedModelConfig = vi.fn().mockReturnValue(model);
+      anthropicState.createImpl.mockResolvedValue({
+        id: 'reply',
+        model: 'claude-opus-5-5',
+        content: [{ type: 'text', text: 'ok' }],
+      });
+      const generator = new AnthropicContentGenerator(
+        {
+          model: 'claude-opus-5-5',
+          authType: 'anthropic' as ContentGeneratorConfig['authType'],
+          apiKey: 'device-token',
+          baseUrl,
+          reasoning,
+          samplingParams: { max_tokens: 64000 },
+        },
+        mockConfig,
+      );
+      await generator.generateContent({
+        model: 'claude-opus-5-5',
+        contents: [{ role: 'user', parts: [{ text: 'hi' }] }],
+      });
+      return anthropicState.lastCreateArgs?.[0] as Record<string, unknown>;
+    };
 
-    const headers = (anthropicState.constructorOptions?.['defaultHeaders'] ||
-      {}) as Record<string, string>;
-    expect(headers['User-Agent']).toMatch(/^O1Code\/1\.2\.3 /);
-    expect(headers['X-Title']).toBe('o1-code');
-    expect(headers['x-app']).toBeUndefined();
-    expect(anthropicState.constructorOptions?.['authToken']).toBe('test-key');
+    it('keeps the effort within the levels the proxy listed for the model', async () => {
+      // The model's name would allow max on Anthropic itself; the proxy said
+      // low..high for this model.
+      const body = await run({ effort: 'max' });
+      expect(body['output_config']).toEqual({ effort: 'high' });
+    });
+
+    it('turns thinking off explicitly, which the proxy runs at low', async () => {
+      const body = await run(false);
+      expect(body['thinking']).toEqual({ type: 'disabled' });
+      expect(body['output_config']).toBeUndefined();
+    });
+
+    it('sends no level for an effort not chosen: the model default applies', async () => {
+      const body = await run(undefined);
+      // Thinking stays on (adaptive, no budget), so the proxy runs the
+      // model's default effort; never the switched-off shape.
+      expect(body['thinking']).not.toEqual({ type: 'disabled' });
+      expect(body['output_config']).toBeUndefined();
+    });
+
+    it('sends the default the proxy lists when no effort was chosen', async () => {
+      const body = await run(undefined, 'https://api.organizago.com', {
+        capabilities: {
+          reasoning: {
+            ...declared.capabilities.reasoning,
+            defaultEffort: 'medium',
+          },
+        },
+      });
+      expect(body['output_config']).toEqual({ effort: 'medium' });
+      expect(body['thinking']).not.toEqual({ type: 'disabled' });
+    });
+
+    it('leaves thinking unset when it is off elsewhere', async () => {
+      const body = await run(false, 'https://api.anthropic.com');
+      expect(body['thinking']).toBeUndefined();
+    });
   });
+
+  it.each(['https://api.organizago.com'])(
+    'tells the OrganizaOne proxy at %s who is calling, keeping the proxy auth',
+    async (baseUrl) => {
+      const { AnthropicContentGenerator } = await importGenerator();
+      void new AnthropicContentGenerator(
+        {
+          model: 'claude-test',
+          apiKey: 'test-key',
+          baseUrl,
+          timeout: 10_000,
+          maxRetries: 2,
+          samplingParams: {},
+          schemaCompliance: 'auto',
+        },
+        mockConfig,
+      );
+
+      const headers = (anthropicState.constructorOptions?.['defaultHeaders'] ||
+        {}) as Record<string, string>;
+      expect(headers['User-Agent']).toMatch(/^O1Code\/1\.2\.3 /);
+      expect(headers['X-Title']).toBe('o1-code');
+      expect(headers['x-app']).toBeUndefined();
+      expect(anthropicState.constructorOptions?.['authToken']).toBe('test-key');
+    },
+  );
 
   it('uses claude-cli identity (User-Agent + x-app + Bearer auth) for non-Anthropic baseURLs', async () => {
     // Non-Anthropic-native baseURL → Acme-style proxy path:

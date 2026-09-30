@@ -13,6 +13,10 @@ export const ORGANIZAONE_ANTHROPIC_BASE_URL = 'https://api.organizago.com';
 export const ORGANIZAONE_OPENAI_BASE_URL = 'https://api.organizago.com/v1';
 export const ORGANIZAONE_ENV_KEY = 'ORGANIZAONE_API_KEY';
 
+/**
+ * The proxy's API host. `models.` is deprecated and `aipp.` serves the
+ * console's pages, not the API: neither is the proxy for o1-code.
+ */
 const ORGANIZAONE_HOST = new URL(ORGANIZAONE_ANTHROPIC_BASE_URL).hostname;
 
 /**

@@ -30,7 +30,9 @@ import { runtimeDiagnostics } from '../../utils/runtimeDiagnostics.js';
 import { createChildAbortController } from '../../utils/abortController.js';
 import { reconcileMaxTokens } from '../tokenLimits.js';
 import {
+  clampReasoningEffort,
   getGptReasoningCapabilities,
+  isReasoningEffort,
   isReasoningEffortPlaceholder,
 } from '../reasoning-effort.js';
 import {
@@ -150,9 +152,13 @@ function applyConfiguredReasoningEffort(
   const reasoning = asObject(loose['reasoning']);
   if (!reasoning || !('effort' in reasoning)) return request;
 
-  const effort = capabilities.efforts.find(
-    (candidate) => candidate === reasoning['effort'],
-  );
+  // A level the model does not list goes to the nearest listed one: sent as
+  // is, the provider ignores it and runs its default instead.
+  const requested = reasoning['effort'];
+  const effort =
+    isReasoningEffort(requested) && capabilities.efforts.length > 0
+      ? clampReasoningEffort(requested, capabilities.efforts)
+      : undefined;
   // GPT flattens after raw overrides merge in the provider.
   if (effort && getGptReasoningCapabilities(loose['model'] as string))
     return request;

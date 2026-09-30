@@ -194,6 +194,17 @@ export function classifyRetryError(
       };
     }
 
+    // The OrganizaOne proxy refuses to follow a provider's redirect (it would
+    // carry the key to another origin): the same request always gets it.
+    if (statusCode === 502 && providerCode === 'upstream_redirected') {
+      return {
+        kind,
+        diagnosis: 'fail-fast',
+        reason: 'permanent-provider-code',
+        ...common,
+      };
+    }
+
     if (statusCode >= 500 && statusCode < 600) {
       return {
         kind,

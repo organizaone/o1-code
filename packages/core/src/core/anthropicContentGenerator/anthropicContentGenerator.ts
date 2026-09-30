@@ -57,6 +57,7 @@ import {
   isOrganizaOneBaseUrl,
   ORGANIZAONE_CLIENT_HEADERS,
 } from '../../providers/presets/organizaone.js';
+import { o1CodeUserAgent } from '../../providers/client-identity.js';
 import {
   tokenLimit,
   hasExplicitOutputLimit,
@@ -229,7 +230,9 @@ type AnthropicThinkingParam =
   | { type: 'adaptive'; display?: AnthropicThinkingDisplay };
 
 type MessageCreateParamsWithThinking = MessageCreateParamsNonStreaming & {
-  thinking?: AnthropicThinkingParam;
+  // `disabled` is only ever set on the request body (never returned by
+  // buildThinkingConfig), so code reading "thinking present" as "on" holds.
+  thinking?: AnthropicThinkingParam | { type: 'disabled' };
   // Anthropic beta feature: output_config.effort (requires beta header
   // effort-2025-11-24), not yet represented in the official SDK types we depend
   // on. Accepts the full ladder; xhigh/max are gated per model via
@@ -350,7 +353,9 @@ export class AnthropicContentGenerator implements ContentGenerator {
       perRequestAc?.abort();
     }
 
-    return this.converter.convertAnthropicResponseToLlm(response);
+    return this.converter.convertAnthropicResponseToLlm(response, {
+      anthropicSemantics: this.talksToOrganizaOne(),
+    });
   }
 
   async generateContentStream(
@@ -359,7 +364,7 @@ export class AnthropicContentGenerator implements ContentGenerator {
     const anthropicRequest = await this.buildRequest(request);
     const headers = this.buildPerRequestHeaders(anthropicRequest);
     const streamingRequest: MessageCreateParamsStreaming & {
-      thinking?: AnthropicThinkingParam;
+      thinking?: MessageCreateParamsWithThinking['thinking'];
     } = {
       ...anthropicRequest,
       stream: true,
@@ -467,7 +472,7 @@ export class AnthropicContentGenerator implements ContentGenerator {
     const claimsClaudeCli = useProxyIdentity && !organizaOne;
     const userAgent = claimsClaudeCli
       ? `claude-cli/${version} (external, cli)`
-      : `O1Code/${version} (${process.platform}; ${process.arch})`;
+      : o1CodeUserAgent(version);
     const { customHeaders } = this.contentGeneratorConfig;
 
     const headers: Record<string, string> = {
@@ -567,6 +572,16 @@ export class AnthropicContentGenerator implements ContentGenerator {
    * empty-system + no-tools request — predicate true, body has nothing
    * to attach scope to, beta correctly suppressed).
    */
+  /**
+   * Whether this request goes to the OrganizaOne proxy. Read per call: a
+   * model switch can change the base URL of this generator's config.
+   */
+  private talksToOrganizaOne(): boolean {
+    return isOrganizaOneBaseUrl(
+      resolveEffectiveBaseUrl(this.contentGeneratorConfig),
+    );
+  }
+
   private useGlobalCacheScope(): boolean {
     if (this.contentGeneratorConfig.enableCacheControl === false) {
       return false;
@@ -800,6 +815,20 @@ export class AnthropicContentGenerator implements ContentGenerator {
     // 4.6+) compound this by consuming output budget on server-driven
     // thinking before any tool_use, making forced tool_choice essential.
     const toolChoice = this.resolveToolChoice(request, tools);
+    // Effort switched off: the OrganizaOne proxy runs a request without a
+    // level at the model's default, so it is told explicitly; it reads
+    // `thinking: {type: "disabled"}` as effort low. Elsewhere an absent
+    // `thinking` already means off.
+    // Only an effort the person switched off: with none chosen, the model's
+    // default applies and nothing is sent for it.
+    const thinkingOff =
+      !thinking &&
+      this.talksToOrganizaOne() &&
+      this.contentGeneratorConfig.reasoning === false &&
+      getEffectiveReasoning(
+        this.contentGeneratorConfig,
+        this.getReasoningCapabilities(),
+      ) === false;
 
     return {
       model: this.contentGeneratorConfig.model,
@@ -808,6 +837,7 @@ export class AnthropicContentGenerator implements ContentGenerator {
       tools,
       ...sampling,
       ...(thinking ? { thinking } : {}),
+      ...(thinkingOff ? { thinking: { type: 'disabled' as const } } : {}),
       ...(outputConfig ? { output_config: outputConfig } : {}),
       ...(toolChoice ? { tool_choice: toolChoice } : {}),
     };
@@ -930,7 +960,18 @@ export class AnthropicContentGenerator implements ContentGenerator {
     if (effort === undefined) {
       return undefined;
     }
-    if (this.getReasoningCapabilities()?.profile) return effort;
+    const capabilities = this.getReasoningCapabilities();
+    if (capabilities?.profile) return effort;
+    // Levels the provider stated for this model (the OrganizaOne proxy lists
+    // them in its model list) bound the effort, rather than what the model's
+    // name allows on Anthropic itself.
+    if (
+      capabilities &&
+      !capabilities.toggleOnly &&
+      capabilities.efforts.length > 0
+    ) {
+      return clampReasoningEffort(effort, capabilities.efforts);
+    }
     if (isDeepSeekAnthropicHostname(this.contentGeneratorConfig)) {
       // DeepSeek's anthropic-compatible output_config.effort accepts only
       // high/max. Mirror the DeepSeek OpenAI adapter (deepseek.ts): low/medium
@@ -1248,6 +1289,7 @@ export class AnthropicContentGenerator implements ContentGenerator {
         outputTokens: completionTokensReported ? completionTokens : undefined,
         cacheReadTokensReported: cachedTokensReported,
         cacheCreationTokensReported,
+        anthropicSemantics: this.talksToOrganizaOne(),
       });
     };
 
@@ -1526,6 +1568,7 @@ export class AnthropicContentGenerator implements ContentGenerator {
                   : undefined,
                 cacheReadTokensReported: cachedTokensReported,
                 cacheCreationTokensReported,
+                anthropicSemantics: this.talksToOrganizaOne(),
               }),
             );
             collectedResponses.push(chunk);
@@ -1555,6 +1598,7 @@ export class AnthropicContentGenerator implements ContentGenerator {
                   : undefined,
                 cacheReadTokensReported: cachedTokensReported,
                 cacheCreationTokensReported,
+                anthropicSemantics: this.talksToOrganizaOne(),
               }),
             );
             collectedResponses.push(chunk);
@@ -1684,7 +1728,9 @@ export class AnthropicContentGenerator implements ContentGenerator {
         ...(headers ? { headers } : {}),
       })) as Message;
       reportAnthropicResponse(fallbackAttempt, response);
-      yield this.converter.convertAnthropicResponseToLlm(response);
+      yield this.converter.convertAnthropicResponseToLlm(response, {
+        anthropicSemantics: this.talksToOrganizaOne(),
+      });
     } catch (error) {
       throw redactProxyError(error);
     } finally {

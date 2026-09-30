@@ -14,6 +14,11 @@ export interface AnthropicTokenParts {
   outputTokens?: number;
   cacheReadTokensReported?: boolean;
   cacheCreationTokensReported?: boolean;
+  /**
+   * The provider is known to report Anthropic's semantics (input excludes
+   * the cache), so the OpenAI-shape guess below never applies.
+   */
+  anthropicSemantics?: boolean;
 }
 
 /**
@@ -47,6 +52,7 @@ export function buildAnthropicUsageMetadata(
   const { inputTokens, cacheReadTokens, cacheCreationTokens, outputTokens } =
     parts;
   const looksLikeOpenAi =
+    parts.anthropicSemantics !== true &&
     parts.cacheCreationTokensReported !== true &&
     cacheCreationTokens === 0 &&
     cacheReadTokens > 0 &&

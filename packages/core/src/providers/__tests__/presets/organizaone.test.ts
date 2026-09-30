@@ -7,6 +7,7 @@
 import { describe, expect, it } from 'vitest';
 import { AuthType } from '../../../core/contentGenerator.js';
 import {
+  isOrganizaOneBaseUrl,
   organizaoneAippProvider,
   organizaoneLoginProvider,
   organizaoneProvider,
@@ -109,4 +110,28 @@ describe('OrganizaOne sign-in entries', () => {
       ).toThrow(/not available yet/);
     },
   );
+});
+
+describe('isOrganizaOneBaseUrl', () => {
+  it.each([
+    'https://api.organizago.com',
+    'https://api.organizago.com/v1',
+    'https://API.organizago.com/v1',
+  ])('recognizes the proxy API at %s', (url) => {
+    expect(isOrganizaOneBaseUrl(url)).toBe(true);
+  });
+
+  it.each([
+    // Deprecated API host.
+    'https://models.organizago.com',
+    // The primary host serves the /device and /account pages, not the API.
+    'https://aipp.organizago.com',
+    'https://organizago.com',
+    'https://api.organizago.com.evil.example',
+    'https://evil.example/api.organizago.com',
+    'not a url',
+    undefined,
+  ])('does not take %s for the proxy API', (url) => {
+    expect(isOrganizaOneBaseUrl(url)).toBe(false);
+  });
 });

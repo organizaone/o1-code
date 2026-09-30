@@ -15,6 +15,7 @@ const identity = {
   organization: 'OrganizaOne',
   repoUrl: 'https://github.com/example/o1-code',
   coAuthorEmail: 'o1-code@example.com',
+  userAgent: 'O1Code',
   npmName: '@organizaone/o1-code',
 };
 
@@ -25,6 +26,7 @@ test('renders the runtime brand fields', () => {
   assert.match(source, /organization: "OrganizaOne",/);
   assert.match(source, /repoUrl: "https:\/\/github\.com\/example\/o1-code",/);
   assert.match(source, /coAuthorEmail: "o1-code@example\.com",/);
+  assert.match(source, /userAgent: "O1Code",/);
   assert.doesNotMatch(source, /npmName/);
   assert.match(source, /\} as const;/);
 });

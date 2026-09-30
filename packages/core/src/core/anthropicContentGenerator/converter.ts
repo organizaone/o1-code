@@ -481,6 +481,7 @@ export class AnthropicContentConverter {
 
   convertAnthropicResponseToLlm(
     response: Anthropic.Message,
+    options: { anthropicSemantics?: boolean } = {},
   ): GenerateContentResponse {
     const llmResponse = new GenerateContentResponse();
     const parts: Part[] = [];
@@ -562,6 +563,7 @@ export class AnthropicContentConverter {
           typeof response.usage.cache_read_input_tokens === 'number',
         cacheCreationTokensReported:
           typeof response.usage.cache_creation_input_tokens === 'number',
+        anthropicSemantics: options.anthropicSemantics,
       });
     }
 

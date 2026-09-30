@@ -5,7 +5,14 @@
  */
 
 import type React from 'react';
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import {
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react';
 import { Box, Text } from 'ink';
 import Link from 'ink-link';
 import { DescriptiveRadioButtonSelect } from '../components/shared/DescriptiveRadioButtonSelect.js';
@@ -32,6 +39,7 @@ import type {
 } from '@organizaone/o1-code-core';
 import type { ProviderSetupFlow } from './useProviderSetupFlow.js';
 import { normalizeModelIds } from './useAuth.js';
+import { AppContext } from '../contexts/AppContext.js';
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -164,6 +172,8 @@ function ApiKeyStep({
   flow: ProviderSetupFlow;
 }): React.JSX.Element {
   const docUrl = resolveDocumentationUrl(config, flow.state.baseUrl);
+  // The OrganizaOne proxy records the app's version from the model list call.
+  const clientVersion = useContext(AppContext)?.version;
   const [checking, setChecking] = useState(false);
   const checkRef = useRef<AbortController | null>(null);
   // The last key the provider refused. A key without permission to list
@@ -203,6 +213,7 @@ function ApiKeyStep({
       apiKey: key,
       staticModels: config.models ?? [],
       signal: controller.signal,
+      clientVersion,
     }).then((result) => {
       if (controller.signal.aborted) return;
       checkRef.current = null;
@@ -825,6 +836,7 @@ function DiscoveringModelIdsStep({
   const baseUrl = flow.state.baseUrl;
   const apiKey = flow.state.apiKey;
   const protocol = protocolOf(flow.state.protocol);
+  const clientVersion = useContext(AppContext)?.version;
   // The flow object changes on every render; the check must run once per key.
   const rejectApiKeyRef = useRef(flow.rejectApiKey);
   rejectApiKeyRef.current = flow.rejectApiKey;
@@ -853,6 +865,7 @@ function DiscoveringModelIdsStep({
       apiKey,
       staticModels: builtInModels,
       signal: controller.signal,
+      clientVersion,
     }).then((result) => {
       if (!active) return;
       // Fetching again is asked here, on a key already past its step: a
@@ -890,6 +903,7 @@ function DiscoveringModelIdsStep({
     keyCheck,
     reusableCheck,
     attempt,
+    clientVersion,
   ]);
 
   // What the person had chosen when they asked for the list again: the new

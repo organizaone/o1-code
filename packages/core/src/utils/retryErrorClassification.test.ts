@@ -26,6 +26,36 @@ describe('classifyRetryError', () => {
     });
   });
 
+  it('fails fast on a 502 the OrganizaOne proxy gives for an upstream redirect', () => {
+    // The proxy never follows a provider's redirect (it would carry the key
+    // elsewhere): sending the same request again gets the same refusal.
+    const redirected = APIError.generate(
+      502,
+      {
+        error: {
+          message: 'upstream redirected',
+          type: 'server_error',
+          code: 'upstream_redirected',
+        },
+      },
+      undefined,
+      new Headers(),
+    );
+    expect(classifyRetryError(redirected)).toMatchObject({
+      diagnosis: 'fail-fast',
+      statusCode: 502,
+    });
+    const gateway = APIError.generate(
+      502,
+      { error: { message: 'Bad gateway', type: 'server_error' } },
+      undefined,
+      new Headers(),
+    );
+    expect(classifyRetryError(gateway)).toMatchObject({
+      diagnosis: 'retryable',
+    });
+  });
+
   it('classifies the OpenAI SDK APIUserAbortError as an abort, not unknown', () => {
     // A user cancel on the auth_type=openai path surfaces as APIUserAbortError.
     // It must be treated as an abort so retries stop and it is not logged as an

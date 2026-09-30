@@ -8,10 +8,16 @@ import { fetchWithPolicy } from '../utils/fetch.js';
 import type { ModelSpec } from './types.js';
 import type { ModelReasoningCapabilities } from '../models/types.js';
 import {
+  isReasoningEffort,
   REASONING_EFFORT_TIERS,
   type ReasoningEffort,
 } from '../core/reasoning-effort.js';
 import { anthropicSdkBaseUrl } from '../core/anthropicContentGenerator/o1-base-url.js';
+import {
+  isOrganizaOneBaseUrl,
+  ORGANIZAONE_CLIENT_HEADERS,
+} from './presets/organizaone.js';
+import { o1CodeUserAgent } from './client-identity.js';
 
 const DISCOVERY_TIMEOUT_MS = 5000;
 const DISCOVERY_MAX_BYTES = 1024 * 1024;
@@ -26,6 +32,8 @@ interface DiscoverProviderModelsOptions {
   apiKey: string;
   staticModels: readonly ModelSpec[];
   signal?: AbortSignal;
+  /** The app's version, for the User-Agent the OrganizaOne proxy records. */
+  clientVersion?: string;
 }
 
 interface DiscoveredModel {
@@ -34,15 +42,22 @@ interface DiscoveredModel {
   reasoning?: ModelReasoningCapabilities;
 }
 
-function isReasoningEffort(value: unknown): value is ReasoningEffort {
-  return REASONING_EFFORT_TIERS.includes(value as ReasoningEffort);
+/**
+ * Whether the proxy says it serves the model through Claude: its `owned_by`
+ * names Claude. A passthrough model is owned by its provider's id.
+ */
+function isClaudeOwned(item: object): boolean {
+  const owner = (item as { owned_by?: unknown }).owned_by;
+  return typeof owner === 'string' && /^claude(?:$|-)/i.test(owner);
 }
 
 /**
  * What a model list says about reasoning effort. The OrganizaOne proxy states
- * it per model as `reasoning: { efforts, default }`; until it does, a model it
- * runs through Claude CLI (`owned_by: "claude-cli"`) takes the whole ladder,
- * which is what the proxy applies. Anything else says nothing about effort.
+ * it per model as `reasoning: { efforts, default }`: only the known levels are
+ * kept, in the ladder's order, and a default only when it is one of them. A
+ * Claude model listed without it (a proxy before 5.1) takes the whole ladder,
+ * which is what the proxy applies. Anything else says nothing about effort:
+ * absent means unknown, not "no effort".
  */
 function readReasoning(item: object): ModelReasoningCapabilities | undefined {
   const declared = (item as { reasoning?: unknown }).reasoning;
@@ -59,7 +74,7 @@ function readReasoning(item: object): ModelReasoningCapabilities | undefined {
     if (isReasoningEffort(preset) && efforts.includes(preset)) {
       defaultEffort = preset;
     }
-  } else if ((item as { owned_by?: unknown }).owned_by === 'claude-cli') {
+  } else if (isClaudeOwned(item)) {
     efforts = [...REASONING_EFFORT_TIERS];
   }
   if (efforts.length === 0) return undefined;
@@ -192,6 +207,26 @@ function modelListRequest(
   protocol: ProviderProtocol,
   baseUrl: string,
   apiKey: string,
+  clientVersion?: string,
+): { url: string; headers: Record<string, string> } {
+  const request = baseModelListRequest(protocol, baseUrl, apiKey);
+  // The OrganizaOne proxy records the calling app from these, as on every
+  // model request; other providers get the request as before, since some
+  // gate clients by User-Agent.
+  if (isOrganizaOneBaseUrl(baseUrl)) {
+    request.headers = {
+      ...request.headers,
+      'User-Agent': o1CodeUserAgent(clientVersion),
+      ...ORGANIZAONE_CLIENT_HEADERS,
+    };
+  }
+  return request;
+}
+
+function baseModelListRequest(
+  protocol: ProviderProtocol,
+  baseUrl: string,
+  apiKey: string,
 ): { url: string; headers: Record<string, string> } {
   const base = baseUrl.replace(/\/+$/, '');
   if (protocol === 'gemini') {
@@ -228,6 +263,7 @@ export async function checkProviderKey({
   apiKey,
   staticModels,
   signal,
+  clientVersion,
 }: CheckProviderKeyOptions): Promise<ProviderKeyCheck> {
   const normalizedBaseUrl = baseUrl.trim();
   const normalizedApiKey = apiKey.trim();
@@ -236,6 +272,7 @@ export async function checkProviderKey({
     protocol,
     normalizedBaseUrl,
     normalizedApiKey,
+    clientVersion,
   );
 
   try {

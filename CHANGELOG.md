@@ -7,6 +7,23 @@ follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### OrganizaOne
+
+- The model list request to the proxy carries the same `X-Title: o1-code` and `O1Code/<version>`
+  User-Agent as the model requests. The User-Agent's product name now comes from `brand.json`.
+- A model is read as Claude's when the proxy's `owned_by` names Claude; a Claude model listed
+  without `reasoning` still takes every level.
+- On the Anthropic protocol, the effort stays within the levels the proxy listed for the model, and
+  an effort switched off is sent as `thinking: {type: "disabled"}` (the proxy runs it at low)
+  instead of being left out (the model's default). On the OpenAI protocol, a level the model does
+  not list goes to the nearest one it does instead of being dropped.
+- A 429 or 503 of the proxy's own (an account limit, a closed Claude window, a provider cooling
+  down) whose wait is longer than 5 minutes stops the request with the reason and the time to try
+  again, instead of waiting it out silently; shorter waits are retried as before. A 502
+  `upstream_redirected` is no longer retried.
+- On the Anthropic protocol, prompt usage through the proxy counts cache reads on top of the input,
+  as the proxy reports them, so the context meter no longer under-counts.
+
 ### Changed
 
 - `/auth` keeps one provider for conversation: connecting a provider replaces the conversation
@@ -79,11 +96,11 @@ follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 ### OrganizaOne
 
 - Requests to the OrganizaOne proxy name the agent: `X-Title: o1-code` and an `O1Code/<version>`
-  User-Agent, instead of presenting as Claude CLI on the Anthropic protocol.
+  User-Agent, instead of presenting as another client on the Anthropic protocol.
 - The reasoning effort reaches the proxy on the OpenAI protocol as well: it is sent as
   `reasoning_effort`, the field the proxy reads, instead of a nested field it ignored.
 - Connecting a provider keeps the reasoning efforts each model declares in the model list
-  (`reasoning.efforts` and `reasoning.default`; a Claude CLI model of the proxy takes every level),
+  (`reasoning.efforts` and `reasoning.default`; a Claude model of the proxy takes every level),
   which is what sends the effort in the field the proxy reads. Providers connected before this
   release get it by connecting again with `/auth`.
 - The footer shows `reasoning default` for a model that takes an effort when none was chosen.
