@@ -9,6 +9,7 @@ import {
   isQuotaExhaustedError,
   formatQuotaExhaustedMessage,
 } from './quotaErrorDetection.js';
+import { formatProxyWaitMessage, isLongProxyWait } from './proxy-waits.js';
 import { createDebugLogger } from './debugLogger.js';
 import { getErrorStatus } from './errors.js';
 import { getRetryAfterDelayMs, getRetryDelayMs } from './retryPolicy.js';
@@ -380,6 +381,14 @@ export async function retryWithBackoff<T>(
         // reset time rather than burning fallback provider quota. `cause`
         // preserves the original error for diagnostics.
         throw new Error(formatQuotaExhaustedMessage(error), { cause: error });
+      }
+      // The OrganizaOne proxy's own refusal with a long wait (a daily account
+      // limit, a closed Claude window): waiting its Retry-After here would
+      // hold the turn silently for hours. Same fast-fail and reasons as a
+      // permanent quota above; shorter waits are retried below as usual.
+      if (isLongProxyWait(error)) {
+        debugLogger.error('Proxy asks for a long wait, fast-failing', error);
+        throw new Error(formatProxyWaitMessage(error), { cause: error });
       }
 
       // Determine if this error qualifies for persistent retry.

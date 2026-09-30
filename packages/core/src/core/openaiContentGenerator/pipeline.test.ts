@@ -2010,7 +2010,8 @@ describe('ContentGenerationPipeline', () => {
 
     it.each([
       [{ effort: 'max' as const }, 'max', undefined],
-      [{ effort: 'low' as const }, undefined, undefined],
+      // Not listed: the nearest listed level, not the provider's default.
+      [{ effort: 'low' as const }, 'high', undefined],
       [false as const, undefined, { type: 'disabled' }],
     ])(
       'applies a resolved model reasoning capability for %j',
@@ -2569,6 +2570,21 @@ describe('ContentGenerationPipeline', () => {
         expect(apiCall['reasoning_effort']).toBeUndefined();
       },
     );
+
+    it('brings a level the model does not list to the nearest one it does', async () => {
+      // Dropped, the proxy would run the model's default instead of the
+      // level closest to what the person chose.
+      const apiCall = await executeWithCapability(
+        {
+          thinking: true,
+          efforts: ['low', 'medium', 'high'],
+          disableField: 'reasoning_effort',
+        },
+        { reasoning: { effort: 'max' } },
+      );
+      expect(apiCall['reasoning_effort']).toBe('high');
+      expect(apiCall['reasoning']).toBeUndefined();
+    });
 
     it('emits no disable shape for a capability that forbids disabling', async () => {
       const apiCall = await executeWithCapability(

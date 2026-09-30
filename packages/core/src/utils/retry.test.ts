@@ -25,6 +25,7 @@ import { getErrorStatus } from './errors.js';
 import { isRateLimitError } from './rateLimit.js';
 import { setSimulate429 } from './testUtils.js';
 import { AuthType } from '../core/contentGenerator.js';
+import OpenAI from 'openai';
 
 const { debugLoggerMock } = vi.hoisted(() => ({
   debugLoggerMock: {
@@ -592,6 +593,53 @@ describe('retryWithBackoff', () => {
     [...firstDelaySet, ...secondDelaySet].forEach((d) => {
       expect(d).toBeGreaterThanOrEqual(100 * 0.7);
       expect(d).toBeLessThanOrEqual(100 * 1.3);
+    });
+  });
+
+  describe('the OrganizaOne proxy asking for a long wait', () => {
+    const proxyLimit = (retryAfter: string, limit: string) =>
+      OpenAI.APIError.generate(
+        429,
+        {
+          error: {
+            message: 'Your account reached its request limit.',
+            type: 'rate_limit_error',
+            code: 'account_limit_exceeded',
+          },
+        },
+        undefined,
+        new Headers({ 'retry-after': retryAfter, 'x-aipp-limit': limit }),
+      );
+
+    it('stops at once on a daily limit instead of waiting hours', async () => {
+      const fn = vi
+        .fn()
+        .mockRejectedValue(proxyLimit('14400', 'user.requests_per_day'));
+      const promise = retryWithBackoff(fn, {
+        maxAttempts: 5,
+        initialDelayMs: 10,
+        maxDelayMs: 50,
+      });
+      const error = await promise.catch((e: unknown) => e);
+      expect(fn).toHaveBeenCalledTimes(1);
+      expect((error as Error).message).toMatch(/Try again at .* \(in 4 h\)/);
+      // No status, so the stream-side rate-limit loop does not retry it.
+      expect(isRateLimitError(error)).toBe(false);
+    });
+
+    it('waits out a per-minute limit and tries again', async () => {
+      const fn = vi
+        .fn()
+        .mockRejectedValueOnce(proxyLimit('0.01', 'user.requests_per_minute'))
+        .mockResolvedValueOnce('ok');
+      const promise = retryWithBackoff(fn, {
+        maxAttempts: 3,
+        initialDelayMs: 10,
+        maxDelayMs: 50,
+      });
+      await vi.runAllTimersAsync();
+      await expect(promise).resolves.toBe('ok');
+      expect(fn).toHaveBeenCalledTimes(2);
     });
   });
 

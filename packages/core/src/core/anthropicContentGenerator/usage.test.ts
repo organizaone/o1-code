@@ -57,6 +57,26 @@ describe('buildAnthropicUsageMetadata', () => {
     });
   });
 
+  it('sums input and cache reads when the provider is known to use Anthropic semantics', () => {
+    // The OrganizaOne proxy translating to an OpenAI provider reports
+    // input = prompt - cached and cache_read = cached, without a
+    // cache_creation field: the shape the heuristic above reads as OpenAI's.
+    expect(
+      buildAnthropicUsageMetadata({
+        inputTokens: 30_000,
+        cacheReadTokens: 25_000,
+        cacheCreationTokens: 0,
+        outputTokens: 800,
+        anthropicSemantics: true,
+      }),
+    ).toEqual({
+      promptTokenCount: 55_000,
+      candidatesTokenCount: 800,
+      totalTokenCount: 55_800,
+      cachedContentTokenCount: 25_000,
+    });
+  });
+
   it('includes cache reads when Anthropic explicitly reports zero cache creation', () => {
     expect(
       buildAnthropicUsageMetadata({

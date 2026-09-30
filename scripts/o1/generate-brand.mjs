@@ -22,6 +22,7 @@ const FIELDS = [
   'organization',
   'repoUrl',
   'coAuthorEmail',
+  'userAgent',
 ];
 
 export const BRAND_MODULE_TARGETS = ['cli', 'core'].map((pkg) =>

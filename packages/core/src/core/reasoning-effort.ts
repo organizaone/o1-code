@@ -30,6 +30,11 @@ export const REASONING_EFFORT_TIERS: readonly ReasoningEffort[] = [
   'max',
 ] as const;
 
+/** Whether a value is one of the ladder's levels. */
+export function isReasoningEffort(value: unknown): value is ReasoningEffort {
+  return REASONING_EFFORT_TIERS.includes(value as ReasoningEffort);
+}
+
 /**
  * Numeric strength used when clamping a requested tier down to what a model
  * supports. Gaps are intentional so future intermediate tiers (e.g. a

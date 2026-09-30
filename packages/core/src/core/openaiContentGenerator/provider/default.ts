@@ -27,6 +27,7 @@ import {
   isOrganizaOneBaseUrl,
   ORGANIZAONE_CLIENT_HEADERS,
 } from '../../../providers/presets/organizaone.js';
+import { o1CodeUserAgent } from '../../../providers/client-identity.js';
 
 const debugLogger = createDebugLogger('DefaultOpenAICompatibleProvider');
 
@@ -98,11 +99,9 @@ export class DefaultOpenAICompatibleProvider
   }
 
   buildHeaders(): Record<string, string | undefined> {
-    const version = this.cliConfig.getCliVersion() || 'unknown';
-    const userAgent = `O1Code/${version} (${process.platform}; ${process.arch})`;
     const { customHeaders, baseUrl } = this.contentGeneratorConfig;
     const defaultHeaders = {
-      'User-Agent': userAgent,
+      'User-Agent': o1CodeUserAgent(this.cliConfig.getCliVersion()),
       ...(isOrganizaOneBaseUrl(baseUrl) ? ORGANIZAONE_CLIENT_HEADERS : {}),
     };
 

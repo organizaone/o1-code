@@ -43,6 +43,96 @@ describe('checkProviderKey', () => {
     expect(init?.headers).toMatchObject({ Authorization: 'Bearer sk-good' });
   });
 
+  it('identifies o1-code to the OrganizaOne proxy', async () => {
+    for (const baseUrl of ['https://api.organizago.com/v1']) {
+      fetchMock.mockReset();
+      respond(200, models);
+      await checkProviderKey({
+        protocol: 'openai',
+        baseUrl,
+        apiKey: 'device-token',
+        staticModels: [],
+        clientVersion: '1.2.3',
+      });
+      const [, init] = fetchMock.mock.calls[0]!;
+      expect(init?.headers).toMatchObject({
+        'User-Agent': `O1Code/1.2.3 (${process.platform}; ${process.arch})`,
+        'X-Title': 'o1-code',
+      });
+    }
+  });
+
+  it('sends no identity headers to other providers', async () => {
+    respond(200, models);
+    await checkProviderKey({
+      protocol: 'openai',
+      baseUrl: 'https://api.example.test/v1',
+      apiKey: 'sk-good',
+      staticModels: [],
+      clientVersion: '1.2.3',
+    });
+    const [, init] = fetchMock.mock.calls[0]!;
+    expect(init?.headers).not.toHaveProperty('User-Agent');
+    expect(init?.headers).not.toHaveProperty('X-Title');
+  });
+
+  it('takes the whole ladder only for an owner that names Claude', async () => {
+    respond(200, {
+      data: [
+        { id: 'suffixed', owned_by: 'claude-bridge' },
+        { id: 'lookalike', owned_by: 'claudette' },
+      ],
+    });
+    const result = await checkProviderKey({
+      protocol: 'openai',
+      baseUrl: 'https://api.example.test/v1',
+      apiKey: 'sk-good',
+      staticModels: [],
+    });
+    expect(result).toEqual({
+      status: 'ok',
+      models: [
+        {
+          id: 'suffixed',
+          capabilities: {
+            reasoning: {
+              thinking: true,
+              efforts: ['low', 'medium', 'high', 'xhigh', 'max'],
+              disableField: 'reasoning_effort',
+            },
+          },
+        },
+        { id: 'lookalike' },
+      ],
+    });
+  });
+
+  it('drops a default level the model does not list', async () => {
+    respond(200, {
+      data: [
+        { id: 'a', reasoning: { efforts: ['low', 'high'], default: 'max' } },
+        { id: 'b', reasoning: { efforts: ['low'], default: null } },
+      ],
+    });
+    const result = await checkProviderKey({
+      protocol: 'openai',
+      baseUrl: 'https://api.example.test/v1',
+      apiKey: 'sk-good',
+      staticModels: [],
+    });
+    expect(result).toMatchObject({
+      models: [
+        { id: 'a', capabilities: { reasoning: { efforts: ['low', 'high'] } } },
+        { id: 'b', capabilities: { reasoning: { efforts: ['low'] } } },
+      ],
+    });
+    const found = (result as { models: Array<{ capabilities?: unknown }> })
+      .models;
+    for (const model of found) {
+      expect(model.capabilities).not.toHaveProperty('reasoning.defaultEffort');
+    }
+  });
+
   it('reads the reasoning effort each model declares', async () => {
     respond(200, {
       data: [
@@ -50,7 +140,7 @@ describe('checkProviderKey', () => {
           id: 'declared',
           reasoning: { efforts: ['max', 'low', 'bogus'], default: 'low' },
         },
-        { id: 'cli-run', owned_by: 'claude-cli' },
+        { id: 'cli-run', owned_by: 'claude' },
         { id: 'passthrough', owned_by: 'zai' },
       ],
     });
