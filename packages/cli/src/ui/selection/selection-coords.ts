@@ -7,12 +7,19 @@
 import type { ReadonlyFrame } from 'ink';
 import { frameAnchor } from '../utils/list-mouse.js';
 import type { Point } from './selection-state.js';
+import type { SelectionTextSource } from './selection-text-sources.js';
 
 export interface ViewportRect {
   x: number;
   y: number;
   width: number;
   height: number;
+  /**
+   * The source text of a selection inside this region, when the region can
+   * tell it better than its screen cells (the prompt input copies what was
+   * typed, not its wrapped rows). Null falls back to the cells.
+   */
+  copyText?: SelectionTextSource;
 }
 
 /**

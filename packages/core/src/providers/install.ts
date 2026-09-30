@@ -16,6 +16,7 @@ import {
 } from '../models/modelRegistry.js';
 import { ModelsConfig } from '../models/modelsConfig.js';
 import type {
+  ModelConfig,
   ModelProvidersConfig,
   ProviderProtocolConfig,
 } from '../models/types.js';
@@ -42,6 +43,11 @@ const fileCredentialStore: ProviderCredentialStore = {
 // ---------------------------------------------------------------------------
 // Model providers merge logic
 // ---------------------------------------------------------------------------
+
+/** A model offered for conversation, as opposed to an image, voice or realtime route. */
+function isConversationModel(model: ModelConfig): boolean {
+  return !model.imageOnly && !model.voiceOnly && !model.realtimeOnly;
+}
 
 function isSameModelIdentity(
   a: { id: string; baseUrl?: string },
@@ -459,6 +465,38 @@ export async function applyProviderInstallPlan(
         );
         if (remaining.length !== models.length)
           settings.setValue(`modelProviders.${providerId}`, remaining);
+      }
+    }
+
+    // Only the provider just installed stays offered for conversation: /model
+    // lists the current provider's models, not every endpoint ever connected
+    // (a mixed list hid which provider a model belonged to). Service routes
+    // (image, voice, realtime) are separate features and stay. A service-only
+    // install leaves the conversation models alone.
+    const installedModels = (plan.modelProviders ?? []).flatMap(
+      (patch) => patch.models,
+    );
+    if (!preserveSelection && installedModels.some(isConversationModel)) {
+      const keeps = (model: ModelConfig) =>
+        !isConversationModel(model) ||
+        installedModels.some((installed) =>
+          isSameModelIdentity(model, installed),
+        );
+      const ownProviders =
+        settings.getModelProvidersForWrite?.().modelProviders ??
+        settings.getModelProviders();
+      for (const [providerId, models] of Object.entries(ownProviders)) {
+        // A dotted id would be written as a nested path; see above.
+        if (!Array.isArray(models) || providerId.includes('.')) continue;
+        const remaining = models.filter(keeps);
+        if (remaining.length !== models.length)
+          settings.setValue(`modelProviders.${providerId}`, remaining);
+      }
+      for (const [providerId, models] of Object.entries(
+        updatedModelProviders,
+      )) {
+        if (Array.isArray(models))
+          updatedModelProviders[providerId] = models.filter(keeps);
       }
     }
 

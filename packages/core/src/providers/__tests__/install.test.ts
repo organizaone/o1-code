@@ -773,8 +773,9 @@ describe('applyProviderInstallPlan', () => {
         reloadModelProviders,
       });
       const models = result.updatedModelProviders['openai']!;
-      expect(models).toHaveLength(3);
-      expect(models).toContainEqual(foreign);
+      // Another provider's conversation model is not kept after /auth.
+      expect(models).toHaveLength(2);
+      expect(models).not.toContainEqual(foreign);
       expect(models).toContainEqual(
         expect.objectContaining({ id: 'MiniMax-M2.7', baseUrl }),
       );
@@ -939,7 +940,7 @@ describe('applyProviderInstallPlan', () => {
     });
   });
 
-  it('persists the credential, auth selection, selected model, and merged model providers', async () => {
+  it('persists the credential, auth selection, selected model, and the installed provider only', async () => {
     const adapter = createAdapter({
       [AuthType.USE_OPENAI]: [
         {
@@ -999,13 +1000,9 @@ describe('applyProviderInstallPlan', () => {
     ).toBe(false);
     expect(process.env['TEST_API_KEY']).toBe('sk-test');
     expect(isExportedCredentialEnv('TEST_API_KEY')).toBe(true);
-    expect(adapter.setValue).toHaveBeenCalledWith('modelProviders.openai', [
+    // Only the installed provider's conversation models remain.
+    expect(adapter.getModelProviders()[AuthType.USE_OPENAI]).toEqual([
       { id: 'new-model', envKey: 'TEST_API_KEY', credential: 'test-provider' },
-      {
-        id: 'preserved',
-        envKey: 'OTHER_API_KEY',
-        generationConfig: { contextWindowSize: 456 },
-      },
     ]);
     expect(adapter.setValue).toHaveBeenCalledWith(
       'security.auth.selectedType',
@@ -1022,11 +1019,6 @@ describe('applyProviderInstallPlan', () => {
           id: 'new-model',
           envKey: 'TEST_API_KEY',
           credential: 'test-provider',
-        },
-        {
-          id: 'preserved',
-          envKey: 'OTHER_API_KEY',
-          generationConfig: { contextWindowSize: 456 },
         },
       ],
     });
@@ -1379,9 +1371,9 @@ describe('applyProviderInstallPlan', () => {
       },
       { settings: adapter },
     );
+    // No throw; the earlier conversation entry is not kept after the install.
     expect(result.updatedModelProviders['openai']).toEqual([
       { id: 'new', envKey: 'TEST_API_KEY' },
-      invalid,
     ]);
   });
 
@@ -1594,7 +1586,65 @@ describe('applyProviderInstallPlan', () => {
     );
   });
 
-  it('preserves existing custom provider models and selects the installed endpoint', async () => {
+  it('offers only the provider just installed for conversation, keeping service routes', async () => {
+    const baseUrl = 'http://new.example/v1';
+    const oldUrl = 'http://old.example/v1';
+    const envKey = generateCustomEnvKey(AuthType.USE_OPENAI, baseUrl);
+    const oldKey = generateCustomEnvKey(AuthType.USE_OPENAI, oldUrl);
+    const imageModel: ModelConfig = {
+      id: 'image-model',
+      name: 'image-model',
+      baseUrl: oldUrl,
+      envKey: oldKey,
+      imageOnly: true,
+    };
+    const adapter = createAdapter({
+      [AuthType.USE_OPENAI]: [
+        { id: 'old-chat', name: 'old-chat', baseUrl: oldUrl, envKey: oldKey },
+        imageModel,
+      ],
+      [AuthType.USE_ANTHROPIC]: [
+        { id: 'claude-old', name: 'claude-old', envKey: 'ANTHROPIC_API_KEY' },
+      ],
+    });
+    const reloadModelProviders = vi.fn();
+    const plan = buildInstallPlan(customProvider, {
+      protocol: AuthType.USE_OPENAI,
+      baseUrl,
+      apiKey: 'sk-new',
+      modelIds: ['new-chat'],
+    });
+
+    try {
+      await applyProviderInstallPlan(plan, {
+        settings: adapter,
+        syncAuthState: vi.fn(),
+        reloadModelProviders,
+        doRefreshAuth: false,
+      });
+    } finally {
+      delete process.env[envKey];
+    }
+
+    // Maintainer decision: after /auth, /model lists the current provider's
+    // conversation models only; earlier providers are not kept as history.
+    const saved = adapter.getModelProviders();
+    expect(saved[AuthType.USE_OPENAI]?.map((m) => m.id)).toEqual([
+      'new-chat',
+      'image-model',
+    ]);
+    expect(saved[AuthType.USE_ANTHROPIC]).toEqual([]);
+    const runtime = reloadModelProviders.mock.calls.at(-1)?.[0] as
+      | ModelProvidersConfig
+      | undefined;
+    expect(runtime?.[AuthType.USE_OPENAI]?.map((m) => m.id)).toEqual([
+      'new-chat',
+      'image-model',
+    ]);
+    expect(runtime?.[AuthType.USE_ANTHROPIC] ?? []).toEqual([]);
+  });
+
+  it('selects the installed endpoint and keeps no other conversation models', async () => {
     const baseUrl = 'http://new.example/v1';
     const otherBaseUrl = 'http://192.168.100.100:8000/v1';
     const envKey = generateCustomEnvKey(AuthType.USE_OPENAI, baseUrl);
@@ -1602,8 +1652,7 @@ describe('applyProviderInstallPlan', () => {
     const syncAuthState = vi.fn();
     const adapter = createAdapter({
       [AuthType.USE_OPENAI]: [
-        // Same model id, different baseUrl: keep both and select the one just
-        // installed.
+        // Same model id at another endpoint: the install selects its own.
         {
           id: 'model-b',
           name: 'model-b',
@@ -1639,26 +1688,15 @@ describe('applyProviderInstallPlan', () => {
       delete process.env[envKey];
     }
 
-    expect(adapter.setValue).toHaveBeenCalledWith('modelProviders.openai', [
+    // Only what this install offers remains: the other endpoint's models and
+    // the endpoint's own models the user did not pick are gone.
+    expect(adapter.getModelProviders()[AuthType.USE_OPENAI]).toEqual([
       {
         id: 'model-b',
         name: 'model-b',
         baseUrl,
         envKey,
         credential: generateCustomCredentialId(AuthType.USE_OPENAI, baseUrl),
-      },
-      {
-        id: 'model-b',
-        name: 'model-b',
-        baseUrl: otherBaseUrl,
-        envKey: otherEnvKey,
-      },
-      { id: 'model-a', name: 'model-a', baseUrl, envKey },
-      {
-        id: 'shared-model',
-        name: 'shared-model',
-        baseUrl: otherBaseUrl,
-        envKey: otherEnvKey,
       },
     ]);
     expect(adapter.setValue).toHaveBeenCalledWith('model.name', 'model-b');

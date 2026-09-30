@@ -17,6 +17,8 @@ import { useKeypress } from '../hooks/useKeypress.js';
 import type { Key } from '../hooks/useKeypress.js';
 import type { TextBuffer } from './shared/text-buffer.js';
 import { renderSoftwareCursor } from '../utils/software-cursor.js';
+import { measureElementPosition } from '../utils/measure-element-position.js';
+import { getSelectionTextSource } from '../selection/selection-text-sources.js';
 import chalk from 'chalk';
 
 const mockSetCursorPosition = vi.hoisted(() => vi.fn());
@@ -279,6 +281,41 @@ describe('BaseTextInput', () => {
       <BaseTextInput buffer={buffer} onSubmit={vi.fn()} />,
     );
     expect(lastFrame()).toContain('3 lines above');
+  });
+
+  it('copies a selection over its lines as the typed text', () => {
+    // 'hello world' soft-wrapped into two rows, then a typed newline.
+    const buffer = {
+      ...createBuffer(),
+      text: 'hello world\nnext',
+      lines: ['hello world', 'next'],
+      allVisualLines: ['hello', 'world', 'next'],
+      viewportVisualLines: ['hello', 'world', 'next'],
+      visualToLogicalMap: [
+        [0, 0],
+        [0, 6],
+        [1, 0],
+      ],
+    } as unknown as TextBuffer;
+    const linesRef: { current: DOMElement | null } = { current: null };
+    render(
+      <BaseTextInput
+        buffer={buffer}
+        onSubmit={vi.fn()}
+        selectableLinesRef={linesRef}
+      />,
+    );
+    const node = linesRef.current!;
+    const source = getSelectionTextSource(node)!;
+    const { x, y } = measureElementPosition(node);
+    // Rows as drawn would copy 'hello\nworld\nnext' (and, without clipping,
+    // the border): the source joins the wrap and keeps the typed newline.
+    expect(source({ sx: x, sy: y, ex: x + 3, ey: y + 2 })).toBe(
+      'hello world\nnext',
+    );
+    expect(source({ sx: x + 1, sy: y + 1, ex: x + 1, ey: y + 2 })).toBe(
+      'orld\nne',
+    );
   });
 
   it('shows neither for a single line', () => {

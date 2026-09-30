@@ -13,6 +13,10 @@ import {
   O1CODE_DIR,
   Storage,
 } from '@organizaone/o1-code-core';
+import {
+  adoptExportedCredentialEnvKeys,
+  exportedCredentialEnvKeys,
+} from '@organizaone/o1-code-core/providers/credential-store.js';
 import { isWorkspaceTrusted } from './trustedFolders.js';
 import {
   DEFAULT_EXCLUDED_ENV_VARS,
@@ -98,12 +102,20 @@ if (inheritedProvenance) {
     !Array.isArray(sources.dotEnv) ||
     !Array.isArray(sources.settingsEnv) ||
     !sources.dotEnv.every((key) => typeof key === 'string') ||
-    !sources.settingsEnv.every((key) => typeof key === 'string')
+    !sources.settingsEnv.every((key) => typeof key === 'string') ||
+    ('credentialEnv' in sources &&
+      (!Array.isArray(sources.credentialEnv) ||
+        !sources.credentialEnv.every((key) => typeof key === 'string')))
   ) {
     throw new Error('Invalid inherited environment provenance.');
   }
   for (const key of sources.dotEnv) inheritedDotEnvKeys.add(key);
   for (const key of sources.settingsEnv) inheritedSettingsEnvKeys.add(key);
+  // Keys the parent exported from the credential store stay replaceable here,
+  // so an /auth that saves a new key takes effect without a restart.
+  if ('credentialEnv' in sources && Array.isArray(sources.credentialEnv)) {
+    adoptExportedCredentialEnvKeys(sources.credentialEnv as string[]);
+  }
   Object.assign(process.env, getRelaunchEnvProvenance());
 }
 
@@ -123,6 +135,8 @@ export function getRelaunchEnvProvenance(): Record<string, string> {
       settingsEnv: [
         ...new Set([...inheritedSettingsEnvKeys, ...settingsEnvSourcedKeys]),
       ],
+      // Names only; the values travel in the environment itself.
+      credentialEnv: exportedCredentialEnvKeys(),
     }),
   };
 }

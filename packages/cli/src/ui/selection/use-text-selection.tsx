@@ -75,6 +75,8 @@ const sameViewportRect = (
 export interface SelectionQuery {
   /** Reading-order range of the current selection, or null when none. */
   getRange: () => NormalizedSelection | null;
+  /** The text a copy of the current selection yields, '' when none. */
+  getText: () => string;
 }
 
 export interface TextSelectionControllerProps {
@@ -200,17 +202,27 @@ export function TextSelectionController(
     [getBuffer],
   );
 
+  // The text of a selection: the active region's own source text when it has
+  // one, else its screen cells clipped to the region.
+  const selectedText = useCallback(
+    (normalized: NormalizedSelection): string => {
+      const rect = getActiveRect() ?? undefined;
+      const source = rect?.copyText?.(normalized);
+      if (source !== undefined && source !== null) return source;
+      return getSelectedText(getBuffer()?.frame ?? null, normalized, rect);
+    },
+    [getActiveRect, getBuffer],
+  );
+
   const copySelection = useCallback(() => {
     const normalized = selectionRef.current.normalized();
-    const text = normalized
-      ? getSelectedText(getBuffer()?.frame ?? null, normalized)
-      : '';
+    const text = normalized ? selectedText(normalized) : '';
     if (text) {
       void copyToClipboard(text).catch((error: unknown) => {
         debugLogger.warn('Failed to copy selected text:', error);
       });
     }
-  }, [getBuffer]);
+  }, [selectedText]);
 
   const mapEvent = useCallback(
     (event: MouseEvent): ReturnType<typeof terminalToGrid> | null => {
@@ -489,22 +501,29 @@ export function TextSelectionController(
     if (!selectionQueryRef) {
       return;
     }
+    const getRange = () => {
+      const selection = selectionRef.current;
+      if (
+        selection.isEmpty ||
+        (selection.isCollapsed && selection.mode === 'char')
+      ) {
+        return null;
+      }
+      return selection.normalized();
+    };
     selectionQueryRef.current = {
-      getRange: () => {
-        const selection = selectionRef.current;
-        if (
-          selection.isEmpty ||
-          (selection.isCollapsed && selection.mode === 'char')
-        ) {
-          return null;
-        }
-        return selection.normalized();
+      getRange,
+      // The same text a mouse-release copy yields, so "Copy Selection" and
+      // the automatic copy never disagree.
+      getText: () => {
+        const range = getRange();
+        return range ? selectedText(range) : '';
       },
     };
     return () => {
       selectionQueryRef.current = null;
     };
-  }, [selectionQueryRef]);
+  }, [selectionQueryRef, selectedText]);
 
   return null;
 }

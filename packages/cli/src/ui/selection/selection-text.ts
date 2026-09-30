@@ -6,6 +6,7 @@
 
 import type { FrameBoundary, ReadonlyFrame } from 'ink';
 import type { NormalizedSelection } from './selection-state.js';
+import type { ViewportRect } from './selection-coords.js';
 
 /**
  * Extracts the visual text of a selection from a composited frame.
@@ -18,11 +19,17 @@ import type { NormalizedSelection } from './selection-state.js';
 export function getSelectedText(
   frame: ReadonlyFrame | null,
   selection: NormalizedSelection,
+  region?: ViewportRect,
 ): string {
   if (!frame) {
     return '';
   }
   const { sx, sy, ex, ey } = selection;
+  // Rows run to the region's edges, not the screen's: a selection inside a
+  // bordered box copies no border or padding cells.
+  const left = region ? region.x : 0;
+  const right = (row: readonly unknown[]) =>
+    region ? Math.min(row.length, region.x + region.width) - 1 : row.length - 1;
   let text = '';
   for (let y = sy; y <= ey; y++) {
     const row = frame.cells[y];
@@ -32,8 +39,8 @@ export function getSelectedText(
       }
       continue;
     }
-    const startX = y === sy ? sx : 0;
-    const endX = y === ey ? ex : row.length - 1;
+    const startX = y === sy ? Math.max(sx, left) : left;
+    const endX = y === ey ? Math.min(ex, right(row)) : right(row);
     let rowText = '';
     let skippedLayoutGap = false;
     for (let x = Math.max(0, startX); x <= endX && x < row.length; x++) {

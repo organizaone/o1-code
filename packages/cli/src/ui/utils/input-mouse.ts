@@ -10,7 +10,12 @@
  * component that owns the input box.
  */
 
-import { toCodePoints, cpLen, getCachedStringWidth } from './textUtils.js';
+import {
+  toCodePoints,
+  cpLen,
+  cpSlice,
+  getCachedStringWidth,
+} from './textUtils.js';
 import { logicalPosToOffset } from '../components/shared/text-buffer.js';
 
 /** The slice of TextBuffer state this helper reads. */
@@ -95,5 +100,34 @@ export function visualClickToOffset(
     buffer.lines,
     logicalLineIndex,
     Math.min(logicalCol, lineLength),
+  );
+}
+
+/** A cell of the input's text area: an absolute visual row and a cell column. */
+export interface VisualCell {
+  row: number;
+  col: number;
+}
+
+/**
+ * The buffer text between two cells of the input's text area, end cell
+ * included — the text the user typed, not the screen: a row that is only a
+ * soft wrap of the previous one joins back (with the space the wrap ate), a
+ * typed newline stays a newline, and nothing of the frame around the text
+ * (border, padding, prompt glyph) can appear. Null when a row maps to no line.
+ */
+export function visualRangeToText(
+  buffer: ClickableBufferState,
+  start: VisualCell,
+  end: VisualCell,
+): string | null {
+  const from = visualClickToOffset(buffer, start.row, start.col);
+  // One cell past the end cell is the boundary after it.
+  const to = visualClickToOffset(buffer, end.row, end.col + 1);
+  if (from === null || to === null) return null;
+  return cpSlice(
+    buffer.lines.join('\n'),
+    Math.min(from, to),
+    Math.max(from, to),
   );
 }
