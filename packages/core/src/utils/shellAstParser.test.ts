@@ -363,6 +363,19 @@ describe('isShellCommandReadOnlyAST', () => {
       );
     });
 
+    it('reads the GNU long aliases of -n as read-only', async () => {
+      expect(
+        await isShellCommandReadOnlyAST("sed --quiet 's/hello/world/' f.txt"),
+      ).toBe(true);
+      expect(
+        await isShellCommandReadOnlyAST("sed --silent -n '1,5p' f.txt"),
+      ).toBe(true);
+      // The alias does not make a writing script safe.
+      expect(
+        await isShellCommandReadOnlyAST("sed --quiet 'w out.txt' f.txt"),
+      ).toBe(false);
+    });
+
     it('rejects sed with execute command', async () => {
       expect(
         await isShellCommandReadOnlyAST("sed 's/foo/bar/e' file.txt"),

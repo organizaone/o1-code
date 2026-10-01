@@ -39,6 +39,8 @@ follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - The endpoint stored with the vision and image model selectors is shown without its
   credentials: `/model --vision` and the daemon's provider status print `https://<redacted>@host`
   when the URL carries `user:password@`.
+- `sed --quiet` and `sed --silent`, GNU's long forms of `-n`, are read as read-only like `-n`,
+  so they run without a confirmation prompt; a script that writes a file is still a write.
 
 ## [0.4.0] - 2026-09-30
 
