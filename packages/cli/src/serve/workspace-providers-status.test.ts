@@ -871,6 +871,26 @@ describe('createWorkspaceProvidersStatusProvider', () => {
     expect(withEmptyFastModel.current).not.toHaveProperty('fastModelId');
   });
 
+  it('strips credentials from the endpoint carried by the vision model selector', async () => {
+    // The selector embeds the provider's base URL; a URL with userinfo is a
+    // credential and the status payload reaches every Web Shell client.
+    const provider = createWorkspaceProvidersStatusProvider({ env: {} });
+    await writeUserSettings({
+      security: { auth: { selectedType: 'openai' } },
+      model: { name: 'main-model' },
+      visionModel: 'vision-model\0https://user:sk-secret@vision.example.com/v1',
+      modelProviders: {
+        openai: [{ id: 'main-model', name: 'Main Model' }],
+      },
+    });
+
+    const status = await provider(workspace, false);
+    expect(status.current?.visionModelId).toBe(
+      'vision-model\0https://<redacted>@vision.example.com/v1',
+    );
+    expect(JSON.stringify(status)).not.toContain('sk-secret');
+  });
+
   it('includes only non-empty vision model settings in current selection', async () => {
     const provider = createWorkspaceProvidersStatusProvider({ env: {} });
     await writeUserSettings({
