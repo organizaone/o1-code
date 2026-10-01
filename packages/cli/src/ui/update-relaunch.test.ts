@@ -93,6 +93,19 @@ describe('updateBeforeRelaunch', () => {
     },
   );
 
+  it('names the failure when the update itself throws', async () => {
+    // A bare "try updating manually" hid the cause, such as npm's own error.
+    handleAutoUpdate.mockRejectedValue(new Error('npm exited with code 1'));
+
+    await expect(updateBeforeRelaunch(settings, '/repo', true)).resolves.toBe(
+      true,
+    );
+
+    expect(writeStderrLine).toHaveBeenCalledWith(
+      'Automatic update failed: npm exited with code 1. Re-run the installer to update manually.',
+    );
+  });
+
   it('relaunches the old version when the update check fails', async () => {
     checkForUpdatesDetailed.mockResolvedValue({ status: 'error' });
 

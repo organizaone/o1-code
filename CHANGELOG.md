@@ -23,6 +23,13 @@ follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   `936`, …) before any statistical guess, which misread Cyrillic as Western text. A code page
   with no decoder (`437`, `850`, `852`) or a locale such as `C` falls back to the guess instead
   of failing the shell command.
+- On Windows, the relaunch after an automatic update through npm's `o1-code.cmd` no longer fails
+  with `'\"\"C:\...\o1-code.cmd\"\"' is not recognized`: the command line reaches `cmd.exe`
+  verbatim. A launcher path holding cmd metacharacters skips the relaunch and keeps the update.
+- The automatic update no longer fails when npm refuses to print its global configuration path
+  (a UUID in the global prefix is enough): the path is read from npm's own child environment.
+- When the automatic update fails, the message names the cause instead of only "try updating
+  manually".
 
 ## [0.4.0] - 2026-09-30
 

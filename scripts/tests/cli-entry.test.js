@@ -165,6 +165,80 @@ describe('scripts/cli-entry.js production entry', () => {
     }
   });
 
+  describe('post-update relaunch through a Windows .cmd launcher', () => {
+    // npm's global bin on Windows is a .cmd shim, so every managed update
+    // relaunches through cmd.exe.
+    const launcher = 'C:\\Users\\test\\AppData\\Roaming\\npm\\o1-code.cmd';
+    const platform = Object.getOwnPropertyDescriptor(process, 'platform');
+    let inheritedShim;
+    let stderrSpy;
+    let spawnImpl;
+
+    beforeEach(() => {
+      Object.defineProperty(process, 'platform', {
+        value: 'win32',
+        configurable: true,
+      });
+      inheritedShim = process.env.O1CODE_LAUNCHER_PATH;
+      stderrSpy = vi
+        .spyOn(process.stderr, 'write')
+        .mockImplementation(() => true);
+      spawnImpl = spawnSyncMock.getMockImplementation();
+    });
+
+    afterEach(() => {
+      Object.defineProperty(process, 'platform', platform);
+      spawnSyncMock.mockImplementation(spawnImpl);
+      existsSyncMock.mockImplementation(() => false);
+      stderrSpy.mockRestore();
+      if (inheritedShim === undefined) delete process.env.O1CODE_LAUNCHER_PATH;
+      else process.env.O1CODE_LAUNCHER_PATH = inheritedShim;
+    });
+
+    it('hands the command line to cmd.exe verbatim', async () => {
+      // cmd.exe does not understand Node's argv escaping: it rewrites the
+      // embedded quotes of ""…"" as \" and then fails with
+      // '\"\"C:\...\o1-code.cmd\"\"' is not recognized.
+      process.env.O1CODE_LAUNCHER_PATH = launcher;
+      existsSyncMock.mockImplementation((p) => p === launcher);
+      const spawns = [];
+      spawnSyncMock.mockImplementation((cmd, args, opts) => {
+        spawns.push({ cmd, args, opts });
+        return spawns.length === 1
+          ? { status: 44, signal: null }
+          : { status: 0, signal: null };
+      });
+
+      await import('../cli-entry.js?verbatim-cmd-relaunch');
+
+      expect(spawns).toHaveLength(2);
+      expect(spawns[1].cmd).toBe(process.env.ComSpec ?? 'cmd.exe');
+      expect(spawns[1].args).toEqual(['/d', '/s', '/c', `""${launcher}""`]);
+      expect(spawns[1].opts.windowsVerbatimArguments).toBe(true);
+    });
+
+    it('skips the relaunch when the launcher path carries cmd metacharacters', async () => {
+      // Verbatim mode drops Node's escaping, so such a path would be split
+      // into extra commands; the update itself already landed.
+      const unsafe = 'C:\\Users\\a&b\\AppData\\Roaming\\npm\\o1-code.cmd';
+      process.env.O1CODE_LAUNCHER_PATH = unsafe;
+      existsSyncMock.mockImplementation((p) => p === unsafe);
+      let spawnCount = 0;
+      spawnSyncMock.mockImplementation(() => {
+        spawnCount += 1;
+        return { status: 44, signal: null };
+      });
+
+      await import('../cli-entry.js?unsafe-cmd-launcher');
+
+      expect(spawnCount).toBe(1);
+      expect(stderrSpy).toHaveBeenCalledWith(
+        'Update successful! The new version will be used on your next run.\n',
+      );
+      expect(exitSpy).toHaveBeenCalledWith(0);
+    });
+  });
+
   it('leaves the startup version unset when package metadata is unreadable', async () => {
     const inherited = process.env.O1CODE_STARTUP_VERSION;
     delete process.env.O1CODE_STARTUP_VERSION;

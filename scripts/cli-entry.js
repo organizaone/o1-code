@@ -380,36 +380,53 @@ if (isInProcessFastPath()) {
   } else if (result.status !== UPDATE_COMPLETE_EXIT_CODE) {
     process.exit(result.status ?? 1);
   } else {
-    if (!launcher) {
+    // Mirrors UNSAFE_CMD_CHARS in packages/cli/src/ui/standalone-update.ts;
+    // kept local because this plain-ESM entry cannot import the TypeScript
+    // sources.
+    const UNSAFE_CMD_CHARS = /[&|<>^%!"`\n\r]/;
+    const viaCmd = process.platform === 'win32' && launcher?.endsWith('.cmd');
+    // The cmd.exe relaunch hands its command line over verbatim, which drops
+    // Node's escaping: a launcher path with cmd metacharacters would be split
+    // into extra commands. The update itself already landed, so skip the
+    // relaunch instead.
+    if (!launcher || (viaCmd && UNSAFE_CMD_CHARS.test(launcher))) {
       process.stderr.write(
         'Update successful! The new version will be used on your next run.\n',
       );
       process.exit(0);
-    }
-    const relaunchEnv = {
-      ...process.env,
-      O1CODE_RELAUNCH_ARGS: JSON.stringify(cliArgs),
-      O1CODE_SKIP_UPDATE_CHECK_ONCE: 'true',
-    };
-    // This is a new startup after the managed update; let the new package stamp
-    // its own version instead of inheriting the old process's session version.
-    delete relaunchEnv['O1CODE_STARTUP_VERSION'];
-    delete relaunchEnv['O1CODE_MANAGED_NPM_PIN'];
-    const relaunchResult =
-      process.platform === 'win32' && launcher.endsWith('.cmd')
+    } else {
+      const relaunchEnv = {
+        ...process.env,
+        O1CODE_RELAUNCH_ARGS: JSON.stringify(cliArgs),
+        O1CODE_SKIP_UPDATE_CHECK_ONCE: 'true',
+      };
+      // This is a new startup after the managed update; let the new package stamp
+      // its own version instead of inheriting the old process's session version.
+      delete relaunchEnv['O1CODE_STARTUP_VERSION'];
+      delete relaunchEnv['O1CODE_MANAGED_NPM_PIN'];
+      // cmd.exe does not understand Node's argv escaping: it rewrites every
+      // embedded quote of the ""…"" idiom as \", and `cmd /s` then strips the
+      // line down to a literal \"\"path\"\" program name. Hand the line over
+      // verbatim, as shellExecutionService already does for cmd.
+      const relaunchResult = viaCmd
         ? spawnSync(
             process.env['ComSpec'] ?? 'cmd.exe',
             ['/d', '/s', '/c', `""${launcher}""`],
-            { stdio: 'inherit', env: relaunchEnv },
+            {
+              stdio: 'inherit',
+              env: relaunchEnv,
+              windowsVerbatimArguments: true,
+            },
           )
         : spawnSync(launcher, [], {
             stdio: 'inherit',
             env: relaunchEnv,
           });
-    if (relaunchResult.signal) {
-      process.kill(process.pid, relaunchResult.signal);
-    } else {
-      process.exit(relaunchResult.status ?? 1);
+      if (relaunchResult.signal) {
+        process.kill(process.pid, relaunchResult.signal);
+      } else {
+        process.exit(relaunchResult.status ?? 1);
+      }
     }
   }
 }
