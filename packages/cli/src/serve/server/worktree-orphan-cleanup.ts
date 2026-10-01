@@ -7,18 +7,14 @@
 import fs from 'node:fs';
 import * as fsp from 'node:fs/promises';
 import path from 'node:path';
-import { execFile } from 'node:child_process';
-import { promisify } from 'node:util';
 import {
   GitWorktreeService,
-  gitEnv,
-  NO_EXEC_CONFIG,
   readWorktreeSessionMarkerStrict,
   readWorktreeSessionStrict,
-  WORKTREE_SESSION_FILE,
   type SessionService,
   type WorktreeSession,
 } from '@organizaone/o1-code-core';
+import { worktreeHasWork } from '@organizaone/o1-code-core/services/gitWorktreeService.js';
 import { acquireWorktreeOwnershipOp } from './worktree-ownership-op.js';
 import { writeStderrLine } from '../../utils/stdioHelpers.js';
 import { safeLogValue } from './request-helpers.js';
@@ -46,59 +42,6 @@ function canonicalPath(candidate: string): string {
     return fs.realpathSync(candidate);
   } catch {
     return candidate;
-  }
-}
-
-const execFileAsync = promisify(execFile);
-
-/**
- * Ignored top-level directories whose contents are regenerable build or
- * dependency output. They are exempt from the ignored-content check so a
- * checkout where the agent ran `npm install` or a build stays cleanable;
- * every other ignored entry (agent artifacts like `.o1-code/pr-drafts/`)
- * still counts as work.
- */
-const DISPOSABLE_IGNORED_ROOTS = new Set(['node_modules', 'dist', 'coverage']);
-
-/**
- * Full `git status --porcelain` — untracked files included — so an
- * agent-written file that was never committed counts as work and
- * preserves the checkout. The untracked mode is pinned and the
- * environment scrubbed (`gitEnv`) so an ambient
- * `status.showUntrackedFiles=no` or an inherited `GIT_DIR` cannot make a
- * dirty checkout read clean, and `--ignored=matching` keeps content
- * under git-ignored paths visible (minus disposable build output). The
- * daemon's own marker file is the one exemption (it is git-excluded in
- * production but may not be in hand-built fixtures). Fails closed to
- * "has work" on any read error.
- */
-async function checkoutHasWork(worktreePath: string): Promise<boolean> {
-  try {
-    const { stdout } = await execFileAsync(
-      'git',
-      [
-        ...NO_EXEC_CONFIG,
-        '--no-optional-locks',
-        'status',
-        '--porcelain',
-        '--untracked-files=normal',
-        '--ignored=matching',
-      ],
-      { cwd: worktreePath, env: gitEnv() },
-    );
-    return stdout
-      .split('\n')
-      .filter((line) => line.trim().length > 0)
-      .some((line) => {
-        const entry = line.slice(3);
-        if (entry === WORKTREE_SESSION_FILE) return false;
-        if (line.startsWith('!!')) {
-          return !DISPOSABLE_IGNORED_ROOTS.has(entry.split('/')[0]!);
-        }
-        return true;
-      });
-  } catch {
-    return true;
   }
 }
 
@@ -396,7 +339,7 @@ export async function executeWorktreeCleanup(
     logWorktreeCleanupPreserve(sessionId, 'marker changed after delete');
     return;
   }
-  if (await checkoutHasWork(plan.lockKey)) {
+  if (await worktreeHasWork(plan.lockKey)) {
     logWorktreeCleanupPreserve(sessionId, 'checkout has uncommitted work');
     return;
   }

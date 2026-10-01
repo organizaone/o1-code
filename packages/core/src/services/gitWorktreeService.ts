@@ -19,6 +19,7 @@ import { isNodeError } from '../utils/errors.js';
 import { createDebugLogger } from '../utils/debugLogger.js';
 import { fileExists, isWithinRoot } from '../utils/fileUtils.js';
 import { NO_EXEC_CONFIG } from '../utils/gitUtils.js';
+import { gitEnv } from '../utils/git-branches.js';
 import { loadSimpleGit } from '../utils/load-simple-git.js';
 import { initRepositoryWithMainBranch } from './gitInit.js';
 import { atomicWriteFile } from '../utils/atomicFileWrite.js';
@@ -43,6 +44,76 @@ export function worktreeBranchForSlug(slug: string): string {
 export const WORKTREE_SESSION_FILE = '.o1-code-session';
 
 const WORKTREE_SESSION_MARKER_MAX_BYTES = 512;
+
+/**
+ * Ignored directories whose content is regenerable build or dependency
+ * output, at any depth (`packages/app/node_modules/` included).
+ */
+const DISPOSABLE_IGNORED_DIRS = new Set(['node_modules', 'dist', 'coverage']);
+
+/**
+ * The single answer to "would removing this checkout destroy work?", shared
+ * by every path that deletes a worktree without the user asking (the startup
+ * sweep of stale agent worktrees, the daemon's orphan cleanup).
+ *
+ * Work is any tracked change, any untracked file, and any git-ignored file
+ * (`.env`, drafts, logs) outside regenerable output. Untracked or ignored
+ * symlinks are not work: their content lives at the target, and
+ * `worktree.symlinkDirectories` creates them in every worktree. The untracked
+ * mode is pinned and the environment scrubbed so an ambient
+ * `status.showUntrackedFiles=no` or an inherited `GIT_DIR` cannot make a
+ * dirty checkout read clean. A checkout without its own `.git` link would
+ * let git discover the enclosing repository instead, so it counts as work,
+ * as does any error.
+ */
+export async function worktreeHasWork(worktreePath: string): Promise<boolean> {
+  try {
+    await fs.access(path.join(worktreePath, '.git'));
+    const { stdout } = await execFileAsync(
+      'git',
+      [
+        ...NO_EXEC_CONFIG,
+        '--no-optional-locks',
+        'status',
+        '--porcelain',
+        '-z',
+        '--untracked-files=normal',
+        '--ignored=matching',
+      ],
+      {
+        cwd: worktreePath,
+        env: gitEnv(),
+        encoding: 'utf8',
+        maxBuffer: 10 * 1024 * 1024,
+        timeout: 30_000,
+      },
+    );
+    for (const record of stdout.split('\0')) {
+      if (record.length === 0) continue;
+      const status = record.slice(0, 2);
+      const entry = record.slice(3);
+      if (status !== '??' && status !== '!!') return true;
+      if (entry === WORKTREE_SESSION_FILE) continue;
+      if (
+        status === '!!' &&
+        entry.split('/').some((segment) => DISPOSABLE_IGNORED_DIRS.has(segment))
+      ) {
+        continue;
+      }
+      const stats = await fs.lstat(
+        path.join(worktreePath, entry.replace(/\/$/, '')),
+      );
+      if (stats.isSymbolicLink()) continue;
+      return true;
+    }
+    return false;
+  } catch (error) {
+    debugLogger.warn(
+      `worktreeHasWork: cannot inspect ${worktreePath}, keeping it: ${error}`,
+    );
+    return true;
+  }
+}
 
 /**
  * Diff flags that stop the tree being diffed from choosing the program that

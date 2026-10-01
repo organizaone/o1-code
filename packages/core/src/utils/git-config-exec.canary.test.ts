@@ -17,10 +17,13 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { execFileSync } from 'node:child_process';
 import {
+  appendFileSync,
   chmodSync,
   existsSync,
+  mkdirSync,
   mkdtempSync,
   realpathSync,
+  renameSync,
   rmSync,
   unlinkSync,
   writeFileSync,
@@ -30,8 +33,10 @@ import { join } from 'node:path';
 import { getRecentGitStatus } from './gitUtils.js';
 import { getGitWorkingTreeStatus } from './gitDiff.js';
 import { isGitIgnored } from './git-ignore.js';
-import { GitWorktreeService } from '../services/gitWorktreeService.js';
-import { __test__ as worktreeCleanupInternals } from '../services/worktreeCleanup.js';
+import {
+  GitWorktreeService,
+  worktreeHasWork,
+} from '../services/gitWorktreeService.js';
 
 // The plant is a `/bin/sh` script, so the attack itself does not exist on
 // Windows and the question has no answer there.
@@ -227,15 +232,27 @@ describe('a planted git program reaches no automatic git call', () => {
     'the stale-worktree cleanup probe does not run %s',
     async (plant) => {
       const { repo, fired } = planted(plant);
-      // `hasTrackedChanges` fail-closes to `true`, so asserting only the dirty
+      if (plant === 'core.fsmonitor') {
+        // The probe counts an untracked helper as work, which would hide the
+        // clean read below; ignored dependency output does not count.
+        const helper = join(repo, 'node_modules', 'plant.sh');
+        mkdirSync(join(repo, 'node_modules'));
+        renameSync(join(repo, 'plant.sh'), helper);
+        execFileSync('git', ['config', 'core.fsmonitor', helper], {
+          cwd: repo,
+        });
+        appendFileSync(
+          join(repo, '.git', 'info', 'exclude'),
+          'node_modules/\n',
+        );
+      }
+      // `worktreeHasWork` fail-closes to `true`, so asserting only the dirty
       // answer cannot tell a real status read from a swallowed git error. Read
       // the clean tree first: only a successful `status` can return `false`.
       writeFileSync(join(repo, 'a.ts'), 'export const x = 1;\n');
-      expect(await worktreeCleanupInternals.hasTrackedChanges(repo)).toBe(
-        false,
-      );
+      expect(await worktreeHasWork(repo)).toBe(false);
       writeFileSync(join(repo, 'a.ts'), 'export const x = 2;\n');
-      expect(await worktreeCleanupInternals.hasTrackedChanges(repo)).toBe(true);
+      expect(await worktreeHasWork(repo)).toBe(true);
       expect(fired()).toBe(false);
     },
     PLANT_TIMEOUT_MS,

@@ -12,6 +12,10 @@ follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - A Claude session on the Anthropic protocol no longer fails with "Invalid signature in thinking
   block" after a tool call, turn after turn: signed thinking is kept byte for byte instead of
   having its surrounding whitespace trimmed.
+- The startup cleanup of stale agent worktrees no longer deletes what git does not track: an
+  untracked file, or an ignored one such as `.env`, keeps the worktree; dependency and build output
+  (`node_modules`, `dist`, `coverage`, at any depth) and symlinked directories do not. The daemon's
+  cleanup of deleted sessions follows the same rule.
 
 ## [0.4.0] - 2026-09-30
 
