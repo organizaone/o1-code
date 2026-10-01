@@ -19,6 +19,10 @@ follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - With several `PreToolUse` hooks, the most restrictive permission wins (deny, then ask, then
   allow) whatever their order and whichever field they used; a later hook's allow no longer
   overrides an earlier hook's deny.
+- Command output that is not UTF-8 is decoded with the console's own code page (`chcp 866`, `1252`,
+  `936`, …) before any statistical guess, which misread Cyrillic as Western text. A code page
+  with no decoder (`437`, `850`, `852`) or a locale such as `C` falls back to the guess instead
+  of failing the shell command.
 
 ## [0.4.0] - 2026-09-30
 
