@@ -9,6 +9,7 @@ import {
   FetchError,
   fetchWithPolicy,
   formatFetchErrorForUser,
+  isConnectionLevelError,
   isPermittedRedirect,
   isPrivateHost,
 } from './fetch.js';
@@ -380,6 +381,43 @@ describe('fetchWithPolicy retry', () => {
     const result = await fetchWithPolicy('https://example.com/missing', opts);
     expect(calls).toBe(1);
     if (result.kind === 'response') expect(result.status).toBe(404);
+  });
+
+  it('treats an unreachable host or network as a connection-level failure', () => {
+    // Port 443 filtered at the network layer: the https upgrade must fall
+    // back to the http URL the caller asked for.
+    expect(isConnectionLevelError(new FetchError('x', 'EHOSTUNREACH'))).toBe(
+      true,
+    );
+    expect(isConnectionLevelError(new FetchError('x', 'ENETUNREACH'))).toBe(
+      true,
+    );
+  });
+
+  it('classifies a multi-address connect failure by any attempt, not the first', async () => {
+    // Node rejects a dual-stack connect with an AggregateError whose own code
+    // is the first address's; the refused IPv4 attempt is the one that says
+    // the host does not speak https.
+    globalThis.fetch = vi.fn(async () => {
+      const err = new TypeError('fetch failed') as TypeError & {
+        cause?: unknown;
+      };
+      const attempts = new AggregateError(
+        [
+          Object.assign(new Error('connect ETIMEDOUT'), { code: 'ETIMEDOUT' }),
+          Object.assign(new Error('connect ECONNREFUSED'), {
+            code: 'ECONNREFUSED',
+          }),
+        ],
+        'connect failed',
+      );
+      err.cause = Object.assign(attempts, { code: 'ETIMEDOUT' });
+      throw err;
+    }) as typeof fetch;
+
+    await expect(
+      fetchWithPolicy('https://example.com/dual-stack', opts),
+    ).rejects.toMatchObject({ code: 'ECONNREFUSED' });
   });
 
   it('does not retry non-transient network errors', async () => {

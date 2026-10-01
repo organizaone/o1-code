@@ -75,6 +75,10 @@ const CONNECTION_LEVEL_ERROR_CODES = new Set([
   // a healthy https server, and a fallback there would double a worst-case
   // 60s wait for an ambiguous gain.
   'UND_ERR_CONNECT_TIMEOUT',
+  // No route to the host or network on 443: the network layer refused
+  // before any TLS, as a filtered port does.
+  'EHOSTUNREACH',
+  'ENETUNREACH',
 ]);
 
 export function isConnectionLevelError(error: unknown): boolean {
@@ -315,12 +319,7 @@ async function fetchPolicyAttempt(
       );
     }
     if (error instanceof FetchError) throw error;
-    const code =
-      getErrorCode(error) ??
-      (error instanceof Error
-        ? getErrorCode((error as Error & { cause?: unknown }).cause)
-        : undefined);
-    throw new FetchError(getErrorMessage(error), code);
+    throw new FetchError(getErrorMessage(error), classifyErrorCode(error));
   };
 
   let currentUrl = url;
@@ -432,6 +431,29 @@ async function fetchPolicyAttempt(
     `Too many redirects (exceeded ${options.maxRedirects})`,
     'EMAXREDIRECTS',
   );
+}
+
+/**
+ * The code a failed fetch carries. Node reports a multi-address connect (a
+ * dual-stack host) as an AggregateError whose own `code` is only the first
+ * attempt's; when any attempt failed at the connection level, that code wins,
+ * since it decides the https-to-http fallback.
+ */
+function classifyErrorCode(error: unknown): string | undefined {
+  const cause =
+    error instanceof Error
+      ? (error as Error & { cause?: unknown }).cause
+      : undefined;
+  const attempts = [error, cause].flatMap((candidate) => {
+    const errors = (candidate as { errors?: unknown } | null)?.errors;
+    return Array.isArray(errors) ? errors : [];
+  });
+  const connectionLevel = attempts
+    .map(getErrorCode)
+    .find(
+      (code) => code !== undefined && CONNECTION_LEVEL_ERROR_CODES.has(code),
+    );
+  return connectionLevel ?? getErrorCode(error) ?? getErrorCode(cause);
 }
 
 function getErrorCode(error: unknown): string | undefined {

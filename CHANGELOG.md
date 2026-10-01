@@ -41,6 +41,10 @@ follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   when the URL carries `user:password@`.
 - `sed --quiet` and `sed --silent`, GNU's long forms of `-n`, are read as read-only like `-n`,
   so they run without a confirmation prompt; a script that writes a file is still a write.
+- `web_fetch` falls back from its https upgrade to the http URL the caller gave when the https
+  connection fails because the host or network is unreachable (`EHOSTUNREACH`, `ENETUNREACH`),
+  and classifies a dual-stack host by any of its address attempts, not only the first one Node
+  reports.
 
 ## [0.4.0] - 2026-09-30
 
