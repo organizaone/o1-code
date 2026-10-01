@@ -116,6 +116,10 @@ Decisions so far.
   publishes to npm). Both run on GitHub-hosted runners; a fork pull request runs the same checks
   once the maintainer approves its workflow run. A few tests are skipped because they assert on
   review workflows this repository does not run.
+- Upstream base: the tree last matched the upstream project's `main` in the middle of its 0.24.5
+  cycle (2026-09-23). Upstream is a source of bug reports and ideas, never a merge target: a fix
+  found there is read in this code first and reimplemented with its own test, and a feature gets
+  an evaluation card (`CONTRIBUTING.md`). The next survey starts from that point.
 
 ## Out of scope
 
