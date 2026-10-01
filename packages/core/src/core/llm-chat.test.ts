@@ -5236,7 +5236,7 @@ describe('LlmChat', async () => {
         const expectedParts = [
           ...summaries.map((text, index) => ({
             thought: true,
-            text: text.trim(),
+            text,
             thoughtSignature: signatures[index],
           })),
           toolPart,
@@ -5290,6 +5290,49 @@ describe('LlmChat', async () => {
         { text: 'visible reasoning', thought: true, thoughtSignature: 'sig1' },
         { functionCall: { id: 'call1', name: 'tool', args: {} } },
         { text: '', thought: true, thoughtSignature: 'sig2' },
+        { functionCall: { id: 'call2', name: 'tool', args: {} } },
+      ]);
+    });
+
+    it('keeps signed reasoning text byte-exact, surrounding whitespace included, so the signature still matches on replay', async () => {
+      const stream = (async function* () {
+        yield {
+          candidates: [
+            {
+              content: {
+                role: 'model',
+                parts: [
+                  { text: '\nplanning the edit', thought: true },
+                  { text: '\n\n', thought: true },
+                  { thought: true, thoughtSignature: 'sig1' },
+                  { functionCall: { id: 'call1', name: 'tool', args: {} } },
+                  { text: '   ', thought: true },
+                  { functionCall: { id: 'call2', name: 'tool', args: {} } },
+                ],
+              },
+              finishReason: 'STOP',
+            },
+          ],
+        } as unknown as GenerateContentResponse;
+      })();
+      vi.mocked(mockContentGenerator.generateContentStream).mockResolvedValue(
+        stream,
+      );
+
+      const res = await chat.sendMessageStream(
+        'm1',
+        { message: 'signed-whitespace' },
+        'p-signed-whitespace',
+      );
+      for await (const _ of res);
+
+      expect(chat.getHistory()[1].parts).toEqual([
+        {
+          text: '\nplanning the edit\n\n',
+          thought: true,
+          thoughtSignature: 'sig1',
+        },
+        { functionCall: { id: 'call1', name: 'tool', args: {} } },
         { functionCall: { id: 'call2', name: 'tool', args: {} } },
       ]);
     });

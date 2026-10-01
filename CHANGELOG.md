@@ -7,6 +7,12 @@ follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Fixed
+
+- A Claude session on the Anthropic protocol no longer fails with "Invalid signature in thinking
+  block" after a tool call, turn after turn: signed thinking is kept byte for byte instead of
+  having its surrounding whitespace trimmed.
+
 ## [0.4.0] - 2026-09-30
 
 ### OrganizaOne
