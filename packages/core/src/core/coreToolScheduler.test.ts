@@ -3765,6 +3765,130 @@ describe('CoreToolScheduler', () => {
     );
   });
 
+  it('appends PreToolUse additionalContext to the tool result', async () => {
+    // A hook that allows the call and adds context: the context reaches the
+    // model with the result of that call, not nowhere.
+    const execute = vi.fn().mockResolvedValue({
+      llmContent: 'tool body',
+      returnDisplay: 'tool body',
+    });
+    const toolsByName = new Map<string, MockTool>([
+      ['preHookTool', new MockTool({ name: 'preHookTool', execute })],
+    ]);
+    const messageBus = {
+      request: vi
+        .fn()
+        .mockImplementation(async (request: { eventName: string }) => {
+          if (request.eventName === 'PreToolUse') {
+            return {
+              type: MessageBusType.HOOK_EXECUTION_RESPONSE,
+              correlationId: 'PreToolUse-hook',
+              success: true,
+              output: {
+                hookSpecificOutput: {
+                  permissionDecision: 'allow',
+                  additionalContext: 'PREHOOK_CONTEXT_MARKER',
+                },
+              },
+            };
+          }
+          return {
+            type: MessageBusType.HOOK_EXECUTION_RESPONSE,
+            correlationId: `${request.eventName}-hook`,
+            success: true,
+            output: { decision: 'allow' },
+          };
+        }),
+    };
+    const { scheduler, onAllToolCallsComplete } =
+      createSchedulerForLegacyToolTests({
+        toolsByName,
+        approvalMode: ApprovalMode.DEFAULT,
+        messageBus,
+        disableHooks: false,
+      });
+
+    await scheduler.schedule(
+      [
+        {
+          callId: 'c-pre',
+          name: 'preHookTool',
+          args: {},
+          isClientInitiated: false,
+          prompt_id: 'p-pre',
+        },
+      ],
+      new AbortController().signal,
+    );
+
+    const output = outputOfFirstCall(onAllToolCallsComplete);
+    expect(output).toContain('tool body');
+    expect(output).toContain('PREHOOK_CONTEXT_MARKER');
+  });
+
+  it('appends PreToolUse additionalContext to a denied call', async () => {
+    // A deny with context: the reason says no, the context says what to do
+    // instead; both belong to the model.
+    const execute = vi.fn().mockResolvedValue({
+      llmContent: 'never runs',
+      returnDisplay: 'never runs',
+    });
+    const toolsByName = new Map<string, MockTool>([
+      ['deniedTool', new MockTool({ name: 'deniedTool', execute })],
+    ]);
+    const messageBus = {
+      request: vi
+        .fn()
+        .mockImplementation(async (request: { eventName: string }) => {
+          if (request.eventName === 'PreToolUse') {
+            return {
+              type: MessageBusType.HOOK_EXECUTION_RESPONSE,
+              correlationId: 'PreToolUse-hook',
+              success: true,
+              output: {
+                hookSpecificOutput: {
+                  permissionDecision: 'deny',
+                  permissionDecisionReason: 'Not this tool',
+                  additionalContext: 'PREHOOK_DENY_MARKER',
+                },
+              },
+            };
+          }
+          return {
+            type: MessageBusType.HOOK_EXECUTION_RESPONSE,
+            correlationId: `${request.eventName}-hook`,
+            success: true,
+            output: { decision: 'allow' },
+          };
+        }),
+    };
+    const { scheduler, onAllToolCallsComplete } =
+      createSchedulerForLegacyToolTests({
+        toolsByName,
+        approvalMode: ApprovalMode.DEFAULT,
+        messageBus,
+        disableHooks: false,
+      });
+
+    await scheduler.schedule(
+      [
+        {
+          callId: 'c-deny',
+          name: 'deniedTool',
+          args: {},
+          isClientInitiated: false,
+          prompt_id: 'p-deny',
+        },
+      ],
+      new AbortController().signal,
+    );
+
+    expect(execute).not.toHaveBeenCalled();
+    const error = outputOfFirstCall(onAllToolCallsComplete, 'error');
+    expect(error).toContain('Not this tool');
+    expect(error).toContain('PREHOOK_DENY_MARKER');
+  });
+
   it('keeps PostToolUse additionalContext intact after truncating oversized output', async () => {
     const execute = vi.fn().mockResolvedValue({
       llmContent: 'a'.repeat(200_000),

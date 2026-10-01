@@ -33,6 +33,9 @@ follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - The `<available_skills>` listing is sent only when the Skill tool is available: not when the
   tool is excluded from the session, and not to a subagent whose `disallowedTools` names it. The
   listing cost input tokens on every request for a tool the model could not call.
+- The `additionalContext` a `PreToolUse` hook returns reaches the model with that call's result,
+  whatever the decision: appended to the output of an allowed call, including one the user
+  approved after an `ask`, and to the error of a denied one. Before, it was dropped.
 
 ## [0.4.0] - 2026-09-30
 

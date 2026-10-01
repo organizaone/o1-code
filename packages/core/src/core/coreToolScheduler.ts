@@ -1641,6 +1641,12 @@ export class CoreToolScheduler {
   // PostToolUse — reusing this id keeps the Pre/Post pair correlated instead
   // of orphaning two events. Cleared on terminal state via finalizeToolSpan.
   private readonly bouncedToolUseId = new Map<string, string>();
+  /**
+   * PreToolUse `additionalContext` per call, appended to the call's result
+   * once it completes. Kept across an 'ask' bounce, since the hook is not
+   * re-run after the user approves; dropped with the call's other markers.
+   */
+  private readonly preToolUseContext = new Map<string, string>();
   private readonly askUserQuestionResponseClaims = new Set<string>();
   private readonly runtimeContentGeneratorViews = new Map<
     string,
@@ -2233,6 +2239,7 @@ export class CoreToolScheduler {
     // defensive no-span path.
     this.bouncedAwaitingApproval.delete(callId);
     this.bouncedToolUseId.delete(callId);
+    this.preToolUseContext.delete(callId);
     this.autoModeFallbackCallIds.delete(callId);
     this.runtimeContentGeneratorViews.delete(callId);
     // PostToolBatch can replace the response at the last position in request
@@ -5007,6 +5014,7 @@ export class CoreToolScheduler {
     } catch (error) {
       this.bouncedAwaitingApproval.delete(callId);
       this.bouncedToolUseId.delete(callId);
+      this.preToolUseContext.delete(callId);
       // _executeToolCallBody records the span outcome only AFTER its main
       // try/catch is entered: ERROR or CANCELLED, while success remains
       // UNSET. Throws from the prelude — for example getMessageBus — happen
@@ -5319,6 +5327,9 @@ export class CoreToolScheduler {
                 hasAdditionalContext: !!r.additionalContext,
               },
       );
+      if (preHookResult.additionalContext) {
+        this.preToolUseContext.set(callId, preHookResult.additionalContext);
+      }
       if (!signal.aborted && !preHookResult.shouldProceed) {
         // A PreToolUse hook returning permissionDecision:'ask' wants the
         // user to confirm in the TUI before the tool runs. When we can
@@ -5352,8 +5363,12 @@ export class CoreToolScheduler {
         }
 
         // Hook blocked the execution.
-        const blockMessage =
-          preHookResult.blockReason || 'Tool execution blocked by hook';
+        const blockMessage = [
+          preHookResult.blockReason || 'Tool execution blocked by hook',
+          preHookResult.additionalContext,
+        ]
+          .filter((text): text is string => !!text)
+          .join('\n\n');
         const errorResponse = createErrorResponse(
           scheduledCall.request,
           new Error(blockMessage),
@@ -6177,6 +6192,13 @@ export class CoreToolScheduler {
         }
 
         // 2) Append the deferred metadata now that the body is bounded.
+        const preToolUseAdditionalContext = this.preToolUseContext.get(callId);
+        if (preToolUseAdditionalContext) {
+          content = appendAdditionalContext(
+            content,
+            preToolUseAdditionalContext,
+          );
+        }
         if (postToolUseAdditionalContext) {
           content = appendAdditionalContext(
             content,
@@ -6195,7 +6217,9 @@ export class CoreToolScheduler {
         //    their second-level bound — re-truncating a Part[] would mean
         //    re-merging text parts, not worth it for the rare large-metadata case.
         if (
-          (postToolUseAdditionalContext || reminderEnvelope) &&
+          (preToolUseAdditionalContext ||
+            postToolUseAdditionalContext ||
+            reminderEnvelope) &&
           typeof content === 'string' &&
           !content.startsWith(TOOL_OUTPUT_TRUNCATED_PREFIX)
         ) {
