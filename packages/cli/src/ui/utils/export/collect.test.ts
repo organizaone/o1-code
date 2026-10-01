@@ -172,6 +172,52 @@ describe('collectSessionData', () => {
     expect(data.metadata?.linesRemoved).toBe(0);
   });
 
+  it('keeps the uuid and timestamp of the record a message came from when the next record flushes it', async () => {
+    // A text message is buffered while its record replays and written out
+    // only when a message of another kind starts; by then the replay has
+    // moved on to that next record.
+    const records: ChatRecord[] = [
+      {
+        uuid: 'user-1',
+        parentUuid: null,
+        sessionId: 'session-1',
+        timestamp: '2025-01-01T00:00:00.000Z',
+        type: 'user',
+        cwd: '',
+        version: '1.0.0',
+        message: { role: 'user', parts: [{ text: 'hello' }] },
+      },
+      {
+        uuid: 'assistant-1',
+        parentUuid: 'user-1',
+        sessionId: 'session-1',
+        timestamp: '2025-01-01T00:00:05.000Z',
+        type: 'assistant',
+        cwd: '',
+        version: '1.0.0',
+        message: { role: 'model', parts: [{ text: 'hi there' }] },
+      },
+    ];
+
+    const data = await collectSessionData(
+      {
+        sessionId: 'session-1',
+        startTime: '2025-01-01T00:00:00.000Z',
+        messages: records,
+      },
+      config,
+    );
+
+    const user = data.messages.find((message) => message.type === 'user');
+    const assistant = data.messages.find(
+      (message) => message.type === 'assistant',
+    );
+    expect(user?.uuid).toBe('user-1');
+    expect(user?.timestamp).toBe('2025-01-01T00:00:00.000Z');
+    expect(assistant?.uuid).toBe('assistant-1');
+    expect(assistant?.timestamp).toBe('2025-01-01T00:00:05.000Z');
+  });
+
   it('accepts the minimal daemon export config shape', async () => {
     const minimalConfig: ExportConfig = {
       getChannel: () => 'web-shell',

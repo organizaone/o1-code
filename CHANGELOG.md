@@ -63,6 +63,9 @@ follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - ACP rewind no longer counts the turns the daemon adds when it delivers background
   notifications: they never produced a client-visible turn, and counting them shifted every rewind
   point after them.
+- A session export stamps each text message with the uuid and timestamp of the record it came
+  from. The message was written out only when the next message of another kind started, and by
+  then the identity was read from that next record.
 
 ## [0.4.0] - 2026-09-30
 
