@@ -396,6 +396,97 @@ describe('MCPOAuthProvider', () => {
       );
     });
 
+    it('keeps a configured registration URL when discovery brings none', async () => {
+      const config: MCPOAuthConfig = {
+        ...mockConfig,
+        registrationUrl: 'https://auth.example.com/register',
+      };
+      delete config.clientId;
+      delete config.authorizationUrl;
+      delete config.tokenUrl;
+
+      const mockRegistrationResponse: OAuthClientRegistrationResponse = {
+        client_id: 'dynamic_client_id',
+        redirect_uris: ['http://localhost:7777/oauth/callback'],
+        grant_types: ['authorization_code', 'refresh_token'],
+        response_types: ['code'],
+        token_endpoint_auth_method: 'none',
+      };
+      // HEAD without WWW-Authenticate, protected-resource metadata, then an
+      // authorization server that advertises no registration endpoint.
+      mockFetch
+        .mockResolvedValueOnce(createMockResponse({ ok: true, status: 200 }))
+        .mockResolvedValueOnce(
+          createMockResponse({
+            ok: true,
+            contentType: 'application/json',
+            text: JSON.stringify({
+              authorization_servers: ['https://discovered.auth.com'],
+            }),
+            json: { authorization_servers: ['https://discovered.auth.com'] },
+          }),
+        )
+        .mockResolvedValueOnce(
+          createMockResponse({
+            ok: true,
+            contentType: 'application/json',
+            text: JSON.stringify({
+              authorization_endpoint: 'https://discovered.auth.com/authorize',
+              token_endpoint: 'https://discovered.auth.com/token',
+            }),
+            json: {
+              authorization_endpoint: 'https://discovered.auth.com/authorize',
+              token_endpoint: 'https://discovered.auth.com/token',
+            },
+          }),
+        )
+        .mockResolvedValueOnce(
+          createMockResponse({
+            ok: true,
+            contentType: 'application/json',
+            text: JSON.stringify(mockRegistrationResponse),
+            json: mockRegistrationResponse,
+          }),
+        );
+
+      let callbackHandler: unknown;
+      vi.mocked(http.createServer).mockImplementation((handler) => {
+        callbackHandler = handler;
+        return mockHttpServer as unknown as http.Server;
+      });
+      mockHttpServer.listen.mockImplementation((port, callback) => {
+        callback?.();
+        setTimeout(() => {
+          (callbackHandler as (req: unknown, res: unknown) => void)(
+            {
+              url: '/oauth/callback?code=auth_code_123&state=bW9ja19zdGF0ZV8xNl9ieXRlcw',
+            },
+            { writeHead: vi.fn(), end: vi.fn() },
+          );
+        }, 10);
+      });
+      mockFetch.mockResolvedValueOnce(
+        createMockResponse({
+          ok: true,
+          contentType: 'application/json',
+          text: JSON.stringify(mockTokenResponse),
+          json: mockTokenResponse,
+        }),
+      );
+
+      const authProvider = new MCPOAuthProvider();
+      await authProvider.authenticate(
+        'test-server',
+        config,
+        'https://api.example.com',
+      );
+
+      expect(mockFetch).toHaveBeenCalledWith(
+        'https://auth.example.com/register',
+        expect.objectContaining({ method: 'POST' }),
+      );
+    });
+
     it('should perform dynamic client registration when no client ID is provided but registration URL is provided', async () => {
       const configWithoutClient: MCPOAuthConfig = {
         ...mockConfig,

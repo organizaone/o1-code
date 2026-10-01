@@ -45,6 +45,8 @@ follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   connection fails because the host or network is unreachable (`EHOSTUNREACH`, `ENETUNREACH`),
   and classifies a dual-stack host by any of its address attempts, not only the first one Node
   reports.
+- An MCP server's OAuth discovery that advertises no client registration endpoint no longer
+  discards the `registrationUrl` configured for that server; dynamic registration uses it.
 
 ## [0.4.0] - 2026-09-30
 

@@ -769,7 +769,10 @@ export class MCPOAuthProvider {
             authorizationUrl: discoveredConfig.authorizationUrl,
             tokenUrl: discoveredConfig.tokenUrl,
             scopes: discoveredConfig.scopes || config.scopes || [],
-            registrationUrl: discoveredConfig.registrationUrl,
+            // A server that advertises no registration endpoint does not
+            // unset the one the user configured.
+            registrationUrl:
+              discoveredConfig.registrationUrl ?? config.registrationUrl,
             // Preserve existing client credentials
             clientId: config.clientId,
             clientSecret: config.clientSecret,
