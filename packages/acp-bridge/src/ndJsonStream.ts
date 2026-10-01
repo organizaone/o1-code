@@ -584,10 +584,15 @@ function handleBoundedLine(
     throw logBoundedInvalidMessage('ndjson_invalid_message', lineBytes);
   }
   const isResponse = isJsonRpcResponseMessage(parsed);
-  if (
-    (!isResponse && !hasBoundedJsonStructure(parsed)) ||
-    (validateInboundMessage && !validateInboundMessage(parsed))
-  ) {
+  if (!isResponse && !hasBoundedJsonStructure(parsed)) {
+    const snapshotKind = droppableSnapshotKind(parsed);
+    if (snapshotKind !== undefined) {
+      logDroppedOversizedNotification(snapshotKind, lineBytes);
+      return;
+    }
+    throw logBoundedInvalidMessage('ndjson_invalid_message', lineBytes);
+  }
+  if (validateInboundMessage && !validateInboundMessage(parsed)) {
     throw logBoundedInvalidMessage('ndjson_invalid_message', lineBytes);
   }
   if (
@@ -811,6 +816,51 @@ class BoundedOutstandingRequestLedger {
     this.requests.clear();
     this.retainedBytes = 0;
   }
+}
+
+/**
+ * `session/update` snapshots the client replaces whole on the next frame. An
+ * oversized one can be dropped without losing anything a later frame does not
+ * bring back; every other oversized notification still closes the channel.
+ */
+const DROPPABLE_SNAPSHOT_KINDS = new Set([
+  'available_commands_update',
+  'current_mode_update',
+  'session_info_update',
+]);
+
+function droppableSnapshotKind(message: unknown): string | undefined {
+  if (
+    !isRecord(message) ||
+    message['method'] !== 'session/update' ||
+    'id' in message
+  ) {
+    return undefined;
+  }
+  const params = message['params'];
+  if (!isRecord(params) || !isRecord(params['update'])) return undefined;
+  const kind = params['update']['sessionUpdate'];
+  return typeof kind === 'string' && DROPPABLE_SNAPSHOT_KINDS.has(kind)
+    ? kind
+    : undefined;
+}
+
+function logDroppedOversizedNotification(
+  sessionUpdate: string,
+  lineBytes: Uint8Array,
+): void {
+  const bytes = jsonPayloadByteLength(lineBytes);
+  const digest = createHash('sha256')
+    .update(lineBytes.subarray(0, bytes))
+    .digest('hex');
+  // eslint-disable-next-line no-console -- bounded metadata only
+  console.error('Dropped oversized ACP notification:', {
+    method: 'session/update',
+    sessionUpdate,
+    bytes,
+    sha256: digest,
+    payloadOmitted: true,
+  });
 }
 
 function logBoundedInvalidMessage(

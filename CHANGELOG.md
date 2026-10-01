@@ -47,6 +47,10 @@ follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   reports.
 - An MCP server's OAuth discovery that advertises no client registration endpoint no longer
   discards the `registrationUrl` configured for that server; dynamic registration uses it.
+- An ACP `session/update` snapshot too deep or too large for the channel's structure bound
+  (available commands, current mode, session info) is dropped and logged without its payload,
+  instead of closing the channel; the next snapshot of the same kind replaces it. Any other
+  oversized notification still closes the channel.
 
 ## [0.4.0] - 2026-09-30
 

@@ -856,6 +856,76 @@ describe('ndJsonStream', () => {
     stderr.mockRestore();
   });
 
+  describe('oversized session/update snapshots', () => {
+    // Deeper than the structure bound, small enough for the frame bound.
+    function nested(depth: number): unknown {
+      let value: unknown = 'leaf';
+      for (let i = 0; i < depth; i++) value = { v: value };
+      return value;
+    }
+    function snapshot(sessionUpdate: string): string {
+      return JSON.stringify({
+        jsonrpc: '2.0',
+        method: 'session/update',
+        params: {
+          sessionId: 's1',
+          update: { sessionUpdate, availableCommands: nested(80) },
+        },
+      });
+    }
+
+    it('drops a latest-wins snapshot instead of closing the channel', async () => {
+      const stderr = vi.spyOn(console, 'error').mockImplementation(() => {});
+      const onTransportError = vi.fn();
+      const onMessageReceived = vi.fn();
+      const stream = ndJsonStream(
+        new WritableStream<Uint8Array>(),
+        byteStream([
+          encoder.encode(`${snapshot('available_commands_update')}\n`),
+          encoder.encode(
+            `${JSON.stringify({ jsonrpc: '2.0', method: 'session/update', params: { sessionId: 's1', update: { sessionUpdate: 'current_mode_update', currentModeId: 'plan' } } })}\n`,
+          ),
+        ]),
+        { onMessageReceived, onTransportError },
+        limits({ maxFrameBytes: 8192, maxQueuedBytes: 16384 }),
+      );
+
+      // The oversized frame is gone; the next frame on the same session arrives.
+      const received = await readAll(stream.readable);
+      expect(received).toHaveLength(1);
+      expect(onTransportError).not.toHaveBeenCalled();
+      expect(stderr).toHaveBeenCalledTimes(1);
+      expect(stderr.mock.calls[0]).toEqual([
+        'Dropped oversized ACP notification:',
+        {
+          method: 'session/update',
+          sessionUpdate: 'available_commands_update',
+          bytes: expect.any(Number),
+          sha256: expect.stringMatching(/^[a-f0-9]{64}$/u),
+          payloadOmitted: true,
+        },
+      ]);
+      stderr.mockRestore();
+    });
+
+    it('still fails closed for an oversized tool_call_update', async () => {
+      const stderr = vi.spyOn(console, 'error').mockImplementation(() => {});
+      const onTransportError = vi.fn();
+      const stream = ndJsonStream(
+        new WritableStream<Uint8Array>(),
+        byteStream([encoder.encode(`${snapshot('tool_call_update')}\n`)]),
+        { onTransportError },
+        limits({ maxFrameBytes: 8192, maxQueuedBytes: 16384 }),
+      );
+
+      await expect(readAll(stream.readable)).resolves.toEqual([]);
+      expect(onTransportError).toHaveBeenCalledWith(
+        expect.objectContaining({ code: 'ndjson_invalid_message' }),
+      );
+      stderr.mockRestore();
+    });
+  });
+
   it('accepts bounded JSON-RPC string ids', async () => {
     const request = {
       jsonrpc: '2.0',
