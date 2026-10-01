@@ -53,6 +53,10 @@ follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   oversized notification still closes the channel.
 - Pressing Enter while the completion dropdown is still loading ("Loading suggestions…" with an
   empty list) submits the typed prompt instead of being swallowed with nothing to accept.
+- The `o1-code serve` daemon loads a workspace's settings for extensions without publishing that
+  workspace's `.env` into the daemon's shared environment, without consuming the one-shot
+  settings-corruption marker, and without parsing the settings of a workspace whose trust is not
+  established.
 
 ## [0.4.0] - 2026-09-30
 

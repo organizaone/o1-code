@@ -63,15 +63,16 @@ const resolveExtensionLocale = (
   workspaceDir: string,
   workspaceTrusted?: boolean,
 ): string => {
-  const configuredLanguage = loadSettings(
-    workspaceDir,
-    workspaceTrusted === undefined
-      ? true
-      : {
-          skipWorkspaceSettings: !workspaceTrusted,
-          workspaceTrusted,
-        },
-  ).merged.general?.language as string | undefined;
+  // The daemon serves every workspace from one process: never publish a
+  // workspace's `.env` into the shared process.env, never consume the one-shot
+  // corruption marker here, and read a workspace's own settings only once it
+  // is known to be trusted.
+  const configuredLanguage = loadSettings(workspaceDir, {
+    skipLoadEnvironment: true,
+    consumeCorruptionEnvVars: false,
+    skipWorkspaceSettings: workspaceTrusted !== true,
+    workspaceTrusted,
+  }).merged.general?.language as string | undefined;
   const requestedLocale = resolveLanguageSetting(configuredLanguage);
   if (requestedLocale === 'auto') {
     return detectSystemLanguage();
@@ -317,8 +318,16 @@ export function createExtensionsController(
       locale: resolveExtensionLocale(workspaceDir, workspaceTrusted),
       isWorkspaceTrusted:
         workspaceTrusted ??
-        getWorkspaceTrustStatus(loadSettings(workspaceDir).merged, workspaceDir)
-          .effective.state === 'trusted',
+        // Trust is decided by the user's own settings; the workspace's cannot
+        // vouch for itself.
+        getWorkspaceTrustStatus(
+          loadSettings(workspaceDir, {
+            skipLoadEnvironment: true,
+            consumeCorruptionEnvVars: false,
+            skipWorkspaceSettings: true,
+          }).merged,
+          workspaceDir,
+        ).effective.state === 'trusted',
       requestConsent: () => Promise.resolve(),
       requestSetting:
         interactions?.requestSetting ??

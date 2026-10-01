@@ -288,6 +288,47 @@ describe('createExtensionsController', () => {
     }
   });
 
+  it('loads a workspace settings without publishing its .env or reading it untrusted', async () => {
+    // The daemon serves every workspace from one process: a workspace's
+    // `.o1-code/.env` must not land in the shared process.env, and a
+    // workspace whose trust is unknown must not have its settings parsed.
+    vi.spyOn(ExtensionManager.prototype, 'refreshCache').mockResolvedValue(
+      undefined,
+    );
+    vi.spyOn(ExtensionManager.prototype, 'getLoadedExtensions').mockReturnValue(
+      [],
+    );
+    const workspaceDir = await mkdtemp(
+      join(tmpdir(), 'o1-code-daemon-settings-isolation-'),
+    );
+    delete process.env['O1CODE_LEAK_PROBE'];
+    try {
+      await mkdir(join(workspaceDir, '.o1-code'));
+      await writeFile(
+        join(workspaceDir, '.o1-code', '.env'),
+        'O1CODE_LEAK_PROBE=leaked\n',
+      );
+      await writeFile(
+        join(workspaceDir, '.o1-code', 'settings.json'),
+        JSON.stringify({ general: { language: 'zh_TW' } }),
+      );
+      const controller = createExtensionsController({
+        boundWorkspace: workspaceDir,
+        bridge: {} as AcpSessionBridge,
+        workspace: {} as DaemonWorkspaceService,
+      });
+
+      // The status route runs with the workspace's trust unknown.
+      await controller.buildLocalExtensionsStatus();
+
+      expect(process.env['O1CODE_LEAK_PROBE']).toBeUndefined();
+      expect(resolveLanguageSetting).not.toHaveBeenCalledWith('zh_TW');
+    } finally {
+      delete process.env['O1CODE_LEAK_PROBE'];
+      await rm(workspaceDir, { recursive: true, force: true });
+    }
+  });
+
   it('invalidates the status cache when the current language changes', async () => {
     const refreshCache = vi
       .spyOn(ExtensionManager.prototype, 'refreshCache')
