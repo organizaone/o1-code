@@ -51,6 +51,8 @@ follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   (available commands, current mode, session info) is dropped and logged without its payload,
   instead of closing the channel; the next snapshot of the same kind replaces it. Any other
   oversized notification still closes the channel.
+- Pressing Enter while the completion dropdown is still loading ("Loading suggestions…" with an
+  empty list) submits the typed prompt instead of being swallowed with nothing to accept.
 
 ## [0.4.0] - 2026-09-30
 

@@ -1577,7 +1577,13 @@ export const InputPrompt: React.FC<InputPromptProps> = ({
           }
         }
 
-        if (keyMatchers[Command.ACCEPT_SUGGESTION](key) && !key.paste) {
+        // With nothing to accept (the list is still loading), Enter falls
+        // through to submit instead of being swallowed here.
+        if (
+          keyMatchers[Command.ACCEPT_SUGGESTION](key) &&
+          !key.paste &&
+          completion.suggestions.length > 0
+        ) {
           // Capture the suggestion BEFORE acceptActiveCompletionSuggestion
           // mutates the buffer/index. When the suggestion's command opted
           // into `submitOnAccept` (a leaf command whose bare action takes
