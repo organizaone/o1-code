@@ -24,12 +24,30 @@ export function resetEncodingCache(): void {
 }
 
 /**
+ * The label itself when `new TextDecoder(label)` accepts it, else null. The
+ * shell decodes command output with TextDecoder, which throws on a label it
+ * does not know: the Unix locale "C", or a DOS code page such as cp437.
+ */
+function toDecodableLabel(label: string): string | null {
+  try {
+    new TextDecoder(label);
+    return label;
+  } catch {
+    return null;
+  }
+}
+
+/**
  * Detects the encoding of a buffer.
  *
- * Strategy: try UTF-8 first, then chardet, then system encoding.
+ * Strategy: UTF-8 first, then a non-UTF-8 system encoding, then chardet.
  * UTF-8 is tried first because modern developer tools, PowerShell Core,
  * git, node, and most CLI tools output UTF-8. Legacy codepage bytes
  * (0x80-0xFF) rarely form valid multi-byte UTF-8 sequences by accident.
+ * For the rest, the console's own code page is authoritative: chardet
+ * misreads legacy code pages (CP-866 Cyrillic comes out as windows-1252 or
+ * KOI8-R). Chardet remains the fallback when the system encoding is UTF-8
+ * or unknown.
  *
  * This function should be called on the **complete** output buffer
  * (after the command finishes), not on individual streaming chunks,
@@ -42,17 +60,16 @@ export function getCachedEncodingForBuffer(buffer: Buffer): string {
     return 'utf-8';
   }
 
-  // Buffer is not valid UTF-8 — try chardet, then system encoding
-  const detected = detectEncodingFromBuffer(buffer);
-  if (detected) {
-    return detected;
-  }
-
   if (cachedSystemEncoding === undefined) {
     cachedSystemEncoding = getSystemEncoding();
   }
-  if (cachedSystemEncoding) {
+  if (cachedSystemEncoding && cachedSystemEncoding !== 'utf-8') {
     return cachedSystemEncoding;
+  }
+
+  const detected = detectEncodingFromBuffer(buffer);
+  if (detected) {
+    return detected;
   }
 
   // Last resort
@@ -113,12 +130,12 @@ export function getSystemEncoding(): string | null {
 
   const match = locale.match(/\.(.+)/); // e.g., "en_US.UTF-8"
   if (match && match[1]) {
-    return match[1].toLowerCase();
+    return toDecodableLabel(match[1].toLowerCase());
   }
 
   // Handle cases where locale charmap returns just the encoding name (e.g., "UTF-8")
   if (locale && !locale.includes('.')) {
-    return locale.toLowerCase();
+    return toDecodableLabel(locale.toLowerCase());
   }
 
   return null;
@@ -136,7 +153,7 @@ export function windowsCodePageToEncoding(cp: number): string | null {
     437: 'cp437',
     850: 'cp850',
     852: 'cp852',
-    866: 'cp866',
+    866: 'ibm866',
     874: 'windows-874',
     932: 'shift_jis',
     936: 'gbk',
@@ -157,7 +174,15 @@ export function windowsCodePageToEncoding(cp: number): string | null {
   };
 
   if (map[cp]) {
-    return map[cp];
+    const label = toDecodableLabel(map[cp]);
+    if (!label) {
+      // DOS code pages 437/850/852 have no TextDecoder label; callers fall
+      // back to content detection rather than throw on decode.
+      debugLogger.warn(
+        `Windows code page ${cp} ("${map[cp]}") cannot be decoded by TextDecoder; detecting the encoding from the output instead.`,
+      );
+    }
+    return label;
   }
 
   debugLogger.warn(`Unable to determine encoding for windows code page ${cp}.`);

@@ -19,6 +19,15 @@ import type { spawn } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import { mockCompromisedLock } from '../test-utils/mock-compromised-lock.js';
 
+// Real child_process, with execFileSync replaceable per test: it is how the
+// updater asks npm for its global configuration.
+const childProcess = vi.hoisted(() => ({ execFileSync: vi.fn() }));
+vi.mock('node:child_process', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('node:child_process')>();
+  childProcess.execFileSync.mockImplementation(actual.execFileSync);
+  return { ...actual, execFileSync: childProcess.execFileSync };
+});
+
 const temporaryDirectories: string[] = [];
 
 function makeTemporaryDirectory(): string {
@@ -75,6 +84,45 @@ afterEach(() => {
   for (const directory of temporaryDirectories.splice(0)) {
     fs.rmSync(directory, { recursive: true, force: true });
   }
+});
+
+describe('global npm configuration', () => {
+  it('reads it from the npm child environment when npm refuses to print it', () => {
+    // npm will not print a value that looks like a secret, and a UUID in the
+    // global prefix is enough to trip its redaction; its child processes
+    // still receive the resolved configuration.
+    vi.stubEnv('NPM_CONFIG_GLOBALCONFIG', '');
+    const npmrc = path.join(
+      os.tmpdir(),
+      'node-123e4567-e89b-12d3-a456-426614174000',
+      'etc',
+      'npmrc',
+    );
+    const calls: string[][] = [];
+    childProcess.execFileSync.mockImplementation((_file, args) => {
+      calls.push([...(args as string[])]);
+      if (calls.length === 1) {
+        throw new Error('npm ERR! The globalconfig option is protected');
+      }
+      return `\n${npmrc}\n`;
+    });
+    const root = makeTemporaryDirectory();
+
+    const update = prepareManagedNpmUpdate(
+      '2.0.0',
+      writeBaseInstallation(root),
+      path.join(root, 'updates'),
+    );
+
+    expect(update.installArgs.slice(1, 3)).toEqual(['--globalconfig', npmrc]);
+    expect(calls[0]?.slice(1)).toEqual([
+      'config',
+      'get',
+      'globalconfig',
+      '--global',
+    ]);
+    expect(calls[1]?.slice(1, 4)).toEqual(['exec', '--offline', '-c']);
+  });
 });
 
 describe('managed npm update', () => {

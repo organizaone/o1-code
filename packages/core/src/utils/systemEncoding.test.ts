@@ -49,8 +49,7 @@ describe('Shell Command Processor - Encoding Functions', () => {
 
   describe('windowsCodePageToEncoding', () => {
     it('should map common Windows code pages correctly', () => {
-      expect(windowsCodePageToEncoding(437)).toBe('cp437');
-      expect(windowsCodePageToEncoding(850)).toBe('cp850');
+      expect(windowsCodePageToEncoding(866)).toBe('ibm866');
       expect(windowsCodePageToEncoding(65001)).toBe('utf-8');
       expect(windowsCodePageToEncoding(1252)).toBe('windows-1252');
       expect(windowsCodePageToEncoding(932)).toBe('shift_jis');
@@ -63,6 +62,14 @@ describe('Shell Command Processor - Encoding Functions', () => {
 
     it('should return null for unmapped code pages and warn', () => {
       expect(windowsCodePageToEncoding(99999)).toBe(null);
+    });
+
+    it('returns null for DOS code pages TextDecoder cannot decode', () => {
+      // The shell decodes with TextDecoder, which knows no cp437/cp850/cp852;
+      // handing it one of those labels throws instead of decoding.
+      expect(windowsCodePageToEncoding(437)).toBe(null);
+      expect(windowsCodePageToEncoding(850)).toBe(null);
+      expect(windowsCodePageToEncoding(852)).toBe(null);
     });
 
     it('should handle all Windows-specific code pages', () => {
@@ -147,10 +154,10 @@ describe('Shell Command Processor - Encoding Functions', () => {
     });
 
     it('should handle chcp output with extra whitespace', () => {
-      mockedExecSync.mockReturnValue('Active code page:   437   ');
+      mockedExecSync.mockReturnValue('Active code page:   1252   ');
 
       const result = getSystemEncoding();
-      expect(result).toBe('cp437');
+      expect(result).toBe('windows-1252');
     });
 
     it('should return null when chcp command fails', () => {
@@ -236,11 +243,20 @@ describe('Shell Command Processor - Encoding Functions', () => {
       expect(result).toBe(null);
     });
 
-    it('should handle locale without encoding (no dot)', () => {
+    it('returns null for a locale TextDecoder cannot decode, such as C', () => {
       process.env['LANG'] = 'C';
 
       const result = getSystemEncoding();
-      expect(result).toBe('c');
+      expect(result).toBe(null);
+    });
+
+    it('keeps a decodable locale given without a dot', () => {
+      process.env['LANG'] = '';
+      process.env['LC_ALL'] = '';
+      process.env['LC_CTYPE'] = '';
+      mockedExecSync.mockReturnValue('ISO-8859-15\n');
+
+      expect(getSystemEncoding()).toBe('iso-8859-15');
     });
 
     it('should handle empty locale environment variables', () => {
@@ -253,11 +269,11 @@ describe('Shell Command Processor - Encoding Functions', () => {
       expect(result).toBe('utf-8');
     });
 
-    it('should return locale as-is when locale format has no dot', () => {
+    it('returns null for a dotless locale that is not an encoding', () => {
       process.env['LANG'] = 'invalid_format';
 
       const result = getSystemEncoding();
-      expect(result).toBe('invalid_format');
+      expect(result).toBe(null);
     });
 
     it('should prioritize LC_ALL over other environment variables', () => {
@@ -367,6 +383,38 @@ describe('Shell Command Processor - Encoding Functions', () => {
       expect(result1).toBe('iso-8859-1');
       expect(result2).toBe('utf-16');
       expect(mockedChardetDetect).toHaveBeenCalledTimes(2);
+    });
+
+    describe('detection order for bytes that are not UTF-8', () => {
+      // "Ощибка" in CP-866: chardet reads these bytes as windows-1252 or
+      // KOI8-R, never as ibm866; the console's code page is authoritative.
+      const cp866Bytes = Buffer.from([0x8e, 0xe9, 0xa8, 0xa1, 0xaa, 0xa0]);
+
+      it('consults a non-UTF-8 system code page before chardet', () => {
+        mockedOsPlatform.mockReturnValue('win32');
+        mockedExecSync.mockReturnValue('Active code page: 866');
+        mockedChardetDetect.mockReturnValue('windows-1252');
+
+        expect(getCachedEncodingForBuffer(cp866Bytes)).toBe('ibm866');
+        expect(mockedChardetDetect).not.toHaveBeenCalled();
+      });
+
+      it('keeps chardet as the fallback when the system encoding is UTF-8', () => {
+        mockedOsPlatform.mockReturnValue('win32');
+        mockedExecSync.mockReturnValue('Active code page: 65001');
+        mockedChardetDetect.mockReturnValue('ISO-8859-1');
+
+        expect(getCachedEncodingForBuffer(cp866Bytes)).toBe('iso-8859-1');
+        expect(mockedChardetDetect).toHaveBeenCalledWith(cp866Bytes);
+      });
+
+      it('falls back to chardet when the code page has no decodable label', () => {
+        mockedOsPlatform.mockReturnValue('win32');
+        mockedExecSync.mockReturnValue('Active code page: 437');
+        mockedChardetDetect.mockReturnValue('ISO-8859-1');
+
+        expect(getCachedEncodingForBuffer(cp866Bytes)).toBe('iso-8859-1');
+      });
     });
 
     it('should handle Windows system encoding', () => {
