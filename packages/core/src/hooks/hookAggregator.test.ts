@@ -12,6 +12,7 @@ import type {
   HookOutput,
   PermissionRequestHookOutput,
   PostToolBatchHookOutput,
+  PreToolUseHookOutput,
 } from './types.js';
 
 describe('HookAggregator', () => {
@@ -129,6 +130,89 @@ describe('HookAggregator', () => {
         HookEventName.PreToolUse,
       );
       expect(result.finalOutput?.decision).toBe('block');
+    });
+
+    const permission = (
+      permissionDecision: string,
+      permissionDecisionReason: string,
+    ): HookOutput => ({
+      hookSpecificOutput: {
+        hookEventName: 'PreToolUse',
+        permissionDecision,
+        permissionDecisionReason,
+      },
+    });
+
+    it.each<[string, HookOutput[], 'allow' | 'deny' | 'ask']>([
+      [
+        'deny then allow',
+        [permission('deny', 'no'), permission('allow', 'yes')],
+        'deny',
+      ],
+      [
+        'allow then deny',
+        [permission('allow', 'yes'), permission('deny', 'no')],
+        'deny',
+      ],
+      [
+        'allow then a top-level block',
+        [permission('allow', 'yes'), { decision: 'block', reason: 'no' }],
+        'deny',
+      ],
+      [
+        'ask then allow',
+        [permission('ask', 'check'), permission('allow', 'yes')],
+        'ask',
+      ],
+      [
+        'deny then ask',
+        [permission('deny', 'no'), permission('ask', 'check')],
+        'deny',
+      ],
+      [
+        'allow then allow',
+        [permission('allow', 'yes'), permission('allow', 'yes')],
+        'allow',
+      ],
+    ])(
+      'resolves PreToolUse permission to the most restrictive decision: %s',
+      (_label, outputs, expected) => {
+        const results: HookExecutionResult[] = outputs.map((output) => ({
+          hookConfig: { type: HookType.Command, command: 'echo test' },
+          eventName: HookEventName.PreToolUse,
+          success: true,
+          output,
+          duration: 100,
+        }));
+
+        const result = aggregator.aggregateResults(
+          results,
+          HookEventName.PreToolUse,
+        );
+        const output = result.finalOutput as PreToolUseHookOutput;
+        expect(output.getPermissionDecision()).toBe(expected);
+      },
+    );
+
+    it('reports the reason of the hook whose decision won', () => {
+      const results: HookExecutionResult[] = [
+        permission('allow', 'looks fine'),
+        permission('deny', 'writes outside the repo'),
+      ].map((output) => ({
+        hookConfig: { type: HookType.Command, command: 'echo test' },
+        eventName: HookEventName.PreToolUse,
+        success: true,
+        output,
+        duration: 100,
+      }));
+
+      const output = aggregator.aggregateResults(
+        results,
+        HookEventName.PreToolUse,
+      ).finalOutput as PreToolUseHookOutput;
+      expect(output.getPermissionDecisionReason()).toBe(
+        'writes outside the repo',
+      );
     });
 
     it('should use last stopReason', () => {
