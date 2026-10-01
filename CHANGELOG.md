@@ -57,6 +57,9 @@ follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   workspace's `.env` into the daemon's shared environment, without consuming the one-shot
   settings-corruption marker, and without parsing the settings of a workspace whose trust is not
   established.
+- A process relaunched by the CLI's own supervisor (streaming, ACP and launches that need extra
+  Node flags) exits at most two minutes after that supervisor is gone, instead of running on
+  indefinitely when the host kills the supervisor and keeps the child's input open.
 
 ## [0.4.0] - 2026-09-30
 

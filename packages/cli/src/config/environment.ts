@@ -88,6 +88,9 @@ const settingsEnvSourcedKeys = new Set<string>();
 // Inherited provenance marks trust, not ownership of this process's reload scope.
 const inheritedDotEnvKeys = new Set<string>();
 const inheritedSettingsEnvKeys = new Set<string>();
+// Set only by our own supervisor's spawn; a child of this process does not
+// inherit it (see `getRelaunchEnvProvenance`).
+let relaunchedBySupervisor = false;
 
 // Validate inherited metadata before loading files, then preserve it for child CLIs.
 const inheritedProvenance = process.env[PRIVATE_RELAUNCH_ENV_PROVENANCE];
@@ -111,6 +114,8 @@ if (inheritedProvenance) {
   }
   for (const key of sources.dotEnv) inheritedDotEnvKeys.add(key);
   for (const key of sources.settingsEnv) inheritedSettingsEnvKeys.add(key);
+  relaunchedBySupervisor =
+    'supervised' in sources && sources.supervised === true;
   // Keys the parent exported from the credential store stay replaceable here,
   // so an /auth that saves a new key takes effect without a restart.
   if ('credentialEnv' in sources && Array.isArray(sources.credentialEnv)) {
@@ -128,7 +133,17 @@ export function hasLoadedEnvironmentValues(): boolean {
   return dotEnvSourcedKeys.size > 0 || settingsEnvSourcedKeys.size > 0;
 }
 
-export function getRelaunchEnvProvenance(): Record<string, string> {
+/**
+ * Whether this process is the child our own supervisor spawned (not a process
+ * replaced in place, not one a host started directly).
+ */
+export function wasRelaunchedBySupervisor(): boolean {
+  return relaunchedBySupervisor;
+}
+
+export function getRelaunchEnvProvenance(
+  options: { supervised?: boolean } = {},
+): Record<string, string> {
   return {
     [PRIVATE_RELAUNCH_ENV_PROVENANCE]: JSON.stringify({
       dotEnv: [...new Set([...inheritedDotEnvKeys, ...dotEnvSourcedKeys])],
@@ -137,6 +152,8 @@ export function getRelaunchEnvProvenance(): Record<string, string> {
       ],
       // Names only; the values travel in the environment itself.
       credentialEnv: exportedCredentialEnvKeys(),
+      // Marks the one child the supervisor spawns; never passed down further.
+      ...(options.supervised ? { supervised: true } : {}),
     }),
   };
 }
