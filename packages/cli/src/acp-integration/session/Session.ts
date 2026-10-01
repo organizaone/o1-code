@@ -543,6 +543,9 @@ function isTodoStopGuardPromptText(text: unknown): text is string {
  */
 const ACP_API_USER_PROMPT_OPTIONS = {
   excludeTextPart: isTodoStopGuardPromptText,
+  // A delivered background-notification turn never produced a client-visible
+  // turn, so counting it would shift every rewind ordinal after it.
+  excludeTaskNotifications: true,
 };
 
 /** Finalizes preparations without allowing ACP cleanup to change the stream outcome. */

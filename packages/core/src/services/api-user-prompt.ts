@@ -8,6 +8,8 @@ import type { Content } from '@google/genai';
 import {
   getStartupContextLength,
   isSystemReminderContent,
+  SYSTEM_REMINDER_CLOSE,
+  SYSTEM_REMINDER_OPEN,
 } from '../core/environmentContext.js';
 import { isClearedMediaPlaceholder } from './microcompaction/microcompact.js';
 
@@ -26,6 +28,25 @@ import { isClearedMediaPlaceholder } from './microcompaction/microcompact.js';
  * than as separate implementations: a change to the shared part cannot land on
  * one surface only, and each divergence has to be opted into by name.
  */
+const TASK_NOTIFICATION_OPEN = '<task-notification>';
+const TASK_NOTIFICATION_CLOSE = '</task-notification>';
+
+function isWrappedIn(text: unknown, open: string, close: string): boolean {
+  return (
+    typeof text === 'string' &&
+    text.startsWith(open) &&
+    text.trimEnd().endsWith(close)
+  );
+}
+
+/** A reminder or a notification envelope: structure the model reads, not a prompt. */
+function isStructuralText(text: unknown): boolean {
+  return (
+    isWrappedIn(text, SYSTEM_REMINDER_OPEN, SYSTEM_REMINDER_CLOSE) ||
+    isWrappedIn(text, TASK_NOTIFICATION_OPEN, TASK_NOTIFICATION_CLOSE)
+  );
+}
+
 export interface ApiUserPromptOptions {
   /**
    * Exclude entries whose only text is a microcompaction media-clear
@@ -58,6 +79,15 @@ export interface ApiUserPromptOptions {
    * client can rewind to, so counting them would shift every ordinal.
    */
   excludeTextPart?: (text: string) => boolean;
+
+  /**
+   * Exclude delivered background-notification turns: a user entry whose every
+   * part is a `<system-reminder>` or a `<task-notification>` envelope. The
+   * daemon lands them in history as plain user entries that never produced a
+   * client-visible turn, so counting them inflates the rewindable turn count
+   * and shifts every cut point after them.
+   */
+  excludeTaskNotifications?: boolean;
 }
 
 /**
@@ -82,6 +112,13 @@ export function isApiUserPrompt(
   // mid-history MCP added-tool reminders. Counting them would shift the
   // truncation index and silently drop a real turn's context.
   if (isSystemReminderContent(content)) return false;
+
+  if (
+    options?.excludeTaskNotifications &&
+    content.parts.every((part) => isStructuralText(part.text))
+  ) {
+    return false;
+  }
 
   const excludeTextPart = options?.excludeTextPart;
   if (

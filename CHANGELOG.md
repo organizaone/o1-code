@@ -60,6 +60,9 @@ follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - A process relaunched by the CLI's own supervisor (streaming, ACP and launches that need extra
   Node flags) exits at most two minutes after that supervisor is gone, instead of running on
   indefinitely when the host kills the supervisor and keeps the child's input open.
+- ACP rewind no longer counts the turns the daemon adds when it delivers background
+  notifications: they never produced a client-visible turn, and counting them shifted every rewind
+  point after them.
 
 ## [0.4.0] - 2026-09-30
 
