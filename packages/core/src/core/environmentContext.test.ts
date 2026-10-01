@@ -241,6 +241,43 @@ describe('getInitialChatHistory', () => {
     vi.restoreAllMocks();
   });
 
+  describe('skills listing and the Skill tool', () => {
+    const skillEntry: AvailableSkillEntry = {
+      name: 'test-skill',
+      description: 'A test skill',
+      level: 'project',
+    };
+
+    beforeEach(() => {
+      mockConfig.getSkillManager = vi.fn().mockReturnValue({});
+      vi.mocked(collectAvailableSkillEntries).mockResolvedValue({
+        availableSkills: [],
+        pendingConditionalSkillNames: new Set(),
+        modelInvocableCommands: [],
+        entries: [skillEntry],
+      });
+    });
+
+    it('omits the listing when the Skill tool is not registered', async () => {
+      // `--exclude-tools skill` keeps the tool out of the registry; a listing
+      // the model cannot act on only costs input tokens on every request.
+      const [history] = await getInitialChatHistory(mockConfig as Config);
+      const text = JSON.stringify(history);
+      expect(text).not.toContain('<available_skills>');
+      expect(text).not.toContain('No skills are currently available');
+    });
+
+    it('includes the listing when the Skill tool is registered', async () => {
+      mockToolRegistry.getTool = vi
+        .fn()
+        .mockImplementation((name: string) =>
+          name === ToolNames.SKILL ? {} : null,
+        );
+      const [history] = await getInitialChatHistory(mockConfig as Config);
+      expect(JSON.stringify(history)).toContain('<available_skills>');
+    });
+  });
+
   it('includes startup context when skipStartupContext is false', async () => {
     const [history] = await getInitialChatHistory(mockConfig as Config);
 

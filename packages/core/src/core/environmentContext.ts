@@ -531,8 +531,11 @@ export async function getInitialChatHistory(
 
   const includeDeferredToolsReminder =
     options.includeDeferredToolsReminder ?? true;
+  // A listing the model cannot act on (`--exclude-tools skill`, a core-tools
+  // allowlist without it) only costs input tokens on every request.
   const includeAvailableSkillsReminder =
-    options.includeAvailableSkillsReminder ?? true;
+    (options.includeAvailableSkillsReminder ?? true) &&
+    !!toolRegistry.getTool(ToolNames.SKILL);
   const startupReminder = config.getSkipStartupContext()
     ? null
     : await buildStartupContextReminder(config);

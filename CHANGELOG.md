@@ -30,6 +30,9 @@ follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   (a UUID in the global prefix is enough): the path is read from npm's own child environment.
 - When the automatic update fails, the message names the cause instead of only "try updating
   manually".
+- The `<available_skills>` listing is sent only when the Skill tool is available: not when the
+  tool is excluded from the session, and not to a subagent whose `disallowedTools` names it. The
+  listing cost input tokens on every request for a tool the model could not call.
 
 ## [0.4.0] - 2026-09-30
 
