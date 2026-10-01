@@ -1467,6 +1467,34 @@ describe('modelCommand', () => {
     });
   });
 
+  it('strips credentials from the endpoint shown with the vision model', async () => {
+    mockContext = createMockCommandContext({
+      executionMode: 'non_interactive',
+      invocation: { args: '--vision' },
+      services: {
+        config: createMockConfig({
+          model: 'qwen-max',
+          authType: AuthType.USE_OPENAI,
+        }),
+        settings: {
+          merged: {
+            visionModel:
+              'qwen-vl-max\0https://user:sk-secret@vision.example.com/v1',
+          } as Record<string, unknown>,
+        },
+      },
+    });
+
+    const result = await modelCommand.action!(mockContext, '--vision');
+
+    expect(result).toEqual({
+      type: 'message',
+      messageType: 'info',
+      content:
+        'Current vision model: qwen-vl-max (https://<redacted>@vision.example.com/v1)\nUse "/model --vision <model-id>" to set the vision bridge model.',
+    });
+  });
+
   it('should return current vision model outside interactive mode', async () => {
     mockContext = createMockCommandContext({
       executionMode: 'non_interactive',

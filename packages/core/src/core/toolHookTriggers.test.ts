@@ -169,6 +169,36 @@ describe('toolHookTriggers', () => {
       });
     });
 
+    it('keeps the additional context when the tool is denied', async () => {
+      // The context is what the hook wants the model to read, deny or not.
+      const mockMessageBus = createMockMessageBus();
+      (mockMessageBus.request as ReturnType<typeof vi.fn>).mockResolvedValue({
+        success: true,
+        output: {
+          hookSpecificOutput: {
+            permissionDecision: 'deny',
+            permissionDecisionReason: 'Tool not allowed',
+            additionalContext: 'Use the read tool instead',
+          },
+        },
+      });
+
+      const result = await firePreToolUseHook(
+        mockMessageBus,
+        'test-tool',
+        {},
+        'test-id',
+        'auto',
+      );
+
+      expect(result).toEqual({
+        shouldProceed: false,
+        blockReason: 'Tool not allowed',
+        blockType: 'denied',
+        additionalContext: 'Use the read tool instead',
+      });
+    });
+
     it('should return shouldProceed: false with ask type when confirmation is required', async () => {
       const mockOutput = {
         hookSpecificOutput: {

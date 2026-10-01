@@ -30,6 +30,15 @@ follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   (a UUID in the global prefix is enough): the path is read from npm's own child environment.
 - When the automatic update fails, the message names the cause instead of only "try updating
   manually".
+- The `<available_skills>` listing is sent only when the Skill tool is available: not when the
+  tool is excluded from the session, and not to a subagent whose `disallowedTools` names it. The
+  listing cost input tokens on every request for a tool the model could not call.
+- The `additionalContext` a `PreToolUse` hook returns reaches the model with that call's result,
+  whatever the decision: appended to the output of an allowed call, including one the user
+  approved after an `ask`, and to the error of a denied one. Before, it was dropped.
+- The endpoint stored with the vision and image model selectors is shown without its
+  credentials: `/model --vision` and the daemon's provider status print `https://<redacted>@host`
+  when the URL carries `user:password@`.
 
 ## [0.4.0] - 2026-09-30
 

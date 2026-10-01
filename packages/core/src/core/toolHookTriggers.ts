@@ -171,6 +171,12 @@ export async function firePreToolUseHook(
       response.output,
     ) as PreToolUseHookOutput;
 
+    // The context is for the model whatever the decision: a deny often says
+    // what to do instead.
+    const additionalContext = preToolOutput.getAdditionalContext();
+    const context =
+      additionalContext !== undefined ? { additionalContext } : {};
+
     // Check if execution was denied
     if (preToolOutput.isDenied()) {
       return {
@@ -179,6 +185,7 @@ export async function firePreToolUseHook(
           preToolOutput.getPermissionDecisionReason() ||
           preToolOutput.getEffectiveReason(),
         blockType: 'denied',
+        ...context,
       };
     }
 
@@ -190,6 +197,7 @@ export async function firePreToolUseHook(
           preToolOutput.getPermissionDecisionReason() ||
           'User confirmation required',
         blockType: 'ask',
+        ...context,
       };
     }
 
@@ -199,11 +207,9 @@ export async function firePreToolUseHook(
         shouldProceed: false,
         blockReason: preToolOutput.getEffectiveReason(),
         blockType: 'stop',
+        ...context,
       };
     }
-
-    // Get additional context
-    const additionalContext = preToolOutput.getAdditionalContext();
 
     return {
       shouldProceed: true,

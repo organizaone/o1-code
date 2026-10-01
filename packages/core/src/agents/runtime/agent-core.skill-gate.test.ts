@@ -163,15 +163,21 @@ describe('AgentCore skill-gate inputs', () => {
       ).willHaveSkillTool.call(core);
     }
 
-    it('announces at startup and refuses at the gate', async () => {
+    it('stays silent at startup and refuses at the gate when the blocklist names Skill', async () => {
       // `toolConfig` says the agent inherits everything; the blocklist removes
-      // SKILL from the declarations afterwards.
+      // SKILL from the declarations afterwards, and the startup snapshot reads
+      // the blocklist too, so the listing is never announced to an agent that
+      // cannot load a skill.
       const core = makeCore({
         tools: ['*'],
         disallowedTools: [ToolNames.SKILL],
       });
-      expect(snapshot(core)).toBe(true);
+      expect(snapshot(core)).toBe(false);
       expect(gate(core, await declaredNames(core))).toBe(false);
+    });
+
+    it('announces at startup for a wildcard without a blocklist', () => {
+      expect(snapshot(makeCore({ tools: ['*'] }))).toBe(true);
     });
 
     it('stays silent at startup and opens at the gate', async () => {

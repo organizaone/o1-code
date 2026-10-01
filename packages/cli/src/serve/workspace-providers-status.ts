@@ -9,6 +9,7 @@ import {
   APPROVAL_MODES,
   createDebugLogger,
   ModelsConfig,
+  redactProxyCredentials,
   tokenLimit,
 } from '@organizaone/o1-code-core';
 import { resolveReasoningCapabilities } from '@organizaone/o1-code-core/core/reasoning-overrides.js';
@@ -143,10 +144,12 @@ function buildWorkspaceProvidersStatus(
       typeof settings.fastModel === 'string' && settings.fastModel.length > 0
         ? settings.fastModel
         : undefined;
+    // The selector may carry the provider's endpoint, and an endpoint may
+    // carry userinfo: a credential, which this payload must not publish.
     const visionModelId =
       typeof settings.visionModel === 'string' &&
       settings.visionModel.length > 0
-        ? settings.visionModel
+        ? redactProxyCredentials(settings.visionModel)
         : undefined;
     const approvalMode = resolveApprovalMode(settings);
     const providers = new Map<string, ServeWorkspaceProviderStatus>();

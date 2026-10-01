@@ -21,6 +21,7 @@ import {
   isImageCapable,
   isImageGenerationCapable,
   parseVisionModelSetting,
+  redactProxyCredentials,
   resolveModelId,
 } from '@organizaone/o1-code-core';
 import { SettingScope, type LoadedSettings } from '../../config/settings.js';
@@ -114,8 +115,9 @@ function persistScopeSpread(
 function formatVisionModelSettingForDisplay(setting: string): string {
   const parsed = parseVisionModelSetting(setting);
   if (!parsed) return setting.replace(/\0/g, '\\0');
+  // The endpoint may carry userinfo, which is a credential.
   return parsed.baseUrl
-    ? `${parsed.selector} (${parsed.baseUrl})`
+    ? `${parsed.selector} (${redactProxyCredentials(parsed.baseUrl)})`
     : parsed.selector;
 }
 

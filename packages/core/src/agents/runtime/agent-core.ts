@@ -597,6 +597,13 @@ export class AgentCore {
     if (!this.toolConfig) {
       return !EXCLUDED_TOOLS_FOR_SUBAGENTS.has(ToolNames.SKILL);
     }
+    if (
+      this.toolConfig.disallowedTools?.some((pattern) =>
+        matchesToolPattern(pattern, ToolNames.SKILL),
+      )
+    ) {
+      return false;
+    }
     const asStrings = this.toolConfig.tools.filter(
       (t): t is string => typeof t === 'string',
     );
