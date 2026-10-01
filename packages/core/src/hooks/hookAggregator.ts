@@ -141,7 +141,7 @@ export class HookAggregator {
    */
   private mergeWithOrLogic(
     outputs: HookOutput[],
-    _eventName?: HookEventName,
+    eventName?: HookEventName,
   ): HookOutput {
     const merged: HookOutput = {};
     const reasons: string[] = [];
@@ -237,12 +237,49 @@ export class HookAggregator {
     if (artifacts.length > 0) {
       hookSpecificOutput['artifacts'] = artifacts;
     }
+    if (eventName === HookEventName.PreToolUse) {
+      this.resolvePreToolUsePermission(outputs, hookSpecificOutput);
+    }
 
     if (Object.keys(hookSpecificOutput).length > 0) {
       merged.hookSpecificOutput = hookSpecificOutput;
     }
 
     return merged;
+  }
+
+  /**
+   * The permission of several PreToolUse hooks is the most restrictive one
+   * any of them gave (deny, then ask, then allow), in whichever field it was
+   * given. Merging `hookSpecificOutput` field by field instead let a later
+   * hook's allow override an earlier hook's deny.
+   */
+  private resolvePreToolUsePermission(
+    outputs: HookOutput[],
+    hookSpecificOutput: Record<string, unknown>,
+  ): void {
+    const rank = { allow: 0, ask: 1, deny: 2 } as const;
+    let winner: PreToolUseHookOutput | undefined;
+    let winnerDecision: keyof typeof rank | undefined;
+    for (const output of outputs) {
+      const candidate = new PreToolUseHookOutput(output);
+      const decision = candidate.getPermissionDecision();
+      if (
+        decision !== undefined &&
+        (winnerDecision === undefined || rank[decision] > rank[winnerDecision])
+      ) {
+        winner = candidate;
+        winnerDecision = decision;
+      }
+    }
+    if (winner === undefined || winnerDecision === undefined) return;
+    hookSpecificOutput['permissionDecision'] = winnerDecision;
+    const reason = winner.getPermissionDecisionReason();
+    if (reason === undefined) {
+      delete hookSpecificOutput['permissionDecisionReason'];
+    } else {
+      hookSpecificOutput['permissionDecisionReason'] = reason;
+    }
   }
 
   /**

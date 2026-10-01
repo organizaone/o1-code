@@ -415,7 +415,11 @@ function consolidateModelResponseParts(allModelParts: Part[]): Part[] {
 
   const flushThoughtEpisode = () => {
     if (!hasOpenEpisode) return;
-    const text = openEpisodeText.trim();
+    // The signature covers the exact bytes the provider streamed, trailing
+    // "\n\n" included; trimming them makes every later request fail with
+    // "Invalid signature in thinking block".
+    const text =
+      openEpisodeSignature !== '' ? openEpisodeText : openEpisodeText.trim();
     // A signature-only episode (no text) is kept, not dropped: it is
     // still potentially replayable per Anthropic's spec, and this is
     // the ACTIVE (latest) turn's thinking, which must replay byte-exact
