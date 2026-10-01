@@ -187,7 +187,9 @@ export function classifySedCommandSafety(args: string[]): SedScriptSafety {
       if (script.startsWith('-')) return 'unknown';
       scripts.push(script);
       scriptArguments.add(i);
-    } else if (/^--(?!line-length(?:=|$))/.test(arg)) {
+    } else if (/^--(?!(?:quiet|silent)$|line-length(?:=|$))/.test(arg)) {
+      // Any other long option is unknown to the classifier; the two GNU
+      // aliases of -n fall through to SAFE_SED_OPTION below.
       return 'unknown';
     } else if (arg.startsWith('-') && !SAFE_SED_OPTION.test(arg)) {
       return 'unknown';

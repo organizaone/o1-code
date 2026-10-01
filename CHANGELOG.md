@@ -39,6 +39,20 @@ follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - The endpoint stored with the vision and image model selectors is shown without its
   credentials: `/model --vision` and the daemon's provider status print `https://<redacted>@host`
   when the URL carries `user:password@`.
+- `sed --quiet` and `sed --silent`, GNU's long forms of `-n`, are read as read-only like `-n`,
+  so they run without a confirmation prompt; a script that writes a file is still a write.
+- `web_fetch` falls back from its https upgrade to the http URL the caller gave when the https
+  connection fails because the host or network is unreachable (`EHOSTUNREACH`, `ENETUNREACH`),
+  and classifies a dual-stack host by any of its address attempts, not only the first one Node
+  reports.
+- An MCP server's OAuth discovery that advertises no client registration endpoint no longer
+  discards the `registrationUrl` configured for that server; dynamic registration uses it.
+- An ACP `session/update` snapshot too deep or too large for the channel's structure bound
+  (available commands, current mode, session info) is dropped and logged without its payload,
+  instead of closing the channel; the next snapshot of the same kind replaces it. Any other
+  oversized notification still closes the channel.
+- Pressing Enter while the completion dropdown is still loading ("Loading suggestions…" with an
+  empty list) submits the typed prompt instead of being swallowed with nothing to accept.
 
 ## [0.4.0] - 2026-09-30
 

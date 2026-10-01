@@ -978,6 +978,38 @@ describe('InputPrompt', () => {
       }
     });
 
+    it('submits on Enter while the completion list is still loading', async () => {
+      // The dropdown is render-derived and can lag the buffer: "Loading
+      // suggestions…" with an empty list has nothing to accept, so Enter
+      // must reach submit instead of being swallowed.
+      mockCommandCompletion.showSuggestions = true;
+      mockCommandCompletion.isLoadingSuggestions = true;
+      mockCommandCompletion.suggestions = [];
+      props.buffer.setText('summarize @notes.md');
+
+      vi.useFakeTimers();
+      const { stdin, unmount } = renderWithProviders(
+        <InputPrompt {...props} />,
+      );
+      try {
+        await advanceTimers(SUGGESTION_VISIBLE_WAIT_MS);
+
+        act(() => {
+          stdin.write('\r');
+        });
+        await flush();
+
+        expect(mockCommandCompletion.handleAutocomplete).not.toHaveBeenCalled();
+        expect(props.onSubmit).toHaveBeenCalledWith(
+          'summarize @notes.md',
+          expect.anything(),
+        );
+      } finally {
+        vi.useRealTimers();
+        unmount();
+      }
+    });
+
     it('does not accept a prompt suggestion while command completion is active', async () => {
       mockCommandCompletion.showSuggestions = true;
       mockCommandCompletion.suggestions = [
