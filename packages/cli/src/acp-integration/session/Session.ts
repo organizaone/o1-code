@@ -346,6 +346,7 @@ import {
   settingExistsInScope,
 } from '../../config/settingsUtils.js';
 import { recordDaemonSessionModel } from '../session-model-persistence.js';
+import { recordDaemonSessionApprovalModeFromConfig } from '../session-approval-mode-persistence.js';
 import {
   applyReasoningSelection,
   clearReasoningRequestOverrides,
@@ -11108,6 +11109,8 @@ export class Session implements SessionContext {
     }
     const previousApprovalMode = this.config.getApprovalMode();
     this.config.setApprovalMode(approvalMode);
+    // Remembered by the session, so a cold restore brings this mode back.
+    void recordDaemonSessionApprovalModeFromConfig(this.config);
     // Only plan-involving transitions touch the revision: entering PLAN starts
     // a fresh approval cycle and leaving PLAN abandons the draft, but an
     // approved workflow plan keeps executing in a non-plan mode — switching

@@ -284,6 +284,10 @@ import {
 } from './extension-skills.js';
 import { Session, registerCreateSubSessionTool } from './session/Session.js';
 import { restoreSessionModelThenAuthenticate } from './session-model-persistence.js';
+import {
+  applyRestoredSessionApprovalMode,
+  recordDaemonSessionApprovalModeFromConfig,
+} from './session-approval-mode-persistence.js';
 import { HistoryReplayer } from './session/history-replayer.js';
 import { renderPreparedGoalUpdate } from './session/recovered-goal-update.js';
 import { ActiveWorkReporter } from './active-work-reporter.js';
@@ -5856,6 +5860,9 @@ class O1CodeAgent implements Agent {
         config.suppressRestorableAskUserQuestionPreservation();
       }
       const projection = config.consumeSessionRestoreProjection?.();
+      // The mode the session was left in; an explicit mode in the restore
+      // request is applied by the daemon afterwards and wins.
+      applyRestoredSessionApprovalMode(config, projection);
       const suppressRecoveredGoalPresentation =
         projection?.runtime.goalRecoverySourceUuid !== undefined &&
         projection.runtime.goalRecoverySourceUuid !==
@@ -6255,6 +6262,9 @@ class O1CodeAgent implements Agent {
         config.suppressRestorableAskUserQuestionPreservation();
       }
       const projection = config.consumeSessionRestoreProjection?.();
+      // The mode the session was left in; an explicit mode in the restore
+      // request is applied by the daemon afterwards and wins.
+      applyRestoredSessionApprovalMode(config, projection);
       let response: ResumeSessionResponse | undefined;
       try {
         if (!provisionalStandalone) {
@@ -11993,6 +12003,8 @@ class O1CodeAgent implements Agent {
           }
           throw err;
         }
+        // Remembered by the session, so a cold restore brings it back.
+        void recordDaemonSessionApprovalModeFromConfig(config);
         const current = config.getApprovalMode();
         if (current === 'plan') {
           if (previous !== 'plan') {

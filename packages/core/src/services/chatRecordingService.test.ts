@@ -2951,6 +2951,69 @@ describe('ChatRecordingService', () => {
     });
   });
 
+  describe('recordSessionApprovalMode', () => {
+    it('appends a session_approval_mode record and skips identical payloads', async () => {
+      vi.mocked(jsonl.writeLine).mockClear();
+      await expect(
+        chatRecordingService.recordSessionApprovalMode({ mode: 'auto-edit' }),
+      ).resolves.toBe(true);
+      expect(jsonl.writeLine).toHaveBeenCalledOnce();
+      const record = vi.mocked(jsonl.writeLine).mock.calls[0][1] as ChatRecord;
+      expect(record).toMatchObject({
+        type: 'system',
+        subtype: 'session_approval_mode',
+        systemPayload: { mode: 'auto-edit' },
+      });
+
+      vi.mocked(jsonl.writeLine).mockClear();
+      await expect(
+        chatRecordingService.recordSessionApprovalMode({ mode: 'auto-edit' }),
+      ).resolves.toBe(true);
+      expect(jsonl.writeLine).not.toHaveBeenCalled();
+    });
+
+    it('rejects a mode it does not know', async () => {
+      vi.mocked(jsonl.writeLine).mockClear();
+      await expect(
+        chatRecordingService.recordSessionApprovalMode({
+          mode: 'turbo',
+        } as unknown as { mode: 'auto' }),
+      ).resolves.toBe(false);
+      expect(jsonl.writeLine).not.toHaveBeenCalled();
+    });
+
+    it('re-appends the live mode after a rewind', async () => {
+      // Last-wins: a rewind may leave the only record on the abandoned
+      // branch, and a cold restore reads the branch that was kept.
+      chatRecordingService.recordUserMessage([{ text: 'first' }]);
+      await chatRecordingService.recordSessionApprovalMode({
+        mode: 'plan',
+        planExecutionMode: 'auto',
+      });
+      chatRecordingService.recordUserMessage([{ text: 'second' }]);
+      vi.mocked(jsonl.writeLine).mockClear();
+
+      chatRecordingService.rewindRecording(1, { truncatedCount: 1 });
+      await chatRecordingService.flush();
+
+      const written = vi
+        .mocked(jsonl.writeLine)
+        .mock.calls.map((call) => call[1] as ChatRecord);
+      const rewindIndex = written.findIndex(
+        (record) => record.subtype === 'rewind',
+      );
+      expect(rewindIndex).toBeGreaterThanOrEqual(0);
+      const reAppended = written.find(
+        (record, index) =>
+          index > rewindIndex && record.subtype === 'session_approval_mode',
+      );
+      expect(reAppended?.systemPayload).toEqual({
+        mode: 'plan',
+        planExecutionMode: 'auto',
+      });
+    });
+  });
+
   describe('recordSessionModel', () => {
     it('appends a session_model record and skips identical payloads', async () => {
       vi.mocked(jsonl.writeLine).mockClear();

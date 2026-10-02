@@ -14,6 +14,10 @@ follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   a link). The question is asked even for a read-only command and in every mode but YOLO, which
   runs it; in Auto it goes to manual approval, never to the classifier. A `permissions.allow`
   rule that matches the command still auto-allows it.
+- A daemon session remembers its approval mode: a change made in the session (`/session/:id/approval-mode`,
+  ACP `session/set_mode`, or the mode given at creation) is recorded in its transcript and comes
+  back on `/load` and `/resume` when the request names no mode; in Plan, the execution mode chosen
+  for leaving it comes back too. A rewind keeps the mode of the branch it keeps.
 
 ### Fixed
 

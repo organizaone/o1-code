@@ -3129,6 +3129,8 @@ Capability tag: `session_approval_mode_control`. Bridge → ACP extMethod `o1cod
 
 Change the approval mode of a live session. The new mode lands inside the ACP child's per-session `Config` immediately. Settings are NOT written to disk by default — pass `persist: true` to also write `tools.approvalMode` to workspace settings.
 
+The session remembers the change in its transcript (a `session_approval_mode` record, last wins; in Plan it carries the execution mode chosen for leaving Plan). `POST /session/:id/load` and `POST /session/:id/resume` restore that mode when the request carries no `approvalMode`; an `approvalMode` in the request wins. A rewind keeps the mode of the branch it keeps. A mode the restored session cannot take (a privileged mode in an untrusted folder) is skipped and the session keeps its current mode.
+
 Request:
 
 ```json

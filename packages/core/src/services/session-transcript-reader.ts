@@ -24,11 +24,13 @@ import type { HistoryGap } from '../utils/conversation-chain.js';
 import { parseGoalStateRecordPayloadV2 } from '../goals/goal-reducer.js';
 import type { GoalStateRecordPayloadV2 } from '../goals/goal-protocol.js';
 import {
+  isValidSessionApprovalModePayload,
   isValidSessionModelPayload,
   isTurnResultRecordPayload,
   type AttributionSnapshotPayload,
   type ChatRecord,
   type ParentSessionRecordPayload,
+  type SessionApprovalModeRecordPayload,
   type SessionModelRecordPayload,
   type SessionSourceRecordPayload,
   type TitleSource,
@@ -271,6 +273,7 @@ export interface SessionRuntimeResumeState extends SessionSourcesRestoreState {
     sourceType?: string;
     sourceId?: string;
     sessionModel?: SessionModelRecordPayload;
+    sessionApprovalMode?: SessionApprovalModeRecordPayload;
     lastAssistantModel?: string;
   };
   fileHistorySnapshots?: FileHistorySnapshot[];
@@ -2731,6 +2734,14 @@ export class SessionTranscriptReader {
       return entry?.type === 'system' && entry.subtype === 'session_model';
     });
     const sessionModelSet = new Set(sessionModelUuids);
+    const sessionApprovalModeSet = new Set(
+      index.runtimeUuids.filter((uuid) => {
+        const entry = index.byUuid.get(uuid);
+        return (
+          entry?.type === 'system' && entry.subtype === 'session_approval_mode'
+        );
+      }),
+    );
     // The legacy-model fallback reads the last assistant record's `model`.
     // Without an explicit selection it is only dispatched when it happens to
     // land in the replay/model read sets, so on a resume whose tail is a
@@ -2779,6 +2790,7 @@ export class SessionTranscriptReader {
         parentSessionUuid,
         sessionSourceUuid,
         ...sessionModelUuids,
+        ...sessionApprovalModeSet,
         lastAssistantUuid,
       ].filter((uuid): uuid is string => uuid !== undefined),
     );
@@ -2803,6 +2815,7 @@ export class SessionTranscriptReader {
     let sourceType: string | undefined;
     let sourceId: string | undefined;
     let sessionModel: SessionModelRecordPayload | undefined;
+    let sessionApprovalMode: SessionApprovalModeRecordPayload | undefined;
     let lastAssistantModel: string | undefined;
     let firstRecordSeen = false;
     const deferredPreReadRecords = new Map<string, ChatRecord>();
@@ -2836,6 +2849,10 @@ export class SessionTranscriptReader {
       } else if (sessionModelSet.has(record.uuid)) {
         if (isValidSessionModelPayload(record.systemPayload)) {
           sessionModel = record.systemPayload;
+        }
+      } else if (sessionApprovalModeSet.has(record.uuid)) {
+        if (isValidSessionApprovalModePayload(record.systemPayload)) {
+          sessionApprovalMode = record.systemPayload;
         }
       }
       if (
@@ -3052,6 +3069,7 @@ export class SessionTranscriptReader {
         ...(sourceType !== undefined ? { sourceType } : {}),
         ...(sourceId !== undefined ? { sourceId } : {}),
         ...(sessionModel !== undefined ? { sessionModel } : {}),
+        ...(sessionApprovalMode !== undefined ? { sessionApprovalMode } : {}),
         ...(lastAssistantModel !== undefined ? { lastAssistantModel } : {}),
       },
       ...(restoredFileHistory
