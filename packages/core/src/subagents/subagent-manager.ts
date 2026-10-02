@@ -1179,6 +1179,11 @@ export class SubagentManager {
       // registry they fire for every event of their declared type, regardless
       // of which agent is currently active — proper per-agent scope filtering
       // is deferred.
+      // Decided here, before the hooks are registered, so both carry the same
+      // id. Same shape AgentCore would generate on its own.
+      const subagentId =
+        options?.subagentId ??
+        `${config.name}-${randomUUID().replace(/-/g, '').slice(0, 8)}`;
       const hookSystem = runtimeContext.getHookSystem();
       const hookRegistry = hookSystem?.getRegistry();
       if (config.hooks && Object.keys(config.hooks).length > 0) {
@@ -1191,10 +1196,12 @@ export class SubagentManager {
             `Subagent "${config.name}" is a project agent in an untrusted folder; ignoring its hooks.`,
           );
         } else if (hookRegistry) {
-          const agentScope = `agent:${config.name}:${randomUUID()}`;
+          // Scoped to this invocation: the scope is the id the agent runs
+          // under, so the planner can match the hooks to its tool calls.
           unregisterAgentHooks = hookRegistry.addAgentHooks(
             config.hooks as { [K in HookEventName]?: HookDefinition[] },
-            agentScope,
+            subagentId,
+            config.name,
           );
         } else {
           // Single outer guard; nested branch on hookRegistry. The pre-fix
@@ -1219,7 +1226,7 @@ export class SubagentManager {
           options?.hooks,
           runtimeView,
           options?.taskName,
-          options?.subagentId,
+          subagentId,
         );
         return { subagent, dispose: runCleanup };
       } catch (innerError) {

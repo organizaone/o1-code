@@ -3956,6 +3956,12 @@ bad`);
         expect(typeof result.dispose).toBe('function');
         expect(addAgentHooksSpy).toHaveBeenCalledTimes(1);
         expect(unregisterSpy).not.toHaveBeenCalled();
+        // The hooks are scoped to this invocation: the scope IS the id the
+        // agent runs under, so the planner can match them at fire time.
+        const [, scope, scopeType] = addAgentHooksSpy.mock.calls[0];
+        expect(typeof scope).toBe('string');
+        expect(mockAgentHeadlessCreate.mock.calls[0][10]).toBe(scope);
+        expect(scopeType).toBe(baseConfig.name);
 
         await result.dispose();
 

@@ -479,14 +479,13 @@ and land in follow-up PRs once the prerequisite infrastructure exists
 (`effort` needs a model-layer parameter; `memory` needs a scoped memory
 subsystem; `--agent` CLI flag enables `initialPrompt`; etc.).
 
-> **`hooks` v1 limitation.** While a subagent declaring `hooks` is running,
-> its hook entries fire for every matching event in the session, not only
-> for that subagent's own tool calls. If two subagents with different
-> per-agent hook sets run concurrently, both sets fire for both agents.
-> Per-agent scope filtering at hook-firing time is left to a follow-up;
-> for v1, prefer per-agent hooks that are safe to fire globally for the
-> duration of the agent's run (e.g. logging) over hooks that mutate
-> behavior.
+> **Scope of `hooks`.** A subagent's hooks fire only for that invocation of
+> the subagent: its own tool calls and events, not the parent session's, a
+> sibling's or a nested agent's. Two invocations of the same agent running
+> at once keep their hooks apart. `SubagentStart` and `SubagentStop`, which
+> the parent fires on the agent's behalf, go to the hooks of the agent type
+> they name. Hooks from settings files, extensions and skills are not
+> scoped and keep firing for every matching event, as before.
 
 #### Example Usage
 

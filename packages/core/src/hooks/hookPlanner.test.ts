@@ -12,6 +12,7 @@ import {
   HookPlanner,
 } from './hookPlanner.js';
 import { HookEventName, HookType, HooksConfigSource } from './types.js';
+import { subagentIdentityContext } from '../utils/subagentNameContext.js';
 
 describe('HookPlanner', () => {
   let mockRegistry: HookRegistry;
@@ -274,6 +275,88 @@ describe('HookPlanner', () => {
 
       expect(result).not.toBeNull();
       expect(result!.hookConfigs).toEqual([entry.config]);
+    });
+  });
+
+  describe('agent-scoped entries', () => {
+    // A subagent's frontmatter hooks belong to one invocation of that agent:
+    // they fire for its own tool calls, not for the parent's, a sibling's or
+    // a nested agent's.
+    const scoped: HookRegistryEntry = {
+      config: { type: HookType.Command, command: 'echo scoped' },
+      source: HooksConfigSource.Session,
+      eventName: HookEventName.PreToolUse,
+      enabled: true,
+      agentScope: 'reviewer-1a2b3c4d',
+    };
+    const plain: HookRegistryEntry = {
+      config: { type: HookType.Command, command: 'echo plain' },
+      source: HooksConfigSource.User,
+      eventName: HookEventName.PreToolUse,
+      enabled: true,
+    };
+    const runAs = <T>(id: string, fn: () => T): T =>
+      subagentIdentityContext.run({ type: 'reviewer', id }, fn);
+
+    it('fires inside the owning invocation', () => {
+      vi.mocked(mockRegistry.getHooksForEvent).mockReturnValue([scoped, plain]);
+      const plan = runAs('reviewer-1a2b3c4d', () =>
+        planner.createExecutionPlan(HookEventName.PreToolUse, {
+          toolName: 'Bash',
+        }),
+      );
+      expect(
+        plan?.hookConfigs.map((c) => (c as { command?: string }).command),
+      ).toEqual(['echo scoped', 'echo plain']);
+    });
+
+    it('does not fire for the parent session nor for another invocation', () => {
+      vi.mocked(mockRegistry.getHooksForEvent).mockReturnValue([scoped, plain]);
+      const parent = planner.createExecutionPlan(HookEventName.PreToolUse, {
+        toolName: 'Bash',
+      });
+      expect(
+        parent?.hookConfigs.map((c) => (c as { command?: string }).command),
+      ).toEqual(['echo plain']);
+      const sibling = runAs('reviewer-ffffffff', () =>
+        planner.createExecutionPlan(HookEventName.PreToolUse, {
+          toolName: 'Bash',
+        }),
+      );
+      expect(
+        sibling?.hookConfigs.map((c) => (c as { command?: string }).command),
+      ).toEqual(['echo plain']);
+    });
+
+    it("returns null when only another invocation's hooks match", () => {
+      vi.mocked(mockRegistry.getHooksForEvent).mockReturnValue([scoped]);
+      expect(
+        planner.createExecutionPlan(HookEventName.PreToolUse, {
+          toolName: 'Bash',
+        }),
+      ).toBeNull();
+    });
+
+    it('keeps lifecycle hooks of the agent type, which the parent fires', () => {
+      // SubagentStart/SubagentStop run outside the agent's own context; the
+      // agent type on the event says whose they are.
+      const lifecycle: HookRegistryEntry = {
+        ...scoped,
+        eventName: HookEventName.SubagentStop,
+        agentScope: 'reviewer-1a2b3c4d',
+        agentScopeType: 'reviewer',
+      };
+      vi.mocked(mockRegistry.getHooksForEvent).mockReturnValue([lifecycle]);
+      expect(
+        planner.createExecutionPlan(HookEventName.SubagentStop, {
+          agentType: 'reviewer',
+        })?.hookConfigs,
+      ).toHaveLength(1);
+      expect(
+        planner.createExecutionPlan(HookEventName.SubagentStop, {
+          agentType: 'other',
+        }),
+      ).toBeNull();
     });
   });
 
