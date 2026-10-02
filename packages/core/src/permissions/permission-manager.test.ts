@@ -1977,6 +1977,19 @@ function makeConfig(
 describe('PermissionManager', () => {
   let pm: PermissionManager;
 
+  it('asks for a read-only shell command run outside the workspace', async () => {
+    // Mirrors ShellToolInvocation.getDefaultPermission: the directory is a
+    // permission question before the read-only analysis can auto-allow.
+    const manager = new PermissionManager({
+      ...makeConfig(),
+      isPathWithinWorkspace: (candidate: string) =>
+        candidate.startsWith('/project'),
+    });
+    manager.initialize();
+    expect(await manager.isCommandAllowed('ls', '/elsewhere')).toBe('ask');
+    expect(await manager.isCommandAllowed('ls', '/project/sub')).toBe('allow');
+  });
+
   it('does not implicitly allow read-only shell commands under internal sandbox policy', async () => {
     const manager = new PermissionManager({
       ...makeConfig(),

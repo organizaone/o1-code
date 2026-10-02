@@ -1170,6 +1170,45 @@ describe('evaluateAutoMode — fast-path gating', () => {
     expect(decision).toEqual({ via: 'fallback', reason: 'external_write' });
   });
 
+  it('routes a shell command run outside the workspace to manual fallback before classifier', async () => {
+    // Like a write outside the workspace: the classifier never decides it.
+    const decision = await evaluateAutoMode({
+      ctx: {
+        toolName: ToolNames.SHELL,
+        command: 'ls',
+        cwd: '/Users/test/other-project',
+      },
+      pmForcedAsk: false,
+      toolParams: {},
+      messages: [],
+      config: baseConfig,
+      signal: new AbortController().signal,
+    });
+    expect(decision).toEqual({
+      via: 'fallback',
+      reason: 'external_directory',
+    });
+  });
+
+  it('routes a monitor run outside the workspace to manual fallback before classifier', async () => {
+    const decision = await evaluateAutoMode({
+      ctx: {
+        toolName: ToolNames.MONITOR,
+        command: 'tail -f log',
+        cwd: '/Users/test/other-project',
+      },
+      pmForcedAsk: false,
+      toolParams: {},
+      messages: [],
+      config: baseConfig,
+      signal: new AbortController().signal,
+    });
+    expect(decision).toEqual({
+      via: 'fallback',
+      reason: 'external_directory',
+    });
+  });
+
   it('routes in-workspace protected writes to classifier', async () => {
     const decision = await evaluateAutoMode({
       ctx: {
