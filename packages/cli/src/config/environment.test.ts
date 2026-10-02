@@ -354,6 +354,29 @@ describe('relaunch environment provenance', () => {
     parent.resetEnvironmentTrackingForTesting();
   });
 
+  it('marks the child the supervisor spawns, and that child alone', async () => {
+    vi.resetModules();
+    const parent = await import('./environment.js');
+    expect(parent.wasRelaunchedBySupervisor()).toBe(false);
+    // What the supervisor's spawn hands its child.
+    Object.assign(
+      process.env,
+      parent.getRelaunchEnvProvenance({ supervised: true }),
+    );
+
+    vi.resetModules();
+    const child = await import('./environment.js');
+    expect(child.wasRelaunchedBySupervisor()).toBe(true);
+    // The child's own subprocesses are not supervised by anyone.
+    expect(
+      JSON.parse(
+        child.getRelaunchEnvProvenance()[PRIVATE_RELAUNCH_ENV_PROVENANCE]!,
+      ),
+    ).not.toHaveProperty('supervised');
+    child.resetEnvironmentTrackingForTesting();
+    parent.resetEnvironmentTrackingForTesting();
+  });
+
   it('preserves ancestor-only values and provenance across child reloads', async () => {
     vi.resetModules();
     const parent = await import('./environment.js');

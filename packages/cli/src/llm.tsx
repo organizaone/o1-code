@@ -6,6 +6,7 @@
 
 import {
   getRelaunchEnvProvenance,
+  wasRelaunchedBySupervisor,
   hasLoadedEnvironmentValues,
 } from './config/environment.js';
 import { prepareFileWatchersForProcessExit } from '@organizaone/o1-code-core/utils/file-watcher-cleanup.js';
@@ -100,6 +101,7 @@ import {
   relaunchAppInChildProcess,
   relaunchOnExitCode,
 } from './utils/relaunch.js';
+import { bindSupervisorLifetime } from './utils/supervisor-lifetime.js';
 import { start_sandbox } from './serve/sandbox.js';
 import { getStartupWarnings } from './utils/startupWarnings.js';
 import { getUserStartupWarnings } from './utils/userStartupWarnings.js';
@@ -831,7 +833,10 @@ export async function main() {
       // restarts. A one-shot prompt can replace this already-loaded process.
       await relaunchAppInChildProcess(memoryArgs, [], {
         afterSpawn: clearCorruptionEnvVars,
-        childEnv: { ...privateAcpChildEnv, ...getRelaunchEnvProvenance() },
+        childEnv: {
+          ...privateAcpChildEnv,
+          ...getRelaunchEnvProvenance({ supervised: true }),
+        },
         environmentChangedSinceBoot: hasLoadedEnvironmentValues(),
         onUpdateRelaunch,
         replaceProcess:
@@ -844,6 +849,10 @@ export async function main() {
       });
     }
   }
+
+  // Only the final process (no relaunch) reaches here. If our supervisor
+  // spawned it, it must not outlive that supervisor indefinitely.
+  bindSupervisorLifetime(process, wasRelaunchedBySupervisor());
 
   if (isAcpMode && process.env[O1CODE_SERVE_ENV] === '1') {
     // A daemon-spawned ACP child hosts sessions for arbitrary workspaces.

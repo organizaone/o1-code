@@ -133,6 +133,58 @@ describe('isApiUserPrompt', () => {
   });
 });
 
+describe('excludeTaskNotifications (the ACP binding)', () => {
+  const envelope = (summary: string) =>
+    `<task-notification>\n<kind>agent</kind>\n<summary>${summary}</summary>\n</task-notification>`;
+  // A delivered background notification turn: the per-turn reminders and the
+  // notification envelopes land in ONE user entry that never produced a
+  // client-visible turn.
+  const deliveredNotification = (): Content => ({
+    role: 'user',
+    parts: [
+      { text: `${SYSTEM_REMINDER_OPEN}plan mode${SYSTEM_REMINDER_CLOSE}` },
+      { text: envelope('agent a finished') },
+      { text: envelope('agent b finished') },
+    ],
+  });
+
+  it('does not count a delivered notification turn as a user prompt', () => {
+    expect(
+      isApiUserPrompt(deliveredNotification(), {
+        excludeTaskNotifications: true,
+      }),
+    ).toBe(false);
+    // Without the option the entry still counts, as before.
+    expect(isApiUserPrompt(deliveredNotification())).toBe(true);
+  });
+
+  it('keeps a genuine prompt that merely follows a notification part', () => {
+    const mixed: Content = {
+      role: 'user',
+      parts: [{ text: envelope('agent a finished') }, { text: 'and now?' }],
+    };
+    expect(isApiUserPrompt(mixed, { excludeTaskNotifications: true })).toBe(
+      true,
+    );
+  });
+
+  it('keeps rewind ordinals aligned with the turns the client saw', () => {
+    const history = [
+      reminder('startup'),
+      user('first'),
+      model('a'),
+      deliveredNotification(),
+      model('b'),
+      user('second'),
+      model('c'),
+    ];
+    expect(
+      countApiUserPrompts(history, { excludeTaskNotifications: true }),
+    ).toBe(2);
+    expect(countApiUserPrompts(history)).toBe(3);
+  });
+});
+
 describe('findApiRewindCutPoint', () => {
   const history: Content[] = [
     reminder('startup'),

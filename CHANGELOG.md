@@ -53,6 +53,19 @@ follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   oversized notification still closes the channel.
 - Pressing Enter while the completion dropdown is still loading ("Loading suggestions…" with an
   empty list) submits the typed prompt instead of being swallowed with nothing to accept.
+- The `o1-code serve` daemon loads a workspace's settings for extensions without publishing that
+  workspace's `.env` into the daemon's shared environment, without consuming the one-shot
+  settings-corruption marker, and without parsing the settings of a workspace whose trust is not
+  established.
+- A process relaunched by the CLI's own supervisor (streaming, ACP and launches that need extra
+  Node flags) exits at most two minutes after that supervisor is gone, instead of running on
+  indefinitely when the host kills the supervisor and keeps the child's input open.
+- ACP rewind no longer counts the turns the daemon adds when it delivers background
+  notifications: they never produced a client-visible turn, and counting them shifted every rewind
+  point after them.
+- A session export stamps each text message with the uuid and timestamp of the record it came
+  from. The message was written out only when the next message of another kind started, and by
+  then the identity was read from that next record.
 
 ## [0.4.0] - 2026-09-30
 

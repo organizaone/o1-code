@@ -467,6 +467,11 @@ class ExportSessionContext implements SessionContext {
     role: 'user' | 'assistant' | 'thinking';
     parts: Array<{ text: string }>;
     timestamp: number;
+    // Identity of the record the text came from, taken when the first part is
+    // buffered: the buffer is written out only when another kind of message
+    // starts, and by then the replay has moved on to that next record.
+    uuid: string;
+    recordTimestamp: string;
     usageMetadata?: GenerateContentResponseUsageMetadata;
   } | null = null;
   private activeRecordId: string | null = null;
@@ -620,6 +625,8 @@ class ExportSessionContext implements SessionContext {
         role: messageRole,
         parts: [{ text: content.text }],
         timestamp: Date.now(),
+        uuid: this.getMessageUuid(),
+        recordTimestamp: this.getMessageTimestamp(),
         ...(usageMetadata && role === 'assistant' ? { usageMetadata } : {}),
       };
     }
@@ -727,11 +734,17 @@ class ExportSessionContext implements SessionContext {
   private flushCurrentMessage(freshUuid = false): void {
     if (!this.currentMessage) return;
 
-    const uuid = freshUuid ? randomUUID() : this.getMessageUuid();
+    // A fresh uuid means the text ends with the `/goal …` line replayed from
+    // the transition record being written: that text keeps the transition's
+    // timestamp (not its uuid), as before. Otherwise the message carries the
+    // identity of the record its first part came from.
+    const uuid = freshUuid ? randomUUID() : this.currentMessage.uuid;
     const exportMessage: ExportMessage = {
       uuid,
       sessionId: this.sessionId,
-      timestamp: this.getMessageTimestamp(),
+      timestamp: freshUuid
+        ? this.getMessageTimestamp()
+        : this.currentMessage.recordTimestamp,
       type: this.currentMessage.type,
       message: {
         role: this.currentMessage.role,
