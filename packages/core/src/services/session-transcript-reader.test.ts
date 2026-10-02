@@ -2066,6 +2066,38 @@ describe('SessionTranscriptReader', () => {
     });
   });
 
+  it('restores the last session_approval_mode payload', async () => {
+    const first: ChatRecord = {
+      ...record('mode-1', null, ''),
+      type: 'system',
+      subtype: 'session_approval_mode',
+      message: undefined,
+      systemPayload: { mode: 'auto-edit' },
+    };
+    const later: ChatRecord = {
+      ...record('mode-2', 'mode-1', ''),
+      type: 'system',
+      subtype: 'session_approval_mode',
+      message: undefined,
+      systemPayload: { mode: 'plan', planExecutionMode: 'auto' },
+    };
+    await writeRecords([
+      first,
+      later,
+      record('u1', 'mode-2', 'prompt'),
+      record('a1', 'u1', 'answer'),
+    ]);
+
+    const projection = await new SessionTranscriptReader(
+      workspaceDir,
+    ).readRestoreProjection(sessionId, { replay: { kind: 'none' } });
+
+    expect(projection?.runtime.recording.sessionApprovalMode).toEqual({
+      mode: 'plan',
+      planExecutionMode: 'auto',
+    });
+  });
+
   it('restores the last session_model payload', async () => {
     const firstModel: ChatRecord = {
       ...record('model-1', null, ''),
