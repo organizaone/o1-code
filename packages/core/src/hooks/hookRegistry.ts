@@ -79,6 +79,13 @@ export interface HookRegistryEntry {
    * (session/user/project/extension) entries leave this undefined.
    */
   agentScope?: string;
+  /**
+   * The agent type (config name) an `agentScope` entry belongs to. The
+   * planner uses it for the lifecycle events the parent fires on the agent's
+   * behalf (SubagentStart/SubagentStop), where the invocation context is not
+   * the agent's own.
+   */
+  agentScopeType?: string;
 }
 
 /**
@@ -176,12 +183,14 @@ export class HookRegistry {
   addAgentHooks(
     hooks: { [K in HookEventName]?: HookDefinition[] },
     agentScope: string,
+    agentScopeType?: string,
   ): () => void {
     const before = this.entries.length;
     this.processHooksConfiguration(
       hooks,
       HooksConfigSource.Session,
       agentScope,
+      agentScopeType,
     );
     const addedCount = this.entries.length - before;
     debugLogger.debug(
@@ -304,6 +313,7 @@ export class HookRegistry {
     hooksConfig: { [K in HookEventName]?: HookDefinition[] },
     source: HooksConfigSource,
     agentScope?: string,
+    agentScopeType?: string,
   ): void {
     for (const [eventName, definitions] of Object.entries(hooksConfig)) {
       if (HOOKS_CONFIG_FIELDS.includes(eventName)) {
@@ -333,6 +343,7 @@ export class HookRegistry {
           typedEventName,
           source,
           agentScope,
+          agentScopeType,
         );
       }
     }
@@ -346,6 +357,7 @@ export class HookRegistry {
     eventName: HookEventName,
     source: HooksConfigSource,
     agentScope?: string,
+    agentScopeType?: string,
   ): void {
     if (
       !definition ||
@@ -401,6 +413,7 @@ export class HookRegistry {
           sequential: definition.sequential,
           enabled: true,
           ...(agentScope !== undefined ? { agentScope } : {}),
+          ...(agentScopeType !== undefined ? { agentScopeType } : {}),
         });
       } else {
         // Invalid hooks are logged and discarded here, they won't reach HookRunner

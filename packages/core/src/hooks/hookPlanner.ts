@@ -10,6 +10,7 @@ import { getHookKey, HookEventName } from './types.js';
 import { getAliasSetForTool } from '../tools/tool-utils.js';
 import { getToolNameAliases } from '../permissions/rule-parser.js';
 import { matchesHookPattern } from './hook-matcher.js';
+import { subagentIdentityContext } from '../utils/subagentNameContext.js';
 
 /**
  * Names a tool hook matcher may use for a tool: its runtime id, display name
@@ -127,8 +128,23 @@ export class HookPlanner {
       return null;
     }
 
+    // A subagent's own hooks fire only for that invocation of the subagent.
+    // Its lifecycle events are fired by the parent, outside the agent's
+    // context: those go by the agent type on the event.
+    const currentAgentId = subagentIdentityContext.getStore()?.id;
+    const inScope = hookEntries.filter((entry) => {
+      if (entry.agentScope === undefined) return true;
+      if (entry.agentScope === currentAgentId) return true;
+      return (
+        (eventName === HookEventName.SubagentStart ||
+          eventName === HookEventName.SubagentStop) &&
+        entry.agentScopeType !== undefined &&
+        entry.agentScopeType === context?.agentType
+      );
+    });
+
     // Filter hooks by matcher - pass eventName for explicit dispatch
-    const matchingEntries = hookEntries.filter((entry) =>
+    const matchingEntries = inScope.filter((entry) =>
       this.matchesContext(entry, eventName, context),
     );
 

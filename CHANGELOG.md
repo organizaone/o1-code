@@ -18,6 +18,11 @@ follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   ACP `session/set_mode`, or the mode given at creation) is recorded in its transcript and comes
   back on `/load` and `/resume` when the request names no mode; in Plan, the execution mode chosen
   for leaving it comes back too. A rewind keeps the mode of the branch it keeps.
+- A subagent's frontmatter `hooks` fire only for that invocation of the subagent: its own tool
+  calls and events, not the parent session's, a sibling's or a nested agent's, and two invocations
+  of the same agent keep their hooks apart. `SubagentStart` and `SubagentStop`, fired by the parent,
+  go to the hooks of the agent type they name. Hooks from settings, extensions and skills are not
+  scoped and behave as before.
 
 ### Fixed
 
