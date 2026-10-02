@@ -608,6 +608,22 @@ describe('MonitorTool', () => {
       await expect(invocation.getDefaultPermission()).resolves.toBe('ask');
     });
 
+    it('asks for a read-only command whose directory is outside the workspace', async () => {
+      mockIsPathWithinWorkspace.mockReturnValue(false);
+      const invocation = createInvocation({
+        command: 'tail -f log',
+        directory: '/tmp/elsewhere',
+      });
+
+      await expect(invocation.getDefaultPermission()).resolves.toBe('ask');
+      const details = (await invocation.getConfirmationDetails(
+        new AbortController().signal,
+      )) as { warnings?: string[] };
+      expect(details.warnings?.join('\n')).toContain(
+        "outside the workspace, in '/tmp/elsewhere'",
+      );
+    });
+
     it('asks for command substitution inside explicit shell wrappers', async () => {
       const invocation = createInvocation({
         command: `/bin/bash -c 'echo $(cat secret.txt)'`,
@@ -767,25 +783,26 @@ describe('MonitorTool', () => {
       expect(result).toContain('user skills directory is not allowed');
     });
 
-    it('rejects directory outside workspace (delegates to WorkspaceContext)', () => {
+    it('accepts a directory outside the workspace; the permission step asks for it', () => {
+      // A refusal here could not be approved by anyone, not even in Full
+      // Access. The directory is a permission question, not a parameter error.
       mockIsPathWithinWorkspace.mockReturnValueOnce(false);
-      const result = validate({
-        command: 'tail -f log',
-        directory: '/tmp/project-a-evil/x',
-      });
-      expect(result).toContain('not within any of the registered workspace');
-      expect(mockIsPathWithinWorkspace).toHaveBeenCalledWith(
-        '/tmp/project-a-evil/x',
-      );
+      expect(
+        validate({
+          command: 'tail -f log',
+          directory: '/tmp/project-a-evil/x',
+        }),
+      ).toBeNull();
     });
 
-    it('rejects directory with parent-reference traversal', () => {
+    it('accepts a directory with parent-reference traversal for the permission step', () => {
       mockIsPathWithinWorkspace.mockReturnValueOnce(false);
-      const result = validate({
-        command: 'tail -f log',
-        directory: '/tmp/project-a/../etc',
-      });
-      expect(result).toContain('not within any of the registered workspace');
+      expect(
+        validate({
+          command: 'tail -f log',
+          directory: '/tmp/project-a/../etc',
+        }),
+      ).toBeNull();
     });
 
     it('accepts directory within workspace', () => {

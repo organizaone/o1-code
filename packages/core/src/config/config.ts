@@ -6867,6 +6867,11 @@ export class Config {
     return this.workspaceContext;
   }
 
+  /** `PermissionManagerConfig`: a shell run outside the workspace is asked for. */
+  isPathWithinWorkspace(candidate: string): boolean {
+    return this.workspaceContext.isPathWithinWorkspace(candidate);
+  }
+
   getToolRegistry(): ToolRegistry {
     return this.toolRegistry;
   }

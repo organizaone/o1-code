@@ -7,6 +7,14 @@ follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Changed
+
+- A shell command or monitor whose `directory` is outside the workspace is no longer refused: it
+  asks for approval, with a warning naming the directory (and where it really points, when it is
+  a link). The question is asked even for a read-only command and in every mode but YOLO, which
+  runs it; in Auto it goes to manual approval, never to the classifier. A `permissions.allow`
+  rule that matches the command still auto-allows it.
+
 ### Fixed
 
 - A Claude session on the Anthropic protocol no longer fails with "Invalid signature in thinking

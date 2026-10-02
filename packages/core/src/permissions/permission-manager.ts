@@ -159,6 +159,13 @@ export interface PermissionManagerConfig {
   /** Current working directory (for resolving path patterns). */
   getCwd?(): string;
   /**
+   * Whether a path falls inside a workspace directory. A shell command run
+   * outside the workspace is asked for even when read-only, mirroring
+   * `ShellToolInvocation.getDefaultPermission`. Absent means every path is
+   * inside.
+   */
+  isPathWithinWorkspace?(candidate: string): boolean;
+  /**
    * Live folder trust. Read on every permission decision for the session
    * allow rules a project skill granted (`trustGated`): those apply only
    * while the folder is trusted. Absent means trusted.
@@ -689,6 +696,13 @@ export class PermissionManager {
     cwd?: string,
   ): Promise<'allow' | 'ask'> {
     if (this.config.getShellExecutionSandbox?.()) return 'ask';
+    if (
+      cwd &&
+      this.config.isPathWithinWorkspace &&
+      !this.config.isPathWithinWorkspace(cwd)
+    ) {
+      return 'ask';
+    }
     try {
       const isReadOnly = cwd
         ? await isShellCommandReadOnlyASTInDirectory(command, cwd)

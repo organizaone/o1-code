@@ -12,6 +12,10 @@ import * as childProcess from 'node:child_process';
 import { ApprovalMode, type Config } from '../config/config.js';
 import { executeRuntimeShell } from '../sandbox/runtime-shell.js';
 import { ToolNames, ToolDisplayNames } from './tool-names.js';
+import {
+  isOutsideWorkspaceDirectory,
+  outsideWorkspaceDirectoryWarning,
+} from './outside-workspace-directory.js';
 import { ToolErrorType } from './tool-error.js';
 import type {
   FileDiff,
@@ -2191,6 +2195,12 @@ export class ShellToolInvocation extends BaseToolInvocation<
    */
   override async getDefaultPermission(): Promise<PermissionDecision> {
     if (this.config.getShellExecutionSandbox?.()) return 'ask';
+    // Outside the workspace even a read-only command is asked for, as a read
+    // outside the workspace is. (Mirrored in
+    // PermissionManager.resolveDefaultPermission.)
+    if (isOutsideWorkspaceDirectory(this.config, this.params.directory)) {
+      return 'ask';
+    }
     // Gate on the RAW command before `stripShellWrapper` runs.
     // `stripShellWrapper` drops leading env-assignment tokens AND
     // unwraps `bash -c '...'` to its inner script — so for
@@ -2344,6 +2354,9 @@ export class ShellToolInvocation extends BaseToolInvocation<
     // and original command so wrappers like `bash -c "..."` are checked
     // along with their inner contents.
     const warnings = [
+      ...(isOutsideWorkspaceDirectory(this.config, this.params.directory)
+        ? [outsideWorkspaceDirectoryWarning(this.params.directory!)]
+        : []),
       ...(buildShellExecWarnings(command, this.params.command) ?? []),
       ...(sedEditPreviewWarning ? [sedEditPreviewWarning] : []),
     ];
@@ -5754,7 +5767,7 @@ export class ShellTool extends BaseDeclarativeTool<
           directory: {
             type: 'string',
             description:
-              '(OPTIONAL) The absolute path of the directory to run the command in. If not provided, the project root directory is used. Must be a directory within the workspace and must already exist.',
+              '(OPTIONAL) The absolute path of the directory to run the command in. If not provided, the project root directory is used. Must already exist; a directory outside the workspace asks the user for approval.',
           },
         },
         required: ['command'],
@@ -5815,11 +5828,9 @@ export class ShellTool extends BaseDeclarativeTool<
       if (isWithinUserSkills) {
         return `Explicitly running shell commands from within the user skills directory is not allowed. Please use absolute paths for command parameter instead.`;
       }
-
-      const workspaceContext = this.config.getWorkspaceContext();
-      if (!workspaceContext.isPathWithinWorkspace(params.directory)) {
-        return `Directory '${params.directory}' is not within any of the registered workspace directories.`;
-      }
+      // A directory outside the workspace is not refused here: it is asked
+      // for at the permission step (getDefaultPermission), where the user,
+      // or Full Access, can approve it.
     }
     // Sleep interception: block sleep >= 2s in foreground, suggest Monitor.
     // Strip shell wrappers first so `bash -c 'sleep 5'` / `sh -c '...'` etc.

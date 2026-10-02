@@ -24,6 +24,10 @@ import { randomUUID } from 'node:crypto';
 import stripAnsi from 'strip-ansi';
 import type { Config } from '../config/config.js';
 import { ToolNames, ToolDisplayNames } from './tool-names.js';
+import {
+  isOutsideWorkspaceDirectory,
+  outsideWorkspaceDirectoryWarning,
+} from './outside-workspace-directory.js';
 import type {
   ToolInvocation,
   ToolResult,
@@ -173,6 +177,11 @@ class MonitorToolInvocation extends BaseToolInvocation<
 
   override async getDefaultPermission(): Promise<PermissionDecision> {
     if (this.config.getShellExecutionSandbox?.()) return 'ask';
+    // Outside the workspace even a read-only command is asked for, as a read
+    // outside the workspace is.
+    if (isOutsideWorkspaceDirectory(this.config, this.params.directory)) {
+      return 'ask';
+    }
     const normalized = normalizeMonitorShellCommand(this.params.command);
     const command = normalized.safetyCommand;
     const cwd =
@@ -274,10 +283,15 @@ class MonitorToolInvocation extends BaseToolInvocation<
     // Checked against both the normalized safety command and the
     // original params.command so wrappers like `bash -c "..."` still
     // trigger the warning.
-    const warnings = buildShellExecWarnings(
-      normalized.safetyCommand,
-      this.params.command,
-    );
+    const warnings = [
+      ...(isOutsideWorkspaceDirectory(this.config, this.params.directory)
+        ? [outsideWorkspaceDirectoryWarning(this.params.directory!)]
+        : []),
+      ...(buildShellExecWarnings(
+        normalized.safetyCommand,
+        this.params.command,
+      ) ?? []),
+    ];
 
     const confirmationDetails: ToolExecuteConfirmationDetails = {
       type: 'exec',
@@ -292,7 +306,7 @@ class MonitorToolInvocation extends BaseToolInvocation<
         _payload?: ToolConfirmationPayload,
       ) => {},
     };
-    if (warnings) {
+    if (warnings.length > 0) {
       confirmationDetails.warnings = warnings;
     }
     return confirmationDetails;
@@ -789,7 +803,7 @@ export class MonitorTool extends BaseDeclarativeTool<
           directory: {
             type: 'string',
             description:
-              '(OPTIONAL) The absolute path of the directory to run the command in. If not provided, the project root directory is used. Must be within the workspace.',
+              '(OPTIONAL) The absolute path of the directory to run the command in. If not provided, the project root directory is used. A directory outside the workspace asks the user for approval.',
           },
         },
         required: ['command'],
@@ -850,14 +864,9 @@ export class MonitorTool extends BaseDeclarativeTool<
       if (isSubpaths(userSkillsDirs, resolvedDirectoryPath)) {
         return 'Explicitly running monitor commands from within the user skills directory is not allowed. Please use absolute paths for command parameter instead.';
       }
-      // Use WorkspaceContext.isPathWithinWorkspace so the check canonicalises
-      // the path, resolves symlinks, and matches on path segments rather than
-      // raw string prefix (prevents e.g. '/tmp/project-evil' from slipping
-      // past a '/tmp/project' workspace).
-      const ws = this.config.getWorkspaceContext();
-      if (!ws.isPathWithinWorkspace(params.directory)) {
-        return `Directory '${params.directory}' is not within any of the registered workspace directories.`;
-      }
+      // A directory outside the workspace is not refused here: it is asked
+      // for at the permission step (getDefaultPermission), where the user,
+      // or Full Access, can approve it.
     }
     return null;
   }

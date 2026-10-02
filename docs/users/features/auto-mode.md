@@ -67,6 +67,9 @@ runs:
   into permission to rewrite O1-Code settings, commands, hooks,
   skills, or MCP servers.
 - `permissions.ask` rules force manual confirmation even in Auto Mode.
+- A shell command or monitor run in a `directory` outside the workspace drops
+  to manual approval, like a write outside the workspace; the classifier never
+  decides it.
 
 ## Over-broad allow rules are stripped while in Auto Mode
 

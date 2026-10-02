@@ -16,6 +16,10 @@ O1-Code offers five distinct permission modes that allow you to flexibly control
 >
 > The mode previously named **Default** has been renamed to **Ask Permissions** to better describe its behavior. The underlying configuration value (`tools.approvalMode: "default"`) and the `/approval-mode default` command are unchanged for backward compatibility.
 
+> [!NOTE]
+>
+> A shell command or monitor whose `directory` is outside the workspace is not refused: it asks for your approval, with a warning that names the directory (and where it really points, when it is a link). This holds even for read-only commands, in Ask Permissions, Auto-Edit and Auto; YOLO runs it. A `permissions.allow` rule that matches the command still auto-allows it.
+
 ### Quick Reference Guide
 
 - **Start in Plan Mode**: Great for understanding before making changes

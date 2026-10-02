@@ -1199,22 +1199,31 @@ describe('ShellTool', () => {
       ).toThrow('Directory must be an absolute path.');
     });
 
-    it('should throw an error for a directory outside the workspace', async () => {
+    it('asks for a directory outside the workspace instead of refusing it', async () => {
+      // A refusal at validation could not be approved by anyone, not even in
+      // Full Access; the directory is now a permission question, as a read
+      // outside the workspace already is.
       (mockConfig.getWorkspaceContext as Mock).mockReturnValue(
         createMockWorkspaceContext('/test/dir', ['/another/workspace']),
       );
-      expect(() =>
-        shellTool.build({
-          command: 'ls',
-          directory: '/not/in/workspace',
-          is_background: false,
-        }),
-      ).toThrow(
-        "Directory '/not/in/workspace' is not within any of the registered workspace directories.",
+      const invocation = shellTool.build({
+        command: 'ls',
+        directory: '/not/in/workspace',
+        is_background: false,
+      });
+
+      // Read-only, yet outside the workspace: ask, never auto-allow.
+      expect(await invocation.getDefaultPermission()).toBe('ask');
+      const details = await invocation.getConfirmationDetails(
+        new AbortController().signal,
       );
+      expect(details.type).toBe('exec');
+      expect(
+        (details as { warnings?: string[] }).warnings?.join('\n'),
+      ).toContain("outside the workspace, in '/not/in/workspace'");
     });
 
-    it('should reject sibling-prefix directories outside the workspace', async () => {
+    it('checks sibling-prefix directories through the workspace context', async () => {
       const workspaceContext = createMockWorkspaceContext('/test/dir', [
         '/tmp/project',
       ]);
@@ -1223,15 +1232,12 @@ describe('ShellTool', () => {
         workspaceContext,
       );
 
-      expect(() =>
-        shellTool.build({
-          command: 'ls',
-          directory: '/tmp/project-other',
-          is_background: false,
-        }),
-      ).toThrow(
-        "Directory '/tmp/project-other' is not within any of the registered workspace directories.",
-      );
+      const invocation = shellTool.build({
+        command: 'ls',
+        directory: '/tmp/project-other',
+        is_background: false,
+      });
+      expect(await invocation.getDefaultPermission()).toBe('ask');
       expect(workspaceContext.isPathWithinWorkspace).toHaveBeenCalledWith(
         '/tmp/project-other',
       );
