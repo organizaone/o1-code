@@ -12,9 +12,9 @@ follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - The terminal interface redraws only the lines that changed between frames instead of erasing and
   rewriting the whole screen on every spinner tick and streamed chunk. Terminals without
   synchronized output (GNOME Terminal, Ptyxis, Terminal.app) no longer flicker while a response
-  streams, and the interface sends about a tenth of the data to the terminal. New setting
-  `ui.incrementalRendering` (default `true`) and `O1CODE_INCREMENTAL_RENDERING=0` turn the previous
-  behavior back on.
+  streams, and the interface sends about a tenth of the data to the terminal. Resizing the terminal
+  repaints the whole screen once, so no row is left behind. New setting `ui.incrementalRendering`
+  (default `true`) and `O1CODE_INCREMENTAL_RENDERING=0` turn the previous behavior back on.
 
 ## [0.5.0] - 2026-10-02
 
