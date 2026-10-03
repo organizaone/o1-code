@@ -46,6 +46,9 @@ This guide provides solutions to common issues and debugging tips, including top
 - **Q: Why don't I see cached token counts in my stats output?**
   - A: Cached token information is only displayed when cached tokens are being used. It depends on the provider supporting prompt caching. You can still view your total token usage using the `/stats` command.
 
+- **Q: Lines appear duplicated or out of place while a response streams. What can I do?**
+  - A: The interface redraws only the lines that changed between frames, which some terminals or terminal multiplexers track incorrectly. Start one session with `O1CODE_INCREMENTAL_RENDERING=0` to confirm; if the display is correct again, set `ui.incrementalRendering` to `false` in `settings.json`. The interface then erases and redraws the whole screen on every frame, which costs more data and can flicker in terminals without synchronized output.
+
 - **Q: A customization (extension, hook, skill, MCP server, or subagent) seems to be breaking O1-Code. How do I isolate it?**
   - A: Start O1-Code with the `--safe-mode` flag to disable all customizations — context files, hooks, extensions, skills, MCP servers, custom subagents (only built-in subagents load), permission rules, settings-sourced approval mode overrides, memory features, and sandbox settings — for the session. Note: the CLI flags `--yolo` and `--approval-mode` still take effect in safe mode. If the problem disappears in safe mode, re-enable your customizations one at a time to find the culprit.
     - Example: `o1-code --safe-mode`

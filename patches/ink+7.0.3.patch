@@ -204,7 +204,7 @@ index 0000000..745a4ba
 +export const getFrameController = (stdout) => instances.get(stdout)?.frameController;
 +//# sourceMappingURL=frame-controller.js.map
 diff --git a/node_modules/ink/build/hooks/use-box-metrics.js b/node_modules/ink/build/hooks/use-box-metrics.js
-index c4386e4..753a9b4 100644
+index c4386e4..891d1a0 100644
 --- a/node_modules/ink/build/hooks/use-box-metrics.js
 +++ b/node_modules/ink/build/hooks/use-box-metrics.js
 @@ -1,4 +1,4 @@
@@ -374,8 +374,20 @@ index cc849f0..25d6b33 100644
 +export { getFrameController } from './frame-controller.js';
  //# sourceMappingURL=index.js.map
 \ No newline at end of file
+diff --git a/node_modules/ink/build/ink.d.ts b/node_modules/ink/build/ink.d.ts
+index 273dd13..09de1dc 100644
+--- a/node_modules/ink/build/ink.d.ts
++++ b/node_modules/ink/build/ink.d.ts
+@@ -89,6 +89,7 @@ export default class Ink {
+     private lastOutputToRender;
+     private lastOutputHeight;
+     private lastTerminalWidth;
++    private lastTerminalHeight;
+     private readonly container;
+     private readonly rootNode;
+     private fullStaticOutput;
 diff --git a/node_modules/ink/build/ink.js b/node_modules/ink/build/ink.js
-index ef659f3..1beca9b 100644
+index ef659f3..0a9731f 100644
 --- a/node_modules/ink/build/ink.js
 +++ b/node_modules/ink/build/ink.js
 @@ -17,6 +17,7 @@ import { hideCursorEscape, showCursorEscape } from './cursor-helpers.js';
@@ -386,7 +398,15 @@ index ef659f3..1beca9b 100644
  import App from './components/App.js';
  import { accessibilityContext as AccessibilityContext } from './components/AccessibilityContext.js';
  import { resolveFlags, } from './kitty-keyboard.js';
-@@ -160,6 +161,7 @@ export default class Ink {
+@@ -145,6 +146,7 @@ export default class Ink {
+     lastOutputToRender;
+     lastOutputHeight;
+     lastTerminalWidth;
++    lastTerminalHeight;
+     container;
+     rootNode;
+     // This variable is used only in debug mode to store full static output
+@@ -160,6 +162,7 @@ export default class Ink {
      kittyProtocolEnabled = false;
      cancelKittyDetection;
      nextRenderCommit;
@@ -394,7 +414,7 @@ index ef659f3..1beca9b 100644
      constructor(options) {
          autoBind(this);
          this.options = options;
-@@ -196,6 +198,12 @@ export default class Ink {
+@@ -196,6 +199,12 @@ export default class Ink {
              this.throttledOnRender = throttled;
          }
          this.rootNode.onImmediateRender = this.onRender;
@@ -407,7 +427,40 @@ index ef659f3..1beca9b 100644
          this.rootNode.onStaticChange = this.handleStaticChange;
          this.log = logUpdate.create(options.stdout, {
              incremental: options.incrementalRendering,
-@@ -317,7 +325,16 @@ export default class Ink {
+@@ -227,6 +236,7 @@ export default class Ink {
+         this.lastOutputToRender = '';
+         this.lastOutputHeight = 0;
+         this.lastTerminalWidth = getWindowSize(this.options.stdout).columns;
++        this.lastTerminalHeight = getWindowSize(this.options.stdout).rows;
+         // This variable is used only in debug mode to store full static output
+         // so that it's rerendered every time, not just new static parts, like in non-debug mode
+         this.fullStaticOutput = '';
+@@ -260,8 +270,14 @@ export default class Ink {
+         void this.exitPromise.catch(noop);
+     }
+     resized = () => {
+-        const currentWidth = getWindowSize(this.options.stdout).columns;
+-        if (currentWidth < this.lastTerminalWidth) {
++        const { columns: currentWidth, rows: currentHeight } = getWindowSize(this.options.stdout);
++        // On the alternate screen every resize invalidates the line cache the
++        // incremental renderer diffs against: rows whose text did not change
++        // would otherwise never be rewritten after the terminal re-laid them out.
++        const alternateScreenResized = this.alternateScreen &&
++            (currentWidth !== this.lastTerminalWidth ||
++                currentHeight !== this.lastTerminalHeight);
++        if (currentWidth < this.lastTerminalWidth || alternateScreenResized) {
+             // We clear the screen when decreasing terminal width to prevent duplicate overlapping re-renders.
+             this.log.clear();
+             this.lastOutput = '';
+@@ -270,6 +286,7 @@ export default class Ink {
+         this.calculateLayout();
+         this.onRender();
+         this.lastTerminalWidth = currentWidth;
++        this.lastTerminalHeight = currentHeight;
+     };
+     resolveExitPromise = () => { };
+     rejectExitPromise = () => { };
+@@ -317,7 +334,16 @@ export default class Ink {
              this.nextRenderCommit = undefined;
          }
          const startTime = performance.now();
@@ -425,7 +478,7 @@ index ef659f3..1beca9b 100644
          this.options.onRender?.({ renderTime: performance.now() - startTime });
          // If <Static> output isn't empty, it means new children have been added to it
          const hasStaticOutput = staticOutput && staticOutput !== '\n';
-@@ -642,6 +659,7 @@ export default class Ink {
+@@ -642,6 +668,7 @@ export default class Ink {
          this.alternateScreen = this.resolveAlternateScreenOption(enabled, this.interactive);
          if (this.alternateScreen) {
              this.writeBestEffort(this.options.stdout, ansiEscapes.enterAlternativeScreen);
@@ -433,7 +486,7 @@ index ef659f3..1beca9b 100644
              this.writeBestEffort(this.options.stdout, hideCursorEscape);
          }
      }
-@@ -688,6 +706,7 @@ export default class Ink {
+@@ -688,6 +715,7 @@ export default class Ink {
          return this.nextRenderCommit.promise;
      }
      renderInteractiveFrame(output, outputHeight, staticOutput) {
@@ -441,7 +494,7 @@ index ef659f3..1beca9b 100644
          const hasStaticOutput = staticOutput !== '';
          const isTty = this.options.stdout.isTTY;
          // Detect fullscreen: output fills or exceeds terminal height.
-@@ -707,7 +726,7 @@ export default class Ink {
+@@ -707,7 +735,7 @@ export default class Ink {
              if (sync) {
                  this.options.stdout.write(bsu);
              }
@@ -945,7 +998,7 @@ index c763b77..bfd3d08 100644
      }
  }
 diff --git a/node_modules/ink/build/reconciler.js b/node_modules/ink/build/reconciler.js
-index 5b4a9d7..25cc017 100644
+index 5b4a9d7..e2d41cd 100644
 --- a/node_modules/ink/build/reconciler.js
 +++ b/node_modules/ink/build/reconciler.js
 @@ -53,6 +53,25 @@ const cleanupYogaNode = (node) => {

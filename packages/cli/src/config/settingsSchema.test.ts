@@ -778,6 +778,16 @@ describe('SettingsSchema', () => {
       expect(useTerminalBuffer.requiresRestart).toBe(true);
     });
 
+    it('should have incrementalRendering in ui settings', () => {
+      const incrementalRendering =
+        getSettingsSchema().ui.properties.incrementalRendering;
+      expect(incrementalRendering).toBeDefined();
+      expect(incrementalRendering.type).toBe('boolean');
+      expect(incrementalRendering.default).toBe(true);
+      expect(incrementalRendering.showInDialog).toBe(true);
+      expect(incrementalRendering.requiresRestart).toBe(true);
+    });
+
     it('should have mouseTracking in ui settings', () => {
       const mouseTracking = getSettingsSchema().ui.properties.mouseTracking;
       expect(mouseTracking).toBeDefined();

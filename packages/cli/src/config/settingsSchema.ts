@@ -1228,6 +1228,16 @@ const SETTINGS_SCHEMA = {
           'Render conversation history in an in-app scrollable viewport instead of the terminal scrollback buffer. Enabled by default in compatible interactive terminals to avoid flicker, scroll-storm, and interface freeze on long sessions, after Ctrl+O, after Ctrl+E / Ctrl+F (expand), after window resize, or when alt-tabbing back. Screen reader mode and non-interactive output such as piped stdout or CI use append-only terminal output instead. Scroll with Shift+↑/↓ (line), PgUp/PgDn (page), Ctrl+Home/End (top/bottom), or the mouse wheel. Also enables mouse interactions: click an option in a menu/dialog to select it, hover to highlight it, and click in the prompt to position the cursor. Does NOT use the host terminal scrollback while enabled. Drag to select text in the viewport (double/triple click selects a word/line), copied on release. To use the terminal’s own selection instead, hold Shift (or Option on macOS) while dragging. A single click opens an http(s) hyperlink under the pointer (other link schemes are copied to the clipboard), and right-click over a link or a text selection opens an in-app context menu. These mouse interactions are controlled by ui.mouseTracking; disable that setting to hand the mouse fully back to the terminal.',
         showInDialog: true,
       },
+      incrementalRendering: {
+        type: 'boolean',
+        label: 'Incremental Rendering (rewrites only changed lines)',
+        category: 'UI',
+        requiresRestart: true,
+        default: true,
+        description:
+          'Redraw only the lines that changed since the previous frame instead of erasing and rewriting the whole interface. Removes the flicker that terminals without synchronized output (GNOME Terminal, Ptyxis, Terminal.app) show while a response streams, and sends far less data to the terminal. Disable if lines appear duplicated or out of place in your terminal; O1CODE_INCREMENTAL_RENDERING=0 or =1 overrides this setting for one session.',
+        showInDialog: true,
+      },
       glyphs: {
         type: 'enum',
         label: 'Terminal Symbols',
