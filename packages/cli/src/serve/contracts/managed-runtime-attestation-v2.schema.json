@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://github.com/silvioricardo87/o1-code/contracts/managed-runtime-attestation-v2.schema.json",
+  "$id": "https://github.com/organizaone/o1-code/contracts/managed-runtime-attestation-v2.schema.json",
   "title": "Managed Runtime attestation v2 conformance fixtures",
   "type": "object",
   "additionalProperties": false,

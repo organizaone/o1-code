@@ -36,7 +36,7 @@ describe('Mem0 Extension package', () => {
     expect(packageJson.version).toBe(manifest.version);
     expect(packageJson.repository).toEqual({
       type: 'git',
-      url: 'git+https://github.com/silvioricardo87/o1-code.git',
+      url: 'git+https://github.com/organizaone/o1-code.git',
       directory: 'integrations/external-context-mem0',
     });
   });

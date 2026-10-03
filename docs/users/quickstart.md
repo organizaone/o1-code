@@ -254,4 +254,4 @@ build a dashboard showing products that are most frequently returned by our UK c
 
 - **In O1-Code**: Type `/help` or ask "how do I..."
 - **Documentation**: You're here! Browse other guides
-- **Community**: Join our [GitHub Discussion](https://github.com/silvioricardo87/o1-code/discussions) for tips and support
+- **Community**: Join our [GitHub Discussion](https://github.com/organizaone/o1-code/discussions) for tips and support

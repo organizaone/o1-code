@@ -1386,7 +1386,7 @@ describe('customHeaders in ProviderConfig', () => {
   it('merges customHeaders into generationConfig for fixed models', () => {
     const config = makeConfig({
       customHeaders: {
-        'HTTP-Referer': 'https://github.com/silvioricardo87/o1-code',
+        'HTTP-Referer': 'https://github.com/organizaone/o1-code',
         'X-Title': 'o1-code',
       },
     });
@@ -1398,7 +1398,7 @@ describe('customHeaders in ProviderConfig', () => {
 
     const gc = plan.modelProviders?.[0]?.models[0]?.generationConfig;
     expect(gc?.customHeaders).toEqual({
-      'HTTP-Referer': 'https://github.com/silvioricardo87/o1-code',
+      'HTTP-Referer': 'https://github.com/organizaone/o1-code',
       'X-Title': 'o1-code',
     });
     // existing fields preserved

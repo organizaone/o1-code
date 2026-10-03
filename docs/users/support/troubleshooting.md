@@ -142,4 +142,4 @@ The O1-Code uses specific exit codes to indicate the reason for termination. Thi
 
 ## Existing GitHub Issues similar to yours or creating new Issues
 
-If you encounter an issue that was not covered here in this _Troubleshooting guide_, consider searching the O1-Code [Issue tracker on GitHub](https://github.com/silvioricardo87/o1-code/issues). If you can't find an issue similar to yours, consider creating a new GitHub Issue with a detailed description. Pull requests are also welcome!
+If you encounter an issue that was not covered here in this _Troubleshooting guide_, consider searching the O1-Code [Issue tracker on GitHub](https://github.com/organizaone/o1-code/issues). If you can't find an issue similar to yours, consider creating a new GitHub Issue with a detailed description. Pull requests are also welcome!

@@ -11,7 +11,7 @@
     "userAgent": "O1Code",
     "otelServiceName": "o1-code",
     "memorySectionHeader": "## O1-Code Added Memories",
-    "repoUrl": "https://github.com/silvioricardo87/o1-code",
+    "repoUrl": "https://github.com/organizaone/o1-code",
     "coAuthorEmail": "o1-code@organizaone.com"
   },
   "lint": {

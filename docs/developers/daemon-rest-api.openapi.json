@@ -11,7 +11,7 @@
   },
   "externalDocs": {
     "description": "o1-code serve HTTP protocol reference",
-    "url": "https://github.com/silvioricardo87/o1-code/blob/main/docs/developers/o1-code-serve-protocol.md"
+    "url": "https://github.com/organizaone/o1-code/blob/main/docs/developers/o1-code-serve-protocol.md"
   },
   "servers": [
     {
@@ -52,7 +52,7 @@
         "summary": "Probe daemon health",
         "description": "Returns a cheap listener probe by default. Set deep to aggregate informational daemon-wide runtime counters. Bearer authentication is required except on an ordinary loopback bind without --require-auth, where the probe is also served anonymously; non-loopback and hardened loopback binds answer 401 without a token.",
         "externalDocs": {
-          "url": "https://github.com/silvioricardo87/o1-code/blob/main/docs/developers/o1-code-serve-protocol.md#get-health"
+          "url": "https://github.com/organizaone/o1-code/blob/main/docs/developers/o1-code-serve-protocol.md#get-health"
         },
         "security": [
           {
@@ -133,7 +133,7 @@
         "summary": "Discover protocol capabilities",
         "description": "Returns protocol versions, feature tags, limits, transports, and registered workspaces. Clients should call this before using optional behavior.",
         "externalDocs": {
-          "url": "https://github.com/silvioricardo87/o1-code/blob/main/docs/developers/o1-code-serve-protocol.md#get-capabilities"
+          "url": "https://github.com/organizaone/o1-code/blob/main/docs/developers/o1-code-serve-protocol.md#get-capabilities"
         },
         "security": [
           {
@@ -185,7 +185,7 @@
         "summary": "Create or attach to a session",
         "description": "Creates a session in the selected workspace runtime. sessionScope=thread is recommended for independent conversations.",
         "externalDocs": {
-          "url": "https://github.com/silvioricardo87/o1-code/blob/main/docs/developers/o1-code-serve-protocol.md#post-session"
+          "url": "https://github.com/organizaone/o1-code/blob/main/docs/developers/o1-code-serve-protocol.md#post-session"
         },
         "security": [
           {
@@ -299,7 +299,7 @@
         "summary": "Close a live session",
         "description": "Force-closes the live session but keeps its persisted transcript available for load or resume.",
         "externalDocs": {
-          "url": "https://github.com/silvioricardo87/o1-code/blob/main/docs/developers/o1-code-serve-protocol.md#delete-sessionid"
+          "url": "https://github.com/organizaone/o1-code/blob/main/docs/developers/o1-code-serve-protocol.md#delete-sessionid"
         },
         "security": [
           {
@@ -376,7 +376,7 @@
         "summary": "Load a persisted session with replay",
         "description": "Restores a persisted session and returns a bounded replay snapshot for rebuilding client state.",
         "externalDocs": {
-          "url": "https://github.com/silvioricardo87/o1-code/blob/main/docs/developers/o1-code-serve-protocol.md#post-sessionidload"
+          "url": "https://github.com/organizaone/o1-code/blob/main/docs/developers/o1-code-serve-protocol.md#post-sessionidload"
         },
         "security": [
           {
@@ -510,7 +510,7 @@
         "summary": "Resume a persisted session without replay",
         "description": "Restores model context while leaving the SSE stream free of historical replay.",
         "externalDocs": {
-          "url": "https://github.com/silvioricardo87/o1-code/blob/main/docs/developers/o1-code-serve-protocol.md#post-sessionidresume"
+          "url": "https://github.com/organizaone/o1-code/blob/main/docs/developers/o1-code-serve-protocol.md#post-sessionidresume"
         },
         "security": [
           {
@@ -644,7 +644,7 @@
         "summary": "Refresh session activity bookkeeping",
         "description": "Updates the daemon last-seen timestamp for a live session and, when supplied, its attached client.",
         "externalDocs": {
-          "url": "https://github.com/silvioricardo87/o1-code/blob/main/docs/developers/o1-code-serve-protocol.md#post-sessionidheartbeat"
+          "url": "https://github.com/organizaone/o1-code/blob/main/docs/developers/o1-code-serve-protocol.md#post-sessionidheartbeat"
         },
         "security": [
           {
@@ -738,7 +738,7 @@
         "summary": "Update session metadata",
         "description": "Updates the display name or binds a pull request to a live session and its persisted metadata.",
         "externalDocs": {
-          "url": "https://github.com/silvioricardo87/o1-code/blob/main/docs/developers/o1-code-serve-protocol.md#patch-sessionidmetadata"
+          "url": "https://github.com/organizaone/o1-code/blob/main/docs/developers/o1-code-serve-protocol.md#patch-sessionidmetadata"
         },
         "security": [
           {
@@ -852,7 +852,7 @@
         "summary": "Switch the session model",
         "description": "Selects a model within the session current model service and emits model_switched or model_switch_failed.",
         "externalDocs": {
-          "url": "https://github.com/silvioricardo87/o1-code/blob/main/docs/developers/o1-code-serve-protocol.md#post-sessionidmodel"
+          "url": "https://github.com/organizaone/o1-code/blob/main/docs/developers/o1-code-serve-protocol.md#post-sessionidmodel"
         },
         "security": [
           {
@@ -956,7 +956,7 @@
         "summary": "Read live session status",
         "description": "Returns the owning runtime in-memory session summary, including prompt and pending-interaction state.",
         "externalDocs": {
-          "url": "https://github.com/silvioricardo87/o1-code/blob/main/docs/developers/o1-code-serve-protocol.md#get-sessionidstatus"
+          "url": "https://github.com/organizaone/o1-code/blob/main/docs/developers/o1-code-serve-protocol.md#get-sessionidstatus"
         },
         "security": [
           {
@@ -1030,7 +1030,7 @@
         "summary": "Submit a prompt",
         "description": "Admits a prompt to the per-session FIFO. A 202 response is admission, not completion; correlate terminal SSE events by promptId. When the prompt_absolute_deadline capability is advertised, deadlineMs bounds the turn: expiry is reported in band as a turn_error event with code prompt_deadline_exceeded, never as a 504 response.",
         "externalDocs": {
-          "url": "https://github.com/silvioricardo87/o1-code/blob/main/docs/developers/o1-code-serve-protocol.md#post-sessionidprompt"
+          "url": "https://github.com/organizaone/o1-code/blob/main/docs/developers/o1-code-serve-protocol.md#post-sessionidprompt"
         },
         "security": [
           {
@@ -1174,7 +1174,7 @@
         "summary": "Cancel the active prompt",
         "description": "Cancels only the currently running prompt. Queued prompts remain scheduled.",
         "externalDocs": {
-          "url": "https://github.com/silvioricardo87/o1-code/blob/main/docs/developers/o1-code-serve-protocol.md#post-sessionidcancel"
+          "url": "https://github.com/organizaone/o1-code/blob/main/docs/developers/o1-code-serve-protocol.md#post-sessionidcancel"
         },
         "security": [
           {
@@ -1261,7 +1261,7 @@
         "summary": "Subscribe to session events",
         "description": "Opens a resumable Server-Sent Events stream. The data line contains the complete BridgeEvent envelope. When a presented Last-Event-ID cursor can no longer be honored because the ring buffer evicted the frames, its paired epoch no longer matches after a daemon restart, or the replay budget was exhausted, the stream stays open and the daemon emits an in-band state_resync_required event. X-O1Code-Event-Epoch is evaluated only alongside a cursor. A connection without Last-Event-ID opens live-only with no replay or state_resync_required frame; clients that cannot present a cursor must rebuild through POST /session/{id}/load whenever the daemon may have restarted.",
         "externalDocs": {
-          "url": "https://github.com/silvioricardo87/o1-code/blob/main/docs/developers/o1-code-serve-protocol.md#get-sessionidevents-sse"
+          "url": "https://github.com/organizaone/o1-code/blob/main/docs/developers/o1-code-serve-protocol.md#get-sessionidevents-sse"
         },
         "security": [
           {
@@ -1452,7 +1452,7 @@
         "summary": "Read persisted transcript events",
         "description": "Returns a bounded page of id-less replay events reconstructed from the active persisted transcript.",
         "externalDocs": {
-          "url": "https://github.com/silvioricardo87/o1-code/blob/main/docs/developers/o1-code-serve-protocol.md#get-sessionidtranscript"
+          "url": "https://github.com/organizaone/o1-code/blob/main/docs/developers/o1-code-serve-protocol.md#get-sessionidtranscript"
         },
         "security": [
           {
@@ -1615,7 +1615,7 @@
         "summary": "Read session context state",
         "description": "Returns the live model, mode, and configuration-option state for a top-level session. A `subagent.`-prefixed virtual session id resolves against its parent runtime and returns an empty state object.",
         "externalDocs": {
-          "url": "https://github.com/silvioricardo87/o1-code/blob/main/docs/developers/o1-code-serve-protocol.md#get-sessionidcontext"
+          "url": "https://github.com/organizaone/o1-code/blob/main/docs/developers/o1-code-serve-protocol.md#get-sessionidcontext"
         },
         "security": [
           {
@@ -1689,7 +1689,7 @@
         "summary": "Export a persisted session",
         "description": "Downloads the active persisted transcript as HTML, Markdown, JSON, or JSONL.",
         "externalDocs": {
-          "url": "https://github.com/silvioricardo87/o1-code/blob/main/docs/developers/o1-code-serve-protocol.md#get-sessionidexport"
+          "url": "https://github.com/organizaone/o1-code/blob/main/docs/developers/o1-code-serve-protocol.md#get-sessionidexport"
         },
         "security": [
           {
@@ -1804,7 +1804,7 @@
         "summary": "List pending prompts",
         "description": "Returns the currently running prompt and any prompts waiting in the per-session FIFO.",
         "externalDocs": {
-          "url": "https://github.com/silvioricardo87/o1-code/blob/main/docs/developers/o1-code-serve-protocol.md#get-sessionidpending-prompts"
+          "url": "https://github.com/organizaone/o1-code/blob/main/docs/developers/o1-code-serve-protocol.md#get-sessionidpending-prompts"
         },
         "security": [
           {
@@ -1898,7 +1898,7 @@
         "summary": "Resolve a session permission request",
         "description": "Routes the vote to the runtime that owns the named session. An untrusted non-primary owner is rejected, while an untrusted primary owner is not rejected by this trust check and proceeds to the active permission policy. New integrations should prefer this over the legacy request-id-only route.",
         "externalDocs": {
-          "url": "https://github.com/silvioricardo87/o1-code/blob/main/docs/developers/o1-code-serve-protocol.md#post-sessionidpermissionrequestid"
+          "url": "https://github.com/organizaone/o1-code/blob/main/docs/developers/o1-code-serve-protocol.md#post-sessionidpermissionrequestid"
         },
         "security": [
           {
@@ -2042,7 +2042,7 @@
         "summary": "Resolve a primary-workspace permission request",
         "description": "Legacy process route wired only to the primary workspace bridge. Use the session-scoped route for multi-workspace correctness.",
         "externalDocs": {
-          "url": "https://github.com/silvioricardo87/o1-code/blob/main/docs/developers/o1-code-serve-protocol.md#post-permissionrequestid"
+          "url": "https://github.com/organizaone/o1-code/blob/main/docs/developers/o1-code-serve-protocol.md#post-permissionrequestid"
         },
         "security": [
           {
@@ -2166,7 +2166,7 @@
         "summary": "Read the primary workspace tool catalog",
         "description": "Returns tools reported by the primary workspace live ACP child. An idle child produces an empty not-started snapshot.",
         "externalDocs": {
-          "url": "https://github.com/silvioricardo87/o1-code/blob/main/docs/developers/o1-code-serve-protocol.md#get-workspacetools"
+          "url": "https://github.com/organizaone/o1-code/blob/main/docs/developers/o1-code-serve-protocol.md#get-workspacetools"
         },
         "security": [
           {
@@ -2218,7 +2218,7 @@
         "summary": "Probe the model servers on the daemon host",
         "description": "Asks Ollama (127.0.0.1:11434) and LM Studio (127.0.0.1:1234) on the daemon host whether they run and which models they serve, so a client can offer them as local providers. The probes run on every call, in parallel, with a short timeout; a server that does not answer is reported as not running, never as an error.",
         "externalDocs": {
-          "url": "https://github.com/silvioricardo87/o1-code/blob/main/docs/developers/o1-code-serve-protocol.md#get-workspaceauthlocal-servers"
+          "url": "https://github.com/organizaone/o1-code/blob/main/docs/developers/o1-code-serve-protocol.md#get-workspaceauthlocal-servers"
         },
         "security": [
           {
@@ -2263,7 +2263,7 @@
         "summary": "Read a workspace text file",
         "description": "Reads a bounded UTF-8 text snapshot or line/cursor window through the primary workspace file policy.",
         "externalDocs": {
-          "url": "https://github.com/silvioricardo87/o1-code/blob/main/docs/developers/o1-code-serve-protocol.md#get-file"
+          "url": "https://github.com/organizaone/o1-code/blob/main/docs/developers/o1-code-serve-protocol.md#get-file"
         },
         "security": [
           {
@@ -2445,7 +2445,7 @@
         "summary": "Read a workspace byte window",
         "description": "Reads a bounded raw byte window and returns it as base64.",
         "externalDocs": {
-          "url": "https://github.com/silvioricardo87/o1-code/blob/main/docs/developers/o1-code-serve-protocol.md#get-filebytes"
+          "url": "https://github.com/organizaone/o1-code/blob/main/docs/developers/o1-code-serve-protocol.md#get-filebytes"
         },
         "security": [
           {
@@ -2579,7 +2579,7 @@
         "summary": "Stat a workspace path",
         "description": "Returns type, size, and modification time for one path.",
         "externalDocs": {
-          "url": "https://github.com/silvioricardo87/o1-code/blob/main/docs/developers/o1-code-serve-protocol.md#get-stat"
+          "url": "https://github.com/organizaone/o1-code/blob/main/docs/developers/o1-code-serve-protocol.md#get-stat"
         },
         "security": [
           {
@@ -2692,7 +2692,7 @@
         "summary": "List a workspace directory",
         "description": "Returns at most 2000 entries. Set includeIgnored only when ignored paths are intentionally needed.",
         "externalDocs": {
-          "url": "https://github.com/silvioricardo87/o1-code/blob/main/docs/developers/o1-code-serve-protocol.md#get-list"
+          "url": "https://github.com/organizaone/o1-code/blob/main/docs/developers/o1-code-serve-protocol.md#get-list"
         },
         "security": [
           {
@@ -2822,7 +2822,7 @@
         "summary": "Match workspace paths",
         "description": "Runs a bounded glob inside the primary workspace and returns workspace-relative paths.",
         "externalDocs": {
-          "url": "https://github.com/silvioricardo87/o1-code/blob/main/docs/developers/o1-code-serve-protocol.md#get-glob"
+          "url": "https://github.com/organizaone/o1-code/blob/main/docs/developers/o1-code-serve-protocol.md#get-glob"
         },
         "security": [
           {

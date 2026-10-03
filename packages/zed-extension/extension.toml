@@ -4,7 +4,7 @@ version = "0.1.0"
 schema_version = 1
 authors = ["OrganizaOne"]
 description = "O1-Code Agent Server Extension for Zed"
-repository = "https://github.com/silvioricardo87/o1-code"
+repository = "https://github.com/organizaone/o1-code"
 
 [agent_servers.o1-code]
 name = "O1-Code"

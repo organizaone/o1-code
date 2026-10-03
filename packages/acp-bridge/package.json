@@ -5,7 +5,7 @@
   "description": "Shared ACP bridge core (createHttpAcpBridge factory, BridgeClient, defaultSpawnChannelFactory, BridgeFileSystem injection seam) + primitives (EventBus, AcpChannel, in-memory channel, PermissionMediator interface) used by o1-code serve, IDE, TUI, and remote-control adapters.",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/silvioricardo87/o1-code.git",
+    "url": "git+https://github.com/organizaone/o1-code.git",
     "directory": "packages/acp-bridge"
   },
   "type": "module",

@@ -3,7 +3,7 @@
 [![npm version](https://img.shields.io/npm/v/@organizaone/o1-code)](https://www.npmjs.com/package/@organizaone/o1-code)
 [![npm downloads](https://img.shields.io/npm/dm/@organizaone/o1-code)](https://www.npmjs.com/package/@organizaone/o1-code)
 [![Node.js](https://img.shields.io/node/v/@organizaone/o1-code)](https://nodejs.org/)
-[![License](https://img.shields.io/npm/l/@organizaone/o1-code)](https://github.com/silvioricardo87/o1-code/blob/main/LICENSE)
+[![License](https://img.shields.io/npm/l/@organizaone/o1-code)](https://github.com/organizaone/o1-code/blob/main/LICENSE)
 
 An open-source AI coding agent for your terminal. o1-code reads your project, edits files, runs
 commands and works through multi-step tasks, with the model provider you choose: any
@@ -58,14 +58,14 @@ o1-code
 
 ## Learn more
 
-- [Quickstart](https://github.com/silvioricardo87/o1-code/blob/main/docs/users/quickstart.md)
-- [User documentation](https://github.com/silvioricardo87/o1-code/blob/main/docs/users/overview.md)
-- [Model providers](https://github.com/silvioricardo87/o1-code/blob/main/docs/users/configuration/model-providers.md)
-- [Changelog](https://github.com/silvioricardo87/o1-code/blob/main/CHANGELOG.md)
-- [Report an issue](https://github.com/silvioricardo87/o1-code/issues)
+- [Quickstart](https://github.com/organizaone/o1-code/blob/main/docs/users/quickstart.md)
+- [User documentation](https://github.com/organizaone/o1-code/blob/main/docs/users/overview.md)
+- [Model providers](https://github.com/organizaone/o1-code/blob/main/docs/users/configuration/model-providers.md)
+- [Changelog](https://github.com/organizaone/o1-code/blob/main/CHANGELOG.md)
+- [Report an issue](https://github.com/organizaone/o1-code/issues)
 
 ## License
 
 Apache-2.0. See
-[LICENSE](https://github.com/silvioricardo87/o1-code/blob/main/LICENSE) and
-[NOTICE](https://github.com/silvioricardo87/o1-code/blob/main/NOTICE).
+[LICENSE](https://github.com/organizaone/o1-code/blob/main/LICENSE) and
+[NOTICE](https://github.com/organizaone/o1-code/blob/main/NOTICE).

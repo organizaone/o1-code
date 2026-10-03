@@ -5,7 +5,7 @@
   "description": "Web templates bundled as embeddable JS/CSS strings",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/silvioricardo87/o1-code.git"
+    "url": "git+https://github.com/organizaone/o1-code.git"
   },
   "type": "module",
   "main": "dist/index.js",

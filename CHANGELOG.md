@@ -7,6 +7,12 @@ follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Changed
+
+- The repository now lives at `github.com/organizaone/o1-code`. Links in the interface
+  (documentation, "report an issue", release notes), in the package metadata and in the
+  documentation point there; the old address redirects.
+
 ## [0.5.1] - 2026-10-03
 
 ### Changed
@@ -276,5 +282,5 @@ The first release of o1-code, a coding agent for the terminal.
 - `o1-code serve` runs a local daemon with a REST API and the Web Shell, a browser interface.
 - Editor companions for VS Code and Zed.
 
-[Unreleased]: https://github.com/silvioricardo87/o1-code/compare/v0.1.0...HEAD
-[0.1.0]: https://github.com/silvioricardo87/o1-code/releases/tag/v0.1.0
+[Unreleased]: https://github.com/organizaone/o1-code/compare/v0.1.0...HEAD
+[0.1.0]: https://github.com/organizaone/o1-code/releases/tag/v0.1.0

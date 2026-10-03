@@ -8,7 +8,7 @@
   "icon": "assets/icon.png",
   "repository": {
     "type": "git",
-    "url": "https://github.com/silvioricardo87/o1-code.git",
+    "url": "https://github.com/organizaone/o1-code.git",
     "directory": "packages/vscode-ide-companion"
   },
   "engines": {

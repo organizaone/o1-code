@@ -17,7 +17,7 @@ prebuilt or optional.
 ## Build
 
 ```bash
-git clone https://github.com/silvioricardo87/o1-code.git
+git clone https://github.com/organizaone/o1-code.git
 cd o1-code
 git config core.longpaths true         # Windows only
 corepack pnpm install --frozen-lockfile

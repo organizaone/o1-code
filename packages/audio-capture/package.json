@@ -4,7 +4,7 @@
   "description": "Native microphone capture backend for O1-Code voice input",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/silvioricardo87/o1-code.git",
+    "url": "git+https://github.com/organizaone/o1-code.git",
     "directory": "packages/audio-capture"
   },
   "type": "module",
