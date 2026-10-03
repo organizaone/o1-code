@@ -14,7 +14,7 @@ people and coding agents alike.
 ## Set up
 
 ```bash
-git clone https://github.com/silvioricardo87/o1-code.git && cd o1-code
+git clone https://github.com/organizaone/o1-code.git && cd o1-code
 git config core.longpaths true
 corepack pnpm install --frozen-lockfile
 npm run build -- --cli-only

@@ -53,7 +53,7 @@ debug:
 
 
 run-npx:
-	npx https://github.com/silvioricardo87/o1-code
+	npx https://github.com/organizaone/o1-code
 
 create-alias:
 	scripts/create_alias.sh

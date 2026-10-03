@@ -92,11 +92,11 @@
   },
   "repository": {
     "type": "git",
-    "url": "https://github.com/silvioricardo87/o1-code.git",
+    "url": "https://github.com/organizaone/o1-code.git",
     "directory": "packages/sdk-typescript"
   },
   "bugs": {
-    "url": "https://github.com/silvioricardo87/o1-code/issues"
+    "url": "https://github.com/organizaone/o1-code/issues"
   },
-  "homepage": "https://github.com/silvioricardo87/o1-code/tree/main/docs"
+  "homepage": "https://github.com/organizaone/o1-code/tree/main/docs"
 }

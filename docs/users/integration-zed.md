@@ -42,4 +42,4 @@ Zed's agent panel.
 
 - Check your connection to your model provider
 - Verify the CLI works by running `o1-code` in a terminal
-- [File an issue on GitHub](https://github.com/silvioricardo87/o1-code/issues) if the problem persists
+- [File an issue on GitHub](https://github.com/organizaone/o1-code/issues) if the problem persists

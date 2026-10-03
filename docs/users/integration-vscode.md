@@ -38,4 +38,4 @@ Install from VSIX...** from the command palette and pick that file.
 
 - Check your connection to your model provider
 - Start a new conversation to see if the issue persists
-- [File an issue on GitHub](https://github.com/silvioricardo87/o1-code/issues) if the problem continues
+- [File an issue on GitHub](https://github.com/organizaone/o1-code/issues) if the problem continues

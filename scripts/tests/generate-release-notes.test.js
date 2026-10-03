@@ -34,8 +34,7 @@ import {
   tryAppendDegradedStepSummary,
 } from '../generate-release-notes.js';
 
-const PR = (number) =>
-  `https://github.com/silvioricardo87/o1-code/pull/${number}`;
+const PR = (number) => `https://github.com/organizaone/o1-code/pull/${number}`;
 
 const entry = (number, title, labels = []) => ({
   number,
@@ -54,7 +53,7 @@ describe('parseGeneratedEntries', () => {
       `* fix(core): preserve tool results by @bob in ${PR(8)}`,
       `* fix(ci): retry publishing by @carol with @Copilot in ${PR(6574)}`,
       '',
-      '**Full Changelog**: https://github.com/silvioricardo87/o1-code/compare/v1...v2',
+      '**Full Changelog**: https://github.com/organizaone/o1-code/compare/v1...v2',
     ].join('\n');
 
     expect(parseGeneratedEntries(body)).toEqual([
@@ -183,7 +182,7 @@ describe('renderReleaseNotes', () => {
       ],
       previousTag: 'v1.0.0',
       tag: 'v1.1.0',
-      repo: 'silvioricardo87/o1-code',
+      repo: 'organizaone/o1-code',
     });
 
     expect(markdown).toContain('<!-- o1-code-release-notes:v1 -->');
@@ -204,7 +203,7 @@ describe('renderReleaseNotes', () => {
       );
     }
     expect(markdown).toContain(
-      '**Full Changelog**: https://github.com/silvioricardo87/o1-code/compare/v1.0.0...v1.1.0',
+      '**Full Changelog**: https://github.com/organizaone/o1-code/compare/v1.0.0...v1.1.0',
     );
   });
 });
@@ -455,7 +454,7 @@ describe('renderReleaseNotesV2', () => {
     ],
     previousTag: 'v1.0.0',
     tag: 'v1.1.0',
-    repo: 'silvioricardo87/o1-code',
+    repo: 'organizaone/o1-code',
   };
 
   it('renders PR titles in the appendix without live links', () => {
@@ -465,7 +464,7 @@ describe('renderReleaseNotesV2', () => {
       themes: [],
       previousTag: 'v1.0.0',
       tag: 'v1.1.0',
-      repo: 'silvioricardo87/o1-code',
+      repo: 'organizaone/o1-code',
     });
 
     expect(markdown).not.toContain('[docs]');
@@ -537,7 +536,7 @@ describe('renderReleaseNotesV2', () => {
     expect(markdown).not.toContain('v1 endpoint ([#4]');
     expect(markdown).toContain('</details>');
     expect(markdown).toContain(
-      '**Full Changelog**: https://github.com/silvioricardo87/o1-code/compare/v1.0.0...v1.1.0',
+      '**Full Changelog**: https://github.com/organizaone/o1-code/compare/v1.0.0...v1.1.0',
     );
   });
 
@@ -750,7 +749,7 @@ describe('renderReleaseNotesV2', () => {
       ],
       previousTag: 'v1.0.0',
       tag: 'v1.1.0',
-      repo: 'silvioricardo87/o1-code',
+      repo: 'organizaone/o1-code',
     });
 
     expect(markdown).toContain('  - 移除旧版 v1 API 端点。');
@@ -1531,7 +1530,7 @@ describe('generateReleaseNotes', () => {
       },
       previousTag: 'v1.0.0',
       tag: 'v1.0.1',
-      repo: 'silvioricardo87/o1-code',
+      repo: 'organizaone/o1-code',
     });
 
     expect(result.markdown).toBe(generatedBody);
@@ -1553,7 +1552,7 @@ describe('generateReleaseNotes', () => {
       complete: null,
       previousTag: 'v1.0.0',
       tag: 'v1.1.0',
-      repo: 'silvioricardo87/o1-code',
+      repo: 'organizaone/o1-code',
     });
 
     expect(result.markdown).toContain('### Features');
@@ -1616,7 +1615,7 @@ describe('generateReleaseNotes', () => {
       complete,
       previousTag: 'v1.0.0',
       tag: 'v1.1.0',
-      repo: 'silvioricardo87/o1-code',
+      repo: 'organizaone/o1-code',
     });
 
     expect(result.markdown).toContain('<!-- o1-code-release-notes:v2 -->');
@@ -1654,7 +1653,7 @@ describe('generateReleaseNotes', () => {
       complete,
       previousTag: 'v1.0.0',
       tag: 'v1.1.0',
-      repo: 'silvioricardo87/o1-code',
+      repo: 'organizaone/o1-code',
     });
 
     expect(result.markdown).toContain('<!-- o1-code-release-notes:v2 -->');
@@ -1691,7 +1690,7 @@ describe('generateReleaseNotes', () => {
       complete,
       previousTag: 'v1.0.0',
       tag: 'v1.1.0',
-      repo: 'silvioricardo87/o1-code',
+      repo: 'organizaone/o1-code',
     });
 
     expect(result.markdown).toContain('## 中文摘要');
@@ -1728,7 +1727,7 @@ describe('generateReleaseNotes', () => {
       complete,
       previousTag: 'v1.0.0',
       tag: 'v1.1.0',
-      repo: 'silvioricardo87/o1-code',
+      repo: 'organizaone/o1-code',
     });
 
     expect(result.markdown).toContain('<!-- o1-code-release-notes:v1 -->');
@@ -1775,7 +1774,7 @@ describe('generateReleaseNotes', () => {
       complete,
       previousTag: 'v1.0.0',
       tag: 'v1.1.0',
-      repo: 'silvioricardo87/o1-code',
+      repo: 'organizaone/o1-code',
     });
 
     expect(result.markdown).toContain(
@@ -1811,7 +1810,7 @@ describe('generateReleaseNotes', () => {
       complete,
       previousTag: 'v1.0.0',
       tag: 'v1.1.0',
-      repo: 'silvioricardo87/o1-code',
+      repo: 'organizaone/o1-code',
     });
 
     expect(result.markdown).toContain('<!-- o1-code-release-notes:v1 -->');
@@ -1834,8 +1833,8 @@ describe('generateReleaseNotes', () => {
           [
             '#!/usr/bin/env node',
             'const args = process.argv.slice(2);',
-            "if (args[0] === 'api' && args.includes('repos/silvioricardo87/o1-code/releases/generate-notes')) {",
-            "  process.stdout.write([\"## What's Changed\", '* feat: add cli path by @alice in https://github.com/silvioricardo87/o1-code/pull/1'].join('\\n'));",
+            "if (args[0] === 'api' && args.includes('repos/organizaone/o1-code/releases/generate-notes')) {",
+            "  process.stdout.write([\"## What's Changed\", '* feat: add cli path by @alice in https://github.com/organizaone/o1-code/pull/1'].join('\\n'));",
             '  process.exit(0);',
             '}',
             "if (args[0] === 'api' && args[1] === 'graphql') {",
@@ -1861,7 +1860,7 @@ describe('generateReleaseNotes', () => {
               ...process.env,
               PATH: `${dir}:${process.env.PATH}`,
               GITHUB_STEP_SUMMARY: summaryPath,
-              GITHUB_REPOSITORY: 'silvioricardo87/o1-code',
+              GITHUB_REPOSITORY: 'organizaone/o1-code',
               OPENAI_API_KEY: '',
               OPENAI_BASE_URL: '',
               OPENAI_MODEL: '',

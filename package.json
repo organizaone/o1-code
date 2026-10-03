@@ -15,7 +15,7 @@
   ],
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/silvioricardo87/o1-code.git"
+    "url": "git+https://github.com/organizaone/o1-code.git"
   },
   "config": {
     "sandboxImageUri": "ghcr.io/organizaone/o1-code:0.5.1"

@@ -1575,7 +1575,7 @@ describe('package asset scripts', () => {
           private: true,
           repository: {
             type: 'git',
-            url: 'https://github.com/silvioricardo87/o1-code.git',
+            url: 'https://github.com/organizaone/o1-code.git',
           },
           config: {},
           engines: {

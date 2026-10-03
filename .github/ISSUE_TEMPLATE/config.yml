@@ -1,8 +1,8 @@
 blank_issues_enabled: false
 contact_links:
   - name: Report a security vulnerability
-    url: https://github.com/silvioricardo87/o1-code/security/advisories/new
+    url: https://github.com/organizaone/o1-code/security/advisories/new
     about: Privately, never in a public issue. See SECURITY.md.
   - name: Documentation
-    url: https://github.com/silvioricardo87/o1-code/blob/main/docs/users/overview.md
+    url: https://github.com/organizaone/o1-code/blob/main/docs/users/overview.md
     about: Setup, providers and configuration.

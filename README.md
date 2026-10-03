@@ -10,8 +10,8 @@
   <a href="https://www.npmjs.com/package/@organizaone/o1-code"><img alt="npm downloads" src="https://img.shields.io/npm/dm/@organizaone/o1-code"></a>
   <a href="https://nodejs.org/"><img alt="Node.js" src="https://img.shields.io/node/v/@organizaone/o1-code"></a>
   <a href="./LICENSE"><img alt="License: Apache-2.0" src="https://img.shields.io/badge/license-Apache--2.0-blue"></a>
-  <a href="https://github.com/silvioricardo87/o1-code/actions/workflows/o1-ci.yml"><img alt="CI" src="https://github.com/silvioricardo87/o1-code/actions/workflows/o1-ci.yml/badge.svg?branch=main"></a>
-  <a href="https://github.com/silvioricardo87/o1-code/releases"><img alt="Release" src="https://img.shields.io/github/v/release/silvioricardo87/o1-code"></a>
+  <a href="https://github.com/organizaone/o1-code/actions/workflows/o1-ci.yml"><img alt="CI" src="https://github.com/organizaone/o1-code/actions/workflows/o1-ci.yml/badge.svg?branch=main"></a>
+  <a href="https://github.com/organizaone/o1-code/releases"><img alt="Release" src="https://img.shields.io/github/v/release/organizaone/o1-code"></a>
 </p>
 
 o1-code reads your project, edits files, runs commands and works through multi-step tasks, asking

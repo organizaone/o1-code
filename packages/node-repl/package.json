@@ -4,7 +4,7 @@
   "description": "Standalone MCP server exposing a session-persistent Node.js REPL (node_repl) — independent of o1-code core.",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/silvioricardo87/o1-code.git",
+    "url": "git+https://github.com/organizaone/o1-code.git",
     "directory": "packages/node-repl"
   },
   "type": "module",
@@ -52,7 +52,7 @@
     "vitest": "^3.1.1"
   },
   "bugs": {
-    "url": "https://github.com/silvioricardo87/o1-code/issues"
+    "url": "https://github.com/organizaone/o1-code/issues"
   },
-  "homepage": "https://github.com/silvioricardo87/o1-code/tree/main/packages/node-repl#readme"
+  "homepage": "https://github.com/organizaone/o1-code/tree/main/packages/node-repl#readme"
 }
