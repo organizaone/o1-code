@@ -469,6 +469,11 @@
           "type": "boolean",
           "default": true
         },
+        "incrementalRendering": {
+          "description": "Redraw only the lines that changed since the previous frame instead of erasing and rewriting the whole interface. Removes the flicker that terminals without synchronized output (GNOME Terminal, Ptyxis, Terminal.app) show while a response streams, and sends far less data to the terminal. Disable if lines appear duplicated or out of place in your terminal; O1CODE_INCREMENTAL_RENDERING=0 or =1 overrides this setting for one session.",
+          "type": "boolean",
+          "default": true
+        },
         "glyphs": {
           "description": "Symbols used by the interface. \"auto\" uses console-safe symbols in the Windows console host and full symbols everywhere else; \"compat\" forces console-safe symbols; \"full\" forces the full set. Options: auto, full, compat",
           "enum": [

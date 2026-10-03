@@ -8,8 +8,54 @@ import { describe, expect, it } from 'vitest';
 import { getSettingsSchema } from '../../config/settingsSchema.js';
 import {
   isInteractiveTerminal,
+  shouldUseIncrementalRendering,
   shouldUseVirtualViewport,
 } from './terminal-buffer.js';
+
+describe('shouldUseIncrementalRendering', () => {
+  it('defaults to incremental rendering when the setting is unset', () => {
+    expect(shouldUseIncrementalRendering(undefined, {})).toBe(
+      getSettingsSchema().ui.properties.incrementalRendering.default,
+    );
+    expect(shouldUseIncrementalRendering(undefined, {})).toBe(true);
+  });
+
+  it('respects an explicit setting', () => {
+    expect(shouldUseIncrementalRendering(true, {})).toBe(true);
+    expect(shouldUseIncrementalRendering(false, {})).toBe(false);
+  });
+
+  it('lets O1CODE_INCREMENTAL_RENDERING override the setting either way', () => {
+    expect(
+      shouldUseIncrementalRendering(true, {
+        O1CODE_INCREMENTAL_RENDERING: '0',
+      }),
+    ).toBe(false);
+    expect(
+      shouldUseIncrementalRendering(undefined, {
+        O1CODE_INCREMENTAL_RENDERING: '0',
+      }),
+    ).toBe(false);
+    expect(
+      shouldUseIncrementalRendering(false, {
+        O1CODE_INCREMENTAL_RENDERING: '1',
+      }),
+    ).toBe(true);
+  });
+
+  it('ignores any other value of the environment variable', () => {
+    expect(
+      shouldUseIncrementalRendering(false, {
+        O1CODE_INCREMENTAL_RENDERING: 'yes',
+      }),
+    ).toBe(false);
+    expect(
+      shouldUseIncrementalRendering(undefined, {
+        O1CODE_INCREMENTAL_RENDERING: '',
+      }),
+    ).toBe(true);
+  });
+});
 
 describe('shouldUseVirtualViewport', () => {
   it('defaults to virtual viewport when the setting is unset', () => {

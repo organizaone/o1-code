@@ -50,3 +50,25 @@ export function shouldUseVirtualViewport(
   // in sync with settingsSchema.ts's default for ui.useTerminalBuffer.
   return terminalInteractive && (useTerminalBuffer ?? true) && !screenReader;
 }
+
+/**
+ * Whether Ink rewrites only the lines that changed between frames instead of
+ * erasing and redrawing the whole output. `O1CODE_INCREMENTAL_RENDERING`
+ * (`0` or `1`) wins over the setting, so a terminal that loses track of the
+ * cursor can be worked around without editing settings.
+ */
+export function shouldUseIncrementalRendering(
+  incrementalRendering: boolean | undefined,
+  env: TerminalEnvironment = process.env,
+): boolean {
+  const override = env['O1CODE_INCREMENTAL_RENDERING'];
+  if (override === '0') {
+    return false;
+  }
+  if (override === '1') {
+    return true;
+  }
+  // Same fallback contract as shouldUseVirtualViewport: the loader does not
+  // apply schema defaults, so mirror settingsSchema.ts here.
+  return incrementalRendering ?? true;
+}

@@ -54,6 +54,7 @@ import { installTerminalResizeReflow } from './utils/terminal-resize-reflow.js';
 import { installSynchronizedOutput } from './utils/synchronizedOutput.js';
 import {
   isInteractiveTerminal,
+  shouldUseIncrementalRendering,
   shouldUseVirtualViewport,
 } from './utils/terminal-buffer.js';
 import {
@@ -338,6 +339,12 @@ export async function startInteractiveUI(
       exitOnCtrlC: false,
       isScreenReaderEnabled: config.getScreenReader(),
       alternateScreen: useVP,
+      // Line-diff frames: each render rewrites only the lines that changed,
+      // so terminals that ignore synchronized output (VTE, Terminal.app) do
+      // not see the whole screen erased and redrawn on every spinner tick.
+      incrementalRendering: shouldUseIncrementalRendering(
+        settings.merged.ui?.incrementalRendering,
+      ),
       ...(useVP ? { maxFps: 60 } : {}),
     },
   );
