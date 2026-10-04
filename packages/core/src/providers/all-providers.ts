@@ -23,7 +23,7 @@ import { moonshotProvider } from './presets/moonshot.js';
 import { modelscopeProvider } from './presets/modelscope.js';
 import { openaiProvider } from './presets/openai.js';
 import {
-  organizaoneAippProvider,
+  organizaoneO1gwProvider,
   organizaoneLoginProvider,
   organizaoneProvider,
 } from './presets/organizaone.js';
@@ -48,7 +48,7 @@ export {
   openaiProvider,
   organizaoneProvider,
   organizaoneLoginProvider,
-  organizaoneAippProvider,
+  organizaoneO1gwProvider,
   ollamaProvider,
   lmstudioProvider,
   localOpenAiProvider,
@@ -108,7 +108,7 @@ export const PROVIDERS_BY_GROUP: Readonly<
   organizaone: [
     organizaoneProvider,
     organizaoneLoginProvider,
-    organizaoneAippProvider,
+    organizaoneO1gwProvider,
   ],
   apiKey: API_KEY_PROVIDERS,
   local: LOCAL_PROVIDERS,

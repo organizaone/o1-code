@@ -47,7 +47,7 @@ describe('auth provider catalog', () => {
     expect(group('organizaone')).toEqual([
       'organizaone',
       'organizaone-login',
-      'organizaone-aipp',
+      'organizaone-o1gw',
     ]);
     expect(group('apiKey')).toEqual([
       'coding-plan',
@@ -77,7 +77,7 @@ describe('auth provider catalog', () => {
       comingSoon: true,
       description: 'Sign in to OrganizaOne in the browser',
     });
-    expect(descriptor('organizaone-aipp')?.comingSoon).toBe(true);
+    expect(descriptor('organizaone-o1gw')?.comingSoon).toBe(true);
     expect(descriptor('organizaone')?.comingSoon).toBeUndefined();
     expect(descriptor('ollama')?.localProbe).toEqual({ kind: 'ollama' });
     expect(descriptor('lmstudio')?.localProbe).toEqual({ kind: 'lmstudio' });

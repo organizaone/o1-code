@@ -3035,7 +3035,7 @@ export default {
   'Z.AI': 'Z.AI',
   'Other local server': 'Un altre servidor local',
   'Sign in with your account': 'Inicieu la sessió amb el vostre compte',
-  'aipp device code': 'Codi de dispositiu aipp',
+  'o1-gateway device code': 'Codi de dispositiu o1-gateway',
   'Claude · key from console.anthropic.com':
     'Claude · clau de console.anthropic.com',
   'GPT · key from platform.openai.com': 'GPT · clau de platform.openai.com',
@@ -3045,7 +3045,8 @@ export default {
     'Connecteu-vos a OrganizaOne amb la vostra clau',
   'Sign in to OrganizaOne in the browser':
     'Inicieu la sessió a OrganizaOne al navegador',
-  'Paste an aipp connection code': 'Enganxeu un codi de connexió aipp',
+  'Paste an o1-gateway connection code':
+    'Enganxeu un codi de connexió o1-gateway',
   'Models from Ollama on this machine': "Models d'Ollama en aquesta màquina",
   'Models from LM Studio on this machine':
     'Models de LM Studio en aquesta màquina',

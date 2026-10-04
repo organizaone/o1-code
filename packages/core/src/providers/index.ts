@@ -99,7 +99,7 @@ export {
   moonshotProvider,
   ollamaProvider,
   openaiProvider,
-  organizaoneAippProvider,
+  organizaoneO1gwProvider,
   organizaoneLoginProvider,
   organizaoneProvider,
   PROVIDERS_BY_GROUP,

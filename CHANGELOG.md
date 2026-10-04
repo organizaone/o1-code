@@ -7,6 +7,14 @@ follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Changed
+
+- The OrganizaOne proxy is now o1-gateway (OrganizaOne AI Gateway), version 9.0.0, which renamed
+  everything it exposes without keeping the old names. o1-code reads its account-limit headers
+  under the new names (`x-o1gw-limit`, `x-o1gw-limit-reset`); the menu entry for the connection
+  code is "o1-gateway device code" and its code starts with `o1gw1.`. A saved device token keeps
+  working; nothing asks for a new login.
+
 ### Fixed
 
 - The frame around the conversation is visible again on dark terminals whose background is close

@@ -17,7 +17,7 @@ import {
 const now = Date.parse('2026-09-30T20:00:00Z');
 
 // Errors as the SDKs build them from the proxy's answers (limits.ts,
-// resilience.ts in ai-proxy-provider 6.0).
+// resilience.ts in o1-gateway).
 const openaiError = (
   status: number,
   body: object,
@@ -42,8 +42,8 @@ const dailyLimit = (retryAfter: string) =>
     },
     {
       'retry-after': retryAfter,
-      'x-aipp-limit': 'user.requests_per_day',
-      'x-aipp-limit-reset': '2026-10-01T00:00:00.000Z',
+      'x-o1gw-limit': 'user.requests_per_day',
+      'x-o1gw-limit-reset': '2026-10-01T00:00:00.000Z',
     },
   );
 
@@ -63,8 +63,8 @@ describe('readProxyWait', () => {
       { type: 'error', error: { type: 'rate_limit_error', message: 'limit' } },
       {
         'retry-after': '2',
-        'x-aipp-limit': 'user.requests_per_minute',
-        'x-aipp-limit-reset': '2026-09-30T20:00:02.000Z',
+        'x-o1gw-limit': 'user.requests_per_minute',
+        'x-o1gw-limit-reset': '2026-09-30T20:00:02.000Z',
       },
     );
     expect(readProxyWait(error, now)).toMatchObject({

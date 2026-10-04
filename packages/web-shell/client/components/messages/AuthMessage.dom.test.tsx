@@ -224,9 +224,9 @@ const GROUPED_CATALOG = {
       steps: [],
     },
     {
-      id: 'organizaone-aipp',
-      label: 'aipp device code',
-      description: 'Paste an aipp connection code',
+      id: 'organizaone-o1gw',
+      label: 'o1-gateway device code',
+      description: 'Paste an o1-gateway connection code',
       protocol: 'anthropic',
       comingSoon: true,
       steps: [],
@@ -296,7 +296,7 @@ const GROUPED_CATALOG = {
       id: 'organizaone',
       label: 'OrganizaOne',
       description: 'Connect to OrganizaOne with your key',
-      providerIds: ['organizaone', 'organizaone-login', 'organizaone-aipp'],
+      providerIds: ['organizaone', 'organizaone-login', 'organizaone-o1gw'],
     },
     {
       id: 'apiKey',
@@ -412,7 +412,10 @@ describe('AuthMessage groups', () => {
     await open();
     await click('OrganizaOne');
     expect(buttonStartingWith('API key')?.disabled).toBe(false);
-    for (const label of ['Sign in with your account', 'aipp device code']) {
+    for (const label of [
+      'Sign in with your account',
+      'o1-gateway device code',
+    ]) {
       const entry = buttonStartingWith(label);
       expect(entry?.disabled).toBe(true);
       expect(entry?.textContent).toContain('coming soon');

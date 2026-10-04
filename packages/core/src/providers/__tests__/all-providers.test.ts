@@ -61,7 +61,7 @@ describe('provider registry', () => {
     expect(PROVIDERS_BY_GROUP.organizaone.map((p) => p.id)).toEqual([
       'organizaone',
       'organizaone-login',
-      'organizaone-aipp',
+      'organizaone-o1gw',
     ]);
     expect(PROVIDERS_BY_GROUP.local.map((p) => p.id)).toEqual([
       'ollama',
@@ -120,7 +120,7 @@ describe('provider registry', () => {
       getMenuRows('organizaone').map((row) =>
         row.kind === 'provider' ? row.provider.id : row.family.id,
       ),
-    ).toEqual(['organizaone', 'organizaone-login', 'organizaone-aipp']);
+    ).toEqual(['organizaone', 'organizaone-login', 'organizaone-o1gw']);
     expect(getMenuRows('local').every((row) => row.kind === 'provider')).toBe(
       true,
     );

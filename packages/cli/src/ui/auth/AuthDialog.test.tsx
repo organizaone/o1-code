@@ -470,7 +470,7 @@ describe('AuthDialog', { timeout: 15000 }, () => {
       expect(items.map((item) => item.value)).toEqual([
         'organizaone',
         'organizaone-login',
-        'organizaone-aipp',
+        'organizaone-o1gw',
       ]);
       expect(items.map((item) => Boolean(item.unavailable))).toEqual([
         false,
@@ -488,9 +488,9 @@ describe('AuthDialog', { timeout: 15000 }, () => {
       expect(
         rows.find((row) => row.includes('Sign in with your account')),
       ).toContain('coming soon');
-      expect(rows.find((row) => row.includes('aipp device code'))).toContain(
-        'coming soon',
-      );
+      expect(
+        rows.find((row) => row.includes('o1-gateway device code')),
+      ).toContain('coming soon');
       unmount();
     });
 

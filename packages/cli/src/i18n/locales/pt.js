@@ -542,7 +542,7 @@ export default {
   'Z.AI': 'Z.AI',
   'Other local server': 'Outro servidor local',
   'Sign in with your account': 'Entrar com sua conta',
-  'aipp device code': 'Código de dispositivo aipp',
+  'o1-gateway device code': 'Código de dispositivo o1-gateway',
   'Claude · key from console.anthropic.com':
     'Claude · chave em console.anthropic.com',
   'GPT · key from platform.openai.com': 'GPT · chave em platform.openai.com',
@@ -552,7 +552,7 @@ export default {
     'Conecte-se à OrganizaOne com sua chave',
   'Sign in to OrganizaOne in the browser':
     'Entre na OrganizaOne pelo navegador',
-  'Paste an aipp connection code': 'Cole um código de conexão aipp',
+  'Paste an o1-gateway connection code': 'Cole um código de conexão o1-gateway',
   'Models from Ollama on this machine': 'Modelos do Ollama nesta máquina',
   'Models from LM Studio on this machine': 'Modelos do LM Studio nesta máquina',
   'Any OpenAI-compatible server on this machine':
