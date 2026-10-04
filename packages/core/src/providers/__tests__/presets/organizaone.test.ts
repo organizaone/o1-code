@@ -82,34 +82,63 @@ describe('organizaoneProvider', () => {
 });
 
 describe('OrganizaOne sign-in entries', () => {
-  it.each([
-    [
-      organizaoneLoginProvider,
-      'organizaone-login',
-      'Sign in with your account',
-    ],
-    [organizaoneO1gwProvider, 'organizaone-o1gw', 'o1-gateway device code'],
-  ])('lists %s as coming soon', (provider, id, label) => {
-    expect(provider).toMatchObject({
-      id,
-      label,
+  it('signs in with the account through device authorization, to the same proxy as the key', () => {
+    expect(organizaoneLoginProvider).toMatchObject({
+      id: 'organizaone-login',
+      label: 'Sign in with your account',
       uiGroup: 'organizaone',
-      comingSoon: true,
+      signIn: 'organizaone-device',
+      credentialId: 'organizaone',
+      envKey: organizaoneProvider.envKey,
+      baseUrlByProtocol: organizaoneProvider.baseUrlByProtocol,
+      protocolOptions: organizaoneProvider.protocolOptions,
+      supportsModelDiscovery: true,
+    });
+    expect(organizaoneLoginProvider.comingSoon).toBeUndefined();
+    // The token comes from the sign-in, never from a typed key.
+    expect(shouldShowStep(organizaoneLoginProvider, 'apiKey')).toBe(false);
+    expect(shouldShowStep(organizaoneProvider, 'apiKey')).toBe(true);
+  });
+
+  it('saves the sign-in token as the OrganizaOne credential, with its expiry', () => {
+    const plan = buildInstallPlan(organizaoneLoginProvider, {
+      protocol: AuthType.USE_ANTHROPIC,
+      baseUrl: '',
+      apiKey: 'o1gw_token',
+      credentialExtras: {
+        expiresAt: '2027-01-01T12:00:00.000Z',
+        deviceName: 'o1-code-on-BOX',
+      },
+      modelIds: ['claude-sonnet-4-5'],
+    });
+    expect(plan.credential).toEqual({
+      id: 'organizaone',
+      apiKey: 'o1gw_token',
+      expiresAt: '2027-01-01T12:00:00.000Z',
+      deviceName: 'o1-code-on-BOX',
+    });
+    expect(plan.modelProviders?.[0]?.models[0]).toMatchObject({
+      baseUrl: 'https://api.organizago.com',
+      envKey: 'ORGANIZAONE_API_KEY',
+      credential: 'organizaone',
     });
   });
 
-  it.each([organizaoneLoginProvider, organizaoneO1gwProvider])(
-    'refuses to build an install plan for $id',
-    (provider) => {
-      expect(() =>
-        buildInstallPlan(provider, {
-          baseUrl: 'https://api.organizago.com',
-          apiKey: 'x',
-          modelIds: ['m'],
-        }),
-      ).toThrow(/not available yet/);
-    },
-  );
+  it('lists the o1-gateway device code as coming soon', () => {
+    expect(organizaoneO1gwProvider).toMatchObject({
+      id: 'organizaone-o1gw',
+      label: 'o1-gateway device code',
+      uiGroup: 'organizaone',
+      comingSoon: true,
+    });
+    expect(() =>
+      buildInstallPlan(organizaoneO1gwProvider, {
+        baseUrl: 'https://api.organizago.com',
+        apiKey: 'x',
+        modelIds: ['m'],
+      }),
+    ).toThrow(/not available yet/);
+  });
 });
 
 describe('isOrganizaOneBaseUrl', () => {

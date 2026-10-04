@@ -196,6 +196,16 @@ export function buildOrganizaOneItems(): AuthMenuItem[] {
       ];
     }
     // The path already names OrganizaOne: the row says what the user does.
+    if (provider.signIn) {
+      return [
+        {
+          key: provider.id,
+          title: t(provider.label),
+          description: t(provider.description),
+          value: provider.id,
+        },
+      ];
+    }
     return [
       {
         key: provider.id,
@@ -361,7 +371,9 @@ function getStepLabel(step: string | null, p: ProviderConfig): string {
 /** The key saved for a preset, keyed by its env var, to prefill the key step. */
 function savedKeyEnv(config: ProviderConfig): Record<string, string> {
   if (typeof config.envKey !== 'string') return {};
-  const saved = readSavedApiKey(credentialIdForProvider(config.id));
+  const saved = readSavedApiKey(
+    credentialIdForProvider(config.credentialId ?? config.id),
+  );
   return saved ? { [config.envKey]: saved } : {};
 }
 

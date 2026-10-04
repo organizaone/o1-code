@@ -2811,6 +2811,18 @@ export default {
   Port: '端口',
   'Port of the server on this machine, or its full URL.':
     '本机服务器的端口，或完整 URL。',
+  'Approve this device in your browser; the models come from OrganizaOne':
+    '在浏览器中批准此设备；模型来自 OrganizaOne',
+  'Asking OrganizaOne for a sign-in code…': '正在向 OrganizaOne 请求登录码…',
+  'Your code': '你的验证码',
+  'The sign-in page is opening in your browser. Elsewhere, open:':
+    '登录页面正在浏览器中打开。如在其他设备，请打开：',
+  'Open this address on any device, sign in and enter the code:':
+    '在任意设备上打开此地址，登录并输入验证码：',
+  'Waiting for your approval…': '等待你的批准…',
+  'esc cancel': 'esc 取消',
+  'Approved. Listing your models…': '已批准。正在列出你的模型…',
+  'enter try again · esc back': 'enter 重试 · esc 返回',
   'checking the key…': '正在检查密钥…',
   'key valid': '密钥有效',
   'The provider refused this key ({{status}}). Check it, or press enter again to use it anyway.':

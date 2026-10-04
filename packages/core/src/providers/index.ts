@@ -64,6 +64,7 @@ export {
   readCredential,
   readSavedApiKey,
   removeCredential,
+  withdrawExportedCredential,
   resolveApiKey,
   writeCredential,
 } from './credential-store.js';
@@ -128,6 +129,30 @@ export {
   ORGANIZAONE_OPENAI_BASE_URL,
 } from './presets/organizaone.js';
 export { LOCAL_API_KEY_PLACEHOLDER } from './presets/local-openai.js';
+
+// OrganizaOne sign-in (device authorization) and the life of its token
+export {
+  DEVICE_AUTH_CLIENT_ID,
+  DeviceAuthError,
+  abortableSleep,
+  defaultDeviceName,
+  formatUserCode,
+  pollDeviceToken,
+  startDeviceAuthorization,
+} from './organizaone-device-auth.js';
+export type {
+  DeviceAuthErrorCode,
+  DeviceAuthorization,
+  DeviceToken,
+  FetchLike,
+} from './organizaone-device-auth.js';
+export {
+  KEY_EXPIRY_WARNING_DAYS,
+  ORGANIZAONE_ACCOUNT_PATH,
+  describeOrganizaOneUnauthorized,
+  organizaOneKeyExpiryWarning,
+} from './organizaone-device-state.js';
+export type { OrganizaOneUnauthorized } from './organizaone-device-state.js';
 
 // Install logic
 export {

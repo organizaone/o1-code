@@ -76,7 +76,11 @@ function buildAuthProviderDescriptor(
       ? { showAdvancedConfig: provider.showAdvancedConfig }
       : {}),
     ...(provider.uiLabels ? { uiLabels: provider.uiLabels } : {}),
-    ...(provider.comingSoon ? { comingSoon: true as const } : {}),
+    // A sign-in needs its own routes and a page in the web shell; until then
+    // the daemon's catalog keeps it as coming soon, whatever the terminal does.
+    ...(provider.comingSoon || provider.signIn
+      ? { comingSoon: true as const }
+      : {}),
     ...(provider.localProbe
       ? { localProbe: { kind: provider.localProbe.kind } }
       : {}),

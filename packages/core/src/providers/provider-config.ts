@@ -53,7 +53,7 @@ function resolveCredentialId(
   inputs: ProviderSetupInputs,
 ): string {
   if (typeof config.envKey !== 'function') {
-    return credentialIdForProvider(config.id);
+    return credentialIdForProvider(config.credentialId ?? config.id);
   }
   const id = generateCustomCredentialId(
     inputs.protocol ?? config.protocol,
@@ -639,7 +639,13 @@ export function buildInstallPlan(
       ? resolveModelProtocol(savedProtocol, firstModel)!
       : savedProtocol,
     ...(inputs.apiKey
-      ? { credential: { id: credentialId, apiKey: inputs.apiKey } }
+      ? {
+          credential: {
+            id: credentialId,
+            apiKey: inputs.apiKey,
+            ...inputs.credentialExtras,
+          },
+        }
       : {}),
     ...(modelSelection ? { modelSelection } : {}),
     modelProviders: [
@@ -887,7 +893,8 @@ export function shouldShowStep(
         (config.baseUrl === undefined || Array.isArray(config.baseUrl))
       );
     case 'apiKey':
-      return requiresApiKey(config);
+      // A sign-in brings the token itself; nothing is typed.
+      return requiresApiKey(config) && !config.signIn;
     case 'models':
       return !config.models || config.modelsEditable === true;
     case 'advancedConfig':

@@ -75,7 +75,8 @@ describe('auth provider catalog', () => {
   it('marks the coming-soon entries, the local probes and the Alibaba Cloud family', () => {
     expect(descriptor('organizaone-login')).toMatchObject({
       comingSoon: true,
-      description: 'Sign in to OrganizaOne in the browser',
+      description:
+        'Approve this device in your browser; the models come from OrganizaOne',
     });
     expect(descriptor('organizaone-o1gw')?.comingSoon).toBe(true);
     expect(descriptor('organizaone')?.comingSoon).toBeUndefined();

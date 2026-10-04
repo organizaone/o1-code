@@ -686,6 +686,40 @@ describe('Turn', () => {
       ]);
     });
 
+    it('explains a 401 from the OrganizaOne proxy and says why the token stopped working', async () => {
+      const serverMessage =
+        "This device's key expired on 2026-10-01: renew it on your account page";
+      const error = Object.assign(new Error(serverMessage), {
+        status: 401,
+        headers: new Headers({ 'x-o1gw-device-state': 'expired' }),
+        error: { type: 'authentication_error', message: serverMessage },
+      });
+      mockSendMessageStream.mockRejectedValue(error);
+      (
+        mockChatInstance as unknown as { getActiveBaseUrl: () => string }
+      ).getActiveBaseUrl = () => 'https://api.organizago.com';
+      mockGetHistoryLength.mockReturnValue(0);
+      mockGetHistoryTailShallow.mockReturnValue([]);
+      mockMaybeIncludeSchemaDepthContext.mockResolvedValue(undefined);
+      const events = [];
+      for await (const event of turn.run(
+        'test-model',
+        [{ text: 'hello' }],
+        new AbortController().signal,
+      )) {
+        events.push(event);
+      }
+
+      const errorEvent = events[0] as ServerLlmErrorEvent;
+      expect(errorEvent.type).toBe(LlmEventType.Error);
+      expect(errorEvent.value.error.status).toBe(401);
+      expect(errorEvent.value.error.organizaone?.kind).toBe('expired');
+      expect(errorEvent.value.error.message).toContain('2026-10-01');
+      expect(errorEvent.value.error.message).toContain(
+        'https://api.organizago.com/account',
+      );
+    });
+
     it('should yield Error event and report if sendMessageStream throws', async () => {
       const error = new Error('API Error');
       mockSendMessageStream.mockRejectedValue(error);

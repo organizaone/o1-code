@@ -375,9 +375,9 @@ export async function applyProviderInstallPlan(
     // Save the key in the credential store; settings only name it.
     currentStep = 'credential';
     if (plan.credential) {
-      const { id, apiKey } = plan.credential;
+      const { id, apiKey, expiresAt, deviceName } = plan.credential;
       const previous = credentials.read(id);
-      credentials.write(id, { apiKey });
+      credentials.write(id, { apiKey, expiresAt, deviceName });
       previousCredential = previous;
       const envKeys = [
         ...new Set(

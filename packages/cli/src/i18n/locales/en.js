@@ -2098,6 +2098,19 @@ export default {
   Port: 'Port',
   'Port of the server on this machine, or its full URL.':
     'Port of the server on this machine, or its full URL.',
+  'Approve this device in your browser; the models come from OrganizaOne':
+    'Approve this device in your browser; the models come from OrganizaOne',
+  'Asking OrganizaOne for a sign-in code…':
+    'Asking OrganizaOne for a sign-in code…',
+  'Your code': 'Your code',
+  'The sign-in page is opening in your browser. Elsewhere, open:':
+    'The sign-in page is opening in your browser. Elsewhere, open:',
+  'Open this address on any device, sign in and enter the code:':
+    'Open this address on any device, sign in and enter the code:',
+  'Waiting for your approval…': 'Waiting for your approval…',
+  'esc cancel': 'esc cancel',
+  'Approved. Listing your models…': 'Approved. Listing your models…',
+  'enter try again · esc back': 'enter try again · esc back',
   'checking the key…': 'checking the key…',
   'key valid': 'key valid',
   'The provider refused this key ({{status}}). Check it, or press enter again to use it anyway.':

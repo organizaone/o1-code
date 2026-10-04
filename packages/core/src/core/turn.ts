@@ -25,6 +25,10 @@ import { ToolErrorType } from '../tools/tool-error.js';
 import { getResponseText } from '../utils/partUtils.js';
 import { reportError } from '../utils/errorReporting.js';
 import {
+  describeOrganizaOneUnauthorized,
+  type OrganizaOneUnauthorized,
+} from '../providers/organizaone-device-state.js';
+import {
   getErrorMessage,
   getErrorStatus,
   UnauthorizedError,
@@ -109,6 +113,13 @@ export type ServerLlmModelFallbackEvent = {
 export interface StructuredError {
   message: string;
   status?: number;
+  /**
+   * Set on a 401 from the OrganizaOne proxy: why the device token stopped
+   * working and what the user can do (contract §2.6). The message already
+   * says it; the kind lets the interface forget a revoked credential and
+   * offer to sign in again.
+   */
+  organizaone?: OrganizaOneUnauthorized;
 }
 
 export interface LlmErrorEventValue {
@@ -884,6 +895,16 @@ export class Turn {
         message: getErrorMessage(error),
         status: getErrorStatus(error) ?? originalStatus,
       };
+      // The proxy says on a 401 why the device token stopped working; the
+      // raw error still carries the header the friendly one may have lost.
+      const unauthorized = describeOrganizaOneUnauthorized(
+        e,
+        this.chat.getActiveBaseUrl?.(),
+      );
+      if (unauthorized) {
+        structuredError.message = unauthorized.message;
+        structuredError.organizaone = unauthorized;
+      }
       await this.chat.maybeIncludeSchemaDepthContext(structuredError);
       yield { type: LlmEventType.Error, value: { error: structuredError } };
       return;

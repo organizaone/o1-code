@@ -585,6 +585,19 @@ export default {
   Port: 'Porta',
   'Port of the server on this machine, or its full URL.':
     'Porta do servidor nesta máquina, ou a URL completa.',
+  'Approve this device in your browser; the models come from OrganizaOne':
+    'Aprove este dispositivo no navegador; os modelos vêm da OrganizaOne',
+  'Asking OrganizaOne for a sign-in code…':
+    'Pedindo um código de acesso à OrganizaOne…',
+  'Your code': 'Seu código',
+  'The sign-in page is opening in your browser. Elsewhere, open:':
+    'A página de acesso está abrindo no navegador. Em outro aparelho, abra:',
+  'Open this address on any device, sign in and enter the code:':
+    'Abra este endereço em qualquer aparelho, entre e digite o código:',
+  'Waiting for your approval…': 'Aguardando sua aprovação…',
+  'esc cancel': 'esc cancelar',
+  'Approved. Listing your models…': 'Aprovado. Listando seus modelos…',
+  'enter try again · esc back': 'enter tentar de novo · esc voltar',
   'checking the key…': 'verificando a chave…',
   'key valid': 'chave válida',
   'The provider refused this key ({{status}}). Check it, or press enter again to use it anyway.':

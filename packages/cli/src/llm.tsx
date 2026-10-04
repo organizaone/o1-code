@@ -104,6 +104,7 @@ import {
 import { bindSupervisorLifetime } from './utils/supervisor-lifetime.js';
 import { start_sandbox } from './serve/sandbox.js';
 import { getStartupWarnings } from './utils/startupWarnings.js';
+import { organizaOneStartupWarnings } from './utils/organizaone-key-warning.js';
 import { getUserStartupWarnings } from './utils/userStartupWarnings.js';
 import { getInterruptedWorkflowRunsNotice } from './utils/interrupted-workflow-runs.js';
 import { initializeWarningHandler } from './utils/warningHandler.js';
@@ -1306,6 +1307,9 @@ export async function main() {
         })),
         ...getSettingsWarnings(settings),
         ...config.getWarnings(),
+        ...organizaOneStartupWarnings({
+          baseUrl: config.getContentGeneratorConfig()?.baseUrl,
+        }),
       ]),
     ];
     const emittedStartupWarnings = new Set(startupWarnings);
