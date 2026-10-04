@@ -125,7 +125,7 @@ export const O1CodeDark: Theme = new Theme(
       primary: '#0a1220',
       diff: { added: '#123624', removed: '#3b1a20' },
     },
-    border: { default: '#2a3550', focused: '#6e9bff' },
+    border: { default: '#46598a', focused: '#6e9bff' },
     ui: {
       comment: '#8593aa',
       symbol: '#95a5be',
@@ -142,8 +142,8 @@ export const O1CodeDark: Theme = new Theme(
   {
     text: { muted: '#8593aa', placeholder: '#7a879e' },
     ui: {
-      separator: '#3a4258',
-      rule: '#2a3550',
+      separator: '#52679c',
+      rule: '#46598a',
       brand: '#6e9bff',
       brandSoft: '#8fb2ff',
     },

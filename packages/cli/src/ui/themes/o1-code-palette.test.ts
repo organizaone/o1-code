@@ -33,7 +33,7 @@ describe('O1-Code Dark', () => {
       code: '#3fc7d6',
     });
     expect(O1CodeDark.semanticColors.border).toEqual({
-      default: '#2a3550',
+      default: '#46598a',
       focused: '#6e9bff',
     });
     expect(O1CodeDark.semanticColors.status).toMatchObject({
@@ -44,8 +44,8 @@ describe('O1-Code Dark', () => {
     expect(O1CodeDark.extendedColors).toEqual({
       text: { muted: '#8593aa', placeholder: '#7a879e' },
       ui: {
-        separator: '#3a4258',
-        rule: '#2a3550',
+        separator: '#52679c',
+        rule: '#46598a',
         brand: '#6e9bff',
         brandSoft: '#8fb2ff',
       },
@@ -92,4 +92,34 @@ describe('O1-Code Light', () => {
       [],
     );
   });
+
+  // Chrome that frames content (conversation border, autocomplete box,
+  // unfocused input) and small separator glyphs must survive the terminal's
+  // own background: #2a3550-era values were invisible on the dark navy
+  // profiles common on macOS (1.2:1 against #212734).
+  it.each([
+    [
+      'rule',
+      O1CodeDark.extendedColors.ui.rule,
+      ['#0a1220', '#212734', '#1e1e1e'],
+    ],
+    [
+      'separator',
+      O1CodeDark.extendedColors.ui.separator,
+      ['#0a1220', '#212734', '#1e1e1e'],
+    ],
+    ['rule', O1CodeLight.extendedColors.ui.rule, ['#f7f9fc', '#ffffff']],
+    [
+      'separator',
+      O1CodeLight.extendedColors.ui.separator,
+      ['#f7f9fc', '#ffffff'],
+    ],
+  ])(
+    'keeps dark/light %s visible on every expected background (colour %s)',
+    (_role, color, backgrounds) => {
+      for (const background of backgrounds) {
+        expect(contrast(color, background)).toBeGreaterThanOrEqual(1.8);
+      }
+    },
+  );
 });

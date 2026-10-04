@@ -7,6 +7,16 @@ follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Fixed
+
+- The frame around the conversation is visible again on dark terminals whose background is close
+  to the theme's own navy (Terminal.app's dark profiles among them): the frame colour sat at
+  1.2:1 contrast against such backgrounds and disappeared, while the input's border stayed
+  visible. The `rule` and `separator` colours of the dark and light themes now keep at least
+  1.8:1 against every background they can land on, which also brings back the empty cells of the
+  memory and context bars, the inactive activity dots, and the autocomplete box and unfocused
+  input borders.
+
 ## [0.5.2] - 2026-10-04
 
 ### Changed
