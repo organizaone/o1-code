@@ -149,7 +149,7 @@ export const O1CodeLight: Theme = new Theme(
       primary: '#f7f9fc',
       diff: { added: '#dcf2e4', removed: '#f9dddd' },
     },
-    border: { default: '#cfd7e4', focused: '#2b5bd7' },
+    border: { default: '#a3b4d2', focused: '#2b5bd7' },
     ui: {
       comment: '#56637b',
       symbol: '#46546d',
@@ -166,8 +166,8 @@ export const O1CodeLight: Theme = new Theme(
   {
     text: { muted: '#56637b', placeholder: '#65728a' },
     ui: {
-      separator: '#b4bfd0',
-      rule: '#cfd7e4',
+      separator: '#9fadca',
+      rule: '#a3b4d2',
       brand: '#2b5bd7',
       brandSoft: '#2f5fdb',
     },

@@ -35,8 +35,8 @@ not have. Themes that do not declare extended colours get them derived from thei
 | secondary text         | `theme.text.secondary`                      | `#95a5be` | `#46546d` | unselected items, queued messages                                 |
 | muted                  | `extendedTheme.text.muted`                  | `#8593aa` | `#56637b` | labels, hints, metadata                                           |
 | placeholder            | `extendedTheme.text.placeholder`            | `#7a879e` | `#65728a` | input placeholder                                                 |
-| separator              | `extendedTheme.ui.separator`                | `#3a4258` | `#b4bfd0` | `·` and `│`, empty bar cells, inactive chips                      |
-| rule                   | `extendedTheme.ui.rule`, `theme.border.default` | `#2a3550` | `#cfd7e4` | conversation border, autocomplete box, unfocused input        |
+| separator              | `extendedTheme.ui.separator`                | `#52679c` | `#9fadca` | `·` and `│`, empty bar cells, inactive chips                      |
+| rule                   | `extendedTheme.ui.rule`, `theme.border.default` | `#46598a` | `#a3b4d2` | conversation border, autocomplete box, unfocused input        |
 | brand                  | `extendedTheme.ui.brand`, `theme.border.focused` | `#6e9bff` | `#2b5bd7` | logo, `❯`, selection arrow, focused input, dialogs asking a choice |
 | brand soft             | `extendedTheme.ui.brandSoft`                | `#8fb2ff` | `#2f5fdb` | default/auto mode label, active skill, update notice, user message text, `monitoring` chip |
 | accent (purple)        | `theme.text.accent`                         | `#a48bff` | `#6547c9` | branch, memory bar, assistant `◆`, `@path` and `/command` in input |
@@ -48,6 +48,12 @@ not have. Themes that do not declare extended colours get them derived from thei
 **Why the dark theme's primary text is empty (the terminal's foreground):** without `ui.theme`,
 background detection falls back to the dark theme when it fails. An explicit near-white would be
 unreadable on a light terminal. `#e6ecf5` is the design reference, not a painted value.
+
+**Chrome keeps a contrast floor of 1.8:1 against the backgrounds it can land on** (`separator` and
+`rule`, dark on `#0a1220`/`#212734`/`#1e1e1e`, light on `#f7f9fc`/white — pinned in
+`themes/o1-code-palette.test.ts`). The theme never paints a background, so a frame colour is
+measured against the terminal's own: the first `rule`, `#2a3550`, was 1.2:1 on the dark navy
+profiles common on macOS and the conversation border disappeared.
 
 With 256 or 16 colours, chalk (under Ink) reduces each token to the nearest ANSI colour. The product
 has no colour detection of its own and nothing is designed for 16 colours on purpose.
