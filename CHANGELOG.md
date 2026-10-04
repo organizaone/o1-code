@@ -7,6 +7,8 @@ follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.5.2] - 2026-10-04
+
 ### Changed
 
 - Scrolling the conversation responds in the same frame: the first wheel tick or key of a burst
