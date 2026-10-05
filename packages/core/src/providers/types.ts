@@ -162,6 +162,16 @@ export interface ProviderConfig {
    * with a "coming soon" badge, and `buildInstallPlan` refuses it.
    */
   comingSoon?: true;
+  /**
+   * The sign-in that produces the credential instead of a typed key:
+   * `organizaone-device` is the proxy's device authorization (RFC 8628).
+   */
+  signIn?: 'organizaone-device';
+  /**
+   * The credential store id this preset shares with another one, when its
+   * token opens the same service (a sign-in and a pasted key of one proxy).
+   */
+  credentialId?: string;
 
   /** A model server on this machine that the Local menu probes for. */
   localProbe?: { kind: 'ollama' | 'lmstudio' };
@@ -183,6 +193,8 @@ export interface ProviderSetupInputs {
   wireApi?: ModelWireApi;
   baseUrl: string;
   apiKey: string;
+  /** Set by a sign-in: saved with the token, never typed by the user. */
+  credentialExtras?: { expiresAt?: string | null; deviceName?: string };
   modelIds: string[];
   /** Pre-built model configs (e.g. a model-list update). Overrides modelIds. */
   prebuiltModels?: ProviderModelConfig[];
@@ -230,7 +242,13 @@ export interface ProviderInstallPlan {
    * refer to it through their `credential` field. Absent when the install
    * keeps the saved key (e.g. a model-list update).
    */
-  credential?: { id: string; apiKey: string };
+  credential?: {
+    id: string;
+    apiKey: string;
+    /** From a sign-in: when the token expires (null: never), and the device's name. */
+    expiresAt?: string | null;
+    deviceName?: string;
+  };
   modelSelection?: {
     modelId: string;
     baseUrl?: string;
@@ -293,6 +311,13 @@ export interface ProviderSettingsAdapter {
 /** The credential store operations an install needs. */
 export interface ProviderCredentialStore {
   read(id: string): { apiKey: string } | undefined;
-  write(id: string, credential: { apiKey: string }): void;
+  write(
+    id: string,
+    credential: {
+      apiKey: string;
+      expiresAt?: string | null;
+      deviceName?: string;
+    },
+  ): void;
   remove(id: string): void;
 }

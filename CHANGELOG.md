@@ -7,6 +7,15 @@ follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Added
+
+- **Sign in with your account** under OrganizaOne in `/auth`: O1-Code shows a code and opens the
+  OrganizaOne sign-in page in your browser (or gives the address to open on any device); after you
+  approve the device there, the token arrives by itself and the models are listed as with a key.
+  Your password never passes through O1-Code. The token is a device key with an expiry: O1-Code
+  warns in the last seven days, explains an expired or suspended key when the proxy refuses it,
+  and forgets a removed device's credential and offers to sign in again.
+
 ### Changed
 
 - The OrganizaOne proxy is now o1-gateway (OrganizaOne AI Gateway), version 9.0.0, which renamed

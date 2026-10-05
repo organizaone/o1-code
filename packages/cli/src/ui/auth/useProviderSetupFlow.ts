@@ -26,6 +26,7 @@ import type {
 } from '@organizaone/o1-code-core';
 import { preserveModelProviderPlaceholders } from '@organizaone/o1-code-core/providers/model-config-serialization.js';
 import { LOCAL_API_KEY_PLACEHOLDER } from '@organizaone/o1-code-core/providers/presets/local-openai.js';
+import type { DeviceToken } from '@organizaone/o1-code-core/providers/organizaone-device-auth.js';
 import { t } from '../../i18n/index.js';
 import { normalizeModelIds, maskApiKey } from './useAuth.js';
 
@@ -37,6 +38,7 @@ export type SetupStep =
   | 'protocol'
   | 'wireApi'
   | 'baseUrl'
+  | 'signIn'
   | 'apiKey'
   | 'models'
   | 'advancedConfig'
@@ -46,6 +48,7 @@ const STEP_ORDER: SetupStep[] = [
   'protocol',
   'wireApi',
   'baseUrl',
+  'signIn',
   'apiKey',
   'models',
   'advancedConfig',
@@ -58,6 +61,9 @@ function getVisibleSteps(
 ): SetupStep[] {
   return STEP_ORDER.filter((step) => {
     if (step === 'review') return config.showAdvancedConfig === true;
+    // The sign-in replaces the typed key for a provider that brings its own
+    // token (the proxy's device authorization).
+    if (step === 'signIn') return Boolean(config.signIn);
     return shouldShowStep(config, step, protocol);
   });
 }
@@ -102,6 +108,8 @@ export interface ProviderSetupState {
   // API Key
   apiKey: string;
   apiKeyError: string | null;
+  /** What a sign-in saves with the token: its expiry and the device's name. */
+  credentialExtras?: ProviderSetupInputs['credentialExtras'];
 
   // Model IDs
   modelIds: string;
@@ -150,6 +158,8 @@ export function useProviderSetupFlow(
   const [baseUrlError, setBaseUrlError] = useState<string | null>(null);
   const [apiKey, setApiKey] = useState('');
   const [apiKeyError, setApiKeyError] = useState<string | null>(null);
+  const [credentialExtras, setCredentialExtras] =
+    useState<ProviderSetupInputs['credentialExtras']>(undefined);
   const [keyCheck, setKeyCheck] = useState<ProviderKeyCheck | undefined>();
   const [firstSetup, setFirstSetup] = useState(true);
   const [modelIds, setModelIds] = useState('');
@@ -176,6 +186,7 @@ export function useProviderSetupFlow(
     ) => {
       setProvider(config);
       setKeyCheck(undefined);
+      setCredentialExtras(undefined);
       // Callers pass the saved extra IDs, an empty list when only built-in
       // models were saved, and nothing when the provider was never set up.
       setFirstSetup(existingModelIds === undefined);
@@ -395,6 +406,7 @@ export function useProviderSetupFlow(
           : {}),
         baseUrl: baseUrl.trim(),
         apiKey: apiKey.trim(),
+        ...(credentialExtras ? { credentialExtras } : {}),
         modelIds: normalizeModelIds(modelIds),
         ...(keyCheck?.status === 'ok'
           ? { discoveredModels: keyCheck.models }
@@ -415,6 +427,7 @@ export function useProviderSetupFlow(
       wireApi,
       baseUrl,
       apiKey,
+      credentialExtras,
       modelIds,
       keyCheck,
       modalityEnabled,
@@ -458,6 +471,23 @@ export function useProviderSetupFlow(
       return true;
     },
     [apiKey, provider, baseUrl, submitOrNext],
+  );
+
+  // A sign-in hands over the token and, when it already listed the models,
+  // the check; the models step then opens on them like after a checked key.
+  const submitSignIn = useCallback(
+    (token: DeviceToken, check?: ProviderKeyCheck) => {
+      const extras = {
+        expiresAt: token.expiresAt,
+        ...(token.deviceName ? { deviceName: token.deviceName } : {}),
+      };
+      setApiKeyError(null);
+      setApiKey(token.accessToken);
+      setCredentialExtras(extras);
+      if (check) setKeyCheck(check);
+      submitOrNext({ apiKey: token.accessToken, credentialExtras: extras });
+    },
+    [submitOrNext],
   );
 
   const highlightBaseUrl = useCallback(
@@ -650,6 +680,7 @@ export function useProviderSetupFlow(
     baseUrlError,
     apiKey,
     apiKeyError,
+    credentialExtras,
     keyCheck,
     firstSetup,
     modelIds,
@@ -679,6 +710,7 @@ export function useProviderSetupFlow(
     changeBaseUrl,
     changeApiKey,
     submitApiKey,
+    submitSignIn,
     rejectApiKey,
     setKeyCheck,
     changeModelIds,

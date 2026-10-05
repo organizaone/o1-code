@@ -27,7 +27,17 @@ export interface StoredCredential {
   apiKey: string;
   /** ISO timestamp of the write. */
   savedAt: string;
+  /**
+   * When a device token obtained by signing in stops working (ISO), null for
+   * a device whose key never expires; absent for a pasted key.
+   */
+  expiresAt?: string | null;
+  /** The device's name on the account page, when the token came from a sign-in. */
+  deviceName?: string;
 }
+
+/** What a caller saves; `savedAt` is the store's own. */
+export type CredentialInput = Omit<StoredCredential, 'savedAt'>;
 
 export function isValidCredentialId(id: string): boolean {
   return CREDENTIAL_ID.test(id);
@@ -87,8 +97,19 @@ export function readCredential(id: string): StoredCredential | undefined {
     if (typeof apiKey !== 'string' || !apiKey.trim()) {
       throw new Error('no apiKey');
     }
-    const savedAt = (parsed as { savedAt?: unknown }).savedAt;
-    return { apiKey, savedAt: typeof savedAt === 'string' ? savedAt : '' };
+    const { savedAt, expiresAt, deviceName } = parsed as {
+      savedAt?: unknown;
+      expiresAt?: unknown;
+      deviceName?: unknown;
+    };
+    return {
+      apiKey,
+      savedAt: typeof savedAt === 'string' ? savedAt : '',
+      ...(expiresAt === null || typeof expiresAt === 'string'
+        ? { expiresAt }
+        : {}),
+      ...(typeof deviceName === 'string' && deviceName ? { deviceName } : {}),
+    };
   } catch {
     debugLogger.debug(`Ignoring unreadable credential file for "${id}".`);
     return undefined;
@@ -98,7 +119,7 @@ export function readCredential(id: string): StoredCredential | undefined {
 /** Saves `apiKey` under `id`, replacing any saved key atomically. */
 export function writeCredential(
   id: string,
-  { apiKey }: { apiKey: string },
+  { apiKey, expiresAt, deviceName }: CredentialInput,
 ): StoredCredential {
   const file = credentialPath(id);
   if (!apiKey.trim()) {
@@ -111,6 +132,8 @@ export function writeCredential(
   const credential: StoredCredential = {
     apiKey,
     savedAt: new Date().toISOString(),
+    ...(expiresAt !== undefined ? { expiresAt } : {}),
+    ...(deviceName ? { deviceName } : {}),
   };
   const temp = path.join(
     dir,

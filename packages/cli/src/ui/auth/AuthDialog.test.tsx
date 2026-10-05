@@ -465,7 +465,7 @@ describe('AuthDialog', { timeout: 15000 }, () => {
       ]);
     });
 
-    it('lists the OrganizaOne key and the two coming-soon entries', () => {
+    it('lists the OrganizaOne key, the sign-in, and the coming-soon device code', () => {
       const items = buildOrganizaOneItems();
       expect(items.map((item) => item.value)).toEqual([
         'organizaone',
@@ -474,10 +474,15 @@ describe('AuthDialog', { timeout: 15000 }, () => {
       ]);
       expect(items.map((item) => Boolean(item.unavailable))).toEqual([
         false,
-        true,
+        false,
         true,
       ]);
-      expect(items[1]!.unavailable).toBe(
+      expect(items[1]).toMatchObject({
+        title: 'Sign in with your account',
+        description:
+          'Approve this device in your browser; the models come from OrganizaOne',
+      });
+      expect(items[2]!.unavailable).toBe(
         'Coming soon: this path depends on the OrganizaOne server.',
       );
       const { lastFrame, unmount } = renderList(items);
@@ -487,7 +492,7 @@ describe('AuthDialog', { timeout: 15000 }, () => {
       );
       expect(
         rows.find((row) => row.includes('Sign in with your account')),
-      ).toContain('coming soon');
+      ).not.toContain('coming soon');
       expect(
         rows.find((row) => row.includes('o1-gateway device code')),
       ).toContain('coming soon');

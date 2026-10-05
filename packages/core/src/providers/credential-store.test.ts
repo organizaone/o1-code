@@ -68,6 +68,25 @@ describe('credential store', () => {
     expect(fs.statSync(fileOf('openai')).mode & 0o777).toBe(0o600);
   });
 
+  it('keeps the expiry and device name of a token obtained by signing in', () => {
+    writeCredential('organizaone', {
+      apiKey: 'o1gw_abc',
+      expiresAt: '2027-01-01T12:00:00.000Z',
+      deviceName: 'o1-code-on-BOX',
+    });
+    expect(readCredential('organizaone')).toMatchObject({
+      apiKey: 'o1gw_abc',
+      expiresAt: '2027-01-01T12:00:00.000Z',
+      deviceName: 'o1-code-on-BOX',
+    });
+    // A device made before keys expired reports null; a pasted key has none.
+    writeCredential('organizaone', { apiKey: 'o1gw_old', expiresAt: null });
+    expect(readCredential('organizaone')?.expiresAt).toBeNull();
+    writeCredential('organizaone', { apiKey: 'o1gw_key' });
+    expect(readCredential('organizaone')).not.toHaveProperty('expiresAt');
+    expect(readCredential('organizaone')).not.toHaveProperty('deviceName');
+  });
+
   it('replaces a saved key and leaves no temporary file behind', () => {
     writeCredential('openai', { apiKey: 'sk-old' });
     writeCredential('openai', { apiKey: 'sk-new' });

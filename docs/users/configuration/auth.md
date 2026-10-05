@@ -3,9 +3,14 @@
 O1-Code talks to the model provider you connect. The `/auth` dialog, **Connect a provider**, opens on
 four entries:
 
-- **OrganizaOne**: connect with the key from the OrganizaOne console. **Sign in with your account**
-  and **o1-gateway device code** are listed too, disabled and marked `coming soon`: they depend on the
-  OrganizaOne server and have no handler yet.
+- **OrganizaOne**: connect with the key from the OrganizaOne console (**API key**), or **Sign in
+  with your account**: O1-Code shows a code and opens the OrganizaOne page in your browser (or
+  gives you the address to open on any device); you sign in there, approve the device, and the
+  token arrives in O1-Code by itself. Your password never passes through O1-Code. The token is a
+  device key with an expiry chosen on approval; O1-Code warns in the last seven days, and when it
+  expires you renew it on your account page (My devices → Renew) or sign in again. If the device is
+  removed or its key replaced, O1-Code forgets the credential and offers to sign in again. **o1-gateway
+  device code** is listed too, disabled and marked `coming soon`.
 - **API key**: one alphabetical list of the built-in providers you connect with a key —
   Alibaba Cloud, Anthropic, DeepSeek, Google Gemini, Kimi (Moonshot), MiniMax, ModelScope, OpenAI,
   xAI and Z.AI. **Alibaba Cloud** opens a second list with its three plans: **Coding Plan** (for individual

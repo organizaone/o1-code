@@ -129,6 +129,22 @@ import path from 'node:path';
 import { useSessionStats } from '../contexts/SessionContext.js';
 import type { LoadedSettings } from '../../config/settings.js';
 import { t } from '../../i18n/index.js';
+import { reactToOrganizaOneUnauthorized } from '../auth/organizaone-unauthorized.js';
+import {
+  credentialIdForProvider,
+  removeCredential,
+  withdrawExportedCredential,
+} from '@organizaone/o1-code-core/providers/credential-store.js';
+import {
+  ORGANIZAONE_ENV_KEY,
+  organizaoneProvider,
+} from '@organizaone/o1-code-core/providers/presets/organizaone.js';
+
+/** Drops the saved OrganizaOne token and the copy exported to this process. */
+function forgetOrganizaOneCredential(): void {
+  removeCredential(credentialIdForProvider(organizaoneProvider.id));
+  withdrawExportedCredential(ORGANIZAONE_ENV_KEY);
+}
 import { useDualOutput } from '../../dualOutput/DualOutputContext.js';
 import { shouldDisplayGoalStateCause } from '../utils/goal-runtime.js';
 import { sanitizeDisplayText } from '../../utils/extension-mention.js';
@@ -2310,6 +2326,19 @@ export const useLlmStream = (
       const isShowingAutoRetry = retryCountdownTimerRef.current !== null;
       clearRetryCountdown();
 
+      // A 401 from the OrganizaOne proxy says why the device token stopped
+      // working: a removed device is forgotten and the sign-in offered again,
+      // an expired key offers the two ways out; a suspended one is just shown.
+      if (
+        reactToOrganizaOneUnauthorized(eventValue.error.organizaone, {
+          forget: forgetOrganizaOneCredential,
+          onAuthError,
+        })
+      ) {
+        setThought(null);
+        return;
+      }
+
       const formattedErrorText = parseAndFormatApiError(
         eventValue.error,
         config.getContentGeneratorConfig()?.authType,
@@ -2345,6 +2374,7 @@ export const useLlmStream = (
         });
     },
     [
+      onAuthError,
       commitPendingThought,
       commitItemInOrder,
       pendingHistoryItemRef,

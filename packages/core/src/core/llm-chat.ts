@@ -5404,6 +5404,11 @@ export class LlmChat {
    * does not clone — use this when you only need the count and would
    * otherwise pay the {@link getHistory} `structuredClone` cost.
    */
+  /** The base URL the session talks to, for errors that depend on the provider. */
+  getActiveBaseUrl(): string | undefined {
+    return this.config.getContentGeneratorConfig()?.baseUrl;
+  }
+
   getHistoryLength(): number {
     return this.history.length;
   }

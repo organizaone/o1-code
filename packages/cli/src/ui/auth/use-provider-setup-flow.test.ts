@@ -13,6 +13,7 @@ import {
   customProvider,
   localOpenAiProvider,
   ollamaProvider,
+  organizaoneLoginProvider,
   organizaoneProvider,
 } from '@organizaone/o1-code-core';
 import type { ProviderConfig } from '@organizaone/o1-code-core';
@@ -137,6 +138,41 @@ describe('useProviderSetupFlow API selection', () => {
     act(() => result.current.selectProtocol(AuthType.USE_OPENAI));
     expect(result.current.state.baseUrl).toBe('https://api.organizago.com/v1');
     expect(result.current.state.step).toBe('wireApi');
+  });
+
+  it('signs in instead of asking for a key, and submits the token with its expiry', () => {
+    const submit = vi.fn().mockResolvedValue(undefined);
+    const { result } = renderHook(() => useProviderSetupFlow(submit));
+    act(() => result.current.start(organizaoneLoginProvider));
+    expect(result.current.state.step).toBe('protocol');
+    act(() => result.current.selectProtocol(AuthType.USE_ANTHROPIC));
+    expect(result.current.state.step).toBe('signIn');
+    expect(result.current.state.baseUrl).toBe('https://api.organizago.com');
+    act(() =>
+      result.current.submitSignIn(
+        {
+          accessToken: 'o1gw_token',
+          deviceId: 'dev-1',
+          deviceName: 'o1-code-on-BOX',
+          expiresAt: '2027-01-01T12:00:00.000Z',
+        },
+        { status: 'ok', models: [{ id: 'claude-sonnet-4-5' }] },
+      ),
+    );
+    expect(result.current.state.step).toBe('models');
+    expect(result.current.state.apiKey).toBe('o1gw_token');
+    act(() => result.current.changeModelIds('claude-sonnet-4-5'));
+    act(() => result.current.submitModelIds());
+    expect(submit).toHaveBeenCalledWith(
+      organizaoneLoginProvider,
+      expect.objectContaining({
+        apiKey: 'o1gw_token',
+        credentialExtras: {
+          expiresAt: '2027-01-01T12:00:00.000Z',
+          deviceName: 'o1-code-on-BOX',
+        },
+      }),
+    );
   });
 
   it('starts a server on this machine with the placeholder key and no key step', () => {

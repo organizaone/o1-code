@@ -60,18 +60,28 @@ export const organizaoneProvider: ProviderConfig = {
 };
 
 /**
- * Listed in the OrganizaOne menu as "coming soon" until the proxy serves the
- * device-authorization contract; not installable.
+ * Sign in with the OrganizaOne account: the proxy's device authorization
+ * (RFC 8628) hands o1-code a device token, which is then exactly the key the
+ * `organizaone` preset asks for. Same proxy, same env key, same credential:
+ * only the way the token arrives differs.
  */
 export const organizaoneLoginProvider: ProviderConfig = {
   id: 'organizaone-login',
   label: 'Sign in with your account',
-  description: 'Sign in to OrganizaOne in the browser',
+  description:
+    'Approve this device in your browser; the models come from OrganizaOne',
   protocol: AuthType.USE_ANTHROPIC,
-  envKey: '',
+  protocolOptions: [AuthType.USE_ANTHROPIC, AuthType.USE_OPENAI],
+  baseUrlByProtocol: {
+    [AuthType.USE_ANTHROPIC]: ORGANIZAONE_ANTHROPIC_BASE_URL,
+    [AuthType.USE_OPENAI]: ORGANIZAONE_OPENAI_BASE_URL,
+  },
+  envKey: ORGANIZAONE_ENV_KEY,
+  supportsModelDiscovery: true,
   modelNamePrefix: 'OrganizaOne',
   uiGroup: 'organizaone',
-  comingSoon: true,
+  signIn: 'organizaone-device',
+  credentialId: 'organizaone',
 };
 
 export const organizaoneO1gwProvider: ProviderConfig = {

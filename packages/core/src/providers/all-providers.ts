@@ -93,6 +93,7 @@ const LOCAL_PROVIDERS: readonly ProviderConfig[] = [
 /** All installable providers, in display order. */
 export const ALL_PROVIDERS: readonly ProviderConfig[] = [
   organizaoneProvider,
+  organizaoneLoginProvider,
   ...API_KEY_PROVIDERS,
   ...LOCAL_PROVIDERS,
   customProvider,
