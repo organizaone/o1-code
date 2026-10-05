@@ -39,6 +39,7 @@ import type {
 } from '@organizaone/o1-code-core';
 import type { ProviderSetupFlow } from './useProviderSetupFlow.js';
 import { SignInStep } from './SignInStep.js';
+import { ConnectionCodeStep } from './ConnectionCodeStep.js';
 import { normalizeModelIds } from './useAuth.js';
 import { AppContext } from '../contexts/AppContext.js';
 
@@ -1333,6 +1334,9 @@ export function ProviderSetupSteps({
 
     case 'signIn':
       return <SignInStep config={provider} flow={flow} />;
+
+    case 'connectionCode':
+      return <ConnectionCodeStep config={provider} flow={flow} />;
 
     case 'apiKey':
       return <ApiKeyStep config={provider} flow={flow} />;

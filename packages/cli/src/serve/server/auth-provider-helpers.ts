@@ -78,7 +78,7 @@ function buildAuthProviderDescriptor(
     ...(provider.uiLabels ? { uiLabels: provider.uiLabels } : {}),
     // A sign-in needs its own routes and a page in the web shell; until then
     // the daemon's catalog keeps it as coming soon, whatever the terminal does.
-    ...(provider.comingSoon || provider.signIn
+    ...(provider.comingSoon || provider.signIn || provider.connection
       ? { comingSoon: true as const }
       : {}),
     ...(provider.localProbe

@@ -9,8 +9,14 @@ four entries:
   token arrives in O1-Code by itself. Your password never passes through O1-Code. The token is a
   device key with an expiry chosen on approval; O1-Code warns in the last seven days, and when it
   expires you renew it on your account page (My devices → Renew) or sign in again. If the device is
-  removed or its key replaced, O1-Code forgets the credential and offers to sign in again. **o1-gateway
-  device code** is listed too, disabled and marked `coming soon`.
+  removed or its key replaced, O1-Code forgets the credential and offers to sign in again.
+  **o1-gateway device code** is for a network that intercepts TLS: paste the connection code the
+  OrganizaOne console gives for your device (or the path to a kit's `o1-connect.code`), compare
+  every fingerprint O1-Code shows with the console's list read on a device off that network, and
+  type `yes`. O1-Code saves the connection in the OS keychain (or an encrypted file in its home
+  directory) and, at the start of each session, opens the proxy's pinned tunnel in-process and
+  talks to it; nothing is sent if the network presents a key that is not pinned. If the proxy stops
+  accepting the device, O1-Code forgets the connection and asks for a new code.
 - **API key**: one alphabetical list of the built-in providers you connect with a key —
   Alibaba Cloud, Anthropic, DeepSeek, Google Gemini, Kimi (Moonshot), MiniMax, ModelScope, OpenAI,
   xAI and Z.AI. **Alibaba Cloud** opens a second list with its three plans: **Coding Plan** (for individual

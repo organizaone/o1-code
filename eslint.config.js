@@ -65,6 +65,8 @@ export default tseslint.config(
       // has no idiom to enforce. Regenerate via
       // packages/web-shell/scripts/generate-confusables.mjs.
       'packages/web-shell/client/utils/unicodeConfusables.ts',
+      // Vendored third-party code, copied as built (see its README).
+      'packages/core/vendor/**',
       'integrations/**/dist/**',
       'bundle/**',
       'package/bundle/**',
@@ -204,6 +206,8 @@ export default tseslint.config(
         'error',
         {
           allow: [
+            // The vendored o1-connect library: one module, copied as built.
+            '**/vendor/o1-connect/lib.mjs',
             'react-dom/test-utils',
             'react-dom/client',
             'memfs/lib/volume.js',

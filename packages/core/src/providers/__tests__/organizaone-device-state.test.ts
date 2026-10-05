@@ -69,6 +69,28 @@ describe('describeOrganizaOneUnauthorized', () => {
     ).toBe('suspended');
   });
 
+  it('reads a 401 that came through the o1-connect tunnel as the proxy\x27s', () => {
+    const direct = describeOrganizaOneUnauthorized(
+      unauthorized({}),
+      'http://127.0.0.1:4242',
+    );
+    expect(direct).toBeNull();
+    const viaTunnel = describeOrganizaOneUnauthorized(
+      unauthorized({}),
+      'http://127.0.0.1:4242',
+      { tunnel: true },
+    );
+    expect(viaTunnel).toMatchObject({ kind: 'revoked', via: 'o1-connect' });
+    expect(viaTunnel?.message).toContain('connection code');
+    const expired = describeOrganizaOneUnauthorized(
+      unauthorized({ state: 'expired' }),
+      'http://127.0.0.1:4242',
+      { tunnel: true },
+    );
+    expect(expired?.kind).toBe('expired');
+    expect(expired?.message).toContain('https://api.organizago.com/account');
+  });
+
   it('treats a plain 401 as a removed device', () => {
     const result = describeOrganizaOneUnauthorized(unauthorized({}), BASE);
     expect(result?.kind).toBe('revoked');

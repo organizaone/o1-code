@@ -17,12 +17,18 @@ import type { OrganizaOneUnauthorized } from '@organizaone/o1-code-core/provider
  */
 export function reactToOrganizaOneUnauthorized(
   unauthorized: OrganizaOneUnauthorized | undefined,
-  actions: { forget: () => void; onAuthError: (message: string) => void },
+  actions: {
+    forget: () => void;
+    /** Drops the o1-connect configuration, for a device reached through the tunnel. */
+    forgetTunnel?: () => void;
+    onAuthError: (message: string) => void;
+  },
 ): boolean {
   if (!unauthorized) return false;
   switch (unauthorized.kind) {
     case 'revoked':
-      actions.forget();
+      if (unauthorized.via === 'o1-connect') actions.forgetTunnel?.();
+      else actions.forget();
       actions.onAuthError(unauthorized.message);
       return true;
     case 'expired':

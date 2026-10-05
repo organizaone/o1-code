@@ -720,6 +720,37 @@ describe('Turn', () => {
       );
     });
 
+    it('reads a 401 through the o1-connect tunnel as the proxy refusing the device', async () => {
+      const error = Object.assign(new Error('invalid key'), {
+        status: 401,
+        headers: new Headers(),
+        error: { type: 'authentication_error', message: 'invalid key' },
+      });
+      mockSendMessageStream.mockRejectedValue(error);
+      const chat = mockChatInstance as unknown as {
+        getActiveBaseUrl: () => string;
+        isO1ConnectSession: () => boolean;
+      };
+      chat.getActiveBaseUrl = () => 'http://127.0.0.1:4242';
+      chat.isO1ConnectSession = () => true;
+      mockGetHistoryLength.mockReturnValue(0);
+      mockGetHistoryTailShallow.mockReturnValue([]);
+      mockMaybeIncludeSchemaDepthContext.mockResolvedValue(undefined);
+      const events = [];
+      for await (const event of turn.run(
+        'test-model',
+        [{ text: 'hello' }],
+        new AbortController().signal,
+      )) {
+        events.push(event);
+      }
+      const errorEvent = events[0] as ServerLlmErrorEvent;
+      expect(errorEvent.value.error.organizaone).toMatchObject({
+        kind: 'revoked',
+        via: 'o1-connect',
+      });
+    });
+
     it('should yield Error event and report if sendMessageStream throws', async () => {
       const error = new Error('API Error');
       mockSendMessageStream.mockRejectedValue(error);

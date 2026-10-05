@@ -31,6 +31,11 @@ import type {
 } from '../core/contentGenerator.js';
 import type { ContentGeneratorConfigSources } from '../core/contentGenerator.js';
 import {
+  o1ConnectBaseUrlFor,
+  openO1Connect,
+  type O1ConnectSession,
+} from '../providers/o1-connect/session.js';
+import {
   setGeneratorReasoningEffort,
   type ReasoningEffort,
 } from '../core/reasoning-effort.js';
@@ -2644,6 +2649,8 @@ export class Config {
   private readonly embeddingModel: string;
 
   private modelsConfig!: ModelsConfig;
+  /** The OrganizaOne tunnel of this session, when the model is reached through it. */
+  private o1ConnectSession?: O1ConnectSession;
   private readonly modelProvidersConfig?: ModelProvidersConfig;
   private readonly providerProtocolConfig?: ProviderProtocolConfig;
   private readonly sandbox: SandboxConfig | undefined;
@@ -5261,6 +5268,11 @@ export class Config {
     ) {
       newContentGeneratorConfig.reasoning = false;
     }
+    await this.attachO1ConnectTunnel(
+      authMethod,
+      modelId,
+      newContentGeneratorConfig,
+    );
     this.contentGenerator = await createContentGenerator(
       newContentGeneratorConfig,
       this,
@@ -6969,6 +6981,40 @@ export class Config {
       });
   }
 
+  /**
+   * For a model reached through the OrganizaOne proxy's pinned tunnel
+   * (o1-connect), opens the tunnel now, before the first request, and points
+   * the generator at its loopback endpoint with the key made for this
+   * session. A tunnel left from an earlier auth refresh is closed first.
+   */
+  private async attachO1ConnectTunnel(
+    authMethod: AuthType,
+    modelId: string,
+    generatorConfig: ContentGeneratorConfig,
+  ): Promise<void> {
+    await this.closeO1ConnectSession();
+    const resolved = this.modelsConfig.getResolvedModel(authMethod, modelId);
+    if (resolved?.connection !== 'o1-connect') return;
+    const session = await openO1Connect({
+      log: (line) => this.debugLogger.debug(`[o1-connect] ${line}`),
+    });
+    this.o1ConnectSession = session;
+    generatorConfig.baseUrl = o1ConnectBaseUrlFor(session, authMethod);
+    generatorConfig.apiKey = session.apiKey;
+    generatorConfig.connection = 'o1-connect';
+  }
+
+  private async closeO1ConnectSession(): Promise<void> {
+    const session = this.o1ConnectSession;
+    if (!session) return;
+    this.o1ConnectSession = undefined;
+    try {
+      await session.close();
+    } catch (error) {
+      this.debugLogger.debug(`[o1-connect] close failed: ${String(error)}`);
+    }
+  }
+
   private runResourceShutdown(): Promise<void> {
     if (this.resourceShutdownPromise) {
       return this.resourceShutdownPromise;
@@ -7018,6 +7064,8 @@ export class Config {
         );
         this.goalRuntime?.dispose();
       }
+
+      await this.closeO1ConnectSession();
 
       if (this.initialized) {
         this.skillManager?.stopWatching();

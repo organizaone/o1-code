@@ -90,6 +90,12 @@ export interface ModelConfig {
    * the `envKey` variable is not set.
    */
   credential?: string;
+  /**
+   * How the endpoint is reached when not directly: `o1-connect` opens the
+   * OrganizaOne proxy's pinned tunnel at the start of a session and talks to
+   * its loopback endpoint instead of `baseUrl`.
+   */
+  connection?: 'o1-connect';
   /** API endpoint override */
   baseUrl?: string;
   /** Explicit model capabilities used for safe feature routing. */

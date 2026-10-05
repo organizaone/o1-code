@@ -53,6 +53,26 @@ describe('reactToOrganizaOneUnauthorized', () => {
     expect(onAuthError).not.toHaveBeenCalled();
   });
 
+  it('forgets the tunnel configuration, not the key, when the device came through o1-connect', () => {
+    const forget = vi.fn();
+    const forgetTunnel = vi.fn();
+    const onAuthError = vi.fn();
+    const handled = reactToOrganizaOneUnauthorized(
+      {
+        kind: 'revoked',
+        via: 'o1-connect',
+        message: 'OrganizaOne no longer accepts this device.',
+      },
+      { forget, forgetTunnel, onAuthError },
+    );
+    expect(handled).toBe(true);
+    expect(forget).not.toHaveBeenCalled();
+    expect(forgetTunnel).toHaveBeenCalledTimes(1);
+    expect(onAuthError).toHaveBeenCalledWith(
+      'OrganizaOne no longer accepts this device.',
+    );
+  });
+
   it('does nothing for an error that is not the proxy refusing a device', () => {
     const onAuthError = vi.fn();
     expect(

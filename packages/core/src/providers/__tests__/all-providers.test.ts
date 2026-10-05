@@ -22,6 +22,7 @@ describe('provider registry', () => {
     expect(ALL_PROVIDERS.map((provider) => provider.id)).toEqual([
       'organizaone',
       'organizaone-login',
+      'organizaone-o1gw',
       'coding-plan',
       'token-plan',
       'alibabaStandard',
@@ -130,7 +131,7 @@ describe('provider registry', () => {
   it('keeps the coming-soon entries out of the installable list', () => {
     expect(ALL_PROVIDERS.some((provider) => provider.comingSoon)).toBe(false);
     expect(findProviderById('organizaone-login')?.id).toBe('organizaone-login');
-    expect(findProviderById('organizaone-o1gw')).toBeUndefined();
+    expect(findProviderById('organizaone-o1gw')?.id).toBe('organizaone-o1gw');
   });
 
   it('no longer offers OpenRouter or Requesty presets', () => {

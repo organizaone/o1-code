@@ -172,6 +172,12 @@ export interface ProviderConfig {
    * token opens the same service (a sign-in and a pasted key of one proxy).
    */
   credentialId?: string;
+  /**
+   * The preset reaches its endpoint through a tunnel instead of a key:
+   * `o1-connect` is the OrganizaOne proxy's pinned tunnel, set up with a
+   * connection code. Nothing is typed in a key step.
+   */
+  connection?: 'o1-connect';
 
   /** A model server on this machine that the Local menu probes for. */
   localProbe?: { kind: 'ollama' | 'lmstudio' };

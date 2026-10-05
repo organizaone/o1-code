@@ -900,6 +900,7 @@ export class Turn {
       const unauthorized = describeOrganizaOneUnauthorized(
         e,
         this.chat.getActiveBaseUrl?.(),
+        { tunnel: this.chat.isO1ConnectSession?.() === true },
       );
       if (unauthorized) {
         structuredError.message = unauthorized.message;

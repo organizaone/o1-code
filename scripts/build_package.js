@@ -18,7 +18,7 @@
 // limitations under the License.
 
 import { execSync } from 'node:child_process';
-import { rmSync, writeFileSync } from 'node:fs';
+import { cpSync, existsSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 
 if (!process.cwd().includes('packages')) {
@@ -39,6 +39,16 @@ execSync('tsc --build', { stdio: 'inherit' });
 
 // copy .{md,json} files
 execSync('node ../../scripts/copy_files.js', { stdio: 'inherit' });
+
+// Vendored ES modules imported from src by a relative path: the compiled
+// files keep that path, so the module must sit next to dist as it sits next
+// to src. (The native binaries under vendor/ are found by their own paths.)
+const vendoredModules = join(process.cwd(), 'vendor', 'o1-connect');
+if (existsSync(vendoredModules)) {
+  cpSync(vendoredModules, join(process.cwd(), 'dist', 'vendor', 'o1-connect'), {
+    recursive: true,
+  });
+}
 
 // touch dist/.last_build
 writeFileSync(join(process.cwd(), 'dist', '.last_build'), '');

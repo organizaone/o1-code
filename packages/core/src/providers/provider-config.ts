@@ -298,6 +298,15 @@ function buildModelConfigs(
     });
   }
 
+  if (config.connection) {
+    // Every route of a tunnelled preset carries the marker: the session
+    // reads it to open the tunnel and swap the loopback endpoint in.
+    models = models.map((model) => ({
+      ...model,
+      connection: config.connection,
+    }));
+  }
+
   return applyProviderCustomHeaders(models, config);
 }
 
@@ -861,7 +870,7 @@ export function findExistingProviderModels(
  * does not: it is installed with {@link LOCAL_API_KEY_PLACEHOLDER}.
  */
 export function requiresApiKey(config: ProviderConfig): boolean {
-  return config.uiGroup !== 'local';
+  return config.uiGroup !== 'local' && !config.connection;
 }
 
 export function shouldShowStep(

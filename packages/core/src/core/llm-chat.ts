@@ -5409,6 +5409,11 @@ export class LlmChat {
     return this.config.getContentGeneratorConfig()?.baseUrl;
   }
 
+  /** Whether the session reaches the OrganizaOne proxy through its pinned tunnel. */
+  isO1ConnectSession(): boolean {
+    return this.config.getContentGeneratorConfig()?.connection === 'o1-connect';
+  }
+
   getHistoryLength(): number {
     return this.history.length;
   }

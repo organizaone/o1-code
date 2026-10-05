@@ -598,6 +598,18 @@ export default {
   'esc cancel': 'esc cancelar',
   'Approved. Listing your models…': 'Aprovado. Listando seus modelos…',
   'enter try again · esc back': 'enter tentar de novo · esc voltar',
+  'Paste the connection code from the OrganizaOne console, or the path to a kit’s o1-connect.code:':
+    'Cole o código de conexão do console da OrganizaOne, ou o caminho do o1-connect.code de um kit:',
+  'enter continue · esc back': 'enter continuar · esc voltar',
+  Device: 'Dispositivo',
+  at: 'em',
+  'Proxy key {{n}}': 'Chave do proxy {{n}}',
+  'Compare every fingerprint with the console’s list, read on a device off this network. Type yes to save:':
+    'Compare cada impressão digital com a lista do console, lida em um aparelho fora desta rede. Digite yes para salvar:',
+  'Saved. Opening the tunnel and listing your models…':
+    'Salvo. Abrindo o túnel e listando seus modelos…',
+  'Nothing was saved: the fingerprints were not confirmed.':
+    'Nada foi salvo: as impressões digitais não foram confirmadas.',
   'checking the key…': 'verificando a chave…',
   'key valid': 'chave válida',
   'The provider refused this key ({{status}}). Check it, or press enter again to use it anyway.':

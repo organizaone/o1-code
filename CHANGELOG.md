@@ -15,6 +15,13 @@ follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   Your password never passes through O1-Code. The token is a device key with an expiry: O1-Code
   warns in the last seven days, explains an expired or suspended key when the proxy refuses it,
   and forgets a removed device's credential and offers to sign in again.
+- **o1-gateway device code** under OrganizaOne in `/auth`, for a network that intercepts TLS:
+  paste the connection code from the OrganizaOne console (or the path to a kit's
+  `o1-connect.code`), confirm every fingerprint it pins against the console's list, and O1-Code
+  saves the connection in the OS keychain or an encrypted file. Each session then opens the proxy's
+  pinned tunnel in-process and talks to it; a network that presents a key that is not pinned gets
+  nothing. If the proxy stops accepting the device, O1-Code forgets the connection and asks for a
+  new code. The daemon and the web shell list both entries as coming soon for now.
 
 ### Changed
 

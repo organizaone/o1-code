@@ -7,7 +7,10 @@
 import { getErrorHeader } from '../utils/retryPolicy.js';
 import { getErrorStatus } from '../utils/errors.js';
 import { getRateLimitErrorDetails } from '../utils/rateLimit.js';
-import { isOrganizaOneBaseUrl } from './presets/organizaone.js';
+import {
+  ORGANIZAONE_ANTHROPIC_BASE_URL,
+  isOrganizaOneBaseUrl,
+} from './presets/organizaone.js';
 
 export const ORGANIZAONE_ACCOUNT_PATH = '/account';
 const DEVICE_STATE_HEADER = 'x-o1gw-device-state';
@@ -20,23 +23,37 @@ export const KEY_EXPIRY_WARNING_DAYS = 7;
  * resume it), or the device was removed or its key replaced (a plain
  * authentication error: the credential is stale and must be forgotten).
  */
-export type OrganizaOneUnauthorized =
+export type OrganizaOneUnauthorized = {
+  /** Set when the session reached the proxy through the o1-connect tunnel: the
+   * way back is a new connection code, not the saved key. */
+  via?: 'o1-connect';
+} & (
   | { kind: 'expired'; message: string; accountUrl: string }
   | { kind: 'suspended'; message: string }
-  | { kind: 'revoked'; message: string };
+  | { kind: 'revoked'; message: string }
+);
 
 export function describeOrganizaOneUnauthorized(
   error: unknown,
   baseUrl: string | undefined,
+  options: { tunnel?: boolean } = {},
 ): OrganizaOneUnauthorized | null {
-  if (!isOrganizaOneBaseUrl(baseUrl)) return null;
+  // Through the tunnel, `baseUrl` is the loopback endpoint; the answer is
+  // still the proxy's.
+  const tunnel = options.tunnel === true;
+  if (!tunnel && !isOrganizaOneBaseUrl(baseUrl)) return null;
   if (getErrorStatus(error) !== 401) return null;
+  const via = tunnel ? ({ via: 'o1-connect' } as const) : {};
   const state = getErrorHeader(error, DEVICE_STATE_HEADER);
   const details = getRateLimitErrorDetails(error);
   const serverMessage = details.providerMessage?.trim() ?? '';
-  const accountUrl = new URL(ORGANIZAONE_ACCOUNT_PATH, baseUrl).toString();
+  const accountUrl = new URL(
+    ORGANIZAONE_ACCOUNT_PATH,
+    tunnel ? ORGANIZAONE_ANTHROPIC_BASE_URL : baseUrl,
+  ).toString();
   if (state === 'expired' || details.providerCode === 'device_expired') {
     return {
+      ...via,
       kind: 'expired',
       message:
         (serverMessage || "This device's key expired.") +
@@ -46,6 +63,7 @@ export function describeOrganizaOneUnauthorized(
   }
   if (state === 'suspended' || details.providerCode === 'device_suspended') {
     return {
+      ...via,
       kind: 'suspended',
       message:
         serverMessage ||
@@ -53,9 +71,11 @@ export function describeOrganizaOneUnauthorized(
     };
   }
   return {
+    ...via,
     kind: 'revoked',
-    message:
-      'OrganizaOne no longer accepts this device: it was removed or its key was replaced. Sign in again with /auth.',
+    message: tunnel
+      ? 'OrganizaOne no longer accepts this device: it was removed or given a new connection code. Paste a new connection code with /auth.'
+      : 'OrganizaOne no longer accepts this device: it was removed or its key was replaced. Sign in again with /auth.',
   };
 }
 
