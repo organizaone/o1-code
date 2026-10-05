@@ -130,6 +130,7 @@ import { useSessionStats } from '../contexts/SessionContext.js';
 import type { LoadedSettings } from '../../config/settings.js';
 import { t } from '../../i18n/index.js';
 import { reactToOrganizaOneUnauthorized } from '../auth/organizaone-unauthorized.js';
+import { forgetO1Connect } from '@organizaone/o1-code-core/providers/o1-connect/session.js';
 import {
   credentialIdForProvider,
   removeCredential,
@@ -2332,6 +2333,7 @@ export const useLlmStream = (
       if (
         reactToOrganizaOneUnauthorized(eventValue.error.organizaone, {
           forget: forgetOrganizaOneCredential,
+          forgetTunnel: () => void forgetO1Connect().catch(() => undefined),
           onAuthError,
         })
       ) {

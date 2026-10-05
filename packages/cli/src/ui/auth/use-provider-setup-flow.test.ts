@@ -14,6 +14,7 @@ import {
   localOpenAiProvider,
   ollamaProvider,
   organizaoneLoginProvider,
+  organizaoneO1gwProvider,
   organizaoneProvider,
 } from '@organizaone/o1-code-core';
 import type { ProviderConfig } from '@organizaone/o1-code-core';
@@ -172,6 +173,31 @@ describe('useProviderSetupFlow API selection', () => {
           deviceName: 'o1-code-on-BOX',
         },
       }),
+    );
+  });
+
+  it('asks for a connection code instead of a key for the o1-gateway tunnel', () => {
+    const submit = vi.fn().mockResolvedValue(undefined);
+    const { result } = renderHook(() => useProviderSetupFlow(submit));
+    act(() => result.current.start(organizaoneO1gwProvider));
+    expect(result.current.state.step).toBe('protocol');
+    act(() => result.current.selectProtocol(AuthType.USE_OPENAI));
+    expect(result.current.state.step).toBe('wireApi');
+    act(() => result.current.selectWireApi('chat-completions'));
+    expect(result.current.state.step).toBe('connectionCode');
+    expect(result.current.state.baseUrl).toBe('https://api.organizago.com/v1');
+    act(() =>
+      result.current.submitConnection({
+        status: 'ok',
+        models: [{ id: 'claude-sonnet-4-5' }],
+      }),
+    );
+    expect(result.current.state.step).toBe('models');
+    act(() => result.current.changeModelIds('claude-sonnet-4-5'));
+    act(() => result.current.submitModelIds());
+    expect(submit).toHaveBeenCalledWith(
+      organizaoneO1gwProvider,
+      expect.objectContaining({ apiKey: '', modelIds: ['claude-sonnet-4-5'] }),
     );
   });
 

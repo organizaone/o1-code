@@ -124,20 +124,33 @@ describe('OrganizaOne sign-in entries', () => {
     });
   });
 
-  it('lists the o1-gateway device code as coming soon', () => {
+  it('connects through the o1-connect tunnel with a device code, no key typed', () => {
     expect(organizaoneO1gwProvider).toMatchObject({
       id: 'organizaone-o1gw',
       label: 'o1-gateway device code',
       uiGroup: 'organizaone',
-      comingSoon: true,
+      connection: 'o1-connect',
+      baseUrlByProtocol: organizaoneProvider.baseUrlByProtocol,
+      protocolOptions: organizaoneProvider.protocolOptions,
+      supportsModelDiscovery: true,
     });
-    expect(() =>
-      buildInstallPlan(organizaoneO1gwProvider, {
-        baseUrl: 'https://api.organizago.com',
-        apiKey: 'x',
-        modelIds: ['m'],
-      }),
-    ).toThrow(/not available yet/);
+    expect(organizaoneO1gwProvider.comingSoon).toBeUndefined();
+    expect(shouldShowStep(organizaoneO1gwProvider, 'apiKey')).toBe(false);
+  });
+
+  it('saves tunnel models with the connection marker and the placeholder key', () => {
+    const plan = buildInstallPlan(organizaoneO1gwProvider, {
+      protocol: AuthType.USE_ANTHROPIC,
+      baseUrl: '',
+      apiKey: '',
+      modelIds: ['claude-sonnet-4-5'],
+    });
+    expect(plan.credential?.apiKey).toBe('local');
+    expect(plan.modelProviders?.[0]?.models[0]).toMatchObject({
+      id: 'claude-sonnet-4-5',
+      baseUrl: 'https://api.organizago.com',
+      connection: 'o1-connect',
+    });
   });
 });
 

@@ -84,13 +84,25 @@ export const organizaoneLoginProvider: ProviderConfig = {
   credentialId: 'organizaone',
 };
 
+/**
+ * The o1-gateway device code: the proxy's pinned tunnel, set up from a
+ * connection code and opened inside o1-code at the start of each session
+ * (contract §3). The saved `baseUrl` names the proxy; the session talks to
+ * the tunnel's loopback endpoint, with a key made for that session.
+ */
 export const organizaoneO1gwProvider: ProviderConfig = {
   id: 'organizaone-o1gw',
   label: 'o1-gateway device code',
   description: 'Paste an o1-gateway connection code',
   protocol: AuthType.USE_ANTHROPIC,
+  protocolOptions: [AuthType.USE_ANTHROPIC, AuthType.USE_OPENAI],
+  baseUrlByProtocol: {
+    [AuthType.USE_ANTHROPIC]: ORGANIZAONE_ANTHROPIC_BASE_URL,
+    [AuthType.USE_OPENAI]: ORGANIZAONE_OPENAI_BASE_URL,
+  },
   envKey: '',
+  supportsModelDiscovery: true,
   modelNamePrefix: 'OrganizaOne',
   uiGroup: 'organizaone',
-  comingSoon: true,
+  connection: 'o1-connect',
 };

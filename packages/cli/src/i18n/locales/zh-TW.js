@@ -2621,6 +2621,18 @@ export default {
   'esc cancel': 'esc 取消',
   'Approved. Listing your models…': '已核准。正在列出你的模型…',
   'enter try again · esc back': 'enter 重試 · esc 返回',
+  'Paste the connection code from the OrganizaOne console, or the path to a kit’s o1-connect.code:':
+    '貼上 OrganizaOne 主控台的連線碼，或套件中 o1-connect.code 的路徑：',
+  'enter continue · esc back': 'enter 繼續 · esc 返回',
+  Device: '裝置',
+  at: '位於',
+  'Proxy key {{n}}': '代理金鑰 {{n}}',
+  'Compare every fingerprint with the console’s list, read on a device off this network. Type yes to save:':
+    '請在本網路之外的裝置上查看主控台清單，逐一核對每個指紋。輸入 yes 儲存：',
+  'Saved. Opening the tunnel and listing your models…':
+    '已儲存。正在開啟通道並列出你的模型…',
+  'Nothing was saved: the fingerprints were not confirmed.':
+    '未儲存任何內容：指紋未經確認。',
   'checking the key…': '正在檢查金鑰…',
   'key valid': '金鑰有效',
   'The provider refused this key ({{status}}). Check it, or press enter again to use it anyway.':

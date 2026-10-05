@@ -196,7 +196,7 @@ export function buildOrganizaOneItems(): AuthMenuItem[] {
       ];
     }
     // The path already names OrganizaOne: the row says what the user does.
-    if (provider.signIn) {
+    if (provider.signIn || provider.connection) {
       return [
         {
           key: provider.id,

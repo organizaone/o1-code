@@ -361,6 +361,14 @@ vi.mock('../tools/memory-config', () => ({
 
 vi.mock('../core/contentGenerator.js');
 
+const openO1ConnectMock = vi.hoisted(() => vi.fn());
+vi.mock('../providers/o1-connect/session.js', async (importOriginal) => ({
+  ...(await importOriginal<
+    typeof import('../providers/o1-connect/session.js')
+  >()),
+  openO1Connect: openO1ConnectMock,
+}));
+
 vi.mock('../core/client.js', () => ({
   LlmClient: vi.fn().mockImplementation(() => ({
     initialize: vi.fn().mockResolvedValue(undefined),
@@ -8266,6 +8274,78 @@ describe('Server Config (config.ts)', () => {
   });
 
   describe('refreshAuth', () => {
+    it('opens the o1-connect tunnel for a tunnelled model and talks to its loopback endpoint', async () => {
+      const close = vi.fn().mockResolvedValue(undefined);
+      openO1ConnectMock.mockReset();
+      openO1ConnectMock.mockResolvedValue({
+        baseUrl: 'http://127.0.0.1:4242',
+        openaiBaseUrl: 'http://127.0.0.1:4242/v1',
+        apiKey: 'session-key',
+        device: 'my-laptop',
+        close,
+      });
+      const config = new Config({
+        ...baseParams,
+        authType: AuthType.USE_ANTHROPIC,
+        model: 'claude-sonnet-4-5',
+        modelProvidersConfig: {
+          anthropic: [
+            {
+              id: 'claude-sonnet-4-5',
+              baseUrl: 'https://api.organizago.com',
+              connection: 'o1-connect',
+            },
+          ],
+        },
+      });
+      vi.mocked(resolveContentGeneratorConfigWithSources).mockImplementation(
+        (_config, authType, generationConfig) => ({
+          config: { ...generationConfig, model: 'claude-sonnet-4-5', authType },
+          sources: {},
+        }),
+      );
+
+      await config.refreshAuth(AuthType.USE_ANTHROPIC);
+
+      expect(openO1ConnectMock).toHaveBeenCalledTimes(1);
+      expect(createContentGenerator).toHaveBeenLastCalledWith(
+        expect.objectContaining({
+          baseUrl: 'http://127.0.0.1:4242',
+          apiKey: 'session-key',
+          connection: 'o1-connect',
+        }),
+        config,
+      );
+      expect(config.getContentGeneratorConfig().baseUrl).toBe(
+        'http://127.0.0.1:4242',
+      );
+
+      await config.shutdown({ shutdownTelemetry: false });
+      expect(close).toHaveBeenCalledTimes(1);
+    });
+
+    it('does not touch the tunnel for a model reached directly', async () => {
+      openO1ConnectMock.mockReset();
+      const config = new Config({
+        ...baseParams,
+        authType: AuthType.USE_ANTHROPIC,
+        model: 'claude-sonnet-4-5',
+        modelProvidersConfig: {
+          anthropic: [
+            { id: 'claude-sonnet-4-5', baseUrl: 'https://api.organizago.com' },
+          ],
+        },
+      });
+      vi.mocked(resolveContentGeneratorConfigWithSources).mockImplementation(
+        (_config, authType, generationConfig) => ({
+          config: { ...generationConfig, model: 'claude-sonnet-4-5', authType },
+          sources: {},
+        }),
+      );
+      await config.refreshAuth(AuthType.USE_ANTHROPIC);
+      expect(openO1ConnectMock).not.toHaveBeenCalled();
+    });
+
     it('creates the initial generator with the model API resolved from raw OpenAI settings', async () => {
       const config = new Config({
         ...baseParams,

@@ -2111,6 +2111,18 @@ export default {
   'esc cancel': 'esc cancel',
   'Approved. Listing your models…': 'Approved. Listing your models…',
   'enter try again · esc back': 'enter try again · esc back',
+  'Paste the connection code from the OrganizaOne console, or the path to a kit’s o1-connect.code:':
+    'Paste the connection code from the OrganizaOne console, or the path to a kit’s o1-connect.code:',
+  'enter continue · esc back': 'enter continue · esc back',
+  Device: 'Device',
+  at: 'at',
+  'Proxy key {{n}}': 'Proxy key {{n}}',
+  'Compare every fingerprint with the console’s list, read on a device off this network. Type yes to save:':
+    'Compare every fingerprint with the console’s list, read on a device off this network. Type yes to save:',
+  'Saved. Opening the tunnel and listing your models…':
+    'Saved. Opening the tunnel and listing your models…',
+  'Nothing was saved: the fingerprints were not confirmed.':
+    'Nothing was saved: the fingerprints were not confirmed.',
   'checking the key…': 'checking the key…',
   'key valid': 'key valid',
   'The provider refused this key ({{status}}). Check it, or press enter again to use it anyway.':

@@ -39,6 +39,7 @@ export type SetupStep =
   | 'wireApi'
   | 'baseUrl'
   | 'signIn'
+  | 'connectionCode'
   | 'apiKey'
   | 'models'
   | 'advancedConfig'
@@ -49,6 +50,7 @@ const STEP_ORDER: SetupStep[] = [
   'wireApi',
   'baseUrl',
   'signIn',
+  'connectionCode',
   'apiKey',
   'models',
   'advancedConfig',
@@ -64,6 +66,8 @@ function getVisibleSteps(
     // The sign-in replaces the typed key for a provider that brings its own
     // token (the proxy's device authorization).
     if (step === 'signIn') return Boolean(config.signIn);
+    // A tunnelled preset is set up from a connection code, with no key.
+    if (step === 'connectionCode') return Boolean(config.connection);
     return shouldShowStep(config, step, protocol);
   });
 }
@@ -490,6 +494,17 @@ export function useProviderSetupFlow(
     [submitOrNext],
   );
 
+  // The o1-connect setup listed the models through the tunnel; the models
+  // step opens on them. No key: the install plan writes the placeholder.
+  const submitConnection = useCallback(
+    (check?: ProviderKeyCheck) => {
+      setApiKeyError(null);
+      if (check) setKeyCheck(check);
+      submitOrNext();
+    },
+    [submitOrNext],
+  );
+
   const highlightBaseUrl = useCallback(
     (url: string) => {
       if (provider && Array.isArray(provider.baseUrl)) {
@@ -711,6 +726,7 @@ export function useProviderSetupFlow(
     changeApiKey,
     submitApiKey,
     submitSignIn,
+    submitConnection,
     rejectApiKey,
     setKeyCheck,
     changeModelIds,

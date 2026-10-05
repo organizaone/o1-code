@@ -84,6 +84,12 @@ export type ContentGeneratorConfig = {
   apiKey?: string;
   apiKeyEnvKey?: string;
   baseUrl?: string;
+  /**
+   * Set when `baseUrl` is the loopback endpoint of the OrganizaOne proxy's
+   * pinned tunnel (o1-connect), opened for this session: errors are then
+   * read as the proxy's, not a local server's.
+   */
+  connection?: 'o1-connect';
   vertexai?: boolean;
   authType?: AuthType | undefined;
   enableOpenAILogging?: boolean;
