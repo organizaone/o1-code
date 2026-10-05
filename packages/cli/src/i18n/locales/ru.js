@@ -2878,7 +2878,7 @@ export default {
   'Z.AI': 'Z.AI',
   'Other local server': 'Другой локальный сервер',
   'Sign in with your account': 'Войти с учётной записью',
-  'aipp device code': 'Код устройства aipp',
+  'o1-gateway device code': 'Код устройства o1-gateway',
   'Claude · key from console.anthropic.com':
     'Claude · ключ на console.anthropic.com',
   'GPT · key from platform.openai.com': 'GPT · ключ на platform.openai.com',
@@ -2886,7 +2886,7 @@ export default {
     'Gemini · ключ на aistudio.google.com',
   'Connect to OrganizaOne with your key': 'Подключиться к OrganizaOne по ключу',
   'Sign in to OrganizaOne in the browser': 'Войти в OrganizaOne в браузере',
-  'Paste an aipp connection code': 'Вставить код подключения aipp',
+  'Paste an o1-gateway connection code': 'Вставить код подключения o1-gateway',
   'Models from Ollama on this machine': 'Модели Ollama на этом компьютере',
   'Models from LM Studio on this machine':
     'Модели LM Studio на этом компьютере',

@@ -38,7 +38,7 @@ export interface ProxyWait {
 /**
  * The wait the OrganizaOne proxy asks for on a 429 or 503 of its own, or
  * null for any other error. Recognized by what only the proxy sends: the
- * `x-aipp-limit` header (account limits, either protocol), its OpenAI error
+ * `x-o1gw-limit` header (account limits, either protocol), its OpenAI error
  * codes, or on the Anthropic protocol (whose body carries no code) its
  * usage-window wording.
  */
@@ -49,14 +49,14 @@ export function readProxyWait(
   const status = getErrorStatus(error);
   if (status !== 429 && status !== 503) return null;
   const details = getRateLimitErrorDetails(error);
-  const limit = getErrorHeader(error, 'x-aipp-limit') ?? undefined;
+  const limit = getErrorHeader(error, 'x-o1gw-limit') ?? undefined;
   const ours =
     limit !== undefined ||
     (details.providerCode !== undefined &&
       PROXY_WAIT_CODES.has(details.providerCode)) ||
     /usage limit is reached/i.test(details.providerMessage ?? '');
   if (!ours) return null;
-  const resetHeader = getErrorHeader(error, 'x-aipp-limit-reset');
+  const resetHeader = getErrorHeader(error, 'x-o1gw-limit-reset');
   const resetFromHeader = resetHeader ? Date.parse(resetHeader) : NaN;
   const retryAfterMs = getRetryAfterDelayMs(error);
   const waitMs =

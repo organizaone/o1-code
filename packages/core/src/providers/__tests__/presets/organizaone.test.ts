@@ -8,7 +8,7 @@ import { describe, expect, it } from 'vitest';
 import { AuthType } from '../../../core/contentGenerator.js';
 import {
   isOrganizaOneBaseUrl,
-  organizaoneAippProvider,
+  organizaoneO1gwProvider,
   organizaoneLoginProvider,
   organizaoneProvider,
 } from '../../presets/organizaone.js';
@@ -88,7 +88,7 @@ describe('OrganizaOne sign-in entries', () => {
       'organizaone-login',
       'Sign in with your account',
     ],
-    [organizaoneAippProvider, 'organizaone-aipp', 'aipp device code'],
+    [organizaoneO1gwProvider, 'organizaone-o1gw', 'o1-gateway device code'],
   ])('lists %s as coming soon', (provider, id, label) => {
     expect(provider).toMatchObject({
       id,
@@ -98,7 +98,7 @@ describe('OrganizaOne sign-in entries', () => {
     });
   });
 
-  it.each([organizaoneLoginProvider, organizaoneAippProvider])(
+  it.each([organizaoneLoginProvider, organizaoneO1gwProvider])(
     'refuses to build an install plan for $id',
     (provider) => {
       expect(() =>
@@ -124,8 +124,8 @@ describe('isOrganizaOneBaseUrl', () => {
   it.each([
     // Deprecated API host.
     'https://models.organizago.com',
-    // The primary host serves the /device and /account pages, not the API.
-    'https://aipp.organizago.com',
+    // A host that serves pages, not the API.
+    'https://www.organizago.com',
     'https://organizago.com',
     'https://api.organizago.com.evil.example',
     'https://evil.example/api.organizago.com',

@@ -33,14 +33,14 @@ In this order.
 
 Decided on a navigable mock, 2026-09-27. Terminal first, then the Web Shell, then the OrganizaOne
 account login. The terminal dialog and the Web Shell have shipped (the four entries, the credential
-store, local detection); plan C, the OrganizaOne account login and the aipp code, remains.
+store, local detection); plan C, the OrganizaOne account login and the o1-gateway connection code, remains.
 
 - **Menu:** OrganizaOne; API key (one alphabetical list: Alibaba Cloud, Anthropic, DeepSeek,
   Google Gemini, Kimi, MiniMax, ModelScope, OpenAI, xAI, Z.AI); Local (Ollama and LM Studio detected on
   their ports, or another local server); Custom (any URL, OpenAI-compatible or Anthropic). The
   OpenRouter and Requesty presets go; Custom covers them.
 - **OrganizaOne:** an API key against `api.organizago.com` first; account login (device code,
-  RFC 8628) and the `aipp1.` connection code show as "coming soon" until the proxy serves the
+  RFC 8628) and the `o1gw1.` connection code show as "coming soon" until the proxy serves the
   contract, which is written in that project.
 - **Credentials:** one file per provider under `~/.o1-code/credentials/`, owner-only; keys no
   longer live in `settings.json`.

@@ -608,7 +608,7 @@ describe('retryWithBackoff', () => {
           },
         },
         undefined,
-        new Headers({ 'retry-after': retryAfter, 'x-aipp-limit': limit }),
+        new Headers({ 'retry-after': retryAfter, 'x-o1gw-limit': limit }),
       );
 
     it('stops at once on a daily limit instead of waiting hours', async () => {

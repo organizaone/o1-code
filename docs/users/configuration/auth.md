@@ -4,7 +4,7 @@ O1-Code talks to the model provider you connect. The `/auth` dialog, **Connect a
 four entries:
 
 - **OrganizaOne**: connect with the key from the OrganizaOne console. **Sign in with your account**
-  and **aipp device code** are listed too, disabled and marked `coming soon`: they depend on the
+  and **o1-gateway device code** are listed too, disabled and marked `coming soon`: they depend on the
   OrganizaOne server and have no handler yet.
 - **API key**: one alphabetical list of the built-in providers you connect with a key —
   Alibaba Cloud, Anthropic, DeepSeek, Google Gemini, Kimi (Moonshot), MiniMax, ModelScope, OpenAI,

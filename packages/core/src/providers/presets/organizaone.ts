@@ -14,8 +14,8 @@ export const ORGANIZAONE_OPENAI_BASE_URL = 'https://api.organizago.com/v1';
 export const ORGANIZAONE_ENV_KEY = 'ORGANIZAONE_API_KEY';
 
 /**
- * The proxy's API host. `models.` is deprecated and `aipp.` serves the
- * console's pages, not the API: neither is the proxy for o1-code.
+ * The proxy's API host. `models.` is deprecated, and the hosts that serve the
+ * console's pages are not the API: neither is the proxy for o1-code.
  */
 const ORGANIZAONE_HOST = new URL(ORGANIZAONE_ANTHROPIC_BASE_URL).hostname;
 
@@ -35,7 +35,7 @@ export function isOrganizaOneBaseUrl(baseUrl: string | undefined): boolean {
 
 /**
  * The proxy records the calling agent from `X-Title` before `User-Agent`
- * (ai-proxy-provider, request-origin.ts).
+ * (o1-gateway, request-origin.ts).
  */
 export const ORGANIZAONE_CLIENT_HEADERS: Readonly<Record<string, string>> = {
   'X-Title': BRAND.productName,
@@ -74,10 +74,10 @@ export const organizaoneLoginProvider: ProviderConfig = {
   comingSoon: true,
 };
 
-export const organizaoneAippProvider: ProviderConfig = {
-  id: 'organizaone-aipp',
-  label: 'aipp device code',
-  description: 'Paste an aipp connection code',
+export const organizaoneO1gwProvider: ProviderConfig = {
+  id: 'organizaone-o1gw',
+  label: 'o1-gateway device code',
+  description: 'Paste an o1-gateway connection code',
   protocol: AuthType.USE_ANTHROPIC,
   envKey: '',
   modelNamePrefix: 'OrganizaOne',

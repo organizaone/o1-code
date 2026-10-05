@@ -2569,7 +2569,7 @@ export default {
   'Z.AI': 'Z.AI',
   'Other local server': '其他本機伺服器',
   'Sign in with your account': '使用帳號登入',
-  'aipp device code': 'aipp 裝置碼',
+  'o1-gateway device code': 'o1-gateway 裝置碼',
   'Claude · key from console.anthropic.com':
     'Claude · 在 console.anthropic.com 取得金鑰',
   'GPT · key from platform.openai.com': 'GPT · 在 platform.openai.com 取得金鑰',
@@ -2577,7 +2577,7 @@ export default {
     'Gemini · 在 aistudio.google.com 取得金鑰',
   'Connect to OrganizaOne with your key': '使用金鑰連接 OrganizaOne',
   'Sign in to OrganizaOne in the browser': '在瀏覽器中登入 OrganizaOne',
-  'Paste an aipp connection code': '貼上 aipp 連線碼',
+  'Paste an o1-gateway connection code': '貼上 o1-gateway 連線碼',
   'Models from Ollama on this machine': '本機上的 Ollama 模型',
   'Models from LM Studio on this machine': '本機上的 LM Studio 模型',
   'Any OpenAI-compatible server on this machine':
