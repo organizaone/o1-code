@@ -3127,5 +3127,6 @@ export default {
   'Review messages held from other O1-Code sessions (accept | deny), and manage trusted controllers (controllers | revoke)':
     'Review messages held from other O1-Code sessions (accept | deny), and manage trusted controllers (controllers | revoke)',
   'Cycle prompt history': 'Cycle prompt history',
+  'history {{position}}/{{total}}': 'history {{position}}/{{total}}',
   'Scroll when the input is empty': 'Scroll when the input is empty',
 };

@@ -23,6 +23,36 @@ afterEach(() => {
 });
 
 describe('ScreenBuffer (Ink frame-controller M0)', () => {
+  it('excludes message borders while retaining bar characters in source text', () => {
+    current = render(
+      <Box
+        borderStyle={{
+          topLeft: '',
+          top: '',
+          topRight: '',
+          left: '▎',
+          right: '',
+          bottomLeft: '',
+          bottom: '',
+          bottomRight: '',
+        }}
+        borderTop={false}
+        borderBottom={false}
+        borderRight={false}
+      >
+        <Text>{'first line\nsecond ▎ line'}</Text>
+      </Box>,
+    );
+    const frame = getScreenBuffer(
+      current.stdout as unknown as NodeJS.WriteStream,
+    )!.frame!;
+    expect(frame.cells[0][0].value).toBe('▎');
+    expect(frame.cells[0][0].selectable).toBe(false);
+    expect(frame.cells[1][0].selectable).toBe(false);
+    expect(getSelectedText(frame, { sx: 0, sy: 0, ex: 79, ey: 1 }).trim()).toBe(
+      'first line\nsecond ▎ line',
+    );
+  });
   it('exposes the composited frame as addressable cells', () => {
     current = render(<Text>hello 中文</Text>);
     const buffer = getScreenBuffer(

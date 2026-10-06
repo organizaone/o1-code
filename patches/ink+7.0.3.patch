@@ -387,7 +387,7 @@ index 273dd13..09de1dc 100644
      private readonly rootNode;
      private fullStaticOutput;
 diff --git a/node_modules/ink/build/ink.js b/node_modules/ink/build/ink.js
-index ef659f3..0a9731f 100644
+index ef659f3..159aea1 100644
 --- a/node_modules/ink/build/ink.js
 +++ b/node_modules/ink/build/ink.js
 @@ -17,6 +17,7 @@ import { hideCursorEscape, showCursorEscape } from './cursor-helpers.js';
@@ -414,7 +414,7 @@ index ef659f3..0a9731f 100644
      constructor(options) {
          autoBind(this);
          this.options = options;
-@@ -196,6 +199,12 @@ export default class Ink {
+@@ -196,9 +199,16 @@ export default class Ink {
              this.throttledOnRender = throttled;
          }
          this.rootNode.onImmediateRender = this.onRender;
@@ -427,7 +427,11 @@ index ef659f3..0a9731f 100644
          this.rootNode.onStaticChange = this.handleStaticChange;
          this.log = logUpdate.create(options.stdout, {
              incremental: options.incrementalRendering,
-@@ -227,6 +236,7 @@ export default class Ink {
++            alternateScreen: this.resolveAlternateScreenOption(options.alternateScreen, this.interactive),
+         });
+         this.cursorPosition = undefined;
+         this.throttledLog = unthrottled
+@@ -227,6 +237,7 @@ export default class Ink {
          this.lastOutputToRender = '';
          this.lastOutputHeight = 0;
          this.lastTerminalWidth = getWindowSize(this.options.stdout).columns;
@@ -435,7 +439,7 @@ index ef659f3..0a9731f 100644
          // This variable is used only in debug mode to store full static output
          // so that it's rerendered every time, not just new static parts, like in non-debug mode
          this.fullStaticOutput = '';
-@@ -260,8 +270,14 @@ export default class Ink {
+@@ -260,8 +271,14 @@ export default class Ink {
          void this.exitPromise.catch(noop);
      }
      resized = () => {
@@ -452,7 +456,7 @@ index ef659f3..0a9731f 100644
              // We clear the screen when decreasing terminal width to prevent duplicate overlapping re-renders.
              this.log.clear();
              this.lastOutput = '';
-@@ -270,6 +286,7 @@ export default class Ink {
+@@ -270,6 +287,7 @@ export default class Ink {
          this.calculateLayout();
          this.onRender();
          this.lastTerminalWidth = currentWidth;
@@ -460,7 +464,7 @@ index ef659f3..0a9731f 100644
      };
      resolveExitPromise = () => { };
      rejectExitPromise = () => { };
-@@ -317,7 +334,16 @@ export default class Ink {
+@@ -317,7 +335,16 @@ export default class Ink {
              this.nextRenderCommit = undefined;
          }
          const startTime = performance.now();
@@ -478,7 +482,7 @@ index ef659f3..0a9731f 100644
          this.options.onRender?.({ renderTime: performance.now() - startTime });
          // If <Static> output isn't empty, it means new children have been added to it
          const hasStaticOutput = staticOutput && staticOutput !== '\n';
-@@ -642,6 +668,7 @@ export default class Ink {
+@@ -642,6 +669,7 @@ export default class Ink {
          this.alternateScreen = this.resolveAlternateScreenOption(enabled, this.interactive);
          if (this.alternateScreen) {
              this.writeBestEffort(this.options.stdout, ansiEscapes.enterAlternativeScreen);
@@ -486,7 +490,7 @@ index ef659f3..0a9731f 100644
              this.writeBestEffort(this.options.stdout, hideCursorEscape);
          }
      }
-@@ -688,6 +715,7 @@ export default class Ink {
+@@ -688,6 +716,7 @@ export default class Ink {
          return this.nextRenderCommit.promise;
      }
      renderInteractiveFrame(output, outputHeight, staticOutput) {
@@ -494,7 +498,7 @@ index ef659f3..0a9731f 100644
          const hasStaticOutput = staticOutput !== '';
          const isTty = this.options.stdout.isTTY;
          // Detect fullscreen: output fills or exceeds terminal height.
-@@ -707,7 +735,7 @@ export default class Ink {
+@@ -707,7 +736,7 @@ export default class Ink {
              if (sync) {
                  this.options.stdout.write(bsu);
              }
@@ -503,8 +507,31 @@ index ef659f3..0a9731f 100644
              this.lastOutput = output;
              this.lastOutputToRender = outputToRender;
              this.lastOutputHeight = outputHeight;
+@@ -809,4 +838,4 @@ export default class Ink {
+         this.kittyProtocolEnabled = true;
+     }
+ }
+-//# sourceMappingURL=ink.js.map
+\ No newline at end of file
++//# sourceMappingURL=ink.js.map
+diff --git a/node_modules/ink/build/log-update.d.ts b/node_modules/ink/build/log-update.d.ts
+index 6e91353..e11e7f9 100644
+--- a/node_modules/ink/build/log-update.d.ts
++++ b/node_modules/ink/build/log-update.d.ts
+@@ -12,9 +12,10 @@ export type LogUpdate = {
+     (str: string): boolean;
+ };
+ declare const logUpdate: {
+-    create: (stream: Writable, { showCursor, incremental }?: {
++    create: (stream: Writable, { showCursor, incremental, alternateScreen }?: {
+         showCursor?: boolean | undefined;
+         incremental?: boolean | undefined;
++        alternateScreen?: boolean | undefined;
+     }) => LogUpdate;
+ };
+ export default logUpdate;
 diff --git a/node_modules/ink/build/log-update.js b/node_modules/ink/build/log-update.js
-index cdb5fc4..cd10dc2 100644
+index cdb5fc4..8e0117e 100644
 --- a/node_modules/ink/build/log-update.js
 +++ b/node_modules/ink/build/log-update.js
 @@ -4,6 +4,10 @@ import { cursorPositionChanged, buildCursorSuffix, buildCursorOnlySequence, buil
@@ -622,7 +649,7 @@ index cdb5fc4..cd10dc2 100644
          }
          previousCursorPosition = activeCursor ? { ...activeCursor } : undefined;
          cursorWasShown = activeCursor !== undefined;
-@@ -97,9 +130,10 @@ const createStandard = (stream, { showCursor = false } = {}) => {
+@@ -97,12 +130,13 @@ const createStandard = (stream, { showCursor = false } = {}) => {
      render.setCursorPosition = (position) => {
          cursorPosition = position;
          cursorDirty = true;
@@ -633,7 +660,11 @@ index cdb5fc4..cd10dc2 100644
 +    render.willRender = (str) => hasChanges(str, prepareActiveCursor());
      return render;
  };
- const createIncremental = (stream, { showCursor = false } = {}) => {
+-const createIncremental = (stream, { showCursor = false } = {}) => {
++const createIncremental = (stream, { showCursor = false, alternateScreen = false } = {}) => {
+     let previousLines = [];
+     let previousOutput = '';
+     let hasHiddenCursor = false;
 @@ -110,7 +144,26 @@ const createIncremental = (stream, { showCursor = false } = {}) => {
      let cursorDirty = false;
      let previousCursorPosition;
@@ -688,7 +719,7 @@ index cdb5fc4..cd10dc2 100644
              stream.write(returnPrefix +
                  ansiEscapes.eraseLines(previousLines.length) +
                  str +
-@@ -154,6 +208,7 @@ const createIncremental = (stream, { showCursor = false } = {}) => {
+@@ -154,9 +208,31 @@ const createIncremental = (stream, { showCursor = false } = {}) => {
              previousCursorPosition = activeCursor ? { ...activeCursor } : undefined;
              previousOutput = str;
              previousLines = nextLines;
@@ -696,7 +727,38 @@ index cdb5fc4..cd10dc2 100644
              return true;
          }
          const hasTrailingNewline = str.endsWith('\n');
-@@ -187,13 +242,14 @@ const createIncremental = (stream, { showCursor = false } = {}) => {
++        // The alternate screen owns the viewport; absolute rows avoid pending-wrap cursor drift.
++        if (alternateScreen || (!hasTrailingNewline && visibleCount === stream.rows)) {
++            const buffer = [returnPrefix];
++            for (let i = 0; i < visibleCount; i++) {
++                if (nextLines[i] !== previousLines[i]) {
++                    buffer.push(ansiEscapes.cursorTo(0, i) + ansiEscapes.eraseLine + nextLines[i]);
++                }
++            }
++            for (let i = visibleCount; i < Math.min(previousVisible, stream.rows); i++) {
++                buffer.push(ansiEscapes.cursorTo(0, i) + ansiEscapes.eraseLine);
++            }
++            buffer.push(ansiEscapes.cursorTo(0, hasTrailingNewline ? visibleCount : visibleCount - 1));
++            buffer.push(buildCursorSuffix(visibleCount, activeCursor, hasTrailingNewline));
++            stream.write(buffer.join(''));
++            cursorWasShown = activeCursor !== undefined;
++            previousCursorPosition = activeCursor ? { ...activeCursor } : undefined;
++            previousOutput = str;
++            previousLines = nextLines;
++            previousHasTrailingNewline = hasTrailingNewline;
++            return true;
++        }
+         // We aggregate all chunks for incremental rendering into a buffer, and then write them to stdout at the end.
+         const buffer = [];
+         buffer.push(returnPrefix);
+@@ -181,19 +257,20 @@ const createIncremental = (stream, { showCursor = false } = {}) => {
+                 continue;
+             }
+             buffer.push(ansiEscapes.cursorTo(0) +
++                ansiEscapes.eraseLine +
+                 nextLines[i] +
+-                ansiEscapes.eraseEndLine +
+                 // Don't append newline after the last line when the input
                  // has no trailing newline (fullscreen mode).
                  (isLastLine && !hasTrailingNewline ? '' : '\n'));
          }
@@ -712,7 +774,7 @@ index cdb5fc4..cd10dc2 100644
          return true;
      };
      render.clear = () => {
-@@ -203,12 +259,16 @@ const createIncremental = (stream, { showCursor = false } = {}) => {
+@@ -203,12 +280,16 @@ const createIncremental = (stream, { showCursor = false } = {}) => {
          previousLines = [];
          previousCursorPosition = undefined;
          cursorWasShown = false;
@@ -729,7 +791,7 @@ index cdb5fc4..cd10dc2 100644
          if (!showCursor) {
              cliCursor.show(stream);
              hasHiddenCursor = false;
-@@ -219,18 +279,21 @@ const createIncremental = (stream, { showCursor = false } = {}) => {
+@@ -219,18 +300,21 @@ const createIncremental = (stream, { showCursor = false } = {}) => {
          previousLines = [];
          previousCursorPosition = undefined;
          cursorWasShown = false;
@@ -753,7 +815,7 @@ index cdb5fc4..cd10dc2 100644
          }
          previousCursorPosition = activeCursor ? { ...activeCursor } : undefined;
          cursorWasShown = activeCursor !== undefined;
-@@ -238,9 +301,10 @@ const createIncremental = (stream, { showCursor = false } = {}) => {
+@@ -238,17 +322,18 @@ const createIncremental = (stream, { showCursor = false } = {}) => {
      render.setCursorPosition = (position) => {
          cursorPosition = position;
          cursorDirty = true;
@@ -764,7 +826,19 @@ index cdb5fc4..cd10dc2 100644
 +    render.willRender = (str) => hasChanges(str, prepareActiveCursor());
      return render;
  };
- const create = (stream, { showCursor = false, incremental = false } = {}) => {
+-const create = (stream, { showCursor = false, incremental = false } = {}) => {
++const create = (stream, { showCursor = false, incremental = false, alternateScreen = false } = {}) => {
+     if (incremental) {
+-        return createIncremental(stream, { showCursor });
++        return createIncremental(stream, { showCursor, alternateScreen });
+     }
+     return createStandard(stream, { showCursor });
+ };
+ const logUpdate = { create };
+ export default logUpdate;
+-//# sourceMappingURL=log-update.js.map
+\ No newline at end of file
++//# sourceMappingURL=log-update.js.map
 diff --git a/node_modules/ink/build/output.d.ts b/node_modules/ink/build/output.d.ts
 index 0f4523f..a3ef634 100644
 --- a/node_modules/ink/build/output.d.ts
@@ -1075,6 +1149,37 @@ index db5c807..3ac805a 100644
      }
  };
  export default renderBackground;
+diff --git a/node_modules/ink/build/render-border.js b/node_modules/ink/build/render-border.js
+index 504cd3b..120f06f 100644
+--- a/node_modules/ink/build/render-border.js
++++ b/node_modules/ink/build/render-border.js
+@@ -65,20 +65,21 @@ const renderBorder = (x, y, node, output) => {
+         bottomBorder &&= stylePiece(bottomBorder, bottomBorderColor, bottomBorderBackgroundColor, dimBottomBorderColor);
+         const offsetY = showTopBorder ? 1 : 0;
+         if (topBorder) {
+-            output.write(x, y, topBorder, { transformers: [] });
++            output.write(x, y, topBorder, { transformers: [], selectable: false });
+         }
+         if (leftBorder) {
+-            output.write(x, y + offsetY, leftBorder, { transformers: [] });
++            output.write(x, y + offsetY, leftBorder, { transformers: [], selectable: false });
+         }
+         if (rightBorder) {
+             output.write(x + width - 1, y + offsetY, rightBorder, {
+                 transformers: [],
++                selectable: false,
+             });
+         }
+         if (bottomBorder) {
+-            output.write(x, y + height - 1, bottomBorder, { transformers: [] });
++            output.write(x, y + height - 1, bottomBorder, { transformers: [], selectable: false });
+         }
+     }
+ };
+ export default renderBorder;
+-//# sourceMappingURL=render-border.js.map
+\ No newline at end of file
++//# sourceMappingURL=render-border.js.map
 diff --git a/node_modules/ink/build/render-node-to-output.d.ts b/node_modules/ink/build/render-node-to-output.d.ts
 index 127c620..6d5a005 100644
 --- a/node_modules/ink/build/render-node-to-output.d.ts

@@ -163,14 +163,13 @@ describe('Help Component', () => {
     );
   });
 
-  it('says where prompt history lives now that bare arrows scroll', () => {
-    // With the input empty and the conversation scrollable, bare Up/Down
-    // scroll it; history stays on Ctrl+P/Ctrl+N.
+  it('shows bare arrows and Ctrl+P/N as prompt history shortcuts', () => {
     const output = render(
       <Help commands={mockCommands} width={120} />,
     ).lastFrame()!;
     expect(output).toContain('Ctrl+P/N');
-    expect(output).toContain('Scroll when the input is empty');
+    expect(output).toContain('Cycle prompt history');
+    expect(output).not.toContain('Scroll when the input is empty');
   });
 
   it('renders built-in commands in the commands tab without custom command clutter', () => {

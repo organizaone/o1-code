@@ -22,14 +22,14 @@ describe('attachmentDisplayName', () => {
 
   it('trims a long filename in the middle, keeping the start and the extension', () => {
     const shown = attachmentDisplayName(
-      'clipboard-1791251781717-47aee5f9-88ef-456a-9f8d-5f164e2e3ef9.bmp',
+      'very-long-image-filename-from-the-terminal.bmp',
     );
-    expect(shown).toBe('clipboard-1791…e3ef9.bmp');
+    expect(shown).toBe('very-lon…nal.bmp');
   });
 
   it('falls back to the trimmed filename when the clipboard name carries no valid timestamp', () => {
     expect(attachmentDisplayName('clipboard-notatime-0a8cbe89.png')).toBe(
-      'clipboard-nota…cbe89.png',
+      'clipboar…e89.png',
     );
   });
 });

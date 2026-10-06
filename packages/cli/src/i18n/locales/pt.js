@@ -2305,7 +2305,7 @@ export default {
   '← → select, Delete to remove, ↓ to exit':
     '← → selecionar, Delete para remover, ↓ para sair',
   'Attachments: ': 'Anexos: ',
-  'screenshot {{time}}': 'captura de tela {{time}}',
+  'screenshot {{time}}': 'captura {{time}}',
   '(tab to cycle)': '(Tab para alternar)',
   'Updating...': 'Atualizando...',
   Unknown: 'Desconhecido',
@@ -3167,5 +3167,6 @@ export default {
   'Review messages held from other O1-Code sessions (accept | deny), and manage trusted controllers (controllers | revoke)':
     'Revisar mensagens retidas de outras sessões do O1-Code (accept | deny) e gerenciar controladores confiáveis (controllers | revoke)',
   'Cycle prompt history': 'Percorrer o histórico de prompts',
+  'history {{position}}/{{total}}': 'histórico {{position}}/{{total}}',
   'Scroll when the input is empty': 'Rolar com o campo vazio',
 };

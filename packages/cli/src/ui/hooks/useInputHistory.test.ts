@@ -18,6 +18,37 @@ describe('useInputHistory', () => {
 
   const userMessages = ['message 1', 'message 2', 'message 3'];
 
+  it('reports newest-first positions and restores the draft after the newest entry', () => {
+    const { result } = renderHook(() =>
+      useInputHistory({
+        userMessages,
+        onSubmit: mockOnSubmit,
+        isActive: true,
+        currentQuery: 'draft',
+        onChange: mockOnChange,
+      }),
+    );
+    expect(result.current.historyPosition).toBe(0);
+    expect(result.current.historyTotal).toBe(3);
+    act(() => {
+      result.current.navigateUp();
+    });
+    expect(result.current.historyPosition).toBe(1);
+    expect(mockOnChange).toHaveBeenLastCalledWith('message 3');
+    act(() => {
+      result.current.navigateUp();
+    });
+    expect(result.current.historyPosition).toBe(2);
+    act(() => {
+      result.current.navigateDown();
+    });
+    act(() => {
+      result.current.navigateDown();
+    });
+    expect(result.current.historyPosition).toBe(0);
+    expect(mockOnChange).toHaveBeenLastCalledWith('draft');
+  });
+
   it('should initialize with historyIndex -1 and empty originalQueryBeforeNav', () => {
     const { result } = renderHook(() =>
       useInputHistory({

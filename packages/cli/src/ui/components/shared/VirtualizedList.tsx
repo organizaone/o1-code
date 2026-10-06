@@ -983,6 +983,9 @@ function VirtualizedList<T>(
         overflowY="hidden"
         overflowX="hidden"
         flexGrow={1}
+        flexShrink={1}
+        flexBasis={0}
+        minWidth={0}
         flexDirection="column"
       >
         <Box

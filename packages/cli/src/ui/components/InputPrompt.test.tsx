@@ -349,6 +349,8 @@ describe('InputPrompt', () => {
     mockedUseCommandCompletion.mockReturnValue(mockCommandCompletion);
 
     mockInputHistory = {
+      historyPosition: 0,
+      historyTotal: 0,
       navigateUp: vi.fn(),
       navigateDown: vi.fn(),
       handleSubmit: vi.fn(),
@@ -5720,7 +5722,7 @@ describe('InputPrompt', () => {
       unmount();
     });
 
-    it('arrow Down applies the same snap-before-history rule as Ctrl+N', async () => {
+    it('arrow Down recalls newer history immediately at the last visual row', async () => {
       mockBuffer.setText('hello');
       mockBuffer.visualCursor = [0, 0];
 
@@ -5732,8 +5734,8 @@ describe('InputPrompt', () => {
       stdin.write('\u001B[B'); // Down arrow
       await wait();
 
-      expect(mockBuffer.move).toHaveBeenCalledWith('end');
-      expect(mockInputHistory.navigateDown).not.toHaveBeenCalled();
+      expect(mockBuffer.move).not.toHaveBeenCalledWith('end');
+      expect(mockInputHistory.navigateDown).toHaveBeenCalled();
       unmount();
     });
 
@@ -6107,10 +6109,7 @@ describe('InputPrompt', () => {
       unmount();
     });
 
-    it('arrow Up applies the same two-step rule as Ctrl+P (snap before navigate)', async () => {
-      // The arrow-key history path lives alongside Ctrl+P in InputPrompt.tsx
-      // and the two must stay in lock-step. This test pins the parity so a
-      // future refactor that diverges them will fail.
+    it('arrow Up recalls history immediately at the first visual row', async () => {
       mockBuffer.setText('hello'); // cursor at end via patched setText mock
 
       const { stdin, unmount } = renderWithProviders(
@@ -6121,8 +6120,8 @@ describe('InputPrompt', () => {
       stdin.write('\u001B[A'); // Up arrow
       await wait();
 
-      expect(mockBuffer.move).toHaveBeenCalledWith('home');
-      expect(mockInputHistory.navigateUp).not.toHaveBeenCalled();
+      expect(mockBuffer.move).not.toHaveBeenCalledWith('home');
+      expect(mockInputHistory.navigateUp).toHaveBeenCalled();
       unmount();
     });
 
@@ -6331,11 +6330,17 @@ describe('InputPrompt', () => {
     });
   });
 
-  describe('VP-mode bare Up/Down scrolls the conversation', () => {
-    // Terminals without SGR mouse reporting turn wheel events into bare ↑/↓.
-    // In VP mode (ui.useTerminalBuffer, on by default) those keys have to
-    // scroll the transcript while the composer is empty instead of rewriting
-    // the input with an old prompt.
+  describe('VP-mode bare Up/Down navigates prompt history', () => {
+    it('shows the current newest-first history position on the input border', async () => {
+      mockInputHistory.historyPosition = 15;
+      mockInputHistory.historyTotal = 50;
+      const { lastFrame, unmount } = renderWithProviders(
+        <InputPrompt {...props} />,
+      );
+      await wait();
+      expect(lastFrame()).toContain('history 15/50');
+      unmount();
+    });
     const vpSettings = {
       merged: { ui: { useTerminalBuffer: true } },
     } as LoadedSettings;
@@ -6351,7 +6356,7 @@ describe('InputPrompt', () => {
         { settings: vpSettings },
       );
 
-    it('Up from an empty composer scrolls up instead of navigating history', async () => {
+    it('Up from an empty composer recalls history without scrolling', async () => {
       const scrollBy = vi.fn();
       mockBuffer.setText('');
       mockBuffer.visualCursor = [0, 0];
@@ -6361,12 +6366,12 @@ describe('InputPrompt', () => {
       stdin.write('\u001B[A'); // Up arrow
       await wait();
 
-      expect(scrollBy).toHaveBeenCalledWith(-1);
-      expect(mockInputHistory.navigateUp).not.toHaveBeenCalled();
+      expect(scrollBy).not.toHaveBeenCalled();
+      expect(mockInputHistory.navigateUp).toHaveBeenCalled();
       unmount();
     });
 
-    it('Down from an empty composer scrolls down instead of navigating history', async () => {
+    it('Down from an empty composer navigates history without scrolling', async () => {
       const scrollBy = vi.fn();
       (mockInputHistory.navigateDown as Mock).mockReturnValue(false);
       mockBuffer.setText('');
@@ -6377,8 +6382,8 @@ describe('InputPrompt', () => {
       stdin.write('\u001B[B'); // Down arrow
       await wait();
 
-      expect(scrollBy).toHaveBeenCalledWith(1);
-      expect(mockInputHistory.navigateDown).not.toHaveBeenCalled();
+      expect(scrollBy).not.toHaveBeenCalled();
+      expect(mockInputHistory.navigateDown).toHaveBeenCalled();
       unmount();
     });
 
@@ -6491,11 +6496,7 @@ describe('InputPrompt', () => {
       unmount();
     });
 
-    it('Up at the top of a scrollable transcript does not replay history', async () => {
-      // The other half of the tradeoff: once the transcript overflows, ↑ stays
-      // owned by scrolling even at the top edge. A wheel spun past the top
-      // emits a burst of ↑ presses, and letting the first dead one fall through
-      // to history would reintroduce exactly the bug being fixed.
+    it('Up recalls history even at the top of a scrollable transcript', async () => {
       const scrollBy = vi.fn();
       mockBuffer.setText('');
       mockBuffer.visualCursor = [0, 0];
@@ -6505,8 +6506,8 @@ describe('InputPrompt', () => {
       stdin.write('\u001B[A'); // Up arrow
       await wait();
 
-      expect(scrollBy).toHaveBeenCalledWith(-1);
-      expect(mockInputHistory.navigateUp).not.toHaveBeenCalled();
+      expect(scrollBy).not.toHaveBeenCalled();
+      expect(mockInputHistory.navigateUp).toHaveBeenCalled();
       unmount();
     });
   });
