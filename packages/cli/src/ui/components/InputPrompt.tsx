@@ -41,7 +41,6 @@ import { StreamingState } from '../types.js';
 import { ApprovalMode } from '@organizaone/o1-code-core/config/approval-mode.js';
 import type { Config } from '@organizaone/o1-code-core/config/config.js';
 import { Storage } from '@organizaone/o1-code-core/config/storage.js';
-import { createDebugLogger } from '@organizaone/o1-code-core/utils/debugLogger.js';
 import {
   parseInputForHighlighting,
   buildSegmentsForVisualSlice,
@@ -100,6 +99,8 @@ import { openDashScopeAsrRealtimeStream } from '../voice/dashscope-asr-realtime-
 import { openVoiceStream } from '../voice/voice-stream-session.js';
 import { openVoiceStreamWithRetry } from '../voice/voice-stream-retry.js';
 import { VoiceIndicator } from './VoiceIndicator.js';
+import { AttachmentPreparation } from './AttachmentPreparation.js';
+import { useAttachmentPreparation } from '../hooks/use-attachment-preparation.js';
 import {
   clearPromptStash,
   savePromptStash,
@@ -112,6 +113,7 @@ export interface Attachment {
   id: string; // Unique identifier (timestamp)
   path: string; // Full file path
   filename: string; // Filename only (for display)
+  sizeBytes?: number;
 }
 
 const PASTED_IMAGE_EXTENSIONS = /\.(png|jpe?g|gif|webp|bmp)$/i;
@@ -207,8 +209,6 @@ export function attachmentDisplayName(filename: string): string {
   const tailColumns = ATTACHMENT_NAME_MAX_COLUMNS - 1 - headColumns;
   return `${trimColumnsFromStart(filename, headColumns)}…${trimColumnsFromEnd(filename, tailColumns)}`;
 }
-
-const debugLogger = createDebugLogger('INPUT_PROMPT');
 
 export function expandPendingPastePlaceholders(
   value: string,
@@ -323,13 +323,16 @@ export const InputPrompt: React.FC<InputPromptProps> = ({
   const isShellFocused = useShellFocusState();
   const uiState = useUIState();
   const uiActions = useUIActions();
+  const attachmentPreparation = useAttachmentPreparation(
+    uiActions.setAttachmentPreparationActive,
+  );
   const settings = useSettings();
   // Mouse interactions (suggestion list + click-to-position cursor) are enabled
   // in alternate-screen mode (see RowMouseController's coordinate assumptions).
   const mouseTrackingEnabled = useMouseTrackingEnabled();
   const isVpMode = useVirtualViewport(settings.merged.ui?.useTerminalBuffer);
   const mouseInteractionsEnabled = isVpMode && mouseTrackingEnabled;
-  const { pasteWorkaround } = useKeypressContext();
+  const { pasteWorkaround, pasteProgress } = useKeypressContext();
   const { agents, agentTabBarFocused } = useAgentViewState();
   const { setAgentTabBarFocused } = useAgentViewActions();
   const { menu: contextMenu, closeMenu: closeContextMenu } = useContextMenu();
@@ -693,6 +696,7 @@ export const InputPrompt: React.FC<InputPromptProps> = ({
 
   const handleSubmitAndClear = useCallback(
     (submittedValue: string, deferUntilIdle = false) => {
+      if (attachmentPreparation.blockSubmit()) return;
       exportCompletion.reset();
       // Expand any large paste placeholders to their full content before submitting
       const submittedPrompt = submittedValue;
@@ -742,6 +746,7 @@ export const InputPrompt: React.FC<InputPromptProps> = ({
     },
     [
       exportCompletion,
+      attachmentPreparation,
       onSubmit,
       buffer,
       resetCompletionState,
@@ -836,14 +841,29 @@ export const InputPrompt: React.FC<InputPromptProps> = ({
   // Handle clipboard image pasting with Ctrl+V
   const handleClipboardImage = useCallback(
     async (validated = false) => {
-      try {
+      await attachmentPreparation.run(async (signal, preparing) => {
         const hasImage =
           validated || (await clipboardHasImage(reportClipboardUnavailable));
+        signal.throwIfAborted();
         if (hasImage) {
+          preparing();
           const imagePath = await saveClipboardImage(
             Storage.getGlobalTempDir(),
+            signal,
           );
+          if (signal.aborted) {
+            if (imagePath) await fs.unlink(imagePath).catch(() => {});
+            return;
+          }
           if (imagePath) {
+            const sizeBytes = await fs
+              .stat(imagePath)
+              .then((stats) => stats.size)
+              .catch(() => undefined);
+            if (signal.aborted) {
+              await fs.unlink(imagePath).catch(() => {});
+              return;
+            }
             // Clean up old images
             cleanupOldClipboardImages(Storage.getGlobalTempDir()).catch(() => {
               // Ignore cleanup errors
@@ -855,15 +875,16 @@ export const InputPrompt: React.FC<InputPromptProps> = ({
               id: String(Date.now()),
               path: imagePath,
               filename,
+              sizeBytes,
             };
             setAttachments((prev) => [...prev, newAttachment]);
+          } else {
+            throw new Error('Clipboard image preparation failed');
           }
         }
-      } catch (error) {
-        debugLogger.error('Error handling clipboard image:', error);
-      }
+      });
     },
-    [reportClipboardUnavailable],
+    [reportClipboardUnavailable, attachmentPreparation],
   );
 
   // Promote a paste that is purely image-file path(s) (e.g. a terminal/clipboard
@@ -874,42 +895,68 @@ export const InputPrompt: React.FC<InputPromptProps> = ({
   // candidate paths resolve, the original text is inserted unchanged.
   const promotePastedImagePaths = useCallback(
     async (imagePaths: string[], originalPasted: string) => {
-      const cwd = config.getTargetDir();
-      const clipboardDir = path.join(Storage.getGlobalTempDir(), 'clipboard');
-      const attachments: Attachment[] = [];
-      for (const imagePath of imagePaths) {
-        const sourcePath = path.isAbsolute(imagePath)
-          ? imagePath
-          : path.resolve(cwd, imagePath);
+      await attachmentPreparation.run(async (signal, preparing) => {
+        const cwd = config.getTargetDir();
+        const clipboardDir = path.join(Storage.getGlobalTempDir(), 'clipboard');
+        const attachments: Attachment[] = [];
+        let committed = false;
         try {
-          const stats = await fs.stat(sourcePath);
-          if (!stats.isFile()) continue;
-          await fs.mkdir(clipboardDir, { recursive: true });
-          const destPath = path.join(
-            clipboardDir,
-            `clipboard-${Date.now()}-${attachments.length}${path.extname(sourcePath)}`,
-          );
-          await fs.copyFile(sourcePath, destPath);
-          attachments.push({
-            id: `${Date.now()}-${attachments.length}`,
-            path: destPath,
-            filename: path.basename(destPath),
-          });
-        } catch {
-          // Source missing or copy failed — skip this token.
+          for (const imagePath of imagePaths) {
+            signal.throwIfAborted();
+            const sourcePath = path.isAbsolute(imagePath)
+              ? imagePath
+              : path.resolve(cwd, imagePath);
+            let sourceValidated = false;
+            let destination: string | undefined;
+            try {
+              const stats = await fs.stat(sourcePath);
+              if (!stats.isFile()) continue;
+              sourceValidated = true;
+              preparing();
+              await fs.mkdir(clipboardDir, { recursive: true });
+              const destPath = path.join(
+                clipboardDir,
+                `clipboard-${Date.now()}-${attachments.length}${path.extname(sourcePath)}`,
+              );
+              destination = destPath;
+              await fs.copyFile(sourcePath, destPath);
+              if (signal.aborted) {
+                await fs.unlink(destPath).catch(() => {});
+                for (const attachment of attachments)
+                  await fs.unlink(attachment.path).catch(() => {});
+                return;
+              }
+              attachments.push({
+                id: `${Date.now()}-${attachments.length}`,
+                path: destPath,
+                filename: path.basename(destPath),
+                sizeBytes: stats.size,
+              });
+            } catch (error) {
+              if (destination) await fs.unlink(destination).catch(() => {});
+              if (sourceValidated || signal.aborted) throw error;
+            }
+          }
+          signal.throwIfAborted();
+          if (attachments.length > 0) {
+            cleanupOldClipboardImages(Storage.getGlobalTempDir()).catch(() => {
+              // Ignore cleanup errors
+            });
+            setAttachments((prev) => [...prev, ...attachments]);
+            committed = true;
+          } else {
+            // Looked like image paths but none resolved — keep the original as text.
+            buffer.insert(originalPasted, { paste: false });
+          }
+        } finally {
+          if (!committed) {
+            for (const attachment of attachments)
+              await fs.unlink(attachment.path).catch(() => {});
+          }
         }
-      }
-      if (attachments.length > 0) {
-        cleanupOldClipboardImages(Storage.getGlobalTempDir()).catch(() => {
-          // Ignore cleanup errors
-        });
-        setAttachments((prev) => [...prev, ...attachments]);
-      } else {
-        // Looked like image paths but none resolved — keep the original as text.
-        buffer.insert(originalPasted, { paste: false });
-      }
+      });
     },
-    [config, buffer],
+    [config, buffer, attachmentPreparation],
   );
 
   // Handle deletion of an attachment from the list
@@ -1296,6 +1343,14 @@ export const InputPrompt: React.FC<InputPromptProps> = ({
       }
 
       if (keyMatchers[Command.ESCAPE](key)) {
+        if (attachmentPreparation.cancel()) return true;
+        if (
+          attachmentPreparation.state === 'error' ||
+          attachmentPreparation.notice
+        ) {
+          attachmentPreparation.dismiss();
+          return true;
+        }
         exportCompletion.reset();
         const cancelSearch = (
           setActive: (active: boolean) => void,
@@ -1999,6 +2054,7 @@ export const InputPrompt: React.FC<InputPromptProps> = ({
       shellHistory,
       reverseSearchCompletion,
       handleClipboardImage,
+      attachmentPreparation,
       reportClipboardUnavailable,
       promotePastedImagePaths,
       resetCompletionState,
@@ -2339,8 +2395,17 @@ export const InputPrompt: React.FC<InputPromptProps> = ({
   });
   const setInputOverlayKey = uiActions.setInputOverlayKey;
   useEffect(() => {
-    setInputOverlayKey?.(inputOverlayKey);
-  }, [inputOverlayKey, setInputOverlayKey]);
+    setInputOverlayKey?.(
+      `${inputOverlayKey}|attachments:${attachments.length}|preparation:${attachmentPreparation.state}|notice:${attachmentPreparation.notice ?? ''}|paste:${pasteProgress?.active ?? false}`,
+    );
+  }, [
+    inputOverlayKey,
+    setInputOverlayKey,
+    attachments.length,
+    attachmentPreparation.state,
+    attachmentPreparation.notice,
+    pasteProgress?.active,
+  ]);
   useEffect(() => () => setInputOverlayKey?.(''), [setInputOverlayKey]);
 
   // Broad signal — any Tab consumer. Reset to false on unmount (e.g. when
@@ -2430,21 +2495,37 @@ export const InputPrompt: React.FC<InputPromptProps> = ({
             return (
               <Box key={att.id} minWidth={0}>
                 <Box flexShrink={0}>
-                  <Text color={extendedTheme.text.muted}>
+                  <Text color={extendedTheme.activity.read}>
                     {idx === 0 ? label : ' '.repeat(stringWidth(label))}
                   </Text>
                 </Box>
                 <Text
                   wrap="truncate-end"
-                  color={selected ? theme.status.success : theme.text.secondary}
+                  color={extendedTheme.activity.read}
+                  backgroundColor={
+                    selected ? theme.background.diff.added : undefined
+                  }
+                  bold
                 >
-                  {attachmentDisplayName(att.filename)}
+                  ▧ {attachmentDisplayName(att.filename)}
+                  {att.sizeBytes !== undefined &&
+                    ` · ${att.sizeBytes >= 1024 * 1024 ? (att.sizeBytes / (1024 * 1024)).toFixed(1) + ' MB' : Math.ceil(att.sizeBytes / 1024) + ' KB'}`}
+                  {' · '}
+                  {t('Ready')}
                 </Text>
               </Box>
             );
           })}
         </Box>
       )}
+      <AttachmentPreparation
+        state={attachmentPreparation.state}
+        notice={attachmentPreparation.notice}
+        startedAt={attachmentPreparation.startedAt}
+        pasteBytes={
+          pasteProgress?.active ? pasteProgress.receivedBytes : undefined
+        }
+      />
       <VoiceIndicator
         status={voiceInput.status}
         interimText={voiceInput.interimText}

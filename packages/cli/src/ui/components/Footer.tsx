@@ -31,25 +31,8 @@ import {
 import { getReasoningForDisplay } from '../../acp-integration/model-configuration.js';
 import { resolveReasoningForModel } from '@organizaone/o1-code-core/core/reasoning-overrides.js';
 import { t } from '../../i18n/index.js';
-import { useKeypressContext } from '../contexts/KeypressContext.js';
 import { StreamingState } from '../types.js';
 import type { Config } from '@organizaone/o1-code-core';
-
-import type { PasteProgress } from '../contexts/KeypressContext.js';
-
-const PasteProgressBar: React.FC<{ progress: PasteProgress }> = ({
-  progress,
-}) => {
-  const { receivedBytes } = progress;
-  const kb = receivedBytes / 1024;
-  const label = kb >= 1 ? `${kb.toFixed(0)} KB` : `${receivedBytes} B`;
-
-  return (
-    <Text dimColor>
-      {t('Pasting…')} {label}
-    </Text>
-  );
-};
 
 /**
  * The reasoning effort to show, `false` when off, `default` when the model
@@ -87,7 +70,6 @@ export const Footer: React.FC<FooterProps> = ({ containerRef }) => {
   const statusLineRef = useRef<DOMElement>(null);
   const { width: statusLineWidth, hasMeasured: hasMeasuredStatusLine } =
     useBoxMetrics(statusLineRef);
-  const { pasteProgress } = useKeypressContext();
   const {
     lines: statusLineLines,
     useThemeColors,
@@ -137,8 +119,6 @@ export const Footer: React.FC<FooterProps> = ({ containerRef }) => {
     <Text color={theme.status.warning}>{t('Press Ctrl+D again to exit.')}</Text>
   ) : uiState.showEscapePrompt ? (
     <Text color={theme.text.secondary}>{t('Press Esc again to clear.')}</Text>
-  ) : pasteProgress.active ? (
-    <PasteProgressBar progress={pasteProgress} />
   ) : uiState.rewindEscPending ? (
     <Text color={theme.text.secondary}>
       {t('Press Esc again to rewind conversation.')}

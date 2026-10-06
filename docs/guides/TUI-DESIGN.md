@@ -269,7 +269,17 @@ of the status rows right above the input.
   taken (`screenshot 17:12`, localized) instead of its generated
   `clipboard-<timestamp>-<uuid>.png` name; any other file keeps its name,
   trimmed in the middle to 16 columns so the start and the extension stay. The
-  file on disk is never renamed.
+  file on disk is never renamed. Ready files use the read accent, a file icon,
+  their size when available, and a localized ready label; selection adds a
+  background highlight. Image preparation shows an animated spinner and elapsed
+  time above the input. Enter waits for preparation; Esc cancels it without
+  clearing the draft. Failed preparation remains visible until another paste or
+  Esc. Native image extraction runs in a worker so the input remains responsive.
+  Incremental text pastes show a spinner and the number of received KB in the
+  same area; the footer keeps its model and usage zones visible.
+
+Real application captures: [attachment preparation](../images/tui-attachment-preparation.png)
+and [ready attachment](../images/tui-attachment-ready.png).
 
 ### Footer
 

@@ -1723,6 +1723,57 @@ describe('InputPrompt', () => {
   describe('clipboard image paste', () => {
     const isWindows = process.platform === 'win32';
 
+    it('shows preparation, blocks sending, and discards cancelled late results without clearing the prompt', async () => {
+      let complete!: (value: string | null) => void;
+      vi.mocked(clipboardUtils.clipboardHasImage).mockResolvedValue(true);
+      vi.mocked(clipboardUtils.saveClipboardImage).mockImplementation(
+        () =>
+          new Promise((resolve) => {
+            complete = resolve;
+          }),
+      );
+      props.buffer.setText('keep my draft');
+      const { stdin, lastFrame, unmount } = renderWithProviders(
+        <InputPrompt {...props} />,
+      );
+      await wait();
+      stdin.write('\x1Bv');
+      await wait();
+      expect(lastFrame()).toContain('Preparing attachment');
+      stdin.write('\r');
+      await wait();
+      expect(props.onSubmit).not.toHaveBeenCalled();
+      expect(props.buffer.text).toBe('keep my draft');
+      expect(lastFrame()).toContain('Wait for the attachment');
+      stdin.write('\x1b');
+      await wait();
+      expect(lastFrame()).toContain('cancelled');
+      complete('/tmp/cancelled-image.png');
+      await wait();
+      expect(lastFrame()).not.toContain('cancelled-image');
+      expect(props.buffer.text).toBe('keep my draft');
+      unmount();
+    });
+
+    it('shows a preparation failure and allows retrying the clipboard paste', async () => {
+      vi.mocked(clipboardUtils.clipboardHasImage).mockResolvedValue(true);
+      vi.mocked(clipboardUtils.saveClipboardImage)
+        .mockResolvedValueOnce(null)
+        .mockResolvedValueOnce('/tmp/retried.png');
+      const { stdin, lastFrame, unmount } = renderWithProviders(
+        <InputPrompt {...props} />,
+      );
+      await wait();
+      stdin.write('\x1Bv');
+      await wait();
+      expect(lastFrame()).toContain('Could not prepare the attachment');
+      stdin.write('\x1Bv');
+      await wait();
+      expect(lastFrame()).toContain('retried.png');
+      expect(lastFrame()).not.toContain('Could not prepare');
+      unmount();
+    });
+
     beforeEach(() => {
       vi.mocked(clipboardUtils.clipboardHasImage).mockResolvedValue(false);
       vi.mocked(clipboardUtils.saveClipboardImage).mockResolvedValue(null);

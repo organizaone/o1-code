@@ -18,6 +18,12 @@ This document lists the available keyboard shortcuts in O1-Code.
 
 ## Input Prompt
 
+Pasting an image shows preparation feedback above the input. While preparation
+is running, Enter waits and Esc cancels it without clearing your draft. If
+preparation fails, paste again to retry or press Esc to dismiss the error. Ready
+attachments show a file icon, an accent color, and their size when available.
+Large text pastes show the amount received while being read.
+
 | Shortcut                                              | Description                                                                                                                                                                                                  |
 | ----------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | `!`                                                   | Toggle shell mode when the input is empty.                                                                                                                                                                   |

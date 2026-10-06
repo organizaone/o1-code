@@ -7,6 +7,20 @@ follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Added
+
+- Pasted images show animated preparation feedback and elapsed time. Esc cancels
+  preparation without losing the prompt; Enter waits until the attachment is
+  ready. A failed preparation can be dismissed or retried by pasting again.
+- Large text pastes show feedback with the amount received while being read.
+
+### Changed
+
+- Clipboard image extraction runs outside the main interface thread on Windows
+  and macOS, keeping the terminal responsive when preparing large images.
+- Ready attachments use a distinct accent color, a file icon, the file size,
+  and a ready label. The selected attachment also has a background highlight.
+
 ## [0.8.0] - 2026-10-06
 
 ### Changed

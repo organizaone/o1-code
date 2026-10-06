@@ -268,7 +268,7 @@ const renderAtLayoutWidth = (
       exitOnCtrlC: false,
     },
   );
-  return { lastFrame: () => lastFrame, unmount: instance.unmount };
+  return { lastFrame: () => lastFrame, unmount: instance.unmount, stdin };
 };
 
 describe('<Footer />', () => {
@@ -287,6 +287,24 @@ describe('<Footer />', () => {
       connectingCount: 0,
       connectedCount: 0,
     });
+  });
+
+  it('keeps model and usage visible while paste feedback belongs to the composer', async () => {
+    const { lastFrame, stdin, unmount } = renderAtLayoutWidth(
+      100,
+      createMockUIState(),
+    );
+    try {
+      await new Promise((resolve) => setTimeout(resolve, 50));
+      stdin.emit('data', Buffer.from('\x1b[200~pending text'));
+      await new Promise((resolve) => setTimeout(resolve, 50));
+      expect(stripAnsi(lastFrame())).toContain('glm-5.3');
+      expect(stripAnsi(lastFrame())).toContain('online');
+      expect(stripAnsi(lastFrame())).not.toContain('Pasting');
+      stdin.emit('data', Buffer.from('\x1b[201~'));
+    } finally {
+      unmount();
+    }
   });
 
   it('does not show the runtime tool policy in the footer', () => {
