@@ -9,6 +9,9 @@ follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Changed
 
+- The session exit summary remains visible until a key is pressed. Space or a
+  mouse click toggles **Do not show again**, which saves the preference on exit.
+  Re-enable **Show Session Summary** in `/settings` to restore it.
 - The activity chips sit directly above the input box, with a single blank row
   separating them from the conversation instead of blank rows on both sides.
 - Attachments above the input show one per row, aligned under the label. A

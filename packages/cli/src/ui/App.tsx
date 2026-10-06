@@ -17,14 +17,14 @@ import { ScreenReaderAppLayout } from './layouts/ScreenReaderAppLayout.js';
 import { DefaultAppLayout } from './layouts/DefaultAppLayout.js';
 import fs from 'node:fs';
 
-export const App = () => {
+export const App = ({ onExitSummary }: { onExitSummary?: () => void }) => {
   const uiState = useUIState();
   const settings = useSettings();
   const isScreenReaderEnabled = useIsScreenReaderEnabled();
   const [dismissed, setDismissed] = useState(false);
 
   if (uiState.quittingMessages) {
-    return <QuittingDisplay />;
+    return <QuittingDisplay onExit={onExitSummary} />;
   }
 
   // Render corrupted dialog at the top level, before any other UI

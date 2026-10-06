@@ -13,6 +13,16 @@
 
 `tools.executionSandbox` is an operator-only Linux policy with required `filesystem: "read-only" | "workspace-write"` and `network: "open" | "closed"`, plus optional `backend: "auto" | "bwrap"`. System policy replaces the complete User/SystemDefaults object; Workspace values are ignored. Bare/safe modes retain the policy and changing it requires restart. See [Sandbox](../features/sandbox.md#linux-tool-execution-sandbox) for configuration, scope, unsupported integrations, verification and migration from whole-CLI bwrap.
 
+## Session exit summary
+
+By default, quitting shows the session statistics until you press a key. Press
+Space or click the checkbox to toggle **Do not show again**; any other key exits.
+Checking the box saves `ui.showSessionSummary: false` in your user settings when
+you exit. Pasted text does not dismiss the summary.
+
+To restore the summary, enable **Show Session Summary** in `/settings` or set
+`ui.showSessionSummary` to `true`. When disabled, quitting exits immediately.
+
 ## Configuration layers
 
 Configuration is applied in the following order of precedence (lower numbers are overridden by higher numbers):

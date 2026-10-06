@@ -367,6 +367,11 @@
           "type": "boolean",
           "default": false
         },
+        "showSessionSummary": {
+          "description": "Show session statistics when quitting and wait for a key before exiting.",
+          "type": "boolean",
+          "default": true
+        },
         "history": {
           "description": "History display settings.",
           "type": "object",

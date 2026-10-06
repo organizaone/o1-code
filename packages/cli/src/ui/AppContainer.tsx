@@ -2076,6 +2076,14 @@ export const AppContainer = (props: AppContainerProps) => {
     return unsub;
   }, [config]);
 
+  const exitStartedRef = useRef(false);
+  const finishExit = useCallback(async () => {
+    if (exitStartedRef.current) return;
+    exitStartedRef.current = true;
+    await runExitCleanup();
+    process.exit(0);
+  }, []);
+
   const slashCommandActions = useMemo(
     () => ({
       openAuthDialog,
@@ -2097,15 +2105,15 @@ export const AppContainer = (props: AppContainerProps) => {
         } catch (error) {
           debugLogger.debug('Failed to cancel request while quitting:', error);
         }
-        setQuittingMessages(messages);
         // Signal the client to skip background memory tasks (extract, dream,
         // skill review) so the process can exit without spawning new agent
         // work during the exit window.
         config.getLlmClient()?.requestShutdown();
-        setTimeout(async () => {
-          await runExitCleanup();
-          process.exit(0);
-        }, 100);
+        if (settings.merged.ui?.showSessionSummary === false) {
+          void finishExit();
+        } else {
+          setQuittingMessages(messages);
+        }
       },
       setDebugMessage,
       dispatchExtensionStateUpdate,
@@ -2159,6 +2167,8 @@ export const AppContainer = (props: AppContainerProps) => {
       openHelpDialog,
       openDiffDialog,
       config,
+      settings,
+      finishExit,
     ],
   );
 
@@ -5023,7 +5033,7 @@ export const AppContainer = (props: AppContainerProps) => {
     ],
   );
 
-  useKeypress(handleGlobalKeypress, { isActive: true });
+  useKeypress(handleGlobalKeypress, { isActive: !quittingMessages });
 
   // Update terminal title with the session name, or a fallback derived
   // from CLI_TITLE, the project folder, or the app default.
@@ -5626,7 +5636,7 @@ export const AppContainer = (props: AppContainerProps) => {
                         <ContextMenuProvider
                           onMenuChange={handleContextMenuChange}
                         >
-                          <App />
+                          <App onExitSummary={finishExit} />
                         </ContextMenuProvider>
                       </ShellFocusContext.Provider>
                     </TerminalOutputProvider>

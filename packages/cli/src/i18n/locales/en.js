@@ -8,6 +8,14 @@
 // The key serves as both the translation key and the default English text
 
 export default {
+  'Show Session Summary': 'Show Session Summary',
+  'Show session statistics when quitting and wait for a key before exiting.':
+    'Show session statistics when quitting and wait for a key before exiting.',
+  'Do not show again': 'Do not show again',
+  'Press Space to toggle; any other key to exit.':
+    'Press Space to toggle; any other key to exit.',
+  'Could not save your preference. Press any key to exit without saving.':
+    'Could not save your preference. Press any key to exit without saving.',
   'O1-Code was updated': 'O1-Code was updated',
   'The update failed': 'The update failed',
   Update: 'Update',
