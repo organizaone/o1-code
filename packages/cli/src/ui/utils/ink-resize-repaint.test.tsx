@@ -12,7 +12,7 @@
 
 import { EventEmitter } from 'node:events';
 import { afterEach, describe, expect, it } from 'vitest';
-import { render, Text } from 'ink';
+import { Box, render, Text } from 'ink';
 
 class FakeStdout extends EventEmitter {
   isTTY = true;
@@ -74,6 +74,38 @@ describe('Ink alternate-screen resize repaint (patched)', () => {
     await settle();
     expect(stdout.writes.join('')).toContain('hello resize');
   });
+
+  it.each([20, 24])(
+    'preserves a full-width border in a %s-row frame using absolute rows',
+    async (height) => {
+      const stdout = new FakeStdout();
+      const frame = (text: string) => (
+        <Box width={80} height={height} borderStyle="single">
+          <Text>{text}</Text>
+        </Box>
+      );
+      instance = render(frame('before'), {
+        stdout: stdout as unknown as NodeJS.WriteStream,
+        stdin: new FakeStdin() as unknown as NodeJS.ReadStream,
+        stderr: new FakeStdout() as unknown as NodeJS.WriteStream,
+        debug: false,
+        exitOnCtrlC: false,
+        patchConsole: false,
+        interactive: true,
+        alternateScreen: true,
+        incrementalRendering: true,
+      });
+      await instance.waitUntilRenderFlush();
+      stdout.writes = [];
+      instance.rerender(frame('after'));
+      await instance.waitUntilRenderFlush();
+      const update = stdout.writes.join('');
+      expect(update).toContain('\u001B[2;1H\u001B[2K│after');
+      expect(update).not.toContain('\u001B[K');
+      expect(update).not.toContain('before');
+      expect(update).not.toContain('\n');
+    },
+  );
 
   it('repaints the whole frame when the terminal grows in columns', async () => {
     const stdout = await mount();

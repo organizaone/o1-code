@@ -7,6 +7,14 @@
 // Portuguese translations for O1-Code CLI (pt-BR)
 
 export default {
+  'Show Session Summary': 'Mostrar resumo da sessão',
+  'Show session statistics when quitting and wait for a key before exiting.':
+    'Mostrar as estatísticas da sessão ao encerrar e aguardar uma tecla para sair.',
+  'Do not show again': 'Não mostrar novamente',
+  'Press Space to toggle; any other key to exit.':
+    'Espaço para marcar ou desmarcar; qualquer outra tecla para sair.',
+  'Could not save your preference. Press any key to exit without saving.':
+    'Não foi possível salvar sua preferência. Pressione qualquer tecla para sair sem salvar.',
   'O1-Code was updated': 'O1-Code atualizado',
   'The update failed': 'A atualização falhou',
   Update: 'Atualização',
@@ -2305,6 +2313,7 @@ export default {
   '← → select, Delete to remove, ↓ to exit':
     '← → selecionar, Delete para remover, ↓ para sair',
   'Attachments: ': 'Anexos: ',
+  'screenshot {{time}}': 'captura {{time}}',
   '(tab to cycle)': '(Tab para alternar)',
   'Updating...': 'Atualizando...',
   Unknown: 'Desconhecido',
@@ -3166,5 +3175,6 @@ export default {
   'Review messages held from other O1-Code sessions (accept | deny), and manage trusted controllers (controllers | revoke)':
     'Revisar mensagens retidas de outras sessões do O1-Code (accept | deny) e gerenciar controladores confiáveis (controllers | revoke)',
   'Cycle prompt history': 'Percorrer o histórico de prompts',
+  'history {{position}}/{{total}}': 'histórico {{position}}/{{total}}',
   'Scroll when the input is empty': 'Rolar com o campo vazio',
 };

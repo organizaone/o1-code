@@ -8,6 +8,14 @@
 // The key serves as both the translation key and the default English text
 
 export default {
+  'Show Session Summary': 'Show Session Summary',
+  'Show session statistics when quitting and wait for a key before exiting.':
+    'Show session statistics when quitting and wait for a key before exiting.',
+  'Do not show again': 'Do not show again',
+  'Press Space to toggle; any other key to exit.':
+    'Press Space to toggle; any other key to exit.',
+  'Could not save your preference. Press any key to exit without saving.':
+    'Could not save your preference. Press any key to exit without saving.',
   'O1-Code was updated': 'O1-Code was updated',
   'The update failed': 'The update failed',
   Update: 'Update',
@@ -281,6 +289,7 @@ export default {
   '← → select, Delete to remove, ↓ to exit':
     '← → select, Delete to remove, ↓ to exit',
   'Attachments: ': 'Attachments: ',
+  'screenshot {{time}}': 'screenshot {{time}}',
   'Basics:': 'Basics:',
   'Add context': 'Add context',
   'Use {{symbol}} to specify files for context (e.g., {{example}}) to target specific files or folders.':
@@ -3126,5 +3135,6 @@ export default {
   'Review messages held from other O1-Code sessions (accept | deny), and manage trusted controllers (controllers | revoke)':
     'Review messages held from other O1-Code sessions (accept | deny), and manage trusted controllers (controllers | revoke)',
   'Cycle prompt history': 'Cycle prompt history',
+  'history {{position}}/{{total}}': 'history {{position}}/{{total}}',
   'Scroll when the input is empty': 'Scroll when the input is empty',
 };

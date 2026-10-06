@@ -996,7 +996,7 @@ describe('AppContainer State Management', () => {
 
       expect(cancelOngoingRequest).toHaveBeenCalledOnce();
       expect(requestShutdown).toHaveBeenCalledOnce();
-      expect(vi.getTimerCount()).toBe(timerCount + 1);
+      expect(vi.getTimerCount()).toBe(timerCount);
     });
 
     it('shows recording failures as warnings and unsubscribes on unmount', async () => {

@@ -487,7 +487,7 @@ describe('<ScrollableList /> keyboard scroll', () => {
     await act(async () => {
       for (let i = 0; i < 15; i++) stdin.write(SHIFT_UP);
     });
-    await act(async () => {});
+    await flushScrollFrame();
     expect(lastFrame()).toContain('item-0');
   });
 
@@ -542,7 +542,7 @@ describe('<ScrollableList /> keyboard scroll', () => {
     await act(async () => {
       for (let i = 0; i < 4; i++) stdin.write(PAGE_UP);
     });
-    await act(async () => {});
+    await flushScrollFrame();
     expect(lastFrame()).toContain('item-0');
   });
 

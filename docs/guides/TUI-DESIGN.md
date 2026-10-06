@@ -143,8 +143,10 @@ Top to bottom, in full-screen mode:
 1. **Header** (`components/Header.tsx`), pinned, with a blank row above and below.
 2. **Conversation** (`components/ConversationWell.tsx`): a box in `rule` colour taking all free
    height, so its border reaches the input even when the history is short. Under the history, the
-   thinking line; at the bottom, the queue.
-3. **Activity line** (`components/ActivityLine.tsx`), right above the input.
+   thinking line, separated by one blank row and marked with the queued arrow; at the bottom, the queue.
+3. **Activity line** (`components/ActivityLine.tsx`), directly above the input
+   border. The composer's single blank row separates it from the conversation;
+   there is no additional blank row below the chips.
 4. **Input** (`components/InputPrompt.tsx`, `BaseTextInput.tsx`).
 5. **Footer** (`components/Footer.tsx`, `footer-zones.tsx`).
 
@@ -242,17 +244,32 @@ of the status rows right above the input.
   (block, or underline under tmux) sits on the same cell as the terminal's. See
   `terminalShowsInputCursor` in `utils/software-cursor.ts`.
 - `@path` and `/command` tokens in accent. A large paste becomes a `[Pasted Content N chars]` token.
+- The buffer wraps at the box's inner edge — the full terminal width minus
+  border, padding and prefix (`calculatePromptWidths`). A fraction of the
+  width left a dead column band on the right of every wrapped line.
 - **Session name:** set into the top border on the right (`/rename`); the rule before it takes only
   the room the name leaves, so the border keeps the input's width.
+- **Prompt history:** bare ↑ on the first visual row recalls an older prompt; bare ↓ on the last
+  visual row recalls a newer one, restoring the draft after the newest. Inside multiline input they
+  move the cursor. The top border shows `history 1/50` while recalling, newest first. Transcript
+  scrolling uses the mouse, Page Up/Down or Shift+↑/↓.
 - **End-of-line cursor:** a styled space and nothing after it. A zero-width space used to follow
   it: Ink counts U+200B as one column and VTE (GNOME Terminal, Ptyxis) as none, which pulled the
   right border in by one column.
 - **Selecting text:** with mouse tracking on, a drag over the typed text selects it like the
   conversation does (same highlight, copied on release); a click without a drag places the cursor,
   on release, so it never repaints a selection being made.
+  Rendered borders, including the user-message bar, are non-selectable; a bar typed into the
+  message remains part of the copied text.
 - **Multiline:** grows up to 6 visible lines (`INPUT_MAX_VISIBLE_LINES`). With more than one line,
   `N lines · enter sends · shift+enter new line` shows on the right; scrolled, the first visible row
   is `↑ N lines above`.
+- **Attachments** (`InputPrompt.tsx`): one per row above the box, names aligned
+  under the label. A screenshot saved from the clipboard shows the time it was
+  taken (`screenshot 17:12`, localized) instead of its generated
+  `clipboard-<timestamp>-<uuid>.png` name; any other file keeps its name,
+  trimmed in the middle to 16 columns so the start and the extension stay. The
+  file on disk is never renamed.
 
 ### Footer
 

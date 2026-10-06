@@ -170,6 +170,8 @@ describe('InputPrompt suggestion mouse routing', () => {
     vi.mocked(useCommandCompletion).mockReturnValue(mockCommandCompletion);
 
     vi.mocked(useInputHistory).mockReturnValue({
+      historyPosition: 0,
+      historyTotal: 0,
       navigateUp: vi.fn(),
       navigateDown: vi.fn(),
       handleSubmit: vi.fn(),

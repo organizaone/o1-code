@@ -19,7 +19,7 @@ export function getConversationChromeHeight(
   queueLength: number,
   thinking = false,
 ): number {
-  return WELL_BORDER_ROWS + getQueueRows(queueLength) + (thinking ? 1 : 0);
+  return WELL_BORDER_ROWS + getQueueRows(queueLength) + (thinking ? 2 : 0);
 }
 
 /** Whether the well shows the agent's working line under the history. */
@@ -52,6 +52,8 @@ export const ConversationWell: React.FC<ConversationWellProps> = ({
   <Box
     flexDirection="column"
     flexShrink={0}
+    width="100%"
+    minWidth={0}
     height={
       viewportHeight +
       getConversationChromeHeight(messageQueue.length, Boolean(thinking))
@@ -59,11 +61,23 @@ export const ConversationWell: React.FC<ConversationWellProps> = ({
     borderStyle={glyphs().borderStyle}
     borderColor={extendedTheme.ui.rule}
   >
-    <Box flexDirection="column" height={viewportHeight} flexShrink={0}>
+    <Box
+      flexDirection="column"
+      height={viewportHeight}
+      flexShrink={0}
+      minWidth={0}
+      overflowX="hidden"
+    >
       {children}
     </Box>
     {thinking && (
-      <Box paddingX={2} flexShrink={0}>
+      <Box
+        paddingX={2}
+        marginTop={1}
+        flexShrink={0}
+        minWidth={0}
+        overflowX="hidden"
+      >
         {thinking}
       </Box>
     )}

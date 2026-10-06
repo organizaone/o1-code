@@ -14,8 +14,8 @@ import {
 describe('layoutUtils', () => {
   it('calculates prompt widths', () => {
     expect(calculatePromptWidths(100)).toEqual({
-      inputWidth: 84,
-      containerWidth: 90,
+      inputWidth: 94,
+      containerWidth: 100,
       suggestionsWidth: 100,
       frameOverhead: 6,
     });

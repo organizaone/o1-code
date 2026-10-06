@@ -16,15 +16,16 @@
  * and the frame overhead constant.
  */
 export const calculatePromptWidths = (terminalWidth: number) => {
-  const widthFraction = 0.9;
-  const FRAME_PADDING_AND_BORDER = 4; // Border (2) + padding (2)
+  // Border (2) + padding (2)
+  const FRAME_PADDING_AND_BORDER = 4;
   const PROMPT_PREFIX_WIDTH = 2; // '> ' or '! '
   const MIN_CONTENT_WIDTH = 2;
 
+  // The box spans the full terminal width, so the typed text wraps at its
+  // inner edge — not at a fraction of it, which left a dead column band on
+  // the right of every wrapped line.
   const innerContentWidth =
-    Math.floor(terminalWidth * widthFraction) -
-    FRAME_PADDING_AND_BORDER -
-    PROMPT_PREFIX_WIDTH;
+    terminalWidth - FRAME_PADDING_AND_BORDER - PROMPT_PREFIX_WIDTH;
 
   const inputWidth = Math.max(MIN_CONTENT_WIDTH, innerContentWidth);
   const FRAME_OVERHEAD = FRAME_PADDING_AND_BORDER + PROMPT_PREFIX_WIDTH;

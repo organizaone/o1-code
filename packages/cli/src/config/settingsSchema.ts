@@ -1032,6 +1032,16 @@ const SETTINGS_SCHEMA = {
         description: 'Hide helpful tips in the UI',
         showInDialog: true,
       },
+      showSessionSummary: {
+        type: 'boolean',
+        label: 'Show Session Summary',
+        category: 'UI',
+        requiresRestart: false,
+        default: true,
+        description:
+          'Show session statistics when quitting and wait for a key before exiting.',
+        showInDialog: true,
+      },
       history: {
         type: 'object',
         label: 'History',

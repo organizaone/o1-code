@@ -15,6 +15,8 @@ interface UseInputHistoryProps {
 }
 
 export interface UseInputHistoryReturn {
+  historyPosition: number;
+  historyTotal: number;
   handleSubmit: (value: string) => void;
   navigateUp: () => boolean;
   navigateDown: () => boolean;
@@ -105,6 +107,8 @@ export function useInputHistory({
   ]);
 
   return {
+    historyPosition: historyIndex + 1,
+    historyTotal: userMessages.length,
     handleSubmit,
     navigateUp,
     navigateDown,

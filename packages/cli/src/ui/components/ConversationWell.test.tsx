@@ -59,6 +59,7 @@ describe('ConversationWell', () => {
     ).split('\n');
     expect(rows).toHaveLength(4 + getConversationChromeHeight(1, true));
     expect(rows[rows.length - 3]).toContain('THINKING');
+    expect(rows[rows.length - 4].replaceAll('│', '').trim()).toBe('');
     expect(rows[rows.length - 2]).toContain('next');
   });
 

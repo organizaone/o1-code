@@ -441,7 +441,13 @@ export const BaseTextInput = ({
         {resolvedPrefix}
         {/* No background fill: the input area blends into the terminal's own
             background so it stays consistent across terminals and themes. */}
-        <Box flexGrow={1} flexDirection="column">
+        <Box
+          flexGrow={1}
+          flexShrink={1}
+          flexBasis={0}
+          minWidth={0}
+          flexDirection="column"
+        >
           {scrollVisualRow > 0 && (
             <Text color={extendedTheme.text.muted}>
               {`${glyphs().up} ${t('{{count}} lines above', {
@@ -449,7 +455,7 @@ export const BaseTextInput = ({
               })}`}
             </Text>
           )}
-          <Box flexGrow={1} flexDirection="column" ref={linesRef}>
+          <Box flexGrow={1} minWidth={0} flexDirection="column" ref={linesRef}>
             {buffer.text.length === 0 && placeholder ? (
               showCursor && !terminalShowsInputCursor() ? (
                 <Text>

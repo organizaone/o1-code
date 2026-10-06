@@ -247,7 +247,7 @@ build a dashboard showing products that are most frequently returned by our UK c
 
 - Press `?` to see all available keyboard shortcuts
 - Use Tab for command completion
-- Press Ctrl+P for prompt history (with the input empty, ↑ scrolls the conversation)
+- Press ↑/↓ at the input edges for prompt history; the input border shows the current position. Use the mouse or Page Up/Down to scroll the conversation.
 - Type `/` to see all slash commands
 
 ## Getting help

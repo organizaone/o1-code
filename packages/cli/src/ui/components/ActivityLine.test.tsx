@@ -149,7 +149,8 @@ describe('ActivityLine', () => {
         </UIStateContext.Provider>
       </Box>,
     );
-    expect(frame.split('\n')).toHaveLength(1);
+    const rows = frame.split('\n');
+    expect(rows).toHaveLength(1);
   });
 });
 

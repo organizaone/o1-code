@@ -11,6 +11,7 @@ import { extendedTheme } from '../semantic-colors.js';
 import { t } from '../../i18n/index.js';
 import { ConfigContext } from '../contexts/ConfigContext.js';
 import { RespondingSpinner } from './RespondingSpinner.js';
+import { glyphs } from '../glyphs.js';
 import { formatTurnTime } from './footer-zones.js';
 import { useElapsedSeconds, type ElapsedClock } from '../hooks/useTimer.js';
 
@@ -26,6 +27,10 @@ export const ThinkingLine: React.FC<{
   const label = (!phrasesOff && phrase) || t('thinking…');
   return (
     <Box>
+      <Text
+        color={extendedTheme.text.muted}
+        selectable={false}
+      >{`${glyphs().queued} `}</Text>
       <Box marginRight={1}>
         <RespondingSpinner />
       </Box>

@@ -7,6 +7,35 @@ follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Changed
+
+- The session exit summary remains visible until a key is pressed. Space or a
+  mouse click toggles **Do not show again**, which saves the preference on exit.
+  Re-enable **Show Session Summary** in `/settings` to restore it.
+- The activity chips sit directly above the input box, with a single blank row
+  separating them from the conversation instead of blank rows on both sides.
+- Attachments above the input show one per row, aligned under the label. A
+  screenshot pasted from the clipboard shows the time it was taken
+  (`screenshot 17:12`) instead of its generated
+  `clipboard-1791251781717-47aee5f9-….png` name; any other file keeps its name,
+  trimmed in the middle to 16 columns. The files on disk are not renamed.
+- The working status is separated from the conversation by a blank row and an
+  arrow. Recalled prompts show their position in the prompt history.
+- The vendored o1-connect library supports ordered host failover from gateway
+  connection codes, retaining the last responding host.
+
+### Fixed
+
+- Up and Down recall prompts at the first and last visual input rows instead of
+  scrolling the conversation, and returning past the newest prompt restores the
+  draft. Inside a multiline prompt, the arrows still move the text cursor.
+- Conversation borders remain visible during streaming and scrolling at narrow
+  terminal widths. Mouse selection excludes decorative borders while preserving
+  literal border characters in the message text.
+- The prompt's text wraps at the input box's inner edge — the whole terminal
+  width minus border, padding and prompt — instead of at 90% of the width,
+  which left a wide dead band on the right of every wrapped line.
+
 ## [0.6.0] - 2026-10-05
 
 ### Added

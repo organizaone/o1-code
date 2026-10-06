@@ -172,7 +172,7 @@ const GeneralHelp: React.FC<{ width: number }> = ({ width }) => {
     ],
     ['Alt+←/→', t('Jump through words')],
     ['Ctrl+P/N', t('Cycle prompt history')],
-    ['↑/↓', t('Scroll when the input is empty')],
+    ['↑/↓', t('Cycle prompt history')],
   ];
   const left = shortcuts.slice(0, Math.ceil(shortcuts.length / 2));
   const right = shortcuts.slice(Math.ceil(shortcuts.length / 2));
