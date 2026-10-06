@@ -54,6 +54,7 @@ import {
 } from '../utils/clipboardUtils.js';
 import * as path from 'node:path';
 import * as fs from 'node:fs/promises';
+import stringWidth from 'string-width';
 import { SCREEN_READER_USER_PREFIX } from '../textConstants.js';
 import { useShellFocusState } from '../contexts/ShellFocusContext.js';
 import { useUIState } from '../contexts/UIStateContext.js';
@@ -154,6 +155,57 @@ export function classifyPastedImagePaths(pasted: string): {
     }
   }
   return { imagePaths, allImages };
+}
+
+/** Filename our own clipboard save produces: `clipboard-<epoch-ms>-<uuid>.png`. */
+const CLIPBOARD_SAVED_IMAGE = /^clipboard-(\d+)-[0-9a-f-]+\.png$/i;
+/** Columns a long attachment name is trimmed to. */
+const ATTACHMENT_NAME_MAX_COLUMNS = 24;
+
+function trimColumnsFromStart(text: string, maxColumns: number): string {
+  let used = 0;
+  let out = '';
+  for (const ch of text) {
+    const width = stringWidth(ch);
+    if (used + width > maxColumns) break;
+    out += ch;
+    used += width;
+  }
+  return out;
+}
+
+function trimColumnsFromEnd(text: string, maxColumns: number): string {
+  let used = 0;
+  let out = '';
+  for (const ch of [...text].reverse()) {
+    const width = stringWidth(ch);
+    if (used + width > maxColumns) break;
+    out = ch + out;
+    used += width;
+  }
+  return out;
+}
+
+/**
+ * What the attachment chip shows. A screenshot we saved ourselves carries a
+ * generated name nobody reads — the time it was taken identifies it better
+ * and far shorter. Any other file keeps its name, trimmed in the middle so
+ * the start and the extension stay.
+ */
+export function attachmentDisplayName(filename: string): string {
+  const saved = CLIPBOARD_SAVED_IMAGE.exec(filename);
+  if (saved) {
+    const takenAt = new Date(Number(saved[1]));
+    if (!Number.isNaN(takenAt.getTime())) {
+      const hh = String(takenAt.getHours()).padStart(2, '0');
+      const mm = String(takenAt.getMinutes()).padStart(2, '0');
+      return t('screenshot {{time}}', { time: `${hh}:${mm}` });
+    }
+  }
+  if (stringWidth(filename) <= ATTACHMENT_NAME_MAX_COLUMNS) return filename;
+  const headColumns = 14;
+  const tailColumns = ATTACHMENT_NAME_MAX_COLUMNS - 1 - headColumns;
+  return `${trimColumnsFromStart(filename, headColumns)}…${trimColumnsFromEnd(filename, tailColumns)}`;
 }
 
 const debugLogger = createDebugLogger('INPUT_PROMPT');
@@ -2424,20 +2476,26 @@ export const InputPrompt: React.FC<InputPromptProps> = ({
   return (
     <>
       {attachments.length > 0 && (
-        <Box marginLeft={2} marginBottom={0}>
-          <Text color={theme.text.secondary}>{t('Attachments: ')}</Text>
-          {attachments.map((att, idx) => (
-            <Text
-              key={att.id}
-              color={
-                isAttachmentMode && idx === selectedAttachmentIndex
-                  ? theme.status.success
-                  : theme.text.secondary
-              }
-            >
-              [{att.filename}]{idx < attachments.length - 1 ? ' ' : ''}
-            </Text>
-          ))}
+        <Box marginLeft={2} flexDirection="column">
+          {attachments.map((att, idx) => {
+            const selected =
+              isAttachmentMode && idx === selectedAttachmentIndex;
+            // Rows after the first indent by the label's own width, so the
+            // names line up in every locale.
+            const label = t('Attachments: ');
+            return (
+              <Box key={att.id}>
+                <Text color={extendedTheme.text.muted}>
+                  {idx === 0 ? label : ' '.repeat(stringWidth(label))}
+                </Text>
+                <Text
+                  color={selected ? theme.status.success : theme.text.secondary}
+                >
+                  {attachmentDisplayName(att.filename)}
+                </Text>
+              </Box>
+            );
+          })}
         </Box>
       )}
       <VoiceIndicator

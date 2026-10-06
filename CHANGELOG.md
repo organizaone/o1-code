@@ -11,6 +11,11 @@ follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 - The activity chips sit one blank row above the input box, so they read as the
   conversation's status instead of as part of the box.
+- Attachments above the input show one per row, aligned under the label. A
+  screenshot pasted from the clipboard shows the time it was taken
+  (`screenshot 17:12`) instead of its generated
+  `clipboard-1791251781717-47aee5f9-….png` name; any other file keeps its name,
+  trimmed in the middle to 24 columns. The files on disk are not renamed.
 
 ### Fixed
 

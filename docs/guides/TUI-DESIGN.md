@@ -258,6 +258,12 @@ of the status rows right above the input.
 - **Multiline:** grows up to 6 visible lines (`INPUT_MAX_VISIBLE_LINES`). With more than one line,
   `N lines · enter sends · shift+enter new line` shows on the right; scrolled, the first visible row
   is `↑ N lines above`.
+- **Attachments** (`InputPrompt.tsx`): one per row above the box, names aligned
+  under the label. A screenshot saved from the clipboard shows the time it was
+  taken (`screenshot 17:12`, localized) instead of its generated
+  `clipboard-<timestamp>-<uuid>.png` name; any other file keeps its name,
+  trimmed in the middle to 24 columns so the start and the extension stay. The
+  file on disk is never renamed.
 
 ### Footer
 

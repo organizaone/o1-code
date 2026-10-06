@@ -2305,6 +2305,7 @@ export default {
   '← → select, Delete to remove, ↓ to exit':
     '← → selecionar, Delete para remover, ↓ para sair',
   'Attachments: ': 'Anexos: ',
+  'screenshot {{time}}': 'captura de tela {{time}}',
   '(tab to cycle)': '(Tab para alternar)',
   'Updating...': 'Atualizando...',
   Unknown: 'Desconhecido',

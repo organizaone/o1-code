@@ -281,6 +281,7 @@ export default {
   '← → select, Delete to remove, ↓ to exit':
     '← → select, Delete to remove, ↓ to exit',
   'Attachments: ': 'Attachments: ',
+  'screenshot {{time}}': 'screenshot {{time}}',
   'Basics:': 'Basics:',
   'Add context': 'Add context',
   'Use {{symbol}} to specify files for context (e.g., {{example}}) to target specific files or folders.':
