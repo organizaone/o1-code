@@ -9,8 +9,8 @@ follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Changed
 
-- The activity chips sit one blank row above the input box, so they read as the
-  conversation's status instead of as part of the box.
+- The activity chips sit directly above the input box, with a single blank row
+  separating them from the conversation instead of blank rows on both sides.
 - Attachments above the input show one per row, aligned under the label. A
   screenshot pasted from the clipboard shows the time it was taken
   (`screenshot 17:12`) instead of its generated
