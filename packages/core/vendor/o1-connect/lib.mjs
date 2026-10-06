@@ -1,4 +1,4 @@
-// o1-connect-lib 9.2.0 - https://github.com/organizaone/o1-gateway (MIT)
+// o1-connect-lib 9.4.0 - https://github.com/organizaone/o1-gateway (MIT)
 
 // src/shared/tunnel-protocol.ts
 import { createHash } from "node:crypto";
@@ -1263,7 +1263,7 @@ async function startTunnelSession(o) {
 }
 
 // src/client/version.ts
-var VERSION = true ? "9.2.0" : "dev";
+var VERSION = true ? "9.4.0" : "dev";
 
 // src/client/lib.ts
 var version = VERSION;
@@ -1376,7 +1376,8 @@ async function open(opts) {
       transport: cfg.transport,
       port,
       localKeyHash: hashLocalKey(apiKey),
-      userAgent: `o1-connect-lib/${VERSION}`,
+      // Only when the app asks (like the CLI's identify): absent, nothing about the client goes on the wire.
+      userAgent: opts.identify === true ? `o1-connect-lib/${VERSION}` : void 0,
       log,
       onMismatch: (received) => {
         log?.(`TUNNEL IDENTITY MISMATCH: received ${received}; possible interception`);

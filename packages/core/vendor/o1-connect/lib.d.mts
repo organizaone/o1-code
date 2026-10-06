@@ -1,4 +1,4 @@
-// o1-connect-lib 9.2.0 - https://github.com/organizaone/o1-gateway (MIT)
+// o1-connect-lib 9.4.0 - https://github.com/organizaone/o1-gateway (MIT)
 /**
  * o1-connect as a library (docs/O1-CODE-LOGIN.md §3): the pinned tunnel
  * of `o1-connect run`, started inside the host app instead of as a
@@ -107,6 +107,12 @@ export interface OpenOptions {
     log?(line: string): void;
     /** A tunnel met a key that is not pinned (possible interception); the tunnel waits before trying again. */
     onMismatch?(receivedPin: string): void;
+    /**
+     * Whether this app names itself in the tunnel's outer requests
+     * (`o1-connect-lib/<version>`, as the CLI's `identify` does); default false:
+     * nothing about the client goes on the wire that a monitor can read.
+     */
+    identify?: boolean;
 }
 export interface Connection {
     /** `http://127.0.0.1:<port>`: the Anthropic protocol's base URL. */

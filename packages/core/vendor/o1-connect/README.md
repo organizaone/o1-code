@@ -17,10 +17,15 @@ pre-commit checks preserve the upstream bytes and their recorded hash.
 
 |                                     |                                                                                        |
 | ----------------------------------- | -------------------------------------------------------------------------------------- |
-| Version                             | 9.2.0 (`// o1-connect-lib 9.2.0`)                                                      |
-| Source                              | `github.com/organizaone/o1-gateway`, commit `cfa2fc9cb3cbce7c1d2cdee7c9d2886d1cd3f058` |
-| `lib.mjs` SHA-256                   | `51f2f61ebb4531b044f9697475f3c2a9c44571edeb0f526b4d9f7b12d9757fc0`                     |
-| `lib.d.mts` SHA-256                 | `cbccced28dfa777cbbe683859349a30afd54a617a69c31b02989125b9d33b829`                     |
+| Version                             | 9.4.0 (`// o1-connect-lib 9.4.0`)                                                      |
+| Source                              | `github.com/organizaone/o1-gateway`, commit `eb849d839dca8a53958885bb0cfe1320b09fd24b` |
+| `lib.mjs` SHA-256                   | `06c4176a6cfd975c70e8c079bdb93ed1024e3076090c77d066d12cef5a305db1`                     |
+| `lib.d.mts` SHA-256                 | `852feb8f9dbb324c5118e9ca8d92371abc2364b0536e161bfb7682fd1dd6eafe`                     |
 | Checked against local gateway build | 2026-10-06, source and copy compared with `Get-FileHash`                               |
 
 License: MIT (the banner of each file).
+
+The library omits its identifying User-Agent in outer tunnel requests by default.
+o1-code keeps that default: it does not set `identify: true` when opening a
+connection. Optional `urls` in connection codes, setup information, and stored
+credentials continue to provide ordered host failover.
