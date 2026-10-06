@@ -12,6 +12,12 @@ follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - The activity chips sit one blank row above the input box, so they read as the
   conversation's status instead of as part of the box.
 
+### Fixed
+
+- The prompt's text wraps at the input box's inner edge — the whole terminal
+  width minus border, padding and prompt — instead of at 90% of the width,
+  which left a wide dead band on the right of every wrapped line.
+
 ## [0.6.0] - 2026-10-05
 
 ### Added

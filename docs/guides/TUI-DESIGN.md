@@ -244,6 +244,9 @@ of the status rows right above the input.
   (block, or underline under tmux) sits on the same cell as the terminal's. See
   `terminalShowsInputCursor` in `utils/software-cursor.ts`.
 - `@path` and `/command` tokens in accent. A large paste becomes a `[Pasted Content N chars]` token.
+- The buffer wraps at the box's inner edge — the full terminal width minus
+  border, padding and prefix (`calculatePromptWidths`). A fraction of the
+  width left a dead column band on the right of every wrapped line.
 - **Session name:** set into the top border on the right (`/rename`); the rule before it takes only
   the room the name leaves, so the border keeps the input's width.
 - **End-of-line cursor:** a styled space and nothing after it. A zero-width space used to follow
