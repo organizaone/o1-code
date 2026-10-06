@@ -144,7 +144,9 @@ Top to bottom, in full-screen mode:
 2. **Conversation** (`components/ConversationWell.tsx`): a box in `rule` colour taking all free
    height, so its border reaches the input even when the history is short. Under the history, the
    thinking line; at the bottom, the queue.
-3. **Activity line** (`components/ActivityLine.tsx`), right above the input.
+3. **Activity line** (`components/ActivityLine.tsx`), one blank row above the
+   input: the chips are the conversation's status, and glued to the input's
+   border they read as part of the box.
 4. **Input** (`components/InputPrompt.tsx`, `BaseTextInput.tsx`).
 5. **Footer** (`components/Footer.tsx`, `footer-zones.tsx`).
 

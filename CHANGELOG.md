@@ -7,6 +7,11 @@ follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Changed
+
+- The activity chips sit one blank row above the input box, so they read as the
+  conversation's status instead of as part of the box.
+
 ## [0.6.0] - 2026-10-05
 
 ### Added

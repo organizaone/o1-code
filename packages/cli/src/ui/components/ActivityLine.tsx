@@ -130,6 +130,9 @@ export const ActivityLine: React.FC = () => {
       width="100%"
       paddingX={sideMargin(tier)}
       justifyContent="space-between"
+      // One blank row below the chips: right above the input they read as
+      // part of the box rather than as the conversation's status.
+      marginBottom={1}
     >
       <Box flexShrink={1} minWidth={0}>
         <ActivityChips

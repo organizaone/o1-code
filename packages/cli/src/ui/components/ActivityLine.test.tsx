@@ -149,7 +149,11 @@ describe('ActivityLine', () => {
         </UIStateContext.Provider>
       </Box>,
     );
-    expect(frame.split('\n')).toHaveLength(1);
+    // The indicators themselves stay on one row; the second row is the
+    // blank separator the line adds above the input.
+    const rows = frame.split('\n');
+    expect(rows).toHaveLength(2);
+    expect(rows[1].trim()).toBe('');
   });
 });
 
