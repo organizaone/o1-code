@@ -7,6 +7,8 @@ follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.9.0] - 2026-10-06
+
 ### Added
 
 - Pasted images show animated preparation feedback and elapsed time. Esc cancels
@@ -16,6 +18,8 @@ follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Changed
 
+- Gateway connections use o1-connect 9.4.0 and no longer send a client-identifying
+  User-Agent on external tunnel requests by default.
 - Clipboard image extraction runs outside the main interface thread on Windows
   and macOS, keeping the terminal responsive when preparing large images.
 - Ready attachments use a distinct accent color, a file icon, the file size,
