@@ -11,6 +11,7 @@ import * as path from 'node:path';
 import { randomUUID } from 'node:crypto';
 import { createDebugLogger } from '@organizaone/o1-code-core';
 import { wrapForMultiplexer } from '../../utils/osc.js';
+import { saveNativeClipboardImage } from './clipboard-image-worker.js';
 
 const debugLogger = createDebugLogger('CLIPBOARD_UTILS');
 
@@ -139,6 +140,7 @@ async function saveFromCommand(
   command: string,
   args: string[],
   destination: string,
+  signal?: AbortSignal,
 ): Promise<boolean> {
   // Open with O_EXCL first to refuse symlink following.
   // If file already exists (race), return false immediately.
@@ -154,6 +156,7 @@ async function saveFromCommand(
 
   return new Promise((resolve) => {
     const child = spawn(command, args, {
+      ...(signal ? { signal } : {}),
       stdio: ['ignore', 'pipe', 'pipe'],
     });
     const fileStream = fd.createWriteStream();
@@ -357,7 +360,7 @@ export async function clipboardHasImage(
  * Get the available image MIME types from wl-paste.
  * Uses cached result if available to avoid redundant calls.
  */
-async function getWlPasteImageTypes(): Promise<string[]> {
+async function getWlPasteImageTypes(signal?: AbortSignal): Promise<string[]> {
   // Return cached result if available
   if (cachedWlPasteImageTypes !== null) {
     return cachedWlPasteImageTypes;
@@ -365,6 +368,7 @@ async function getWlPasteImageTypes(): Promise<string[]> {
 
   return new Promise<string[]>((resolve) => {
     const child = spawn('wl-paste', ['--list-types'], {
+      ...(signal ? { signal } : {}),
       stdio: ['ignore', 'pipe', 'ignore'],
     });
     let stdout = '';
@@ -411,14 +415,17 @@ async function getWlPasteImageTypes(): Promise<string[]> {
  */
 async function saveFileWithWlPaste(
   tempFilePath: string,
+  signal?: AbortSignal,
 ): Promise<string | false> {
-  const imageTypes = await getWlPasteImageTypes();
+  const imageTypes = await getWlPasteImageTypes(signal);
+  signal?.throwIfAborted();
 
   if (imageTypes.includes('image/png')) {
     const success = await saveFromCommand(
       'wl-paste',
       ['--no-newline', '--type', 'image/png'],
       tempFilePath,
+      signal,
     );
     if (success) return tempFilePath;
     try {
@@ -434,6 +441,7 @@ async function saveFileWithWlPaste(
       'wl-paste',
       ['--no-newline', '--type', 'image/bmp'],
       bmpPath,
+      signal,
     );
     if (bmpSuccess) {
       try {
@@ -446,7 +454,10 @@ async function saveFileWithWlPaste(
               bmpPath,
               tempFilePath,
             ],
-            { stdio: ['ignore', 'ignore', 'pipe'] },
+            {
+              stdio: ['ignore', 'ignore', 'pipe'],
+              ...(signal ? { signal } : {}),
+            },
           );
           let stderr = '';
           child.stderr.on('data', (d: Buffer) => {
@@ -512,11 +523,15 @@ async function saveFileWithWlPaste(
 /**
  * Saves clipboard content to a file using xclip (X11).
  */
-async function saveFileWithXclip(tempFilePath: string): Promise<boolean> {
+async function saveFileWithXclip(
+  tempFilePath: string,
+  signal?: AbortSignal,
+): Promise<boolean> {
   const success = await saveFromCommand(
     'xclip',
     ['-selection', 'clipboard', '-t', 'image/png', '-o'],
     tempFilePath,
+    signal,
   );
   if (success) return true;
   try {
@@ -535,8 +550,10 @@ async function saveFileWithXclip(tempFilePath: string): Promise<boolean> {
  */
 export async function saveClipboardImage(
   targetDir?: string,
+  signal?: AbortSignal,
 ): Promise<string | null> {
   try {
+    signal?.throwIfAborted();
     const baseDir = targetDir || process.cwd();
     const tempDir = path.join(baseDir, 'clipboard');
     await fs.mkdir(tempDir, { recursive: true });
@@ -550,7 +567,7 @@ export async function saveClipboardImage(
       const tool = getLinuxClipboardTool();
 
       if (tool === 'wl-paste') {
-        const savedPath = await saveFileWithWlPaste(pngPath);
+        const savedPath = await saveFileWithWlPaste(pngPath, signal);
         if (savedPath) {
           try {
             const stats = await fs.stat(savedPath);
@@ -564,17 +581,9 @@ export async function saveClipboardImage(
         return null;
       }
       if (tool === 'xclip') {
-        if (await saveFileWithXclip(pngPath)) return pngPath;
+        if (await saveFileWithXclip(pngPath, signal)) return pngPath;
         return null;
       }
-      return null;
-    }
-
-    const mod = await getClipboardModule();
-    if (!mod) return null;
-    const clipboard = new mod.ClipboardManager();
-
-    if (!clipboard.hasFormat('image')) {
       return null;
     }
 
@@ -582,16 +591,9 @@ export async function saveClipboardImage(
       tempDir,
       `clipboard-${timestamp}-${randomUUID()}.png`,
     );
-    const imageData = clipboard.getImageData();
-    const buffer = imageData.data;
-
-    if (!buffer) {
-      return null;
-    }
-
-    await fs.writeFile(tempFilePath, buffer);
-    return tempFilePath;
+    return await saveNativeClipboardImage(tempFilePath, signal);
   } catch (error) {
+    if (signal?.aborted) return null;
     debugLogger.error('Error saving clipboard image:', error);
     return null;
   }

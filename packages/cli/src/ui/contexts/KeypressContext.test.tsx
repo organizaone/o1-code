@@ -1816,6 +1816,48 @@ describe('KeypressContext - Kitty Protocol', () => {
   describe('Raw keypress pipeline', () => {
     // These tests use pasteWorkaround=true to force passthrough mode for raw keypress testing
 
+    it('reports received bytes for a split paste in compatibility mode and clears on completion', () => {
+      const handler = vi.fn();
+      const { result } = renderHook(() => useKeypressContext(), {
+        wrapper: ({ children }) => wrapper({ children, pasteWorkaround: true }),
+      });
+      act(() => result.current.subscribe(handler));
+      act(() => stdin.emit('data', Buffer.from('\x1b[200~hello')));
+      expect(result.current.pasteProgress).toEqual({
+        active: true,
+        receivedBytes: 5,
+      });
+      expect(handler).not.toHaveBeenCalled();
+      act(() => stdin.emit('data', Buffer.from(' world')));
+      expect(result.current.pasteProgress.receivedBytes).toBe(11);
+      act(() => stdin.emit('data', Buffer.from('\x1b[201~')));
+      expect(result.current.pasteProgress).toEqual({
+        active: false,
+        receivedBytes: 0,
+      });
+      expect(handler).toHaveBeenCalledWith(
+        expect.objectContaining({ paste: true, sequence: 'hello world' }),
+      );
+    });
+
+    it('clears compatibility paste progress when an incomplete paste times out', () => {
+      vi.useFakeTimers();
+      const { result } = renderHook(() => useKeypressContext(), {
+        wrapper: ({ children }) => wrapper({ children, pasteWorkaround: true }),
+      });
+      try {
+        act(() => stdin.emit('data', Buffer.from('\x1b[200~unfinished')));
+        expect(result.current.pasteProgress.active).toBe(true);
+        act(() => vi.advanceTimersByTime(1100));
+        expect(result.current.pasteProgress).toEqual({
+          active: false,
+          receivedBytes: 0,
+        });
+      } finally {
+        vi.useRealTimers();
+      }
+    });
+
     it('should buffer input data and wait for timeout', () => {
       vi.useFakeTimers();
       const keyHandler = vi.fn();

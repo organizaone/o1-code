@@ -8,6 +8,15 @@
 // The key serves as both the translation key and the default English text
 
 export default {
+  'Pasting text… {{size}} KB': 'Pasting text… {{size}} KB',
+  'Reading image…': 'Reading image…',
+  'Preparing attachment…': 'Preparing attachment…',
+  'Could not prepare the attachment. Paste it again to retry; Esc to dismiss.':
+    'Could not prepare the attachment. Paste it again to retry; Esc to dismiss.',
+  'Wait for the attachment to finish preparing before sending.':
+    'Wait for the attachment to finish preparing before sending.',
+  'Attachment preparation cancelled. Your prompt was preserved.':
+    'Attachment preparation cancelled. Your prompt was preserved.',
   'Show Session Summary': 'Show Session Summary',
   'Show session statistics when quitting and wait for a key before exiting.':
     'Show session statistics when quitting and wait for a key before exiting.',

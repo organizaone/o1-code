@@ -4079,6 +4079,10 @@ export const AppContainer = (props: AppContainerProps) => {
   // What the input shows below itself (suggestions) arrives after the
   // keystroke that caused it, so the input reports it for a re-measure.
   const [inputOverlayKey, setInputOverlayKey] = useState('');
+  const attachmentPreparationActiveRef = useRef(false);
+  const setAttachmentPreparationActive = useCallback((active: boolean) => {
+    attachmentPreparationActiveRef.current = active;
+  }, []);
   const liveAgentPanelLayoutKey = getLiveAgentPanelLayoutKey(
     bgTaskEntries,
     bgLivePanelFocused,
@@ -4758,6 +4762,11 @@ export const AppContainer = (props: AppContainerProps) => {
 
   const handleGlobalKeypress = useCallback(
     (key: Key) => {
+      if (
+        attachmentPreparationActiveRef.current &&
+        keyMatchers[Command.ESCAPE](key)
+      )
+        return;
       // Debug log keystrokes if enabled
       if (settings.merged.general?.debugKeystrokeLogging) {
         debugLogger.debug('[DEBUG] Keystroke:', JSON.stringify(key));
@@ -5410,6 +5419,7 @@ export const AppContainer = (props: AppContainerProps) => {
   const uiActions: UIActions = useMemo(
     () => ({
       setInputOverlayKey,
+      setAttachmentPreparationActive,
       openThemeDialog,
       openEditorDialog,
       openMemoryDialog,
@@ -5592,6 +5602,7 @@ export const AppContainer = (props: AppContainerProps) => {
       openDiffDialog,
       closeDiffDialog,
       setInputOverlayKey,
+      setAttachmentPreparationActive,
     ],
   );
 

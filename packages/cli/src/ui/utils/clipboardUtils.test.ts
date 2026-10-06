@@ -6,6 +6,9 @@
 
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { EventEmitter } from 'node:events';
+vi.mock('./clipboard-image-worker.js', () => ({
+  saveNativeClipboardImage: vi.fn().mockResolvedValue(null),
+}));
 import { isSlowTestHost } from '../../test-utils/slow-test-host.js';
 
 // Use vi.hoisted to define mock functions before vi.mock is hoisted

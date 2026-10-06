@@ -7,6 +7,15 @@
 // Portuguese translations for O1-Code CLI (pt-BR)
 
 export default {
+  'Pasting text… {{size}} KB': 'Colando texto… {{size}} KB',
+  'Reading image…': 'Lendo imagem…',
+  'Preparing attachment…': 'Preparando anexo…',
+  'Could not prepare the attachment. Paste it again to retry; Esc to dismiss.':
+    'Não foi possível preparar o anexo. Cole novamente para tentar de novo; Esc para dispensar.',
+  'Wait for the attachment to finish preparing before sending.':
+    'Aguarde a preparação do anexo antes de enviar.',
+  'Attachment preparation cancelled. Your prompt was preserved.':
+    'Preparação do anexo cancelada. Seu texto foi preservado.',
   'Show Session Summary': 'Mostrar resumo da sessão',
   'Show session statistics when quitting and wait for a key before exiting.':
     'Mostrar as estatísticas da sessão ao encerrar e aguardar uma tecla para sair.',

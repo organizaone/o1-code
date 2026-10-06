@@ -236,6 +236,7 @@ export function KeypressProvider({
     // collapsed.
     let isPaste = false;
     let pasteChunks: string[] = [];
+    let pasteReceivedBytes = 0;
     // Set to true when paste mode is ended by something other than a
     // received paste-end event (idle timeout or Ctrl+C escape). The next
     // real paste-end event that arrives — if any — is then a stale echo
@@ -339,6 +340,7 @@ export function KeypressProvider({
       const buffered = pasteChunks.join('');
       isPaste = false;
       pasteChunks = [];
+      setPasteProgress({ active: false, receivedBytes: 0 });
       pasteAlreadyFlushed = true;
       if (buffered.length > 0) {
         broadcast({
@@ -870,6 +872,7 @@ export function KeypressProvider({
         if (isPaste || pasteChunks.length > 0) {
           isPaste = false;
           pasteChunks = [];
+          setPasteProgress({ active: false, receivedBytes: 0 });
           pasteAlreadyFlushed = true;
           clearPasteIdleTimeout();
         }
@@ -898,12 +901,15 @@ export function KeypressProvider({
 
       if (key.name === 'paste-start') {
         isPaste = true;
+        pasteReceivedBytes = 0;
+        setPasteProgress({ active: true, receivedBytes: 0 });
         pasteAlreadyFlushed = false;
         startPasteIdleTimeout();
         return;
       }
       if (key.name === 'paste-end') {
         clearPasteIdleTimeout();
+        setPasteProgress({ active: false, receivedBytes: 0 });
         // A stale paste-end may arrive after we force-flushed the paste
         // via the idle timeout or Ctrl+C escape — swallow it so we don't
         // broadcast a spurious empty/image paste event.
@@ -947,6 +953,7 @@ export function KeypressProvider({
 
       if (isPaste) {
         pasteChunks.push(key.sequence);
+        pasteReceivedBytes += Buffer.byteLength(key.sequence);
         // Record the chunk time on every character so the idle timer stays
         // armed ~1s past the latest character. startPasteIdleTimeout arms a
         // single timer (rescheduled by onPasteIdleTimeout based on actual idle
@@ -1290,6 +1297,8 @@ export function KeypressProvider({
       rawDataBuffer = data.slice(cursor);
 
       if (rawDataBuffer.length === 0) {
+        if (isPaste)
+          setPasteProgress({ active: true, receivedBytes: pasteReceivedBytes });
         return;
       }
 
@@ -1303,6 +1312,8 @@ export function KeypressProvider({
       }
 
       rawDataBuffer = Buffer.alloc(0);
+      if (isPaste)
+        setPasteProgress({ active: true, receivedBytes: pasteReceivedBytes });
       clearRawFlushTimeout();
     };
 
