@@ -7,6 +7,8 @@ follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.8.0] - 2026-10-06
+
 ### Changed
 
 - The session exit summary remains visible until a key is pressed. Space or a
