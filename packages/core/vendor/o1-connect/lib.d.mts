@@ -1,4 +1,4 @@
-// o1-connect-lib 9.0.0 - https://github.com/organizaone/o1-gateway (MIT)
+// o1-connect-lib 9.2.0 - https://github.com/organizaone/o1-gateway (MIT)
 /**
  * o1-connect as a library (docs/O1-CODE-LOGIN.md §3): the pinned tunnel
  * of `o1-connect run`, started inside the host app instead of as a
@@ -69,6 +69,8 @@ export interface SetupInfo {
     device: string;
     /** The proxy's base URL. */
     url: string;
+    /** The failover hosts after `url` (a multihost code): the session tries them in order while one cannot be reached. */
+    urls?: string[];
 }
 export interface SetupOptions {
     store: SecretStore;

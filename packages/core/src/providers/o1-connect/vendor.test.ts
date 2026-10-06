@@ -14,6 +14,7 @@ import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
+import { MemorySecretStore, setup } from '../../../vendor/o1-connect/lib.mjs';
 
 const vendorDir = path.resolve(
   path.dirname(fileURLToPath(import.meta.url)),
@@ -26,6 +27,29 @@ const sha256 = (file: string): string =>
     .digest('hex');
 
 describe('vendored o1-connect library', () => {
+  it.each([undefined, ['https://failover.example']])(
+    'preserves optional failover hosts in setup and stored credentials: %s',
+    async (urls) => {
+      const store = new MemorySecretStore();
+      const payload = {
+        url: 'https://primary.example',
+        device: 'test-device',
+        pins: [`sha256/${Buffer.alloc(32).toString('base64')}`],
+        token: 'a'.repeat(64),
+        ...(urls ? { urls } : {}),
+      };
+      const code = `o1gw1.${Buffer.from(JSON.stringify(payload)).toString('base64url')}`;
+      const result = await setup(code, {
+        store,
+        onFingerprint: (_fingerprints, info) => {
+          expect(info.urls).toEqual(urls);
+          return true;
+        },
+      });
+      expect(result.urls).toEqual(urls);
+      expect(JSON.parse((await store.get('aipp-connect'))!).urls).toEqual(urls);
+    },
+  );
   const manifest = JSON.parse(
     readFileSync(path.join(vendorDir, 'VENDOR.json'), 'utf8'),
   ) as { version: string; files: Record<string, string> };
