@@ -278,6 +278,9 @@ of the status rows right above the input.
   Incremental text pastes show a spinner and the number of received KB in the
   same area; the footer keeps its model and usage zones visible.
 
+Real application captures: [attachment preparation](../images/tui-attachment-preparation.png)
+and [ready attachment](../images/tui-attachment-ready.png).
+
 ### Footer
 
 Three zones spread across the width (`footer-zones.tsx`):
