@@ -310,7 +310,7 @@ export const StatsDialog: React.FC<StatsDialogProps> = ({
 
           <Box marginTop={1}>
             <Text italic color={theme.text.secondary}>
-              {hintText}
+              {t(hintText)}
             </Text>
           </Box>
         </Box>

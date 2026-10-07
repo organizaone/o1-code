@@ -5,12 +5,18 @@
  */
 
 import type React from 'react';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { Box, Text } from 'ink';
-import { theme } from '../semantic-colors.js';
+import wrapAnsi from 'wrap-ansi';
+import { extendedTheme, theme } from '../semantic-colors.js';
+import { glyphs } from '../glyphs.js';
+import { useTerminalSize } from '../hooks/useTerminalSize.js';
 import type { LoadedSettings, Settings } from '../../config/settings.js';
 import { SettingScope } from '../../config/settings.js';
-import { getScopeMessageForSetting } from '../../config/dialogScopeUtils.js';
+import {
+  getScopeMessageForSetting,
+  SCOPE_LABELS,
+} from '../../config/dialogScopeUtils.js';
 import { ScopeSelector } from './shared/ScopeSelector.js';
 import { t } from '../../i18n/index.js';
 import { ICON } from '../constants.js';
@@ -47,7 +53,13 @@ import {
   removeLastGrapheme,
 } from '../hooks/useSessionSearchInput.js';
 import { keyMatchers, Command } from '../keyMatchers.js';
-import { cpSlice, cpLen, stripUnsafeCharacters } from '../utils/textUtils.js';
+import {
+  cpSlice,
+  cpLen,
+  stripUnsafeCharacters,
+  getCachedStringWidth,
+  truncateToWidth,
+} from '../utils/textUtils.js';
 import { renderSoftwareCursor } from '../utils/software-cursor.js';
 import {
   isNumericSettingType,
@@ -98,16 +110,18 @@ function configTabLabel(tab: ConfigTab): string {
 function ConfigTabBar({
   activeTab,
   focused,
+  compact,
 }: {
   activeTab: ConfigTab;
   focused: boolean;
+  compact: boolean;
 }): React.JSX.Element {
   return (
     <Box>
       {CONFIG_TAB_ORDER.map((tab) => {
         const isActive = tab === activeTab;
         return (
-          <Box key={tab} marginRight={2}>
+          <Box key={tab} marginRight={compact ? 1 : 2}>
             {isActive ? (
               <Text
                 bold
@@ -124,9 +138,17 @@ function ConfigTabBar({
           </Box>
         );
       })}
-      <Text color={theme.text.secondary} dimColor={!focused}>
-        {focused ? t('(←/→ to switch, ↓ to return)') : t('(↑ to switch tabs)')}
-      </Text>
+      {!compact && (
+        <Text
+          color={theme.text.secondary}
+          dimColor={!focused}
+          wrap="truncate-end"
+        >
+          {focused
+            ? t('(←/→ to switch, ↓ to return)')
+            : t('(↑ to switch tabs)')}
+        </Text>
+      )}
     </Box>
   );
 }
@@ -139,6 +161,11 @@ export function SettingsDialog({
   width,
   config,
 }: SettingsDialogProps): React.JSX.Element {
+  const { columns } = useTerminalSize();
+  const panelWidth = Math.max(1, columns - 4);
+  const sideHelp = columns >= 120 && (availableTerminalHeight ?? 24) >= 14;
+  const showDescription = (availableTerminalHeight ?? 24) >= 12;
+  const showSpacing = (availableTerminalHeight ?? 24) >= 14;
   // Get vim mode context to sync vim mode changes
   const { vimEnabled } = useVimModeState();
   const { toggleVimEnabled } = useVimModeActions();
@@ -159,8 +186,19 @@ export function SettingsDialog({
   // Which region currently holds keyboard focus. On the Settings tab the focus
   // moves vertically: tab bar -> search box -> settings list. Other tabs only
   // have the tab bar and their content view.
-  const [focusZone, setFocusZone] = useState<'tabs' | 'search' | 'list'>(
+  const [focusZone, setFocusZoneState] = useState<'tabs' | 'search' | 'list'>(
     'list',
+  );
+  const focusZoneRef = useRef(focusZone);
+  const setFocusZone = useCallback(
+    (next: React.SetStateAction<'tabs' | 'search' | 'list'>) => {
+      // A terminal can deliver a whole typing burst before React renders.
+      const value =
+        typeof next === 'function' ? next(focusZoneRef.current) : next;
+      focusZoneRef.current = value;
+      setFocusZoneState(value);
+    },
+    [],
   );
   // Free-text query backing the "Search settings…" box.
   const [searchQuery, setSearchQuery] = useState('');
@@ -418,7 +456,7 @@ export function SettingsDialog({
       // actually reacts to keys instead of becoming a silent dead zone.
       setFocusZone((z) => (z === 'search' ? 'list' : z));
     }
-  }, [activeTab]);
+  }, [activeTab, setFocusZone]);
 
   // An in-progress edit only makes sense in the settings list (Settings tab,
   // settings mode). If the user leaves that context — e.g. Tab into scope mode
@@ -614,11 +652,11 @@ export function SettingsDialog({
       : undefined;
 
   // Height constraint calculations similar to ThemeDialog
-  const DIALOG_PADDING = 2;
-  const TAB_BAR_HEIGHT = 2; // Top tab bar + spacing below it
-  const SEARCH_BOX_HEIGHT = 4; // Bordered search box (3 rows) + spacing
+  const DIALOG_PADDING = 0;
+  const TAB_BAR_HEIGHT = showSpacing ? 2 : 1;
+  const SEARCH_BOX_HEIGHT = showSpacing ? 3 : 2;
   const SCROLL_ARROWS_HEIGHT = 2; // Up and down arrows
-  const DESCRIPTION_HEIGHT = 2; // Description line + margin
+  const DESCRIPTION_HEIGHT = sideHelp || !showDescription ? 0 : 2;
   const BOTTOM_HELP_TEXT_HEIGHT = 1; // Help text
   const RESTART_PROMPT_HEIGHT = showRestartPrompt ? 1 : 0;
 
@@ -647,7 +685,7 @@ export function SettingsDialog({
 
   // Use the calculated maxVisibleItems or fall back to the original maxItemsToShow
   const effectiveMaxItemsToShow = availableTerminalHeight
-    ? Math.min(maxVisibleItems, items.length)
+    ? Math.max(1, Math.min(maxItemsToShow, maxVisibleItems, items.length))
     : maxItemsToShow;
 
   // Scroll logic for settings
@@ -661,10 +699,30 @@ export function SettingsDialog({
   // bottom).
   const showScrollUp = scrollOffset > 0;
   const showScrollDown = scrollOffset + effectiveMaxItemsToShow < items.length;
+  const settingsBodyHeight =
+    SEARCH_BOX_HEIGHT +
+    Math.max(1, visibleItems.length) +
+    Number(showScrollUp) +
+    Number(showScrollDown);
+  const helpRows = Math.max(1, settingsBodyHeight - 3);
+  const helpWidth = Math.max(1, Math.floor((panelWidth - 4) * 0.52) - 3);
+  const descriptionLines = wrapAnsi(activeDescription ?? '', helpWidth, {
+    hard: true,
+    trim: false,
+  }).split('\n');
+  const helpDescription =
+    descriptionLines.length > helpRows
+      ? [...descriptionLines.slice(0, helpRows - 1), '…'].join('\n')
+      : descriptionLines.join('\n');
 
   useKeypress(
     (key) => {
       const { name, ctrl } = key;
+      const isSpace =
+        (key.sequence === ' ' || name === ' ' || name === 'space') &&
+        !ctrl &&
+        !key.meta &&
+        !key.paste;
 
       const cycleTab = (direction: 1 | -1) => {
         setActiveTab((current) => {
@@ -721,7 +779,7 @@ export function SettingsDialog({
       }
 
       // While the top tab bar has focus, keys only drive tab switching.
-      if (focusZone === 'tabs') {
+      if (focusZoneRef.current === 'tabs') {
         if (name === 'left' || (name === 'tab' && key.shift)) {
           // Left / Shift+Tab cycles backwards, matching the embedded Stats
           // sub-tabs.
@@ -761,7 +819,7 @@ export function SettingsDialog({
       }
 
       // Settings tab, search box focused: type to filter; ↑ to tabs, ↓ to list.
-      if (focusZone === 'search') {
+      if (focusZoneRef.current === 'search') {
         if (name === 'up') {
           setFocusZone('tabs');
         } else if (name === 'down' || name === 'return') {
@@ -787,13 +845,13 @@ export function SettingsDialog({
           // predicate so terminals that emit raw DEL/BS bytes (no normalized
           // `name`) can still delete.
           setSearchQuery((q) => removeLastGrapheme(q));
-        } else if (isPrintableSearchChar(key) || (!ctrl && name === 'space')) {
+        } else if (isPrintableSearchChar(key) || isSpace) {
           // Reuse the shared printable predicate (excludes DEL/C1/pastes and
           // multi-grapheme sequences) so the search box stays in sync with the
           // list zone's filter. Space is additionally allowed here (unlike the
           // list zone, where it toggles a setting) so multi-word queries like
           // "vim mode" can be typed.
-          setSearchQuery((q) => q + key.sequence);
+          setSearchQuery((q) => q + (isSpace ? ' ' : key.sequence));
         }
         return;
       }
@@ -925,7 +983,7 @@ export function SettingsDialog({
           } else if (newIndex >= scrollOffset + effectiveMaxItemsToShow) {
             setScrollOffset(newIndex - effectiveMaxItemsToShow + 1);
           }
-        } else if (name === 'return' || name === 'space') {
+        } else if (name === 'return' || isSpace) {
           const currentItem = items[activeSettingIndex];
           if (currentItem?.value === 'ui.theme') {
             if (name === 'return') {
@@ -1159,14 +1217,20 @@ export function SettingsDialog({
 
   return (
     <Box
-      borderStyle="round"
-      borderColor={theme.border.default}
+      borderStyle={glyphs().borderStyle}
+      borderColor={extendedTheme.ui.rule}
       flexDirection="column"
-      padding={1}
-      width="100%"
+      paddingX={1}
+      width={panelWidth}
+      maxHeight={availableTerminalHeight}
+      overflow="hidden"
     >
-      <ConfigTabBar activeTab={activeTab} focused={focusZone === 'tabs'} />
-      <Box height={1} />
+      <ConfigTabBar
+        activeTab={activeTab}
+        focused={focusZone === 'tabs'}
+        compact={columns < 80}
+      />
+      {showSpacing && <Box height={1} />}
       {activeTab !== 'settings' ? (
         <Box flexDirection="column" flexGrow={1}>
           {activeTab === 'status' ? (
@@ -1210,173 +1274,237 @@ export function SettingsDialog({
           )}
         </Box>
       ) : mode === 'settings' ? (
-        <Box flexDirection="column" flexGrow={1}>
+        <Box
+          flexDirection={sideHelp ? 'row' : 'column'}
+          height={sideHelp ? settingsBodyHeight : undefined}
+          flexShrink={0}
+          overflow="hidden"
+        >
           <Box
-            borderStyle="round"
-            borderColor={
-              focusZone === 'search'
-                ? theme.border.focused
-                : theme.border.default
-            }
-            paddingX={1}
-            width="100%"
+            flexDirection="column"
+            width={sideHelp ? '48%' : '100%'}
+            paddingRight={sideHelp ? 1 : 0}
           >
-            <Text color={theme.text.secondary}>{'⌕ '}</Text>
-            {searchQuery ? (
-              <Text color={theme.text.primary} wrap="truncate">
-                {searchQuery}
-              </Text>
-            ) : (
-              <Text color={theme.text.secondary}>{t('Search settings…')}</Text>
-            )}
-          </Box>
-          <Box height={1} />
-          {showScrollUp && <Text color={theme.text.secondary}>▲</Text>}
-          {items.length === 0 && (
-            <Text color={theme.text.secondary}>
-              {t('No settings match your search.')}
+            <Box height={1} width="100%" flexShrink={0}>
+              <Text color={theme.text.secondary}>{'⌕ '}</Text>
+              {searchQuery ? (
+                <Text color={theme.text.primary} wrap="truncate">
+                  {searchQuery}
+                </Text>
+              ) : (
+                <Text color={theme.text.secondary}>
+                  {t('Search settings…')}
+                </Text>
+              )}
+            </Box>
+            <Text color={theme.text.secondary} wrap="truncate-end">
+              {t('Scope:')}{' '}
+              {t(
+                SCOPE_LABELS[
+                  selectedScope === SettingScope.Workspace
+                    ? SettingScope.Workspace
+                    : SettingScope.User
+                ],
+              )}
             </Text>
-          )}
-          {visibleItems.map((item, idx) => {
-            const isActive =
-              mode === 'settings' &&
-              focusZone === 'list' &&
-              activeSettingIndex === idx + scrollOffset;
+            {showSpacing && <Box height={1} />}
+            {showScrollUp && <Text color={theme.text.secondary}>▲</Text>}
+            {items.length === 0 && (
+              <Text color={theme.text.secondary}>
+                {t('No settings match your search.')}
+              </Text>
+            )}
+            {visibleItems.map((item, idx) => {
+              const isActive =
+                mode === 'settings' &&
+                focusZone === 'list' &&
+                activeSettingIndex === idx + scrollOffset;
 
-            const scopeSettings = settings.forScope(selectedScope).settings;
-            const mergedSettings = settings.merged;
+              const scopeSettings = settings.forScope(selectedScope).settings;
+              const mergedSettings = settings.merged;
 
-            let displayValue: string;
-            if (editingKey === item.value) {
-              // Show edit buffer with advanced cursor highlighting
-              if (cursorVisible && editCursorPos < cpLen(editBuffer)) {
-                // Cursor is in the middle or at start of text
-                const beforeCursor = cpSlice(editBuffer, 0, editCursorPos);
-                const atCursor = cpSlice(
-                  editBuffer,
-                  editCursorPos,
-                  editCursorPos + 1,
-                );
-                const afterCursor = cpSlice(editBuffer, editCursorPos + 1);
-                displayValue =
-                  beforeCursor + renderSoftwareCursor(atCursor) + afterCursor;
-              } else if (cursorVisible && editCursorPos >= cpLen(editBuffer)) {
-                // Cursor is at the end - show software cursor space
-                displayValue = editBuffer + renderSoftwareCursor(' ');
-              } else {
-                // Cursor not visible
-                displayValue = editBuffer;
-              }
-            } else if (
-              isNumericSettingType(item.type) ||
-              item.type === 'string'
-            ) {
-              // Settings that open a sub-dialog on Enter
-              const isSubDialogSetting =
-                item.value === 'ui.theme' ||
-                item.value === 'general.preferredEditor' ||
-                item.value === 'fastModel' ||
-                item.value === 'visionModel';
-
-              // For numbers/strings, get the actual current value from pending settings
-              const path = item.value.split('.');
-              const currentValue = getNestedValue(pendingSettings, path);
-
-              const defaultValue = getDefaultValue(item.value);
-
-              const effectiveCurrentValue =
-                currentValue !== undefined && currentValue !== null
-                  ? currentValue
-                  : defaultValue;
-
-              if (
-                item.value === 'general.outputLanguage' &&
-                isAutoLanguage(
-                  effectiveCurrentValue as string | null | undefined,
+              let displayValue: string;
+              const editWidth = Math.max(
+                4,
+                Math.floor(
+                  (Math.floor((panelWidth - 4) * (sideHelp ? 0.48 : 1)) -
+                    (sideHelp ? 1 : 0)) *
+                    0.4,
+                ),
+              );
+              if (editingKey === item.value) {
+                let start = editCursorPos;
+                while (
+                  start > 0 &&
+                  getCachedStringWidth(
+                    cpSlice(editBuffer, start - 1, editCursorPos),
+                  ) <=
+                    editWidth - 4
                 )
-              ) {
-                displayValue = t('Auto (follow user input)');
+                  start--;
+                const before = `${start > 0 ? '…' : ''}${cpSlice(editBuffer, start, editCursorPos)}`;
+                const cursor =
+                  cpSlice(editBuffer, editCursorPos, editCursorPos + 1) || ' ';
+                const after = truncateToWidth(
+                  cpSlice(editBuffer, editCursorPos + 1),
+                  Math.max(
+                    0,
+                    editWidth - getCachedStringWidth(before + cursor),
+                  ),
+                );
+                // Show edit buffer with advanced cursor highlighting
+                displayValue =
+                  before +
+                  (cursorVisible ? renderSoftwareCursor(cursor) : cursor) +
+                  after;
               } else if (
-                effectiveCurrentValue !== undefined &&
-                effectiveCurrentValue !== null
+                isNumericSettingType(item.type) ||
+                item.type === 'string'
               ) {
-                displayValue = String(effectiveCurrentValue);
+                // Settings that open a sub-dialog on Enter
+                const isSubDialogSetting =
+                  item.value === 'ui.theme' ||
+                  item.value === 'general.preferredEditor' ||
+                  item.value === 'fastModel' ||
+                  item.value === 'visionModel';
+
+                // For numbers/strings, get the actual current value from pending settings
+                const path = item.value.split('.');
+                const currentValue = getNestedValue(pendingSettings, path);
+
+                const defaultValue = getDefaultValue(item.value);
+
+                const effectiveCurrentValue =
+                  currentValue !== undefined && currentValue !== null
+                    ? currentValue
+                    : defaultValue;
+
+                if (
+                  item.value === 'general.outputLanguage' &&
+                  isAutoLanguage(
+                    effectiveCurrentValue as string | null | undefined,
+                  )
+                ) {
+                  displayValue = t('Auto (follow user input)');
+                } else if (
+                  effectiveCurrentValue !== undefined &&
+                  effectiveCurrentValue !== null
+                ) {
+                  displayValue = String(effectiveCurrentValue);
+                } else {
+                  displayValue = '';
+                }
+
+                // Add * if value differs from default OR if currently being modified
+                const isModified = modifiedSettings.has(item.value);
+                const isDifferentFromDefault =
+                  effectiveCurrentValue !== defaultValue;
+
+                if (isDifferentFromDefault || isModified) {
+                  displayValue += '*';
+                }
+
+                // Append ▸ for sub-dialog settings to hint Enter opens a picker
+                if (isSubDialogSetting) {
+                  displayValue = displayValue ? displayValue + ' ▸' : '▸';
+                }
               } else {
-                displayValue = '';
+                // For booleans and other types, use existing logic
+                displayValue = getDisplayValue(
+                  item.value,
+                  scopeSettings,
+                  mergedSettings,
+                  modifiedSettings,
+                  pendingSettings,
+                );
               }
-
-              // Add * if value differs from default OR if currently being modified
-              const isModified = modifiedSettings.has(item.value);
-              const isDifferentFromDefault =
-                effectiveCurrentValue !== defaultValue;
-
-              if (isDifferentFromDefault || isModified) {
-                displayValue += '*';
-              }
-
-              // Append ▸ for sub-dialog settings to hint Enter opens a picker
-              if (isSubDialogSetting) {
-                displayValue = displayValue ? displayValue + ' ▸' : '▸';
-              }
-            } else {
-              // For booleans and other types, use existing logic
-              displayValue = getDisplayValue(
+              const shouldBeGreyedOut = isDefaultValue(
                 item.value,
                 scopeSettings,
-                mergedSettings,
-                modifiedSettings,
-                pendingSettings,
               );
-            }
-            const shouldBeGreyedOut = isDefaultValue(item.value, scopeSettings);
 
-            // Generate scope message for this setting
-            const scopeMessage = getScopeMessageForSetting(
-              item.value,
-              selectedScope,
-              settings,
-            );
+              // Generate scope message for this setting
+              const scopeMessage = getScopeMessageForSetting(
+                item.value,
+                selectedScope,
+                settings,
+              );
 
-            return (
-              <Box key={item.value} flexDirection="row" alignItems="center">
-                <Box minWidth={2} flexShrink={0}>
-                  <Text
-                    color={
-                      isActive ? theme.status.success : theme.text.secondary
-                    }
+              return (
+                <Box key={item.value} flexDirection="row" alignItems="center">
+                  <Box minWidth={2} flexShrink={0}>
+                    <Text
+                      color={
+                        isActive ? extendedTheme.ui.brand : theme.text.secondary
+                      }
+                    >
+                      {isActive ? ICON.CIRCLE_FILLED : ''}
+                    </Text>
+                  </Box>
+                  <Box flexGrow={1} flexShrink={1}>
+                    <Text
+                      color={
+                        isActive ? theme.text.primary : theme.text.secondary
+                      }
+                      bold={isActive}
+                      wrap="truncate"
+                    >
+                      {item.label}
+                      {scopeMessage && (
+                        <Text color={theme.text.secondary}>
+                          {' '}
+                          {scopeMessage}
+                        </Text>
+                      )}
+                    </Text>
+                  </Box>
+                  <Box
+                    marginLeft={1}
+                    flexShrink={0}
+                    maxWidth="40%"
+                    width={editingKey === item.value ? editWidth : undefined}
                   >
-                    {isActive ? ICON.CIRCLE_FILLED : ''}
-                  </Text>
+                    <Text
+                      color={
+                        isActive
+                          ? theme.text.primary
+                          : shouldBeGreyedOut
+                            ? theme.text.secondary
+                            : theme.text.primary
+                      }
+                      wrap="truncate"
+                    >
+                      {displayValue}
+                    </Text>
+                  </Box>
                 </Box>
-                <Box flexGrow={1} flexShrink={1}>
-                  <Text
-                    color={isActive ? theme.status.success : theme.text.primary}
-                    wrap="truncate"
-                  >
-                    {item.label}
-                    {scopeMessage && (
-                      <Text color={theme.text.secondary}> {scopeMessage}</Text>
-                    )}
-                  </Text>
-                </Box>
-                <Box marginLeft={1} flexShrink={0}>
-                  <Text
-                    color={
-                      isActive
-                        ? theme.status.success
-                        : shouldBeGreyedOut
-                          ? theme.text.secondary
-                          : theme.text.primary
-                    }
-                    wrap="truncate"
-                  >
-                    {displayValue}
-                  </Text>
-                </Box>
-              </Box>
-            );
-          })}
-          {showScrollDown && <Text color={theme.text.secondary}>▼</Text>}
+              );
+            })}
+            {showScrollDown && <Text color={theme.text.secondary}>▼</Text>}
+          </Box>
+          {sideHelp && (
+            <Box
+              width="52%"
+              paddingLeft={2}
+              borderStyle={glyphs().borderStyle}
+              borderLeft
+              borderRight={false}
+              borderTop={false}
+              borderBottom={false}
+              borderColor={extendedTheme.ui.rule}
+              flexDirection="column"
+              overflow="hidden"
+            >
+              <Text bold color={theme.text.primary} wrap="truncate-end">
+                {items[activeSettingIndex]?.label}
+              </Text>
+              <Text color={theme.text.secondary} wrap="truncate-end">
+                {items[activeSettingIndex]?.value}
+              </Text>
+              <Box height={1} />
+              <Text color={theme.text.secondary}>{helpDescription}</Text>
+            </Box>
+          )}
         </Box>
       ) : (
         <ScopeSelector
@@ -1386,22 +1514,35 @@ export function SettingsDialog({
           initialScope={selectedScope}
         />
       )}
-      {activeDescription && mode === 'settings' && (
-        <Box marginTop={1}>
-          <Text color={theme.text.secondary} wrap="truncate-end" italic>
-            {activeDescription}
-          </Text>
-        </Box>
-      )}
+      {activeDescription &&
+        mode === 'settings' &&
+        !sideHelp &&
+        showDescription && (
+          <Box marginTop={1}>
+            <Text color={theme.text.secondary} wrap="truncate-end" italic>
+              {activeDescription}
+            </Text>
+          </Box>
+        )}
       {/* Status / Stats tabs surface their own hints (and the tab bar shows
           "↑ to switch tabs"), so only the Settings tab needs this footer. */}
       {activeTab === 'settings' && (
-        <Box marginTop={activeDescription && mode === 'settings' ? 0 : 1}>
-          <Text color={theme.text.secondary} wrap="truncate">
-            {mode === 'settings'
-              ? t('(Use Enter to select, Tab to configure scope)')
-              : t('(Use Enter to apply scope, Tab to go back)')}
-          </Text>
+        <Box
+          marginTop={activeDescription && mode === 'settings' ? 0 : 1}
+          flexShrink={0}
+        >
+          <Box flexGrow={1} minWidth={0}>
+            <Text color={theme.text.secondary} wrap="truncate">
+              {mode === 'settings'
+                ? t('(Use Enter to select, Tab to configure scope)')
+                : t('(Use Enter to apply scope, Tab to go back)')}
+            </Text>
+          </Box>
+          {mode === 'settings' && (
+            <Text color={extendedTheme.text.muted}>
+              {items.length ? activeSettingIndex + 1 : 0}/{items.length}
+            </Text>
+          )}
         </Box>
       )}
       {activeTab === 'settings' &&

@@ -123,8 +123,20 @@ export const DefaultAppLayout: React.FC = () => {
               <Box
                 marginX={2}
                 flexDirection="column"
-                width={uiState.mainAreaWidth}
-                height={dialogHeight}
+                width={
+                  uiState.isSettingsDialogOpen
+                    ? Math.max(1, terminalWidth - 4)
+                    : uiState.isApprovalModeDialogOpen
+                      ? Math.max(1, Math.min(terminalWidth - 4, 140))
+                      : uiState.mainAreaWidth
+                }
+                height={
+                  uiState.isApprovalModeDialogOpen ||
+                  uiState.isSettingsDialogOpen
+                    ? undefined
+                    : dialogHeight
+                }
+                maxHeight={dialogHeight}
                 overflow={uiState.constrainHeight ? 'hidden' : undefined}
               >
                 <DialogManager

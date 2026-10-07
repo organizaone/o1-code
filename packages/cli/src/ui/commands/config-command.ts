@@ -7,6 +7,7 @@
 import type {
   CommandContext,
   MessageActionReturn,
+  OpenDialogActionReturn,
   SlashCommand,
 } from './types.js';
 import { CommandKind } from './types.js';
@@ -256,8 +257,15 @@ export const configCommand: SlashCommand = {
   action: async (
     context: CommandContext,
     args: string,
-  ): Promise<MessageActionReturn> => {
+  ): Promise<MessageActionReturn | OpenDialogActionReturn> => {
     const trimmed = args.trim();
+
+    if (
+      !trimmed &&
+      (context.executionMode ?? 'interactive') === 'interactive'
+    ) {
+      return { type: 'dialog', dialog: 'settings' };
+    }
 
     if (!trimmed || trimmed === '--help' || trimmed === '-h') {
       return listAllSettings(context);

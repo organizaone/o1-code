@@ -3,9 +3,9 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { act } from 'react';
-import { render, cleanup } from 'ink-testing-library';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { act } from 'react';
+import { cleanup, render } from 'ink-testing-library';
 import { QuittingDisplay } from './QuittingDisplay.js';
 import { useKeypress, type Key } from '../hooks/useKeypress.js';
 import { useMouseEvents } from '../hooks/useMouseEvents.js';
@@ -24,89 +24,217 @@ vi.mock('../contexts/SettingsContext.js', () => ({ useSettings: vi.fn() }));
 vi.mock('./HistoryItemDisplay.js', () => ({ HistoryItemDisplay: () => null }));
 vi.mock('../utils/mouse-hit.js', () => ({ findElementAtMouseEvent: () => 0 }));
 
-const key = (sequence: string, paste = false): Key => ({
-  name: sequence === '\r' ? 'return' : sequence,
-  sequence,
-  paste,
-  ctrl: false,
-  meta: false,
-  shift: false,
-});
 const press = async (sequence: string, paste = false) => {
+  const key: Key = {
+    name:
+      sequence === '\r'
+        ? 'return'
+        : sequence === '\x1b[B'
+          ? 'down'
+          : sequence === '\x1b'
+            ? 'escape'
+            : sequence === '\x03'
+              ? 'c'
+              : sequence,
+    sequence,
+    paste,
+    ctrl: sequence === '\x03',
+    meta: false,
+    shift: false,
+  };
   await act(async () => {
-    vi.mocked(useKeypress).mock.calls.at(-1)?.[0](key(sequence, paste));
+    vi.mocked(useKeypress).mock.calls.at(-1)?.[0](key);
   });
 };
 
 describe('QuittingDisplay', () => {
-  const setValue = vi.fn();
+  const setValues = vi.fn();
   const onExit = vi.fn();
-
-  beforeEach(() => {
-    vi.clearAllMocks();
-    setValue.mockReset();
+  const settings = (ui = {}) => {
     vi.mocked(useSettings).mockReturnValue({
-      setValue,
+      merged: { ui },
+      setValues,
     } as unknown as LoadedSettings);
+  };
+  const advance = async (milliseconds: number) => {
+    await act(async () => {
+      vi.advanceTimersByTime(milliseconds);
+    });
+  };
+  beforeEach(() => {
+    vi.useFakeTimers();
+    vi.clearAllMocks();
+    setValues.mockReset();
+    settings();
   });
-  afterEach(cleanup);
+  afterEach(() => {
+    cleanup();
+    vi.useRealTimers();
+  });
 
-  it('waits for a key and exits only once without changing the preference', async () => {
+  it.each(
+    ['\x1b', '\x03'].flatMap((sequence) =>
+      ['countdown', 'paused', 'draft', 'keep-open'].map((mode) => ({
+        sequence,
+        mode,
+      })),
+    ),
+  )(
+    'exits immediately without saving on $sequence in $mode mode',
+    async ({ sequence, mode }) => {
+      if (mode === 'keep-open') settings({ keepSessionSummaryOpen: true });
+      const { lastFrame } = render(<QuittingDisplay onExit={onExit} />);
+      expect(lastFrame()).toContain('Esc / Ctrl+C exit without saving');
+      if (mode === 'paused') await press('x');
+      if (mode === 'draft') await press(' ');
+      await press(sequence);
+      await press(sequence);
+      await advance(30000);
+      expect(onExit).toHaveBeenCalledTimes(1);
+      expect(setValues).not.toHaveBeenCalled();
+    },
+  );
+
+  it.each(['\x1b', '\x03'])(
+    'exits after a save failure with %j without retrying',
+    async (sequence) => {
+      settings({ keepSessionSummaryOpen: true });
+      setValues.mockImplementation(() => {
+        throw new Error('disk full');
+      });
+      render(<QuittingDisplay onExit={onExit} />);
+      await press('\r');
+      expect(onExit).not.toHaveBeenCalled();
+      await press(sequence);
+      expect(onExit).toHaveBeenCalledTimes(1);
+      expect(setValues).toHaveBeenCalledTimes(1);
+    },
+  );
+
+  it('closes automatically after five seconds without saving preferences', async () => {
     render(<QuittingDisplay onExit={onExit} />);
+    await advance(4900);
     expect(onExit).not.toHaveBeenCalled();
+    await advance(100);
+    expect(onExit).toHaveBeenCalledTimes(1);
+    expect(setValues).not.toHaveBeenCalled();
+  });
+
+  it('pauses on a key and then requires Enter to exit exactly once', async () => {
+    render(<QuittingDisplay onExit={onExit} />);
     await press('x');
+    await advance(30000);
+    expect(onExit).not.toHaveBeenCalled();
+    await press('y');
+    expect(onExit).not.toHaveBeenCalled();
+    await press('\r');
     await press('\r');
     expect(onExit).toHaveBeenCalledTimes(1);
-    expect(setValue).not.toHaveBeenCalled();
+    expect(setValues).not.toHaveBeenCalled();
   });
 
-  it('toggles the checkbox without exiting and saves it when confirming exit', async () => {
+  it('pauses instead of closing when Enter is the first key', async () => {
+    render(<QuittingDisplay onExit={onExit} />);
+    await press('\r');
+    expect(onExit).not.toHaveBeenCalled();
+    await press('\r');
+    expect(onExit).toHaveBeenCalledTimes(1);
+  });
+
+  it('makes the preferences exclusive and saves only after confirmation', async () => {
     const { lastFrame } = render(<QuittingDisplay onExit={onExit} />);
     await press(' ');
-    expect(lastFrame()).toContain('[x]');
+    await press('\x1b[B');
+    await press(' ');
+    expect(lastFrame()).toContain('[ ] Always keep the exit summary open');
+    expect(lastFrame()).toContain('[x] Do not show again');
+    expect(setValues).not.toHaveBeenCalled();
     expect(onExit).not.toHaveBeenCalled();
-    expect(setValue).not.toHaveBeenCalled();
     await press('\r');
-    expect(setValue).toHaveBeenCalledWith(
-      SettingScope.User,
-      'ui.showSessionSummary',
-      false,
-      undefined,
-      { throwOnWriteFailure: true },
-    );
+    expect(setValues).toHaveBeenCalledWith([
+      { scope: SettingScope.User, key: 'ui.showSessionSummary', value: false },
+      {
+        scope: SettingScope.User,
+        key: 'ui.keepSessionSummaryOpen',
+        value: false,
+      },
+    ]);
     expect(onExit).toHaveBeenCalledTimes(1);
   });
 
-  it('does not save the preference after unchecking the checkbox', async () => {
+  it('persists keeping the summary open and ensures it is enabled', async () => {
+    render(<QuittingDisplay onExit={onExit} />);
+    await press(' ');
+    await press('\r');
+    expect(setValues).toHaveBeenCalledWith([
+      { scope: SettingScope.User, key: 'ui.showSessionSummary', value: true },
+      {
+        scope: SettingScope.User,
+        key: 'ui.keepSessionSummaryOpen',
+        value: true,
+      },
+    ]);
+  });
+
+  it('does not save an unchecked draft', async () => {
     render(<QuittingDisplay onExit={onExit} />);
     await press(' ');
     await press(' ');
     await press('\r');
-    expect(setValue).not.toHaveBeenCalled();
+    expect(setValues).not.toHaveBeenCalled();
     expect(onExit).toHaveBeenCalledTimes(1);
   });
 
-  it('ignores pasted input instead of exiting', async () => {
+  it('ignores pasted input while the countdown continues', async () => {
     render(<QuittingDisplay onExit={onExit} />);
     await press('pasted text', true);
-    expect(onExit).not.toHaveBeenCalled();
+    await advance(5000);
+    expect(onExit).toHaveBeenCalledTimes(1);
   });
 
-  it('allows exit without saving after a preference write failure', async () => {
-    setValue.mockImplementation(() => {
+  it('allows exit without saving after a write failure even in keep-open mode', async () => {
+    settings({ keepSessionSummaryOpen: true });
+    setValues.mockImplementation(() => {
       throw new Error('disk full');
     });
     const { lastFrame } = render(<QuittingDisplay onExit={onExit} />);
-    await press(' ');
     await press('\r');
     expect(onExit).not.toHaveBeenCalled();
-    expect(lastFrame()).toContain('[ ]');
+    expect(lastFrame()).toContain('Press Enter to exit without saving.');
     await press('\r');
     expect(onExit).toHaveBeenCalledTimes(1);
-    expect(setValue).toHaveBeenCalledTimes(1);
+    expect(setValues).toHaveBeenCalledTimes(1);
   });
 
-  it('toggles the checkbox with the mouse without exiting', async () => {
+  it('uses a custom timeout', async () => {
+    settings({ sessionSummaryTimeoutSeconds: 2 });
+    render(<QuittingDisplay onExit={onExit} />);
+    await advance(1900);
+    expect(onExit).not.toHaveBeenCalled();
+    await advance(100);
+    expect(onExit).toHaveBeenCalledTimes(1);
+  });
+
+  it.each([0, -1, NaN, Infinity])(
+    'uses the default for an invalid timeout: %s',
+    async (value) => {
+      settings({ sessionSummaryTimeoutSeconds: value });
+      render(<QuittingDisplay onExit={onExit} />);
+      await advance(5000);
+      expect(onExit).toHaveBeenCalledTimes(1);
+    },
+  );
+
+  it('keeps the summary visible when configured to do so', async () => {
+    settings({ keepSessionSummaryOpen: true });
+    render(<QuittingDisplay onExit={onExit} />);
+    await advance(30000);
+    expect(onExit).not.toHaveBeenCalled();
+    await press('\r');
+    expect(onExit).toHaveBeenCalledTimes(1);
+  });
+
+  it('pauses and selects a preference with the mouse', async () => {
     const { lastFrame } = render(<QuittingDisplay onExit={onExit} />);
     await act(async () => {
       vi.mocked(useMouseEvents).mock.calls.at(-1)?.[0]({
@@ -119,7 +247,10 @@ describe('QuittingDisplay', () => {
         ctrl: false,
       });
     });
-    expect(lastFrame()).toContain('[x]');
+    expect(lastFrame()).toContain('[x] Always keep the exit summary open');
+    await advance(30000);
     expect(onExit).not.toHaveBeenCalled();
+    await press('\r');
+    expect(onExit).toHaveBeenCalledTimes(1);
   });
 });

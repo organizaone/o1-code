@@ -48,6 +48,47 @@ function captureKeypressHandler(): (key: Key) => void {
 }
 
 describe('TextInput', () => {
+  it('shows hidden text above and below a multiline viewport', async () => {
+    const value = 'one\ntwo\nthree\nfour\nfive';
+    const { lastFrame, rerender } = render(
+      <TextInput
+        value={value}
+        onChange={vi.fn()}
+        height={3}
+        inputWidth={20}
+        initialCursorOffset={0}
+        showScrollIndicator
+      />,
+    );
+    await vi.waitFor(() => expect(lastFrame()).toContain('1–3/5 ↓'));
+    expect(lastFrame()).toContain('one');
+    rerender(
+      <TextInput
+        key="end"
+        value={value}
+        onChange={vi.fn()}
+        height={3}
+        inputWidth={20}
+        initialCursorOffset={value.length}
+        showScrollIndicator
+      />,
+    );
+    await vi.waitFor(() => expect(lastFrame()).toContain('↑ 3–5/5'));
+    expect(lastFrame()).toContain('three');
+    expect(lastFrame()).toContain('five');
+  });
+
+  it('keeps continuation indicators opt-in', () => {
+    const { lastFrame } = render(
+      <TextInput
+        value={'one\ntwo\nthree\nfour'}
+        onChange={vi.fn()}
+        height={3}
+        inputWidth={20}
+      />,
+    );
+    expect(lastFrame()).not.toMatch(/\d–\d\/\d/);
+  });
   let onChange: ReturnType<typeof vi.fn>;
   let onSubmit: ReturnType<typeof vi.fn>;
 

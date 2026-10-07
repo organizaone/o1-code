@@ -7,6 +7,380 @@
 // Portuguese translations for O1-Code CLI (pt-BR)
 
 export default {
+  'Connection type:': 'Tipo de conexão:',
+  'Account login (browser)': 'Login por conta (navegador)',
+  'Application Default Credentials': 'Credenciais padrão do aplicativo',
+  'No API key configured': 'Sem chave de API configurada',
+  'Esc / Ctrl+C exit without saving': 'Esc / Ctrl+C sair sem salvar',
+  'Not connected': 'Sem conexão',
+  'OpenAI-compatible API': 'API compatível com OpenAI',
+  'OpenAI Responses API': 'API Responses da OpenAI',
+  'Anthropic API': 'API Anthropic',
+  'Gemini API': 'API Gemini',
+  'Show session statistics when quitting. Enable this to restore a previously hidden summary.':
+    'Exibe as estatísticas da sessão ao sair. Ative para voltar a mostrar um resumo anteriormente ocultado.',
+  'Keep Session Summary Open': 'Manter resumo da sessão aberto',
+  'Session Summary Timeout (seconds)': 'Tempo do resumo da sessão (segundos)',
+  'Keep the exit summary open until you confirm. When disabled, it closes after the configured timeout; pressing a key stops the countdown.':
+    'Mantém o resumo de saída aberto até você confirmar. Quando desativado, ele fecha após o tempo configurado; pressionar uma tecla interrompe a contagem.',
+  'Seconds before the exit summary closes automatically. Press any key to keep it visible for the current exit.':
+    'Tempo em segundos até o fechamento automático do resumo de saída. Pressione qualquer tecla para mantê-lo visível nesta saída.',
+  'Always keep the exit summary open': 'Sempre manter o resumo de saída aberto',
+  '↑/↓ select · Space toggle · Enter confirm and exit':
+    '↑/↓ selecionar · Espaço marcar · Enter confirmar e sair',
+  'Closing in {{seconds}}s · press any key to keep this summary open':
+    'Fechando em {{seconds}}s · pressione qualquer tecla para manter o resumo aberto',
+  'Could not save your preference. Press Enter to exit without saving.':
+    'Não foi possível salvar sua preferência. Pressione Enter para sair sem salvar.',
+  SystemDefaults: 'Padrões do sistema',
+  'Failed to load status. Press r to retry.':
+    'Não foi possível carregar o estado. Pressione r para tentar novamente.',
+  'Loading status…': 'Carregando estado…',
+  '(Tab to switch)': '(Tab para alternar)',
+  '+{{count}} more (run /stats for the full list)':
+    '+{{count}} itens (use /stats para ver a lista completa)',
+  'Approval mode for tool usage. Controls how tools are approved before execution.':
+    'Modo de aprovação de ferramentas. Controla como as ferramentas são aprovadas antes da execução.',
+  'Expose ordinary tools to the model only through the isolated exec JavaScript tool. Direct control tools remain available. Ignored in safe and bare modes.':
+    'Expõe as ferramentas comuns ao modelo apenas pela ferramenta JavaScript exec, executada em ambiente isolado. As ferramentas de controle direto continuam disponíveis. Ignorado nos modos seguro e mínimo.',
+  'The language for the user interface. Use "auto" to detect from system settings. You can also use custom language codes (e.g., "es", "fr") by placing JS language files in ~/.o1-code/locales/ (e.g., ~/.o1-code/locales/es.js).':
+    'Idioma da interface. Use "auto" para detectar o idioma do sistema. Também é possível usar códigos de idiomas personalizados, como "es" e "fr", colocando arquivos JS em ~/.o1-code/locales/, por exemplo ~/.o1-code/locales/es.js.',
+  'English (English)': 'English (Inglês)',
+  '繁體中文 (Traditional Chinese)': '繁體中文 (Chinês tradicional)',
+  '中文 (Chinese)': '中文 (Chinês)',
+  'Русский (Russian)': 'Русский (Russo)',
+  'Deutsch (German)': 'Deutsch (Alemão)',
+  '日本語 (Japanese)': '日本語 (Japonês)',
+  'Português (Portuguese)': 'Português (Português)',
+  'Français (French)': 'Français (Francês)',
+  'Català (Catalan)': 'Català (Catalão)',
+  'The language for LLM output. Use "auto" to follow the user input language, or set a specific language.':
+    'Idioma das respostas do modelo. Use "auto" para seguir o idioma da mensagem do usuário ou defina um idioma específico.',
+  'The color theme for the UI.': 'Tema de cores da interface.',
+  'Enable Vim keybindings': 'Ativa os atalhos de teclado do Vim.',
+  'Use node-pty for an interactive shell experience. Explicit one-shot prompts default to child_process when this setting is unset; interactive and input-driven modes default to PTY.':
+    'Usa node-pty para um shell interativo. Quando esta configuração não está definida, prompts explícitos de execução única usam child_process; os modos interativos e orientados por entrada usam PTY.',
+  'The preferred editor to open files in.':
+    'Editor preferido para abrir arquivos.',
+  'Enable IDE integration mode': 'Ativa a integração com a IDE.',
+  'Show line numbers in the code output.':
+    'Exibe números de linha na saída de código.',
+  'Hide helpful tips in the UI': 'Oculta as dicas de ajuda da interface.',
+  'Show Tool Call Details': 'Mostrar detalhes das chamadas de ferramentas',
+  'Show tool arguments and results inline. Disable to render ordinary tool calls as a one-line summary; click a summary in Virtualized History or press Ctrl+O to expand its details. Approval prompts, user-initiated shell commands, and focused interactive shells remain expanded.':
+    'Exibe os argumentos e resultados das ferramentas junto às chamadas. Desative para resumir as chamadas comuns em uma linha; clique no resumo no histórico virtualizado ou pressione Ctrl+O para expandir os detalhes. Pedidos de aprovação, comandos de shell iniciados pelo usuário e shells interativos em foco continuam expandidos.',
+  'Play terminal bell sound when response completes or needs approval.':
+    'Emite um aviso sonoro no terminal quando a resposta termina ou precisa de aprovação.',
+  'Show welcome back dialog when returning to a project with conversation history. Choosing "Start new chat session" suppresses the dialog for that project until the project summary changes.':
+    'Exibe a janela de boas-vindas ao voltar a um projeto com histórico de conversa. Escolher "Iniciar nova sessão de chat" oculta essa janela para o projeto até que o resumo do projeto mude.',
+  'Add a Co-authored-by trailer to git commit messages AND attach a per-file AI-attribution git note (`refs/notes/ai-attribution`) for commits made through O1-Code. Disabling skips both.':
+    'Adiciona uma linha Co-authored-by às mensagens de commit E uma nota git de atribuição de IA por arquivo (`refs/notes/ai-attribution`) aos commits feitos pelo O1-Code. Desativar impede ambas as atribuições.',
+  'Attribution: PR': 'Atribuição: PR',
+  'Append a O1-Code attribution line to PR descriptions when running `gh pr create`.':
+    'Adiciona uma linha de atribuição ao O1-Code nas descrições de PR ao executar `gh pr create`.',
+  'Respect .gitignore files when searching':
+    'Respeita os arquivos .gitignore nas buscas.',
+  'Respect .o1-codeignore and configured custom ignore files when searching':
+    'Respeita .o1-codeignore e os arquivos personalizados de exclusão nas buscas.',
+  'Enable collection of usage statistics':
+    'Ativa a coleta de estatísticas de uso.',
+  'Enable Auto Update': 'Ativar atualização automática',
+  'Enable automatic update checks and installations on startup.':
+    'Ativa a verificação e instalação de atualizações ao iniciar.',
+  'Show Session Recap': 'Mostrar lembrete da sessão',
+  'Auto-show a one-line "where you left off" recap when returning to the terminal after being away. Off by default. Use /recap to trigger manually regardless of this setting.':
+    'Exibe automaticamente um lembrete de uma linha sobre onde você parou ao voltar ao terminal após uma ausência. Desativado por padrão. Use /recap para exibir o lembrete manualmente, independentemente desta configuração.',
+  'Session Recap Away Threshold (minutes)':
+    'Ausência para lembrete da sessão (minutos)',
+  "How many minutes the terminal must be blurred before an auto-recap fires on the next focus-in. Matches Claude Code's default of 5 minutes; raise if you briefly alt-tab and do not want recaps to pile up.":
+    'Tempo, em minutos, que o terminal deve ficar sem foco para exibir um lembrete automático ao recuperar o foco. O padrão é 5 minutos. Aumente se você alterna brevemente entre janelas e não quer acumular lembretes.',
+  'Cleanup Period (days)': 'Prazo de retenção (dias)',
+  'Number of days to retain ~/.o1-code/file-history/ session backups used by /rewind, background subagent transcripts under <projectDir>/subagents/, and session debug logs under the runtime debug/ directory. Data older than this is removed by a background housekeeping pass that runs at most once per day. Set to 0 for minimum retention (~1 hour) — protects sessions touched in the last hour, plus the currently active session.':
+    'Número de dias para manter os backups de sessão de ~/.o1-code/file-history/ usados por /rewind, os registros dos subagentes em segundo plano em <projectDir>/subagents/ e os logs de depuração de sessão no diretório debug/ do ambiente de execução. Os dados mais antigos são removidos por uma limpeza em segundo plano, executada no máximo uma vez ao dia. Use 0 para retenção mínima de aproximadamente uma hora; sessões alteradas na última hora e a sessão ativa são preservadas.',
+  'Notification Mode': 'Modo de notificação',
+  'Which unfocused-terminal events fire a bell/OS notification. "all" fires on every tool approval prompt AND on task completion (current behavior). "task-complete" suppresses the per-approval notification and only fires when a long task returns to idle. Requires `terminalBell` to be enabled; otherwise no notifications fire regardless of mode.':
+    'Eventos que emitem aviso sonoro ou notificação do sistema quando o terminal está sem foco. "all" notifica cada pedido de aprovação de ferramenta E a conclusão da tarefa. "task-complete" suprime as notificações de aprovação e avisa apenas quando uma tarefa longa termina. Requer `terminalBell` ativado; caso contrário, nenhum modo emite notificações.',
+  'All (approvals + task completion)':
+    'Todas (aprovações e conclusão de tarefas)',
+  'Task completion only': 'Apenas conclusão de tarefas',
+  'Prevent System Sleep While Running': 'Impedir suspensão durante a execução',
+  'Prevent the system from sleeping while O1-Code is streaming a model response or executing tools. Idle prompt time and permission prompts do not inhibit sleep.':
+    'Impede a suspensão do sistema enquanto o O1-Code recebe uma resposta do modelo ou executa ferramentas. O tempo ocioso no prompt e os pedidos de permissão não impedem a suspensão.',
+  'Attribution: review': 'Atribuição: revisão',
+  'Append the attribution footer naming the model and CLI version (e.g. "_— qwen3-coder via O1-Code /review (v0.21.2)_") to review bodies and inline comments posted to GitHub. Disable to post reviews without VISIBLE AI attribution: no footer, and no "**[Critical]**"/"**[Suggestion]**" severity markers on posted comments and body lists. Unattributed posts stay identifiable in the raw source: each posted comment carries an invisible severity marker ("<!-- o1-code-review critical -->") and the review body carries a ledger marker ("<!-- o1-code-review-ledger ... -->") — anything reading comment bodies (GitHub API automation, the workflows this setting couples to) still recognizes a /review artifact, and presubmit duplicate detection recognizes the reviewing account\'s earlier posts by the severity marker, though unattributed posts from other accounts escape it. Another consequence: o1-code-autofix\'s Critical-only mode (engaged after round 5, or earlier when a counting window\'s diff-growth budget trips) no longer recognizes the posted findings as Critical and defers them. Only honored from User, System, and SystemDefaults settings scopes; values set in Workspace settings are ignored, so a repository cannot set review policy for its reviewers.':
+    'Adiciona às revisões e aos comentários publicados no GitHub um rodapé de atribuição com o modelo e a versão do CLI, por exemplo "_— qwen3-coder via O1-Code /review (v0.21.2)_". Desative para publicar revisões sem atribuição VISÍVEL de IA: sem rodapé e sem os marcadores de gravidade "**[Critical]**"/"**[Suggestion]**" nos comentários e nas listas da revisão. As publicações continuam identificáveis no código-fonte: cada comentário mantém um marcador invisível de gravidade ("<!-- o1-code-review critical -->") e o corpo mantém um marcador de registro ("<!-- o1-code-review-ledger ... -->"). Automações que leem os comentários pela API do GitHub e os fluxos associados ainda reconhecem os resultados de /review. A detecção de duplicados antes do envio reconhece publicações anteriores da conta revisora pelo marcador, mas não identifica publicações sem atribuição de outras contas. Além disso, o modo do o1-code-autofix que trata apenas achados críticos, ativado após a rodada 5 ou antes quando o limite de crescimento do diff é atingido, deixa de reconhecer os achados publicados como críticos e os adia. Aceita apenas os escopos User, System e SystemDefaults; valores em Workspace são ignorados para impedir que o repositório defina a política de seus revisores.',
+  'Sandbox the reviewed code: review': 'Isolar código revisado: revisão',
+  'Run the REVIEWED repository\'s own commands — `npm ci` with its install scripts, the build, the test suite, and every mutation probe — inside a container instead of directly as you. A review executes the code it is reviewing, and today those commands inherit the review process\'s whole environment (on CI that includes the model and GitHub credentials). "auto" uses a container when docker or podman answers and runs directly when neither does; "required" refuses to run them unsandboxed, which makes the evidence that depends on execution (build/test findings, mutation verdicts, `Source: [probe]`) unavailable for that run rather than ending the review; "off" is today\'s behaviour and stays the default, because containerising a build by surprise changes what native modules compile against. Only honored from User, System, and SystemDefaults settings scopes; values set in Workspace settings are ignored, so a repository cannot switch off the containment that exists to contain it.':
+    'Executa os comandos do repositório EM REVISÃO, incluindo `npm ci` e seus scripts de instalação, build, testes e sondagens de mutação, dentro de um contêiner em vez de executá-los diretamente com sua conta. Uma revisão executa o próprio código que avalia, e esses comandos herdam todo o ambiente do processo revisor, incluindo credenciais do modelo e do GitHub no CI. "auto" usa um contêiner quando docker ou podman está disponível e executa diretamente quando nenhum deles responde. "required" recusa a execução sem isolamento; as evidências dependentes de execução, como achados de build/testes, resultados de mutação e `Source: [probe]`, ficam indisponíveis nessa rodada, mas a revisão continua. "off" mantém a execução direta e continua sendo o padrão, pois usar um contêiner pode mudar o ambiente de compilação dos módulos nativos. Aceita apenas User, System e SystemDefaults; valores em Workspace são ignorados para impedir que o repositório desative seu próprio isolamento.',
+  'Off (run the reviewed code directly)':
+    'Desativado (executar o código revisado diretamente)',
+  'Auto (container when one is available)':
+    'Automático (usar contêiner quando disponível)',
+  'Required (never run it unsandboxed)':
+    'Obrigatório (nunca executar sem isolamento)',
+  'Default effort: review': 'Esforço padrão: revisão',
+  'Default effort for /review when neither --effort nor a project-remembered explicitly typed level applies. "auto" keeps the built-in rule (high for PRs, medium for local changes). An explicit or remembered level wins; an effective --comment still forces high and --fix still floors at medium. Only honored from User, System, and SystemDefaults settings scopes; values set in Workspace settings are ignored, so a repository cannot set review policy for its reviewers.':
+    'Esforço padrão de /review quando não há --effort nem um nível explicitamente informado e lembrado para o projeto. "auto" usa alto para PRs e médio para mudanças locais. Um nível explícito ou lembrado tem prioridade; --comment efetivo ainda exige alto e --fix ainda exige pelo menos médio. Aceita apenas User, System e SystemDefaults; valores em Workspace são ignorados para impedir que o repositório defina a política de seus revisores.',
+  'Auto (high for PRs, medium for local)':
+    'Automático (alto para PRs, médio para mudanças locais)',
+  Low: 'Baixo',
+  Medium: 'Médio',
+  High: 'Alto',
+  'Comment by default: review': 'Publicar comentários por padrão: revisão',
+  'Treat every PR /review as if --comment was passed: findings are posted to the pull request without the flag. The post still binds to the PR named in the invocation. Enable only if you always want reviews published. Only honored from User, System, and SystemDefaults settings scopes; values set in Workspace settings are ignored, so a repository cannot set review policy for its reviewers.':
+    'Trata cada /review de PR como se --comment tivesse sido informado: os achados são publicados na PR sem exigir essa opção. A publicação continua vinculada à PR indicada no comando. Ative apenas se você sempre quiser publicar as revisões. Aceita apenas User, System e SystemDefaults; valores em Workspace são ignorados para impedir que o repositório defina a política de seus revisores.',
+  'Posting floor: review': 'Gravidade mínima para publicação: revisão',
+  'The lowest severity a PR /review posts when --severity-floor is not given. "auto" keeps the round-adaptive default: Suggestions post through round 5, and from round 6 only Criticals post while otherwise-postable high-confidence Suggestions are recorded and deferred (low-confidence and Nice-to-have findings stay terminal-only as ever); under "auto", rounds 2-5 additionally defer new Suggestions on code unchanged since the previous round — the same discipline that stops review rounds from ballooning a PR. "critical" applies that posture from round 1; "suggestion" keeps Suggestions posting at every round. Non-PR targets have no rounds and ignore this. Only honored from User, System, and SystemDefaults settings scopes; values set in Workspace settings are ignored, so a repository cannot set review policy for its reviewers.':
+    'Menor gravidade publicada por /review de PR quando --severity-floor não é informado. "auto" publica sugestões até a rodada 5; a partir da rodada 6, publica apenas achados críticos e registra e adia sugestões de alta confiança que seriam publicáveis. Achados de baixa confiança e melhorias opcionais continuam restritos ao terminal. Em "auto", as rodadas 2 a 5 também adiam novas sugestões sobre código que não mudou desde a rodada anterior, evitando o crescimento excessivo da PR. "critical" aplica a restrição desde a rodada 1; "suggestion" mantém a publicação de sugestões em todas as rodadas. Alvos que não são PRs não têm rodadas e ignoram esta configuração. Aceita apenas User, System e SystemDefaults; valores em Workspace são ignorados para impedir que o repositório defina a política de seus revisores.',
+  'Auto (Critical-only from round 6)':
+    'Automático (apenas críticos a partir da rodada 6)',
+  'Critical-only (every round)': 'Apenas críticos (todas as rodadas)',
+  'Suggestions and Criticals': 'Sugestões e críticos',
+  'Reverse-audit round ceiling: review':
+    'Limite de rodadas de auditoria reversa: revisão',
+  'Lower the reverse-audit loop\'s round cap for every high-effort review. The cap is normally chosen from the diff topology (10 small / 5 chunked; a huge diff is 3 when the run has a review deadline and 5 when it does not, because that reduction answers a CI ceiling and applies only where one exists) because a round costs one agent on a small diff and ~90 minutes on a huge one; this setting can only LOWER whichever tier applies, never raise it — a value that is not a whole number above zero, or that is out of range (below 3, or above the plan\'s own tier), is ignored and leaves the tier alone — JSON Schema has no integer type here, so a fraction validates in an editor and is then discarded at runtime. Understand what it buys before enabling: the loop ends on two consecutive dry rounds, so cutting the cap does not make reviews converge sooner, it makes them stop before converging more often — and every such stop is disclosed as unreviewed scope and caps the verdict at Comment, so a cheaper review is also one that can no longer Approve. To spend LESS on reviews generally, prefer "effort". Nothing here makes a loop run LONGER: a review deadline bounds a run rather than extending it, and on a huge diff setting one lowers the cap from 5 to 3 rather than raising it. Only honored from User, System, and SystemDefaults settings scopes; values set in Workspace settings are ignored, so a repository cannot set review policy for its reviewers.':
+    'Reduz o limite de rodadas da auditoria reversa nas revisões de alto esforço. O limite depende da estrutura do diff: 10 para mudanças pequenas e 5 para mudanças em blocos; diffs enormes usam 3 quando há prazo para a revisão e 5 quando não há, pois a redução atende ao limite de tempo do CI. Uma rodada custa um agente em um diff pequeno e cerca de 90 minutos em um enorme. Esta configuração só pode REDUZIR o limite, nunca aumentá-lo. Valores que não sejam inteiros positivos, menores que 3 ou maiores que o limite do plano são ignorados. O JSON Schema não impõe inteiro aqui, por isso um valor fracionário pode ser aceito pelo editor e descartado na execução. O ciclo termina após duas rodadas consecutivas sem novos achados; reduzir o limite não acelera a convergência, apenas aumenta a chance de parar antes dela. Essas paradas são registradas como escopo não revisado e limitam o parecer a Comment, impedindo Approve. Para gastar MENOS nas revisões em geral, prefira "effort". Esta opção nunca prolonga o ciclo: o prazo limita a execução e, em diffs enormes, reduz o limite de 5 para 3. Aceita apenas User, System e SystemDefaults; valores em Workspace são ignorados para impedir que o repositório defina a política de seus revisores.',
+  'Approach-signal round threshold: review':
+    'Rodada para aviso sobre a abordagem: revisão',
+  'How many rounds a pull request must reach before the review may add one advisory paragraph saying the shape of the change, rather than the current patch, looks like the open question. It appears only when the diff has also grown several times over since the review first measured it, and never on an Approve. It is disclosure only: it adds no finding, changes no verdict, and blocks nothing — it exists because every finding is anchored to a line in the current diff, so the review can report where an approach leaks but never that a different approach would retire all of the leaks at once. Leave at 0 to keep the built-in threshold of 5 rounds; raise it to make the paragraph appear later, and set it very high to silence it. A value that is not a whole number above zero is ignored. Only honored from User, System, and SystemDefaults settings scopes; values set in Workspace settings are ignored, so a repository cannot set review policy for its reviewers.':
+    'Número de rodadas que uma PR deve atingir para que a revisão possa incluir um parágrafo orientativo indicando que a abordagem da mudança, além do patch atual, merece avaliação. O aviso aparece apenas se o diff também cresceu várias vezes desde a primeira medição, e nunca em um parecer Approve. É apenas informativo: não acrescenta achados, não muda o parecer e não bloqueia nada. Os achados precisam apontar linhas do diff atual, por isso a revisão consegue mostrar falhas da abordagem, mas não afirmar que outra abordagem resolveria todas de uma vez. Deixe 0 para usar o limite padrão de 5 rodadas; aumente para adiar o aviso ou use um número muito alto para suprimi-lo. Valores que não sejam inteiros positivos são ignorados. Aceita apenas User, System e SystemDefaults; valores em Workspace são ignorados para impedir que o repositório defina a política de seus revisores.',
+  'Show Timestamps': 'Mostrar horários',
+  'Show [HH:MM:SS] timestamp before each assistant response.':
+    'Exibe o horário [HH:MM:SS] antes de cada resposta do assistente.',
+  'Disable Workflow Keyword Trigger':
+    'Desativar acionamento pela palavra workflow',
+  'When true, mentioning the word `workflow` in a prompt no longer softly steers the turn toward the Workflow tool (and the Footer `workflow active` indicator is suppressed). Only applies when workflows are enabled.':
+    'Quando ativado, mencionar `workflow` no prompt deixa de orientar a resposta para a ferramenta Workflow, e o indicador `workflow active` do rodapé é ocultado. Só se aplica quando os workflows estão ativados.',
+  'Show O1-Code session name and status in the terminal window title':
+    'Exibe o nome e o estado da sessão do O1-Code no título da janela do terminal.',
+  'Markdown Render Mode': 'Modo de exibição do Markdown',
+  'Default Markdown display mode. Use "render" for rich visual previews, or "raw" to show source-oriented Markdown by default. Toggle during a session with Alt/Option+M; on macOS the terminal must send Option as Meta.':
+    'Modo padrão de exibição do Markdown. Use "render" para prévias visuais formatadas ou "raw" para exibir o código-fonte. Alterne durante a sessão com Alt/Option+M; no macOS, o terminal deve enviar Option como Meta.',
+  'Render visual previews': 'Exibir prévias formatadas',
+  'Show raw source': 'Mostrar código-fonte',
+  'Show Response Tokens Per Second': 'Mostrar tokens por segundo da resposta',
+  'Show a live tokens/sec estimate next to the response token counter while the model is streaming. Takes effect in the next session.':
+    'Exibe uma estimativa de tokens por segundo ao lado do contador de tokens enquanto o modelo responde. A mudança vale a partir da próxima sessão.',
+  'Show optional feedback dialog after conversations to help improve O1-Code.':
+    'Exibe uma janela opcional de feedback após as conversas para ajudar a melhorar o O1-Code.',
+  'Enable Follow-up Suggestions': 'Ativar sugestões de continuação',
+  'Show context-aware follow-up suggestions after task completion. Press Tab, Right Arrow, or Enter to accept into the input buffer.':
+    'Exibe sugestões de continuação adequadas ao contexto após a conclusão da tarefa. Pressione Tab, seta para a direita ou Enter para inserir uma sugestão no campo de digitação.',
+  'Enable Loading Phrases': 'Ativar frases de carregamento',
+  'Enable loading phrases (disable for accessibility)':
+    'Ativa as frases de carregamento. Desative para facilitar a acessibilidade.',
+  'Virtualized History (reduces flicker on long sessions)':
+    'Histórico virtualizado (reduz cintilação em sessões longas)',
+  'Render conversation history in an in-app scrollable viewport instead of the terminal scrollback buffer. Enabled by default in compatible interactive terminals to avoid flicker, scroll-storm, and interface freeze on long sessions, after Ctrl+O, after Ctrl+E / Ctrl+F (expand), after window resize, or when alt-tabbing back. Screen reader mode and non-interactive output such as piped stdout or CI use append-only terminal output instead. Scroll with Shift+↑/↓ (line), PgUp/PgDn (page), Ctrl+Home/End (top/bottom), or the mouse wheel. Also enables mouse interactions: click an option in a menu/dialog to select it, hover to highlight it, and click in the prompt to position the cursor. Does NOT use the host terminal scrollback while enabled. Drag to select text in the viewport (double/triple click selects a word/line), copied on release. To use the terminal’s own selection instead, hold Shift (or Option on macOS) while dragging. A single click opens an http(s) hyperlink under the pointer (other link schemes are copied to the clipboard), and right-click over a link or a text selection opens an in-app context menu. These mouse interactions are controlled by ui.mouseTracking; disable that setting to hand the mouse fully back to the terminal.':
+    'Exibe o histórico da conversa em uma área rolável da aplicação, em vez do histórico do terminal. Ativado por padrão em terminais interativos compatíveis para evitar cintilação, excesso de rolagem e travamentos em sessões longas, após Ctrl+O, Ctrl+E/Ctrl+F para expandir, redimensionamento da janela ou retorno ao terminal. O modo de leitor de tela e saídas não interativas, como stdout redirecionado ou CI, usam saída sequencial no terminal. Role com Shift+↑/↓ por linha, PgUp/PgDn por página, Ctrl+Home/End para início/fim ou a roda do mouse. Também permite clicar em opções de menus, destacar itens ao passar o mouse e posicionar o cursor no prompt. Enquanto ativado, não usa o histórico do terminal. Arraste para selecionar texto; clique duplo seleciona uma palavra e triplo uma linha. A seleção é copiada ao soltar. Para usar a seleção nativa do terminal, segure Shift, ou Option no macOS, ao arrastar. Um clique abre links http(s); outros tipos de link são copiados. O botão direito sobre um link ou seleção abre o menu de contexto da aplicação. Essas interações dependem de ui.mouseTracking; desative essa opção para devolver o controle do mouse ao terminal.',
+  'Incremental Rendering (rewrites only changed lines)':
+    'Renderização incremental (atualiza apenas linhas alteradas)',
+  'Redraw only the lines that changed since the previous frame instead of erasing and rewriting the whole interface. Removes the flicker that terminals without synchronized output (GNOME Terminal, Ptyxis, Terminal.app) show while a response streams, and sends far less data to the terminal. Disable if lines appear duplicated or out of place in your terminal; O1CODE_INCREMENTAL_RENDERING=0 or =1 overrides this setting for one session.':
+    'Redesenha apenas as linhas alteradas desde o quadro anterior, em vez de apagar e reescrever toda a interface. Reduz a cintilação em terminais sem saída sincronizada, como GNOME Terminal, Ptyxis e Terminal.app, durante as respostas e envia muito menos dados ao terminal. Desative se houver linhas duplicadas ou fora de lugar. O1CODE_INCREMENTAL_RENDERING=0 ou =1 substitui esta configuração por uma sessão.',
+  'Symbols used by the interface. "auto" uses console-safe symbols in the Windows console host and full symbols everywhere else; "compat" forces console-safe symbols; "full" forces the full set.':
+    'Símbolos usados pela interface. "auto" usa símbolos compatíveis no console nativo do Windows e símbolos completos nos demais terminais. "compat" força símbolos compatíveis com o console; "full" força o conjunto completo.',
+  Automatic: 'Automático',
+  Full: 'Completo',
+  'Console-safe': 'Compatível com o console',
+  'Show Scrollbar (Virtualized History)':
+    'Mostrar barra de rolagem (histórico virtualizado)',
+  'Show the auto-hiding scrollbar in the in-app scrollable viewport (Virtualized History). The bar appears while scrolling and fades out when idle. Disable to hide it entirely.':
+    'Exibe uma barra de rolagem que se oculta automaticamente na área de histórico virtualizado. A barra aparece durante a rolagem e desaparece quando ela para. Desative para ocultá-la completamente.',
+  'Mouse Tracking': 'Interação com o mouse',
+  'Enable in-app SGR mouse tracking. While enabled, O1-Code captures mouse events for text selection, click-to-position in text inputs, row hover, history-item toggling, and viewport scrolling. Because the terminal forwards all mouse events to the app, O1-Code supplies its own equivalents for what the terminal can no longer do natively: a single click opens an http(s) hyperlink under the pointer (other link schemes are copied to the clipboard), and right-click over a link or a text selection opens an in-app context menu with Open Link / Copy Link Address / Copy Selection. Disable to hand the mouse fully back to the terminal (native right-click menu and link clicks); this turns off all in-app mouse interaction, and in Virtualized History the wheel no longer scrolls the transcript — use Shift+↑/↓, PgUp/PgDn, or Ctrl+Home/End instead (pair with ui.useTerminalBuffer: false to restore native terminal scrollback).':
+    'Ativa o rastreamento de mouse SGR na aplicação. O O1-Code captura eventos para selecionar texto, posicionar o cursor, destacar linhas, alternar itens do histórico e rolar a área de mensagens. Como o terminal envia os eventos à aplicação, o O1-Code fornece as ações que deixam de ser nativas: um clique abre links http(s), outros tipos de link são copiados, e o botão direito sobre um link ou seleção abre um menu com Abrir link, Copiar endereço do link e Copiar seleção. Desative para devolver o mouse ao terminal, incluindo seus menus e cliques em links. Isso desativa todas as interações de mouse da aplicação; no histórico virtualizado, a roda deixa de rolar as mensagens. Use Shift+↑/↓, PgUp/PgDn ou Ctrl+Home/End, ou desative também ui.useTerminalBuffer para restaurar o histórico nativo do terminal.',
+  'Render tool calls on their own line with their raw arguments inline, instead of the type-based compact summary that folds read/search/list batches into "Read 3 files". Useful when debugging MCP integrations or tool schemas. Applies wherever the arguments are available: live, resumed, agent-view and speculated turns. The row is capped at 2 wrapped lines (and never more than 1000 characters) and truncated with a `+N chars` marker; press Ctrl+O for the complete payload. Groups of running parallel subagents keep their compact roster, and daemon-attached sessions carry no arguments, so both keep the compact view — press Ctrl+O there. Does not change result-output truncation.':
+    'Exibe chamadas de ferramentas em linhas próprias com os argumentos originais, em vez do resumo compacto que agrupa leitura, busca e listagem, como "Ler 3 arquivos". Útil para depurar integrações MCP e esquemas de ferramentas. Aplica-se onde os argumentos estão disponíveis: sessões em andamento, retomadas, visualizações de agentes e respostas antecipadas. A linha é limitada a duas linhas visuais e a 1000 caracteres, com o marcador `+N chars` para conteúdo truncado; pressione Ctrl+O para ver o conteúdo completo. Grupos de subagentes paralelos mantêm a lista compacta, e sessões conectadas ao daemon não transportam argumentos, por isso também mantêm a visualização compacta; use Ctrl+O nesses casos. Não altera o truncamento dos resultados.',
+  'Shell Output Max Lines': 'Máximo de linhas da saída do shell',
+  'Max number of shell output lines shown inline. Set to 0 to disable the cap and show full output. The hidden line count is still surfaced via the `+N lines` indicator.':
+    'Número máximo de linhas de saída do shell exibidas junto à chamada. Use 0 para mostrar a saída completa, sem limite. O indicador `+N lines` continua mostrando a quantidade de linhas ocultas.',
+  'Model used for generating prompt suggestions and speculative execution. Leave empty to use the main model. A smaller/faster model (e.g., qwen3-coder-flash) reduces latency and cost.':
+    'Modelo usado para gerar sugestões de prompt e execução antecipada. Deixe vazio para usar o modelo principal. Um modelo menor e mais rápido, como qwen3-coder-flash, reduz a latência e o custo.',
+  'Advisor Model': 'Modelo consultor',
+  'Model used by /advisor for second-opinion reviews of the conversation. Leave empty to use the main model. A model at least as capable as the main model is recommended. Setting this sends the recent conversation transcript to that model, even when it uses another provider.':
+    'Modelo usado por /advisor para obter uma segunda opinião sobre a conversa. Deixe vazio para usar o modelo principal. Recomenda-se um modelo pelo menos tão capaz quanto o principal. Esta configuração envia o histórico recente da conversa a esse modelo, mesmo que use outro provedor.',
+  'Image-capable model used as the vision bridge: when a text-only main model receives an image, it is transcribed by this model first. Set with /model --vision. Leave empty to auto-pick a same-provider vision model.':
+    'Modelo capaz de processar imagens usado como ponte de visão: quando o modelo principal aceita apenas texto e recebe uma imagem, este modelo a transcreve primeiro. Defina com /model --vision. Deixe vazio para escolher automaticamente um modelo de visão do mesmo provedor.',
+  'Model Fallbacks': 'Modelos alternativos',
+  'Ordered list of fallback model IDs (comma-separated, max 3) to try when the primary model hits capacity errors (429/503/529). Example: "qwen-plus,qwen-turbo". Set via CLI with --fallback-model.':
+    'Lista ordenada de modelos alternativos, separados por vírgulas e limitados a 3, usados quando o modelo principal retorna erros de capacidade 429/503/529. Exemplo: "qwen-plus,qwen-turbo". Defina no CLI com --fallback-model.',
+  'How hard reasoning-capable models think, applied across all providers. Set with /effort. Each provider maps and clamps this to what the active model supports (e.g. Gemini caps at "high"; Anthropic clamps tiers a model lacks). Leave unset to use the model/provider default.':
+    'Nível de esforço dos modelos com raciocínio, aplicado a todos os provedores. Defina com /effort. Cada provedor adapta e limita o valor ao que o modelo ativo suporta; por exemplo, Gemini limita a "high" e Anthropic ajusta níveis indisponíveis. Deixe sem definir para usar o padrão do modelo ou provedor.',
+  'Extra High': 'Muito alto',
+  Max: 'Máximo',
+  'Enable Fuzzy Search': 'Ativar busca aproximada',
+  'Enable fuzzy search when searching for files.':
+    'Ativa a busca aproximada por nomes de arquivos.',
+  'Enable WebSearch': 'Ativar busca na web',
+  'Set false to disable the built-in web_search tool. Automatic startup activation requires leaving enabled, model, and the env-only backend unset. Setting true permits automatic derivation only when the env-only backend is also unset; otherwise a model is required. Env override: ENABLE_WEB_SEARCH.':
+    'Defina false para desativar a ferramenta integrada web_search. A ativação automática ao iniciar requer que enabled, model e o backend definido por variável de ambiente estejam sem configuração. Definir true permite a derivação automática apenas se esse backend também não estiver configurado; caso contrário, é necessário um modelo. Variável de ambiente: ENABLE_WEB_SEARCH.',
+  'Search Model': 'Modelo de busca',
+  'Model selector for the explicit search path ("modelId" or "authType:modelId"). With WEB_SEARCH_BASE_URL it is the plain model id for that endpoint; otherwise it must match a DashScope-compatible modelProviders entry with an envKey. The automatic path uses qwen3.8-flash. Env override: WEB_SEARCH_MODEL.':
+    'Seletor do modelo para a busca explícita, no formato "modelId" ou "authType:modelId". Com WEB_SEARCH_BASE_URL, use o identificador simples do modelo nesse endpoint; caso contrário, ele deve corresponder a uma entrada de modelProviders compatível com DashScope e com envKey. A seleção automática usa qwen3.8-flash. Variável de ambiente: WEB_SEARCH_MODEL.',
+  'Open Result Pages': 'Abrir páginas dos resultados',
+  'Let the search agent open and read result pages (DashScope web_extractor) for better-grounded answers. Billed separately by DashScope. Env override: WEB_SEARCH_EXTRACTOR.':
+    'Permite que o agente de busca abra e leia as páginas dos resultados com DashScope web_extractor para fundamentar melhor as respostas. Cobrado separadamente pelo DashScope. Variável de ambiente: WEB_SEARCH_EXTRACTOR.',
+  'Search Timeout (ms)': 'Tempo limite de busca (ms)',
+  'Total time budget for one web_search call, in milliseconds (default 120000, max 600000; other values fall back to the default). The search agent runs several queries and may open result pages; a search that exceeds the budget returns whatever arrived as a partial result once at least one search call has completed — if the budget expires before the first search call finishes, the tool reports a timeout error instead, because narration with no executed search is not auditable evidence. A per-tool execution cap (O1CODE_TOOL_EXECUTION_TIMEOUT_MS) below this budget fires first and discards the partial result; keep it above timeoutMs. Env override: WEB_SEARCH_TIMEOUT_MS.':
+    'Tempo total para uma chamada de web_search, em milissegundos: padrão de 120000 e máximo de 600000; outros valores usam o padrão. O agente faz várias consultas e pode abrir páginas. Se o prazo expirar após pelo menos uma busca concluída, retorna o que recebeu como resultado parcial. Se expirar antes da primeira busca terminar, retorna erro de tempo limite, pois uma narração sem busca executada não fornece evidência auditável. Um limite O1CODE_TOOL_EXECUTION_TIMEOUT_MS menor encerra a ferramenta primeiro e descarta o resultado parcial; mantenha-o acima de timeoutMs. Variável de ambiente: WEB_SEARCH_TIMEOUT_MS.',
+  'Max Searches per Session': 'Máximo de buscas por sessão',
+  'Maximum web_search calls in one session (default 200, max 10000; other values fall back to the default). The count is shared with subagents and resets when the session changes (/clear, /resume, branching). Once it is reached, further searches are skipped and the model is told to continue with what it has gathered. Env override: WEB_SEARCH_MAX_PER_SESSION.':
+    'Máximo de chamadas de web_search por sessão: padrão de 200 e máximo de 10000; outros valores usam o padrão. O contador é compartilhado com subagentes e reinicia quando a sessão muda por /clear, /resume ou ramificação. Ao atingir o limite, as próximas buscas são ignoradas e o modelo deve continuar com o material já coletado. Variável de ambiente: WEB_SEARCH_MAX_PER_SESSION.',
+  'Enable ToolSearch': 'Ativar busca de ferramentas',
+  "When enabled, deferred tools are reviewed via ToolSearch and invoked through the stable ToolCall bridge. Bridge review and invocation keep the tool list stable — the bridge never re-declares what it reveals — reducing prompt size without touching the prompt-cache prefix. The declaration list is not immutable, though: a session still re-declares on resume, whenever a tool-set refresh (MCP discovery, the first plan-mode entry in a session, a subagent definition change) finds a direct call to a still-hidden deferred tool in the live history, when a subagent definition change rewrites the agent tool's own description, and when an MCP server registers mid-session with alwaysLoadTools: true.":
+    'Quando ativado, ferramentas carregadas sob demanda são examinadas por ToolSearch e chamadas pela ponte estável ToolCall. A consulta e a chamada mantêm a lista estável: a ponte não declara novamente as ferramentas que revela, reduzindo o prompt sem alterar o prefixo do cache. A lista de declarações ainda pode mudar ao retomar a sessão ou atualizar ferramentas, por descoberta de MCP, primeira entrada no modo de planejamento ou alteração de subagentes, se houver no histórico uma chamada direta a uma ferramenta ainda oculta. Também muda quando a definição de um subagente altera a descrição da ferramenta de agente ou quando um servidor MCP é registrado com alwaysLoadTools: true durante a sessão.',
+  'Deferred Tool Preload Threshold (%)':
+    'Limite de pré-carregamento de ferramentas (%)',
+  'Context-window percentage used as the session-start budget for preloading ordinary deferred tools (bundled built-ins and MCP alike). Defaults to 0, which performs no threshold-based preload; ordinary deferred tools normally stay behind the stable ToolSearch + ToolCall bridge, at the cost of one tool_search round trip before first use. Raise it to N so that, when every eligible deferred schema fits within N% of the context window, all are declared upfront for direct calls with no bridge round trip; otherwise they stay behind the bridge while both bridge tools are registered. Tools demoted by tools.eager are excluded from this preload and stay reachable on demand through that bridge while it is registered; when either bridge tool is unregistered (tools.toolSearch.enabled false denies both; a tool_search or tool_call deny rule removes one) the demoted tools that remain hidden are not offered to the model and cannot be reached through the bridge for that session, and a warning is logged; these bridge and warning rules apply to direct tool mode. CodeModeOnly hides both bridge tools, keeps full nested schemas for callable deferred tools in exec, and skips deferred reminders and this warning; tools.eager does not make them unreachable or save their schema tokens. In direct mode they stay registered, so a direct call by their own name is still evaluated and approved normally. Separate paths can still declare deferred tools at 0: tools.visible; the live-history compatibility scan on every tool-set refresh (including resume, MCP discovery, first plan-mode entry, and subagent definition changes); the incomplete-bridge eager fallback; and daemon ACP late registration, which explicitly reveals and pins create_sub_session.':
+    'Percentual da janela de contexto reservado, no início da sessão, ao pré-carregamento de ferramentas comuns sob demanda, tanto integradas quanto MCP. O padrão 0 não pré-carrega por percentual; essas ferramentas ficam atrás da ponte estável ToolSearch + ToolCall, com uma consulta tool_search antes do primeiro uso. Use N para declarar todas antecipadamente quando seus esquemas couberem em N% do contexto, permitindo chamadas diretas; caso contrário, permanecem atrás da ponte enquanto ambas as ferramentas da ponte estão registradas. Ferramentas rebaixadas por tools.eager não entram no pré-carregamento e continuam acessíveis pela ponte. Se uma das ferramentas da ponte for removida, por tools.toolSearch.enabled false ou uma regra de negação de tool_search/tool_call, as ferramentas rebaixadas que continuarem ocultas ficam inacessíveis ao modelo nessa sessão e um aviso é registrado. Essas regras e avisos valem para o modo de ferramentas diretas. CodeModeOnly oculta as duas ferramentas da ponte, mantém os esquemas completos das ferramentas sob demanda chamáveis por exec e omite lembretes e esse aviso; tools.eager não as torna inacessíveis nem economiza seus tokens de esquema. No modo direto, permanecem registradas e chamadas pelo nome seguem avaliação e aprovação normais. Mesmo com 0, outros caminhos podem declarar ferramentas: tools.visible; a verificação de compatibilidade do histórico em cada atualização, incluindo retomada, descoberta de MCP e mudanças de subagentes; a alternativa de carregamento imediato quando a ponte está incompleta; e o registro tardio ACP no daemon, que revela e fixa create_sub_session.',
+  'Enable ListDirectory': 'Ativar listagem de diretórios',
+  'Enable the built-in list_directory tool. Disabled by default; it is also re-enabled automatically when explicitly listed in the coreTools allowlist (--core-tools / tools.core).':
+    'Ativa a ferramenta integrada list_directory. Desativada por padrão; também é ativada automaticamente quando incluída explicitamente na lista coreTools, por --core-tools ou tools.core.',
+  'Enable Todo Write': 'Ativar lista de tarefas',
+  'Enable the built-in todo_write tool and its system-prompt guidance.':
+    'Ativa a ferramenta integrada todo_write e suas instruções no prompt do sistema.',
+  'Dynamic Workflows': 'Workflows dinâmicos',
+  'Enable the Workflow tool, which lets the model author and run a script that orchestrates subagents in parallel. Off by default; a run can dispatch many subagents and spend tokens accordingly. The O1CODE_ENABLE_WORKFLOWS=1 and O1CODE_DISABLE_WORKFLOWS=1 environment variables override this setting (disable wins). Unrelated to the Session Workflow plan-and-review view; to stop the "workflow" keyword from steering a turn, see Disable Workflow Keyword Trigger.':
+    'Ativa a ferramenta Workflow, que permite ao modelo criar e executar scripts para coordenar subagentes em paralelo. Desativada por padrão; uma execução pode acionar muitos subagentes e consumir tokens. O1CODE_ENABLE_WORKFLOWS=1 e O1CODE_DISABLE_WORKFLOWS=1 substituem esta configuração, com prioridade para a desativação. Não se refere à tela de planejamento e revisão de workflow da sessão. Para impedir a orientação pela palavra "workflow", consulte Desativar acionamento pela palavra workflow.',
+  'Dynamic Workflow Size': 'Tamanho dos workflows dinâmicos',
+  'Advisory size guideline for the dynamic workflows the model writes: "small" aims for fewer than 5 agents, "medium" (the default) fewer than 15, "large" fewer than 50, and "unrestricted" sends no guideline. It is a guideline, not an enforced limit. It also sets the agent count at which a running workflow is flagged as large (O1CODE_WORKFLOW_SIZE_WARNING_AGENTS overrides that threshold). A change takes effect from your next message.':
+    'Orientação de tamanho para os workflows dinâmicos criados pelo modelo: "small" sugere menos de 5 agentes, "medium" é o padrão e sugere menos de 15, "large" menos de 50 e "unrestricted" não envia orientação. É uma recomendação, não um limite obrigatório. Também define a quantidade de agentes a partir da qual um workflow em execução é sinalizado como grande; O1CODE_WORKFLOW_SIZE_WARNING_AGENTS substitui esse valor. A mudança vale a partir da sua próxima mensagem.',
+  'Small (under 5 agents)': 'Pequeno (menos de 5 agentes)',
+  'Medium (under 15 agents)': 'Médio (menos de 15 agentes)',
+  'Large (under 50 agents)': 'Grande (menos de 50 agentes)',
+  'Unrestricted (no guideline)': 'Sem restrição (sem orientação)',
+  'Named Workflows Only': 'Apenas workflows nomeados',
+  'Restrict the model to running named workflows: saved workflows and the workflows extensions ship, called by name. The model cannot run an inline script or a script path, and a running script cannot nest one by path, so every run the model starts can be matched by a Workflow(name:...) permission rule. It does not replace an approval policy: the model can still save a new workflow file and run it by name, which an approval rule scoped to specific names or script digests will ask about. Runs a host starts over ACP (run-saved, run-script, retry, rerun) are not restricted. O1CODE_WORKFLOW_NAME_ONLY=1 turns it on too. A workspace may set this to true only.':
+    'Restringe o modelo à execução de workflows pelo nome: workflows salvos e fornecidos por extensões. O modelo não pode executar scripts inseridos diretamente ou por caminho, e um script em execução não pode chamar outro pelo caminho. Assim, cada execução iniciada pelo modelo pode ser associada a uma regra de permissão Workflow(name:...). Isso não substitui a política de aprovação: o modelo ainda pode salvar um novo workflow e executá-lo pelo nome; regras restritas a nomes ou hashes específicos exigirão aprovação. Execuções iniciadas por um host via ACP, como run-saved, run-script, retry e rerun, não são restringidas. O1CODE_WORKFLOW_NAME_ONLY=1 também ativa esta opção. O escopo Workspace só pode defini-la como true.',
+  'Permission Mediation Policy': 'Política de decisão de permissões',
+  'How permission requests resolve when multiple clients are attached. `first-responder` (default) = any client decides, first wins. `designated` = only the prompt originator decides; falls back to first-responder if originator is anonymous. NOTE: client identity comes from self-declared X-O1Code-Client-Id with no proof-of-possession (pair-token identity is not implemented yet), so any client observing originatorClientId on SSE frames can register with the same id and impersonate the originator. `consensus` = N-of-M voters must agree. Default N=floor(M/2)+1, which means UNANIMITY for M=2 (quorum=2, both must agree) and supermajority for larger even M (M=4 → quorum=3; M=6 → quorum=4). For M=2 specifically, split votes resolve only via the configured permission timeout, voter cancellation, or session cancellation. `local-only` = only loopback clients can RESOLVE; remote clients can still ABORT a pending permission via the cancel sentinel ({outcome:"cancelled"}) — cancel stays cross-policy for consistency. Strict-cancel-too deployments need a dedicated loopback-bound daemon. Requires daemon restart — read once at boot.':
+    'Define como pedidos de permissão são resolvidos com vários clientes conectados. `first-responder`, padrão: qualquer cliente decide e a primeira resposta vence. `designated`: apenas o autor do prompt decide; se ele for anônimo, usa first-responder. A identidade do cliente é informada pelo próprio cliente em X-O1Code-Client-Id, sem prova de posse, pois a identidade por token de pareamento ainda não foi implementada. Assim, um cliente que observe originatorClientId nos eventos SSE pode registrar o mesmo identificador e se passar pelo autor. `consensus`: exige concordância de N entre M votantes, com N=floor(M/2)+1; isso exige unanimidade com 2 clientes e maioria qualificada para números pares maiores, como 3 de 4 ou 4 de 6. Com 2 clientes, votos divididos só se resolvem pelo tempo limite configurado, cancelamento de um votante ou cancelamento da sessão. `local-only`: apenas clientes locais por loopback podem DECIDIR; clientes remotos ainda podem CANCELAR um pedido com {outcome:"cancelled"}, mantendo o cancelamento consistente entre políticas. Para restringir também o cancelamento, use um daemon dedicado vinculado apenas a loopback. Requer reiniciar o daemon; o valor é lido ao iniciar.',
+  'First Responder': 'Primeiro a responder',
+  'Designated Originator': 'Autor designado',
+  'Consensus Quorum': 'Quórum de consenso',
+  'Local Only': 'Apenas local',
+  'Model-Proposed Goals': 'Objetivos propostos pelo modelo',
+  'Controls the propose_goal tool, which lets the model propose a session Goal for you to approve. "alwaysAsk" (default) shows every proposal in an approval dialog and nothing is set until you accept it; "disabled" removes the tool. A typed /goal is unaffected. Consent-affecting, so this setting is only honored from User, System, or SystemDefaults scope; workspace values are ignored.':
+    'Controla a ferramenta propose_goal, que permite ao modelo propor um objetivo da sessão para sua aprovação. "alwaysAsk", padrão, exibe cada proposta em uma janela de aprovação e nada é definido até você aceitar; "disabled" remove a ferramenta. O comando /goal digitado pelo usuário não é afetado. Como afeta o consentimento, aceita apenas User, System e SystemDefaults; valores em Workspace são ignorados.',
+  'Always ask': 'Sempre perguntar',
+  'Preserve Arena Artifacts': 'Preservar arquivos da Arena',
+  'When enabled, Arena worktrees and session state files are preserved after the session ends or the main agent exits.':
+    'Quando ativado, preserva os worktrees e os arquivos de estado da Arena após o fim da sessão ou a saída do agente principal.',
+  'Session Workflow Plan & Review':
+    'Workflow da sessão: planejamento e revisão',
+  'Enable the daemon Web Shell Session Workflow DAG and present Plan mode as Plan & Review. Disabled by default; Workflow markers, approval gates, and visualization stay off until enabled. Todo updates preserve omitted active dependencies in every mode.':
+    'Ativa o grafo de workflow de sessão da Web Shell do daemon e apresenta o modo de planejamento como Planejar e revisar. Desativado por padrão; marcadores de workflow, etapas de aprovação e visualizações ficam inativos até a ativação. Atualizações da lista de tarefas preservam dependências ativas omitidas em todos os modos.',
+  'Enable Cron/Loop Tools': 'Ativar ferramentas de agendamento e repetição',
+  'Enable in-session cron/loop tools. When enabled, the model can create recurring prompts using cron_create, cron_list, and cron_delete tools. Can be disabled via O1CODE_DISABLE_CRON=1 environment variable.':
+    'Ativa as ferramentas cron/loop na sessão. O modelo pode criar prompts recorrentes com cron_create, cron_list e cron_delete. Pode ser desativado por O1CODE_DISABLE_CRON=1.',
+  'Enable ACP Session Writer Lease':
+    'Ativar exclusividade de escrita da sessão ACP',
+  'Enable cross-process write fencing for persisted ACP and daemon sessions. The effective value is frozen when the ACP or daemon process starts. Every concurrent ACP or daemon writer must enable the setting; interactive and headless writers remain outside the protocol.':
+    'Ativa a proteção contra escritas concorrentes entre processos nas sessões persistidas de ACP e do daemon. O valor efetivo é fixado ao iniciar o processo ACP ou daemon. Todos os processos ACP ou daemon que escrevem simultaneamente devem ativar esta opção. Sessões interativas e sem interface permanecem fora desse protocolo.',
+  'Enable Agent Team': 'Ativar equipes de agentes',
+  'Enable agent team collaboration tools (experimental). When enabled, the model can create agent teams and coordinate work using team_create, team_delete, send_message, task_create, task_update, and task_list tools. Can also be enabled via O1CODE_ENABLE_AGENT_TEAM=1 environment variable.':
+    'Ativa as ferramentas experimentais de colaboração entre agentes. O modelo pode criar equipes e coordenar o trabalho com team_create, team_delete, send_message, task_create, task_update e task_list. Também pode ser ativado por O1CODE_ENABLE_AGENT_TEAM=1.',
+  'Enable Artifacts': 'Ativar artefatos',
+  'Enable artifact tools. Enabled by default. In interactive, non-SDK sessions, the model can publish a self-contained HTML page as an interactive Artifact and open it in the browser. Non-SDK daemon sessions can use the metadata-only record_artifact tool. Set this to false or use O1CODE_DISABLE_ARTIFACT=1 to disable both.':
+    'Ativa as ferramentas de artefatos. Ativado por padrão. Em sessões interativas fora do SDK, o modelo pode publicar uma página HTML independente como artefato interativo e abri-la no navegador. Sessões do daemon fora do SDK podem usar record_artifact para registrar apenas os metadados. Use false ou O1CODE_DISABLE_ARTIFACT=1 para desativar ambos.',
+  'Tool Use Summaries': 'Resumos do uso de ferramentas',
+  'Generate a short LLM-based label after each tool batch completes. For a completed tool group the label replaces the generic `Tool × N` header; when the group is force-expanded it appears as a dim `● <label>` line below the tool group. Requires a fast model to be configured; runs in parallel with the next API call so latency is hidden. Currently affects interactive CLI rendering only — SDK / non-interactive emission of the `tool_use_summary` message is not yet wired (the message factory is exported for a follow-up PR). Can be overridden with O1CODE_EMIT_TOOL_USE_SUMMARIES=0 or =1.':
+    'Gera um rótulo curto pelo modelo após cada lote de ferramentas terminar. Em um grupo concluído, substitui o cabeçalho genérico `Tool × N`; quando o grupo está expandido à força, aparece como uma linha discreta `● <label>` abaixo dele. Requer um modelo rápido configurado e executa em paralelo com a próxima chamada à API para evitar latência adicional. Atualmente afeta apenas o CLI interativo; a emissão de `tool_use_summary` pelo SDK e em modo não interativo ainda não está conectada, embora a criação da mensagem esteja exportada para implementação futura. O1CODE_EMIT_TOOL_USE_SUMMARIES=0 ou =1 substitui esta configuração.',
+  'Enable Omni Media Delivery': 'Ativar envio de mídia Omni',
+  'Enable the omni media pipeline. Media files (video, image, audio) referenced with @ — and media served from @https:// URLs — are recognized (ffprobe), stored content-addressed under .o1-code/omni/objects/, uploaded through the DashScope temporary upload channel, and delivered as oss:// URLs instead of inline base64. Only active for DashScope-compatible endpoints. Can also be enabled via O1CODE_ENABLE_OMNI=1.':
+    'Ativa o processamento de mídia Omni. Arquivos de vídeo, imagem e áudio referenciados com @, incluindo mídia de URLs @https://, são reconhecidos por ffprobe, armazenados pelo conteúdo em .o1-code/omni/objects/, enviados pelo canal de upload temporário do DashScope e entregues como URLs oss:// em vez de base64 na mensagem. Ativo apenas em endpoints compatíveis com DashScope. Também pode ser ativado por O1CODE_ENABLE_OMNI=1.',
+  Stats: 'Estatísticas',
+  'Search settings…': 'Pesquisar configurações…',
+  '(↑ to switch tabs)': '(↑ para alternar abas)',
+  '(←/→ to switch, ↓ to return)': '(←/→ para alternar, ↓ para voltar)',
+  'No settings match your search.': 'Nenhuma configuração corresponde à busca.',
+  true: 'Ativado',
+  false: 'Desativado',
+  '(Also modified in {{scopes}})': '(Também alterado em {{scopes}})',
+  '(Modified in {{scopes}})': '(Alterado em {{scopes}})',
+  'Sessions and conversation': 'Sessões e conversa',
+  'Resume, history, export': 'Retomar, histórico, exportação',
+  'Model and execution': 'Modelo e execução',
+  'Models, reasoning and modes': 'Modelos, raciocínio e modos',
+  'Project and context': 'Projeto e contexto',
+  'Files, memory, compression': 'Arquivos, memória, compactação',
+  'Agents and tasks': 'Agentes e tarefas',
+  'Background work and goals': 'Trabalho em segundo plano e objetivos',
+  'Plugins and integrations': 'Plugins e integrações',
+  'Stores, skills, MCP and hooks': 'Lojas, skills, MCP e hooks',
+  'Appearance, language, permissions': 'Aparência, idioma, permissões',
+  'Help and diagnostics': 'Ajuda e diagnóstico',
+  'Status, usage and updates': 'Status, uso e atualizações',
+  'Recent commands': 'Comandos recentes',
+  'Commands used in this session': 'Comandos usados nesta sessão',
+  'No commands available in this category.':
+    'Nenhum comando disponível nesta categoria.',
+  'Type to search commands · ↑↓ navigate · enter open · esc close':
+    'Digite para buscar comandos · ↑↓ navegar · enter abrir · esc fechar',
+  'Resume a session': 'Retomar uma sessão',
+  'New session': 'Nova sessão',
+  'Rename session': 'Renomear sessão',
+  'Branch this session': 'Ramificar esta sessão',
+  'Rewind conversation': 'Recuar conversa',
+  'Restore checkpoint': 'Restaurar ponto salvo',
+  'Delete session': 'Excluir sessão',
+  'Conversation history': 'Histórico da conversa',
+  'Export conversation': 'Exportar conversa',
+  'Copy last response': 'Copiar última resposta',
+  'Session recap': 'Recapitulação da sessão',
+  'Side question': 'Pergunta paralela',
+  'Choose a model': 'Escolher um modelo',
+  'Reasoning effort': 'Esforço de raciocínio',
+  'Plan mode': 'Modo de planejamento',
+  'Output style': 'Estilo de resposta',
+  'Voice input': 'Entrada por voz',
+  'Advisor model': 'Modelo consultor',
+  'Model arena': 'Arena de modelos',
+  'Change project directory': 'Mudar diretório do projeto',
+  'Workspace directories': 'Diretórios do workspace',
+  'Initialize project instructions': 'Inicializar instruções do projeto',
+  'Project changes': 'Alterações do projeto',
+  'Context usage': 'Uso do contexto',
+  'Compress context': 'Compactar contexto',
+  'Fast compression': 'Compactação rápida',
+  'Conversation summary': 'Resumo da conversa',
+  'Project memory': 'Memória do projeto',
+  'Remember information': 'Guardar informação',
+  'Forget information': 'Esquecer informação',
+  'Consolidate memory': 'Consolidar memória',
+  'Learn from this session': 'Aprender com esta sessão',
+  'Memory curator': 'Curadoria da memória',
+  'Manage agents': 'Gerenciar agentes',
+  'Background agent': 'Agente em segundo plano',
+  'Session goal': 'Objetivo da sessão',
+  'Saved workflows': 'Fluxos salvos',
+  'Peer sessions': 'Sessões conectadas',
+  'Manage plugins': 'Gerenciar plugins',
+  'Reload plugins': 'Recarregar plugins',
+  'Manage skills': 'Gerenciar skills',
+  'Manage hooks': 'Gerenciar hooks',
+  'Language servers': 'Servidores de linguagem',
+  'Editor connection': 'Conexão com o editor',
+  'Import configuration': 'Importar configuração',
+  'Available tools': 'Ferramentas disponíveis',
+  'Application settings': 'Configurações do aplicativo',
+  'Appearance theme': 'Tema visual',
+  'Interface language': 'Idioma da interface',
+  'Choose editor': 'Escolher editor',
+  'Vim input mode': 'Modo Vim no input',
+  'Terminal setup': 'Configurar terminal',
+  'Status line': 'Linha de status',
+  'Tool permissions': 'Permissões das ferramentas',
+  'Project trust': 'Confiança no projeto',
+  'Command help': 'Ajuda dos comandos',
+  'About application': 'Sobre o aplicativo',
+  'Application status': 'Status do aplicativo',
+  'Usage statistics': 'Estatísticas de uso',
+  'Project insights': 'Análise do projeto',
+  Diagnostics: 'Diagnósticos',
+  'Report a problem': 'Relatar um problema',
+  'Update application': 'Atualizar aplicativo',
+  'Exit application': 'Sair do aplicativo',
   'Pasting text… {{size}} KB': 'Colando texto… {{size}} KB',
   'Reading image…': 'Lendo imagem…',
   'Preparing attachment…': 'Preparando anexo…',
@@ -2412,11 +2786,11 @@ export default {
   'Last 30 days': 'Últimos 30 dias',
   'Show usage statistics dashboard.': 'Exibir painel de estatísticas de uso.',
 
-  // Stats Dashboard — keyboard hints (not translated)
-  'tab \xB7 esc': 'tab \xB7 esc',
+  // Stats Dashboard — keyboard hints
+  'tab \xB7 esc': 'Tab · Esc',
   'tab \xB7 r dates \xB7 \u2190\u2192 month \xB7 esc':
-    'tab \xB7 r dates \xB7 \u2190\u2192 month \xB7 esc',
-  'tab \xB7 r dates \xB7 esc': 'tab \xB7 r dates \xB7 esc',
+    'Tab · r datas · ←→ mês · Esc',
+  'tab \xB7 r dates \xB7 esc': 'Tab · r datas · Esc',
 
   // Stats Dashboard — missing labels
   'API Requests': 'Requisições API',

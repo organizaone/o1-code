@@ -15,13 +15,40 @@
 
 ## Session exit summary
 
-By default, quitting shows the session statistics until you press a key. Press
-Space or click the checkbox to toggle **Do not show again**; any other key exits.
-Checking the box saves `ui.showSessionSummary: false` in your user settings when
-you exit. Pasted text does not dismiss the summary.
+The summary shows the active connection type: its API protocol, the provider when
+recognized, and whether it uses a local server or an OrganizaOne connection code.
+It also identifies authentication by API key, OrganizaOne account login in the
+browser, o1-gateway/o1-connect, or Vertex AI application default credentials.
+Account login is shown only when the saved sign-in credential matches the active
+key. Keys, device names, and endpoint credentials are never included.
 
-To restore the summary, enable **Show Session Summary** in `/settings` or set
-`ui.showSessionSummary` to `true`. When disabled, quitting exits immediately.
+By default, quitting shows the session statistics for five seconds. Press any
+key other than Esc or Ctrl+C to stop the countdown and keep the summary visible
+for this exit. Enter then confirms and exits; when Enter is the first key,
+press it again to confirm.
+Pasted text does not interrupt the countdown.
+
+Esc or Ctrl+C exits immediately, including during the countdown, without saving
+pending choices. Enter confirms and saves preference changes.
+
+Use Up/Down or Tab to select **Always keep the exit summary open** or **Do not
+show again**, and Space or a mouse click to toggle the choice. The choices are
+mutually exclusive and take effect only after Enter confirms. Preferences are
+saved together in User settings. A failed save keeps the summary open; Enter
+then exits without saving.
+
+The following controls are available in `/config` and `/settings`:
+
+| Control                           | Setting                           | Default |
+| --------------------------------- | --------------------------------- | ------- |
+| Show Session Summary              | `ui.showSessionSummary`           | `true`  |
+| Keep Session Summary Open         | `ui.keepSessionSummaryOpen`       | `false` |
+| Session Summary Timeout (seconds) | `ui.sessionSummaryTimeoutSeconds` | `5`     |
+
+Enable **Show Session Summary** to restore a previously hidden summary. When it
+is disabled, quitting exits immediately. Enable **Keep Session Summary Open**
+to wait for confirmation on every exit; otherwise the positive timeout controls
+automatic closing.
 
 ## Configuration layers
 

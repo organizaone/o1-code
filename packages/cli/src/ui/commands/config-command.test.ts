@@ -433,16 +433,27 @@ describe('configCommand', () => {
       });
     });
 
-    it('lists all settings when no args provided', async () => {
+    it('opens the settings editor when no args are provided interactively', async () => {
       const { ctx } = createMockContext({});
       const result = await configCommand.action!(ctx, '');
 
-      expect(result).toEqual({
-        type: 'message',
-        messageType: 'info',
-        content: expect.stringContaining('Available settings'),
-      });
+      expect(result).toEqual({ type: 'dialog', dialog: 'settings' });
     });
+
+    it.each(['non_interactive', 'acp'] as const)(
+      'lists settings without opening a dialog in %s mode',
+      async (executionMode) => {
+        const { ctx } = createMockContext({});
+        ctx.executionMode = executionMode;
+        const result = await configCommand.action!(ctx, '');
+
+        expect(result).toEqual({
+          type: 'message',
+          messageType: 'info',
+          content: expect.stringContaining('Available settings'),
+        });
+      },
+    );
 
     it('masks sensitive values in listing', async () => {
       const { ctx } = createMockContext({

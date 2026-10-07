@@ -67,6 +67,7 @@ async function askBtw(
 
 export const btwCommand: SlashCommand = {
   name: 'btw',
+  acceptsInput: true,
   get description() {
     return t(
       'Ask a quick side question without affecting the main conversation',

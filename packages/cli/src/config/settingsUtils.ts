@@ -626,6 +626,9 @@ export function getDisplayValue(
   }
 
   let valueString = value === undefined ? t('(not set)') : String(value);
+  if (typeof value === 'boolean') {
+    valueString = value ? t('true') : t('false');
+  }
 
   // Special handling for outputLanguage 'auto' value
   if (key === 'general.outputLanguage' && isAutoLanguage(value as string)) {

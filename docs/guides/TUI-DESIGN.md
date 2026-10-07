@@ -325,6 +325,15 @@ never leaves; it only shortens from the start.
   model and login lists): the selected item gets `❯` in brand and its text in bold primary; the rest
   are secondary with two spaces in place of the arrow. Numbers stay. The selected colour is
   **never** the frame's colour: on the amber approval box the highlight disappeared.
+- **Approval-mode selection** (`ApprovalModeDialog.tsx`, `shared/SelectionDialog.tsx`):
+  a content-sized panel below the conversation, at most 140 columns wide, with a neutral
+  `rule` border and a brand-coloured title. From 120 terminal columns, the highlighted
+  option's description appears beside the list; below that, it appears underneath.
+  The actual current mode keeps its green check while navigation changes the help.
+  Enter applies the highlighted mode; Tab opens the user/workspace scope list and
+  returns without losing the highlighted mode. The footer shows the selection position.
+  Short terminals scroll the options within the available height and reduce help and
+  secondary chrome; workspace-precedence warnings retain priority.
 - **Approval** (`messages/ToolConfirmationMessage.tsx`): box bordered in amber (`activity.execute`)
   with the diff, the question and the options — side by side from 100 columns, stacked below.
 - **Border colour says what the box is:** brand when it asks for a choice (model, connect provider),
@@ -338,8 +347,66 @@ never leaves; it only shortens from the start.
   as its nearest one.
 - **Effort** (`EffortDialog.tsx`): `default` first (the model/provider decides, and the saved tier
   is cleared), then the model's tiers; it opens on the current one.
+- **Slash categories** (`SlashCommandMenu.tsx`): bare `/` opens recent commands and
+  seven context groups: sessions, model/execution, project/context, agents/tasks,
+  plugins/integrations, settings, and help/diagnostics. Enter or Tab opens a group
+  in the content-sized selection panel, replacing the prompt. Esc returns to the
+  same group cursor; Esc again dismisses the menu. The root footer shows the
+  selected position out of eight, including when short terminals scroll the list.
+  Groups include only loaded,
+  visible, user-invocable interactive commands. Plugin, skill, custom, workflow,
+  and MCP commands stay in integrations, with their source metadata retained.
+  Recent commands reflect session usage and omit commands no longer available.
+  Categories have an inline filter matching canonical names, aliases, readable
+  labels, and descriptions, ignoring case and accents. Name and label matches
+  precede description-only matches. Letters and digits filter;
+  arrow keys navigate and mouse hover/click keeps the same selection behavior.
+  Commands with available subcommands open another panel with their canonical
+  path in the title; Esc restores the parent's filter and cursor. Hidden or
+  unavailable descendants never appear. A parent's own action remains a separate
+  selectable item alongside its subcommands. Selecting a nested leaf returns its full
+  path to the prompt when its input contract is unspecified, so arguments can be
+  supplied before execution; explicit no-input leaves keep immediate execution.
+  Typing a command name or arguments after `/` keeps direct autocomplete.
+  When direct autocomplete has no results, natural-language queries search the
+  same labels and descriptions across available commands and descendants.
+- **Settings** (`SettingsDialog.tsx`): interactive `/config` and `/settings` open
+  the same content-sized panel, using the terminal width with two-column outer
+  margins on each side.
+  The selected scope appears beside the search area and the footer shows the
+  selected position. At 120 columns and sufficient height, the selected setting's
+  canonical key and description appear on the right; narrower terminals keep
+  the description below the list. The help column takes its height from the
+  visible list and search area; long descriptions end with an ellipsis instead
+  of expanding the panel or hiding its footer. Values truncate within their column;
+  while editing, the visible text follows the cursor and marks hidden content
+  with an ellipsis.
+  Search, scope selection, edits, resets, and persistence retain their existing
+  behavior. `/config` arguments and non-interactive listing remain available.
+  The Portuguese locale covers every visible setting label, description, and
+  enum option, as well as tab hints, inherited-scope notices, and boolean display
+  values. Canonical keys, commands, persisted values, and modification markers
+  remain unchanged. `settings-translations.test.ts` guards this coverage.
 - **Slash/@ suggestions:** name in a 28-column column, detail in muted, footer
   `↑↓ navigate · tab complete · enter select · esc close`. Lists filter on every key.
+- **Question custom answers** (`messages/AskUserQuestionDialog.tsx`): the input
+  uses the available message width after padding, numbering, and the input
+  prefix. Up to three wrapped lines stay visible; longer answers show the
+  visible line range and arrows for hidden text. Enter submits the complete
+  answer once; wrapping and scrolling never discard its contents.
+- **Exit summary** (`QuittingDisplay.tsx`): default five-second countdown, with
+  a connection-type row in the statistics identifying the active API protocol,
+  recognized provider, and authentication by API key, browser account login,
+  o1-gateway/o1-connect, or application default credentials.
+  Esc and Ctrl+C exit immediately without saving pending preferences; their hint
+  remains visible during the countdown and when paused. Footer hints and errors
+  align with the checkbox column, with one blank line after the choices.
+  Other non-paste keys
+  pause it for the current exit. Keep-open and hide choices
+  are exclusive; arrows/Tab choose, Space or a click toggles, and Enter confirms
+  and saves both User preferences together before exiting. The first Enter
+  during the countdown only pauses it. Configuration exposes summary visibility,
+  permanent keep-open behavior, and a positive timeout in seconds.
 - **Connect provider** (`auth/AuthDialog.tsx`, `ProviderSetupSteps.tsx`): brand-bordered box, the path
   walked so far in muted, `step N of M` on the right (`step N` when the total is not known yet). The
   first screen has four two-line entries (OrganizaOne, API key, Local, Custom); the API key list is

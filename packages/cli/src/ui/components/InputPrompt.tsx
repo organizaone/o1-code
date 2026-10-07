@@ -79,6 +79,10 @@ import {
 import { panelDisplayOrder } from './background-view/agent-forest.js';
 import { FEEDBACK_DIALOG_KEYS } from '../FeedbackDialog.js';
 import { BaseTextInput } from './BaseTextInput.js';
+import { isSlashMenuQuery, SlashCommandMenu } from './SlashCommandMenu.js';
+import { CommandKind } from '../commands/types.js';
+import { getDialogMaxHeight } from '../utils/layoutUtils.js';
+import { getFixedHeaderHeight } from './Header.js';
 import type { RenderLineOptions } from './BaseTextInput.js';
 import { getApprovalModePromptStyle } from './approvalModeVisuals.js';
 import {
@@ -430,6 +434,9 @@ export const InputPrompt: React.FC<InputPromptProps> = ({
 
   const [reverseSearchActive, setReverseSearchActive] = useState(false);
   const [commandSearchActive, setCommandSearchActive] = useState(false);
+  const [slashMenuDismissed, setSlashMenuDismissed] = useState(false);
+  const [slashMenuPanelOpen, setSlashMenuPanelOpen] = useState(false);
+  const [slashMenuHeight, setSlashMenuHeight] = useState(0);
   const [textBeforeReverseSearch, setTextBeforeReverseSearch] = useState('');
   const [cursorPosition, setCursorPosition] = useState<[number, number]>([
     0, 0,
@@ -441,7 +448,6 @@ export const InputPrompt: React.FC<InputPromptProps> = ({
   const shellHistoryData = shellHistory.history;
   const isHistoryRestoredText =
     historyRestoredText !== null && buffer.text === historyRestoredText;
-
   const completion = useCommandCompletion(
     buffer,
     config.getTargetDir(),
@@ -453,6 +459,32 @@ export const InputPrompt: React.FC<InputPromptProps> = ({
     !isHistoryRestoredText,
     recentSlashCommands,
   );
+  const showSlashMenu =
+    isSlashMenuQuery(buffer.text, slashCommands) &&
+    (buffer.text === '/' ||
+      !completion.showSuggestions ||
+      completion.suggestions.length === 0) &&
+    !slashMenuDismissed &&
+    !isHistoryRestoredText &&
+    !shellModeActive &&
+    !reverseSearchActive &&
+    !commandSearchActive &&
+    !isAttachmentMode &&
+    !isEmbeddedShellFocused &&
+    focus &&
+    isShellFocused &&
+    !agentTabBarFocused &&
+    !bgDialogOpen &&
+    contextMenu === null &&
+    !uiState.isFeedbackDialogOpen &&
+    !hasActiveToolConfirmation;
+  useEffect(() => {
+    setSlashMenuDismissed(false);
+  }, [buffer.text]);
+  useEffect(() => {
+    if (!showSlashMenu) setSlashMenuPanelOpen(false);
+  }, [showSlashMenu]);
+
   const showCompletionSuggestions =
     completion.showSuggestions && !isHistoryRestoredText;
   const categoryTabsVisible =
@@ -1046,6 +1078,17 @@ export const InputPrompt: React.FC<InputPromptProps> = ({
       if (bgDialogOpen) {
         return true;
       }
+
+      if (
+        showSlashMenu &&
+        (key.name === 'up' ||
+          key.name === 'down' ||
+          key.name === 'return' ||
+          key.name === 'tab' ||
+          key.name === 'escape' ||
+          (key.ctrl && (key.name === 'p' || key.name === 'n')))
+      )
+        return true;
 
       // Handle feedback dialog keyboard interactions before global voice
       // handling so modal UI gets first chance to consume the key.
@@ -2106,6 +2149,7 @@ export const InputPrompt: React.FC<InputPromptProps> = ({
       exportCompletion,
       isHistoryRestoredText,
       showCompletionSuggestions,
+      showSlashMenu,
       categoryTabsVisible,
       voiceInput,
       targetDir,
@@ -2256,6 +2300,7 @@ export const InputPrompt: React.FC<InputPromptProps> = ({
           scrollOffset: activeCompletion.visibleStartIndex,
         };
   const shouldShowSuggestions =
+    showSlashMenu ||
     (shouldUseExportSuggestions && exportCompletion.shouldShowSuggestions) ||
     (!isHistoryRestoredText || commandSearchActive || reverseSearchActive
       ? activeCompletion.showSuggestions
@@ -2396,10 +2441,13 @@ export const InputPrompt: React.FC<InputPromptProps> = ({
   const setInputOverlayKey = uiActions.setInputOverlayKey;
   useEffect(() => {
     setInputOverlayKey?.(
-      `${inputOverlayKey}|attachments:${attachments.length}|preparation:${attachmentPreparation.state}|notice:${attachmentPreparation.notice ?? ''}|paste:${pasteProgress?.active ?? false}`,
+      `${inputOverlayKey}|slash-menu:${showSlashMenu}:${slashMenuPanelOpen}:${slashMenuHeight}|attachments:${attachments.length}|preparation:${attachmentPreparation.state}|notice:${attachmentPreparation.notice ?? ''}|paste:${pasteProgress?.active ?? false}`,
     );
   }, [
     inputOverlayKey,
+    showSlashMenu,
+    slashMenuPanelOpen,
+    slashMenuHeight,
     setInputOverlayKey,
     attachments.length,
     attachmentPreparation.state,
@@ -2531,29 +2579,72 @@ export const InputPrompt: React.FC<InputPromptProps> = ({
         interimText={voiceInput.interimText}
         audioLevel={voiceInput.audioLevel}
       />
-      <BaseTextInput
-        buffer={buffer}
-        selectableLinesRef={selectableLinesRef}
-        onSubmit={handleSubmitAndClear}
-        onKeypress={handleInput}
-        showCursor={showCursor}
-        placeholder={availableSuggestion ?? placeholder}
-        prefix={prefixNode}
-        borderColor={borderColor}
-        topRightLabel={
-          voiceStatusLabel ??
-          (inputHistory.historyPosition > 0
-            ? t('history {{position}}/{{total}}', {
-                position: String(inputHistory.historyPosition),
-                total: String(inputHistory.historyTotal),
-              })
-            : (uiState.sessionName ?? undefined))
-        }
-        isActive={!isEmbeddedShellFocused}
-        renderLine={renderLineWithHighlighting}
-        mouseEnabled={mouseInteractionsEnabled}
-      />
-      {shouldShowSuggestions && (
+      {!slashMenuPanelOpen && (
+        <BaseTextInput
+          buffer={buffer}
+          selectableLinesRef={selectableLinesRef}
+          onSubmit={handleSubmitAndClear}
+          onKeypress={handleInput}
+          showCursor={showCursor}
+          placeholder={availableSuggestion ?? placeholder}
+          prefix={prefixNode}
+          borderColor={borderColor}
+          topRightLabel={
+            voiceStatusLabel ??
+            (inputHistory.historyPosition > 0
+              ? t('history {{position}}/{{total}}', {
+                  position: String(inputHistory.historyPosition),
+                  total: String(inputHistory.historyTotal),
+                })
+              : (uiState.sessionName ?? undefined))
+          }
+          isActive={!isEmbeddedShellFocused}
+          renderLine={renderLineWithHighlighting}
+          mouseEnabled={mouseInteractionsEnabled}
+        />
+      )}
+      {showSlashMenu && (
+        <SlashCommandMenu
+          query={buffer.text.slice(1)}
+          commands={slashCommands}
+          recentCommands={recentSlashCommands}
+          availableTerminalHeight={getDialogMaxHeight(
+            uiState.terminalHeight ?? 24,
+            uiState.staticExtraHeight ?? 0,
+            uiState.useTerminalBuffer
+              ? getFixedHeaderHeight(uiState.terminalWidth ?? 80)
+              : 0,
+          )}
+          onPanelChange={setSlashMenuPanelOpen}
+          onHeightChange={setSlashMenuHeight}
+          onDismiss={() => {
+            setSlashMenuDismissed(true);
+            completion.dismissCompletion();
+          }}
+          onSelect={(
+            command,
+            path = command.name,
+            invokeBareAction = false,
+          ) => {
+            setSlashMenuPanelOpen(false);
+            if (invokeBareAction) {
+              handleSubmitAndClear(`/${path}`);
+            } else if (
+              command.subCommands?.length ||
+              command.acceptsInput === true ||
+              (path.includes(' ') &&
+                command.acceptsInput !== false &&
+                !command.submitOnAccept) ||
+              (command.kind !== CommandKind.BUILT_IN && !command.submitOnAccept)
+            ) {
+              buffer.setText(`/${path} `);
+            } else {
+              handleSubmitAndClear(`/${path}`);
+            }
+          }}
+        />
+      )}
+      {shouldShowSuggestions && !showSlashMenu && (
         <Box marginLeft={2} marginRight={2}>
           <SuggestionsDisplay
             suggestions={suggestionDisplayProps.suggestions}

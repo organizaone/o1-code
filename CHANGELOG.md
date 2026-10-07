@@ -7,11 +7,43 @@ follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Added
+
+- Bare `/` opens recent commands and seven context categories. Categories and
+  submenus support filtering, preserve their selection when returning, and keep
+  commands that require arguments ready for editing in the prompt.
+- The exit summary has configurable visibility, keep-open behavior, and timeout
+  controls in `/config` and `/settings`.
+
 ### Changed
 
 - The welcome screen distinguishes recent session names from their timestamps.
   Section headings use the brand color, and commands such as `/resume` use bold
   accent text so the option to continue an earlier session is easier to find.
+- Selection panels fit their contents and available terminal height, with help
+  beside the list on wide terminals and below it on narrower terminals.
+- Interactive `/config` opens the settings editor. The editor uses more of the
+  terminal width and includes Portuguese labels, descriptions, options, and hints.
+- The session exit summary closes after five seconds by default. Pressing a regular key
+  pauses the countdown; exclusive keep-open and hide choices are saved only after
+  confirmation.
+- The exit summary identifies the active connection's API protocol and recognized
+  provider, including local servers, authentication by API key or browser account
+  login, and the OrganizaOne connection-code tunnel.
+
+### Fixed
+
+- Exit-summary shortcuts align with the checkboxes and have a blank line after
+  the preferences, separating actions from their keyboard hints.
+
+- Esc and Ctrl+C close the exit summary immediately without saving pending
+  preferences; both shortcuts remain visible during the countdown and when paused.
+
+- Long settings descriptions no longer expand the panel or hide its footer.
+  Editing long values keeps the cursor and nearby text visible, and typing search
+  queries in a burst preserves spaces without changing a setting.
+- Custom answers to questions use the available width, retain up to three visible
+  lines, and show the visible line range when scrolling through longer text.
 
 ## [0.9.0] - 2026-10-06
 
