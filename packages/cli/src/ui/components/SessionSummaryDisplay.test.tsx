@@ -5,7 +5,7 @@
  */
 
 import { render } from 'ink-testing-library';
-import { describe, it, expect, vi } from 'vitest';
+import { beforeEach, describe, it, expect, vi } from 'vitest';
 import { SessionSummaryDisplay } from './SessionSummaryDisplay.js';
 import * as SessionContext from '../contexts/SessionContext.js';
 import type {
@@ -17,6 +17,20 @@ import { MAIN_SOURCE } from '@organizaone/o1-code-core';
 import { ConfigContext } from '../contexts/ConfigContext.js';
 import { AuthType } from '@organizaone/o1-code-core/utils/auth-type.js';
 import type { ContentGeneratorConfig } from '@organizaone/o1-code-core/core/contentGenerator.js';
+import {
+  readCredential,
+  type StoredCredential,
+} from '@organizaone/o1-code-core/providers/credential-store.js';
+
+vi.mock(
+  '@organizaone/o1-code-core/providers/credential-store.js',
+  async (importOriginal) => ({
+    ...(await importOriginal<
+      typeof import('@organizaone/o1-code-core/providers/credential-store.js')
+    >()),
+    readCredential: vi.fn(),
+  }),
+);
 
 const mainOnly = (core: ModelMetricsCore): ModelMetrics => ({
   ...core,
@@ -68,29 +82,108 @@ const renderWithMockedStats = (
 };
 
 describe('<SessionSummaryDisplay />', () => {
+  beforeEach(() => {
+    vi.mocked(readCredential).mockReset();
+  });
+
   it.each([
     [
-      { model: 'runtime-model', authType: AuthType.USE_OPENAI },
-      'OpenAI-compatible API',
+      {
+        apiKey: 'active-key',
+        savedAt: '',
+        expiresAt: null,
+        deviceName: 'private-device',
+      },
+      'Account login (browser)',
     ],
     [
-      { model: 'runtime-model', authType: AuthType.USE_OPENAI_RESPONSES },
-      'OpenAI Responses API',
+      { apiKey: 'active-key', savedAt: '', expiresAt: '2027-01-01T00:00:00Z' },
+      'Account login (browser)',
+    ],
+    [{ apiKey: 'old-key', savedAt: '', expiresAt: null }, 'API key'],
+    [{ apiKey: 'active-key', savedAt: '' }, 'API key'],
+    [undefined, 'API key'],
+  ] satisfies Array<[StoredCredential | undefined, string]>)(
+    'identifies the active authentication from saved credential %j',
+    (credential, expected) => {
+      vi.mocked(readCredential).mockReturnValue(credential);
+      const metrics: SessionMetrics = {
+        models: {},
+        tools: {
+          totalCalls: 0,
+          totalSuccess: 0,
+          totalFail: 0,
+          totalDurationMs: 0,
+          totalDecisions: { accept: 0, reject: 0, modify: 0 },
+          byName: {},
+        },
+        files: { totalLinesAdded: 0, totalLinesRemoved: 0 },
+      };
+      const { lastFrame } = renderWithMockedStats(
+        metrics,
+        'test-session-id',
+        0,
+        false,
+        {
+          model: 'runtime-model',
+          authType: AuthType.USE_ANTHROPIC,
+          baseUrl: 'https://api.organizago.com',
+          apiKey: 'active-key',
+        },
+      );
+      expect(lastFrame()).toContain(
+        `OrganizaOne · Anthropic API · ${expected}`,
+      );
+      expect(lastFrame()).not.toContain('active-key');
+      expect(lastFrame()).not.toContain('private-device');
+    },
+  );
+  it.each([
+    [
+      {
+        model: 'runtime-model',
+        authType: AuthType.USE_OPENAI,
+        apiKey: 'test-key',
+      },
+      'OpenAI-compatible API · API key',
     ],
     [
-      { model: 'runtime-model', authType: AuthType.USE_ANTHROPIC },
-      'Anthropic API',
+      {
+        model: 'runtime-model',
+        authType: AuthType.USE_OPENAI_RESPONSES,
+        apiKey: 'test-key',
+      },
+      'OpenAI Responses API · API key',
     ],
-    [{ model: 'runtime-model', authType: AuthType.USE_GEMINI }, 'Gemini API'],
-    [{ model: 'runtime-model', authType: AuthType.USE_VERTEX_AI }, 'Vertex AI'],
+    [
+      {
+        model: 'runtime-model',
+        authType: AuthType.USE_ANTHROPIC,
+        apiKey: 'test-key',
+      },
+      'Anthropic API · API key',
+    ],
+    [
+      {
+        model: 'runtime-model',
+        authType: AuthType.USE_GEMINI,
+        apiKey: 'test-key',
+      },
+      'Gemini API · API key',
+    ],
+    [
+      { model: 'runtime-model', authType: AuthType.USE_VERTEX_AI },
+      'Vertex AI · Application Default Credentials',
+    ],
     [
       {
         model: 'runtime-model',
         authType: AuthType.USE_ANTHROPIC,
         connection: 'o1-connect',
+        apiKey: 'tunnel-key',
         baseUrl: 'http://127.0.0.1:1234',
       },
-      'OrganizaOne · o1-gateway device code · Anthropic API',
+      'OrganizaOne · Anthropic API · o1-gateway / o1-connect',
     ],
     [
       {
@@ -106,7 +199,7 @@ describe('<SessionSummaryDisplay />', () => {
         authType: AuthType.USE_OPENAI,
         baseUrl: 'http://[::1]:1234/v1',
       },
-      'Local · OpenAI-compatible API',
+      'Local · OpenAI-compatible API · No API key configured',
     ],
     [
       {
@@ -115,7 +208,7 @@ describe('<SessionSummaryDisplay />', () => {
         baseUrl: 'https://user:secret@custom.example/v1',
         apiKey: 'private-api-key',
       },
-      'OpenAI-compatible API',
+      'OpenAI-compatible API · API key',
     ],
     [undefined, 'Not connected'],
   ] satisfies Array<[ContentGeneratorConfig | undefined, string]>)(

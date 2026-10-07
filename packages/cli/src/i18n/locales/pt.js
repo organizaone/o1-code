@@ -8,6 +8,10 @@
 
 export default {
   'Connection type:': 'Tipo de conexão:',
+  'Account login (browser)': 'Login por conta (navegador)',
+  'Application Default Credentials': 'Credenciais padrão do aplicativo',
+  'No API key configured': 'Sem chave de API configurada',
+  'Esc / Ctrl+C exit without saving': 'Esc / Ctrl+C sair sem salvar',
   'Not connected': 'Sem conexão',
   'OpenAI-compatible API': 'API compatível com OpenAI',
   'OpenAI Responses API': 'API Responses da OpenAI',

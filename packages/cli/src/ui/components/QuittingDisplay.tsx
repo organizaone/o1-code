@@ -77,6 +77,10 @@ export const QuittingDisplay = ({ onExit }: { onExit?: () => void }) => {
   useKeypress(
     (key) => {
       if (key.paste || exitingRef.current) return;
+      if (key.name === 'escape' || (key.ctrl && key.name === 'c')) {
+        finishExit();
+        return;
+      }
       const wasPaused = pausedRef.current;
       pauseCountdown();
       if (key.name === 'up' || key.name === 'down' || key.name === 'tab') {
@@ -181,6 +185,9 @@ export const QuittingDisplay = ({ onExit }: { onExit?: () => void }) => {
               'Closing in {{seconds}}s · press any key to keep this summary open',
               { seconds: String(secondsLeft) },
             )}
+      </Text>
+      <Text color={theme.text.secondary}>
+        {t('Esc / Ctrl+C exit without saving')}
       </Text>
       {saveError && (
         <Text color={theme.status.error}>

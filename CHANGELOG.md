@@ -24,13 +24,17 @@ follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   beside the list on wide terminals and below it on narrower terminals.
 - Interactive `/config` opens the settings editor. The editor uses more of the
   terminal width and includes Portuguese labels, descriptions, options, and hints.
-- The session exit summary closes after five seconds by default. Pressing a key
+- The session exit summary closes after five seconds by default. Pressing a regular key
   pauses the countdown; exclusive keep-open and hide choices are saved only after
   confirmation.
 - The exit summary identifies the active connection's API protocol and recognized
-  provider, including local servers and the OrganizaOne connection-code tunnel.
+  provider, including local servers, authentication by API key or browser account
+  login, and the OrganizaOne connection-code tunnel.
 
 ### Fixed
+
+- Esc and Ctrl+C close the exit summary immediately without saving pending
+  preferences; both shortcuts remain visible during the countdown and when paused.
 
 - Long settings descriptions no longer expand the panel or hide its footer.
   Editing long values keeps the cursor and nearby text visible, and typing search

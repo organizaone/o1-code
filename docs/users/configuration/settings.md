@@ -17,11 +17,19 @@
 
 The summary shows the active connection type: its API protocol, the provider when
 recognized, and whether it uses a local server or an OrganizaOne connection code.
+It also identifies authentication by API key, OrganizaOne account login in the
+browser, o1-gateway/o1-connect, or Vertex AI application default credentials.
+Account login is shown only when the saved sign-in credential matches the active
+key. Keys, device names, and endpoint credentials are never included.
 
 By default, quitting shows the session statistics for five seconds. Press any
-key to stop the countdown and keep the summary visible for this exit. Enter
-then confirms and exits; when Enter is the first key, press it again to confirm.
+key other than Esc or Ctrl+C to stop the countdown and keep the summary visible
+for this exit. Enter then confirms and exits; when Enter is the first key,
+press it again to confirm.
 Pasted text does not interrupt the countdown.
+
+Esc or Ctrl+C exits immediately, including during the countdown, without saving
+pending choices. Enter confirms and saves preference changes.
 
 Use Up/Down or Tab to select **Always keep the exit summary open** or **Do not
 show again**, and Space or a mouse click to toggle the choice. The choices are

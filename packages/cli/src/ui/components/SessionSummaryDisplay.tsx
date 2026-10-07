@@ -16,8 +16,13 @@ import type { ContentGeneratorConfig } from '@organizaone/o1-code-core/core/cont
 import { findProviderByCredentials } from '@organizaone/o1-code-core/providers/all-providers.js';
 import {
   isOrganizaOneBaseUrl,
+  organizaoneLoginProvider,
   organizaoneProvider,
 } from '@organizaone/o1-code-core/providers/presets/organizaone.js';
+import {
+  credentialIdForProvider,
+  readCredential,
+} from '@organizaone/o1-code-core/providers/credential-store.js';
 
 function formatConnectionType(
   connection: ContentGeneratorConfig | undefined,
@@ -31,17 +36,38 @@ function formatConnectionType(
     [AuthType.USE_VERTEX_AI]: 'Vertex AI',
   };
   const protocol = protocols[connection.authType];
+  const authentication = connection.apiKey
+    ? t('API key')
+    : connection.authType === AuthType.USE_VERTEX_AI
+      ? t('Application Default Credentials')
+      : t('No API key configured');
+  const format = (provider?: string, method = authentication) =>
+    [provider, protocol, method].filter(Boolean).join(' · ');
   if (connection.connection === 'o1-connect') {
-    return `${organizaoneProvider.label} · ${t('o1-gateway device code')} · ${protocol}`;
+    return format(organizaoneProvider.label, 'o1-gateway / o1-connect');
   }
   if (isOrganizaOneBaseUrl(connection.baseUrl)) {
-    return `${organizaoneProvider.label} · ${protocol}`;
+    const credential = connection.apiKey
+      ? readCredential(
+          credentialIdForProvider(
+            organizaoneLoginProvider.credentialId ??
+              organizaoneLoginProvider.id,
+          ),
+        )
+      : undefined;
+    const isAccountLogin =
+      credential?.apiKey === connection.apiKey &&
+      credential?.expiresAt !== undefined;
+    return format(
+      organizaoneProvider.label,
+      isAccountLogin ? t('Account login (browser)') : authentication,
+    );
   }
   const provider = findProviderByCredentials(
     connection.baseUrl,
     connection.apiKeyEnvKey,
   );
-  if (provider) return `${t(provider.label)} · ${protocol}`;
+  if (provider) return format(t(provider.label));
   if (connection.baseUrl) {
     try {
       if (
@@ -49,13 +75,13 @@ function formatConnectionType(
           new URL(connection.baseUrl).hostname,
         )
       ) {
-        return `${t('Local')} · ${protocol}`;
+        return format(t('Local'));
       }
     } catch {
       // An invalid endpoint should not prevent the exit summary from rendering.
     }
   }
-  return protocol;
+  return format();
 }
 
 interface SessionSummaryDisplayProps {

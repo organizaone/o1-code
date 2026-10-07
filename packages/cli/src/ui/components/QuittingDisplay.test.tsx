@@ -27,10 +27,18 @@ vi.mock('../utils/mouse-hit.js', () => ({ findElementAtMouseEvent: () => 0 }));
 const press = async (sequence: string, paste = false) => {
   const key: Key = {
     name:
-      sequence === '\r' ? 'return' : sequence === '\x1b[B' ? 'down' : sequence,
+      sequence === '\r'
+        ? 'return'
+        : sequence === '\x1b[B'
+          ? 'down'
+          : sequence === '\x1b'
+            ? 'escape'
+            : sequence === '\x03'
+              ? 'c'
+              : sequence,
     sequence,
     paste,
-    ctrl: false,
+    ctrl: sequence === '\x03',
     meta: false,
     shift: false,
   };
@@ -63,6 +71,45 @@ describe('QuittingDisplay', () => {
     cleanup();
     vi.useRealTimers();
   });
+
+  it.each(
+    ['\x1b', '\x03'].flatMap((sequence) =>
+      ['countdown', 'paused', 'draft', 'keep-open'].map((mode) => ({
+        sequence,
+        mode,
+      })),
+    ),
+  )(
+    'exits immediately without saving on $sequence in $mode mode',
+    async ({ sequence, mode }) => {
+      if (mode === 'keep-open') settings({ keepSessionSummaryOpen: true });
+      const { lastFrame } = render(<QuittingDisplay onExit={onExit} />);
+      expect(lastFrame()).toContain('Esc / Ctrl+C exit without saving');
+      if (mode === 'paused') await press('x');
+      if (mode === 'draft') await press(' ');
+      await press(sequence);
+      await press(sequence);
+      await advance(30000);
+      expect(onExit).toHaveBeenCalledTimes(1);
+      expect(setValues).not.toHaveBeenCalled();
+    },
+  );
+
+  it.each(['\x1b', '\x03'])(
+    'exits after a save failure with %j without retrying',
+    async (sequence) => {
+      settings({ keepSessionSummaryOpen: true });
+      setValues.mockImplementation(() => {
+        throw new Error('disk full');
+      });
+      render(<QuittingDisplay onExit={onExit} />);
+      await press('\r');
+      expect(onExit).not.toHaveBeenCalled();
+      await press(sequence);
+      expect(onExit).toHaveBeenCalledTimes(1);
+      expect(setValues).toHaveBeenCalledTimes(1);
+    },
+  );
 
   it('closes automatically after five seconds without saving preferences', async () => {
     render(<QuittingDisplay onExit={onExit} />);
