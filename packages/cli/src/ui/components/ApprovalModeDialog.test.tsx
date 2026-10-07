@@ -4,12 +4,17 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { describe, expect, it, vi } from 'vitest';
-import { ApprovalMode } from '@organizaone/o1-code-core';
-import { LoadedSettings } from '../../config/settings.js';
-import type { SettingScope } from '../../config/settings.js';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { ApprovalMode } from '@organizaone/o1-code-core/config/approval-mode.js';
+import { LoadedSettings, SettingScope } from '../../config/settings.js';
 import { renderWithProviders } from '../../test-utils/render.js';
 import { ApprovalModeDialog } from './ApprovalModeDialog.js';
+import { glyphs } from '../glyphs.js';
+
+const terminal = vi.hoisted(() => ({ columns: 80, rows: 40 }));
+vi.mock('../hooks/useTerminalSize.js', () => ({
+  useTerminalSize: () => terminal,
+}));
 
 function createSettings(
   workspaceSettings: Record<string, unknown> = {},
@@ -33,113 +38,199 @@ function frameHeight(frame: string): number {
 }
 
 describe('ApprovalModeDialog', () => {
+  beforeEach(() => {
+    terminal.columns = 80;
+  });
   it.each([6, 8, 10, 12])(
-    'keeps the mode picker within %i rows',
+    'keeps the picker within %i rows',
     (availableTerminalHeight) => {
       const { lastFrame } = renderWithProviders(
         <ApprovalModeDialog
           settings={createSettings()}
           currentMode={ApprovalMode.DEFAULT}
           availableTerminalHeight={availableTerminalHeight}
-          onSelect={vi.fn<
-            (mode: ApprovalMode | undefined, scope: SettingScope) => void
-          >()}
+          onSelect={vi.fn()}
         />,
       );
-
       expect(frameHeight(lastFrame() ?? '')).toBeLessThanOrEqual(
         availableTerminalHeight,
       );
     },
   );
 
-  it('keeps the current mode visible when the constrained picker scrolls', () => {
+  it('uses content-sized height when plenty of rows are available', () => {
+    const { lastFrame } = renderWithProviders(
+      <ApprovalModeDialog
+        settings={createSettings()}
+        currentMode={ApprovalMode.DEFAULT}
+        availableTerminalHeight={30}
+        onSelect={vi.fn()}
+      />,
+    );
+    const frame = lastFrame() ?? '';
+    expect(frameHeight(frame)).toBeLessThan(20);
+    expect(frame).toContain(
+      'Require approval for file edits or shell commands',
+    );
+  });
+
+  it('keeps the current mode visible when the picker scrolls', () => {
     const { lastFrame } = renderWithProviders(
       <ApprovalModeDialog
         settings={createSettings()}
         currentMode={ApprovalMode.YOLO}
         availableTerminalHeight={8}
-        onSelect={vi.fn<
-          (mode: ApprovalMode | undefined, scope: SettingScope) => void
-        >()}
+        onSelect={vi.fn()}
       />,
     );
-
-    expect(lastFrame() ?? '').toContain('Automatically approve all tools');
+    const frame = lastFrame() ?? '';
+    expect(frame).toContain('YOLO mode');
+    expect(frame).toContain(glyphs().done);
+    expect(frame).toContain('5/5');
   });
 
-  it('shows scroll arrows when constrained height hides approval modes', () => {
-    const { lastFrame } = renderWithProviders(
+  it('updates help without changing the current-value marker or applying a mode', async () => {
+    terminal.columns = 160;
+    const onSelect = vi.fn();
+    const { lastFrame, stdin } = renderWithProviders(
       <ApprovalModeDialog
         settings={createSettings()}
         currentMode={ApprovalMode.DEFAULT}
-        availableTerminalHeight={8}
-        onSelect={vi.fn<
-          (mode: ApprovalMode | undefined, scope: SettingScope) => void
-        >()}
+        availableTerminalHeight={30}
+        onSelect={onSelect}
       />,
     );
-
-    const frame = lastFrame() ?? '';
-    expect(frameHeight(frame)).toBeLessThanOrEqual(8);
-    expect(frame).toContain('▼');
+    await vi.waitFor(() =>
+      expect(lastFrame() ?? '').toContain('Require approval for file edits'),
+    );
+    stdin.write('\x1b[B');
+    await vi.waitFor(() =>
+      expect(lastFrame() ?? '').toContain('Automatically approve file edits'),
+    );
+    const currentLine = (lastFrame() ?? '')
+      .split('\n')
+      .find((line) => line.includes('2. Ask permissions'));
+    expect(currentLine).toContain(glyphs().done);
+    expect(currentLine).not.toContain(glyphs().prompt);
+    expect(onSelect).not.toHaveBeenCalled();
+    stdin.write('\r');
+    await vi.waitFor(() =>
+      expect(onSelect).toHaveBeenCalledWith(
+        ApprovalMode.AUTO_EDIT,
+        SettingScope.User,
+      ),
+    );
   });
 
-  it('hides the footer hint when needed to show mode scroll arrows', () => {
-    const { lastFrame } = renderWithProviders(
+  it('puts help beside the list at 120 columns and below it in narrow terminals', () => {
+    terminal.columns = 120;
+    const wide = renderWithProviders(
       <ApprovalModeDialog
         settings={createSettings()}
         currentMode={ApprovalMode.DEFAULT}
-        availableTerminalHeight={10}
-        onSelect={vi.fn<
-          (mode: ApprovalMode | undefined, scope: SettingScope) => void
-        >()}
+        availableTerminalHeight={30}
+        onSelect={vi.fn()}
       />,
     );
-
-    const frame = lastFrame() ?? '';
-    expect(frameHeight(frame)).toBeLessThanOrEqual(10);
-    expect(frame).toContain('▼');
-    expect(frame).not.toContain('Use Enter to select');
+    const wideLines = (wide.lastFrame() ?? '').split('\n');
+    const descriptionLine = wideLines.findIndex((line) =>
+      line.includes('Require approval'),
+    );
+    const lastOptionLine = wideLines.findIndex((line) =>
+      line.includes('5. YOLO'),
+    );
+    expect(descriptionLine).toBeLessThan(lastOptionLine);
+    wide.unmount();
+    terminal.columns = 60;
+    const narrow = renderWithProviders(
+      <ApprovalModeDialog
+        settings={createSettings()}
+        currentMode={ApprovalMode.DEFAULT}
+        availableTerminalHeight={30}
+        onSelect={vi.fn()}
+      />,
+    );
+    const narrowLines = (narrow.lastFrame() ?? '').split('\n');
+    expect(
+      narrowLines.findIndex((line) => line.includes('Require approval')),
+    ).toBeGreaterThan(
+      narrowLines.findIndex((line) => line.includes('5. YOLO')),
+    );
   });
 
-  it('keeps the workspace priority warning visible when constrained', () => {
-    const { lastFrame } = renderWithProviders(
+  it('changes scope and preserves the highlighted mode until it is applied', async () => {
+    const onSelect = vi.fn();
+    const { lastFrame, stdin } = renderWithProviders(
       <ApprovalModeDialog
-        settings={createSettings({
-          tools: { approvalMode: ApprovalMode.YOLO },
-        })}
+        settings={createSettings()}
         currentMode={ApprovalMode.DEFAULT}
-        availableTerminalHeight={12}
-        onSelect={vi.fn<
-          (mode: ApprovalMode | undefined, scope: SettingScope) => void
-        >()}
+        availableTerminalHeight={20}
+        onSelect={onSelect}
       />,
     );
-
-    const frame = lastFrame() ?? '';
-    expect(frameHeight(frame)).toBeLessThanOrEqual(12);
-    expect(frame).toContain('Workspace approval mode exists');
-    expect(frame).toContain('Use Enter to select');
+    await vi.waitFor(() =>
+      expect(lastFrame() ?? '').toContain('Ask permissions'),
+    );
+    stdin.write('\x1b[B');
+    await vi.waitFor(() => expect(lastFrame() ?? '').toContain('3/5'));
+    stdin.write('\t');
+    await vi.waitFor(() => expect(lastFrame() ?? '').toContain('Apply To'));
+    stdin.write('\x1b[B');
+    await vi.waitFor(() => expect(lastFrame() ?? '').toContain('2/2'));
+    stdin.write('\r');
+    await vi.waitFor(() => {
+      const frame = lastFrame() ?? '';
+      expect(frame).toContain('Workspace Settings');
+      expect(frame).toContain('3/5');
+      expect(frame).not.toContain('Apply To');
+    });
+    expect(onSelect).not.toHaveBeenCalled();
+    stdin.write('\r');
+    await vi.waitFor(() =>
+      expect(onSelect).toHaveBeenCalledWith(
+        ApprovalMode.AUTO_EDIT,
+        SettingScope.Workspace,
+      ),
+    );
   });
 
-  it('hides the footer hint to make room for the workspace warning', () => {
-    const { lastFrame } = renderWithProviders(
+  it.each([8, 10, 12])(
+    'keeps workspace precedence visible within %i rows',
+    (availableTerminalHeight) => {
+      const { lastFrame } = renderWithProviders(
+        <ApprovalModeDialog
+          settings={createSettings({
+            tools: { approvalMode: ApprovalMode.YOLO },
+          })}
+          currentMode={ApprovalMode.DEFAULT}
+          availableTerminalHeight={availableTerminalHeight}
+          onSelect={vi.fn()}
+        />,
+      );
+      const frame = lastFrame() ?? '';
+      expect(frameHeight(frame)).toBeLessThanOrEqual(availableTerminalHeight);
+      expect(frame).toContain('Workspace approval mode exists');
+      expect(frame).toContain('User-level');
+      expect(frame).toContain('no effect');
+    },
+  );
+
+  it('cancels without applying a value', async () => {
+    const onSelect = vi.fn();
+    const { lastFrame, stdin } = renderWithProviders(
       <ApprovalModeDialog
-        settings={createSettings({
-          tools: { approvalMode: ApprovalMode.YOLO },
-        })}
+        settings={createSettings()}
         currentMode={ApprovalMode.DEFAULT}
-        availableTerminalHeight={10}
-        onSelect={vi.fn<
-          (mode: ApprovalMode | undefined, scope: SettingScope) => void
-        >()}
+        availableTerminalHeight={20}
+        onSelect={onSelect}
       />,
     );
-
-    const frame = lastFrame() ?? '';
-    expect(frameHeight(frame)).toBeLessThanOrEqual(10);
-    expect(frame).toContain('Workspace approval mode exists');
-    expect(frame).not.toContain('Use Enter to select');
+    await vi.waitFor(() =>
+      expect(lastFrame() ?? '').toContain('Ask permissions'),
+    );
+    stdin.write('\x1b');
+    await vi.waitFor(() =>
+      expect(onSelect).toHaveBeenCalledWith(undefined, SettingScope.User),
+    );
   });
 });

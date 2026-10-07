@@ -19,6 +19,7 @@ import { TextInput } from '../shared/TextInput.js';
 import {
   getCachedStringWidth,
   truncateToWidth,
+  cpLen,
 } from '../../utils/textUtils.js';
 import { t } from '../../../i18n/index.js';
 
@@ -100,6 +101,12 @@ export const AskUserQuestionDialog: React.FC<AskUserQuestionDialogProps> = ({
   const getCustomInputValue = (idx: number) =>
     customInputValuesRef.current[idx] ?? customInputValues[idx] ?? '';
   const currentCustomInputValue = getCustomInputValue(currentQuestionIndex);
+  const customInputPrefixWidth =
+    2 + (isMultiSelect ? 4 : 0) + String(totalOptions).length + 2;
+  const customInputWidth = Math.max(
+    1,
+    availableWidth - 2 - customInputPrefixWidth - 2 - 1,
+  );
   const isCustomInputAnswer =
     !isSubmitTab &&
     currentQuestion &&
@@ -237,10 +244,6 @@ export const AskUserQuestionDialog: React.FC<AskUserQuestionDialogProps> = ({
         }
         if (key.name === 'escape' || (key.ctrl && key.name === 'c')) {
           void onConfirm(ToolConfirmationOutcome.Cancel);
-          return;
-        }
-        if (key.name === 'return') {
-          handleCustomInputSubmit();
           return;
         }
         return;
@@ -527,18 +530,20 @@ export const AskUserQuestionDialog: React.FC<AskUserQuestionDialogProps> = ({
           {isCustomInputSelected ? (
             // Inline TextInput replaces the option text
             <Box>
-              <Text color={theme.text.accent} bold>
-                ❯{' '}
-                {isMultiSelect
-                  ? customInputChecked[currentQuestionIndex]
-                    ? '[✓] '
-                    : '[ ] '
-                  : ''}
-                {currentQuestion!.options.length + 1}.{' '}
-              </Text>
+              <Box flexShrink={0}>
+                <Text color={theme.text.accent} bold>
+                  ❯{' '}
+                  {isMultiSelect
+                    ? customInputChecked[currentQuestionIndex]
+                      ? '[✓] '
+                      : '[ ] '
+                    : ''}
+                  {currentQuestion!.options.length + 1}.{' '}
+                </Text>
+              </Box>
               <TextInput
                 value={currentCustomInputValue}
-                initialCursorOffset={currentCustomInputValue.length}
+                initialCursorOffset={cpLen(currentCustomInputValue)}
                 onChange={(value: string) => {
                   const oldValue =
                     customInputValuesRef.current[currentQuestionIndex] ??
@@ -561,8 +566,10 @@ export const AskUserQuestionDialog: React.FC<AskUserQuestionDialogProps> = ({
                 }}
                 onSubmit={handleCustomInputSubmit}
                 placeholder={t('Type something...')}
-                isActive={true}
-                inputWidth={50}
+                isActive={isFocused}
+                inputWidth={customInputWidth}
+                height={3}
+                showScrollIndicator
               />
             </Box>
           ) : (

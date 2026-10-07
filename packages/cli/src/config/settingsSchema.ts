@@ -1039,7 +1039,28 @@ const SETTINGS_SCHEMA = {
         requiresRestart: false,
         default: true,
         description:
-          'Show session statistics when quitting and wait for a key before exiting.',
+          'Show session statistics when quitting. Enable this to restore a previously hidden summary.',
+        showInDialog: true,
+      },
+      keepSessionSummaryOpen: {
+        type: 'boolean',
+        label: 'Keep Session Summary Open',
+        category: 'UI',
+        requiresRestart: false,
+        default: false,
+        description:
+          'Keep the exit summary open until you confirm. When disabled, it closes after the configured timeout; pressing a key stops the countdown.',
+        showInDialog: true,
+      },
+      sessionSummaryTimeoutSeconds: {
+        type: 'number',
+        label: 'Session Summary Timeout (seconds)',
+        category: 'UI',
+        requiresRestart: false,
+        default: 5,
+        minimum: 1,
+        description:
+          'Seconds before the exit summary closes automatically. Press any key to keep it visible for the current exit.',
         showInDialog: true,
       },
       history: {

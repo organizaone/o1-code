@@ -1,7 +1,7 @@
 {
   "name": "@organizaone/o1-code-web-templates",
   "private": true,
-  "version": "0.9.1",
+  "version": "0.10.0",
   "description": "Web templates bundled as embeddable JS/CSS strings",
   "repository": {
     "type": "git",

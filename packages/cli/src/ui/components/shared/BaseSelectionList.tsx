@@ -33,6 +33,7 @@ export interface BaseSelectionListProps<
   onHighlight?: (value: T) => void;
   isFocused?: boolean;
   showNumbers?: boolean;
+  disableVimNav?: boolean;
   showScrollArrows?: boolean;
   maxItemsToShow?: number;
   /** Gap (in rows) between each item. */
@@ -77,6 +78,7 @@ export function BaseSelectionList<
   onHighlight,
   isFocused = true,
   showNumbers = true,
+  disableVimNav = false,
   showScrollArrows = false,
   maxItemsToShow = 10,
   itemGap = 0,
@@ -90,6 +92,7 @@ export function BaseSelectionList<
     onHighlight,
     isFocused,
     showNumbers,
+    ...(disableVimNav ? { disableVimNav } : {}),
     horizontal: layout === 'row',
   });
 

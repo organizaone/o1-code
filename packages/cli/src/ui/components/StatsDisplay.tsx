@@ -167,12 +167,14 @@ interface StatsDisplayProps {
   duration: string;
   title?: string;
   width?: number;
+  connectionType?: string;
 }
 
 export const StatsDisplay: React.FC<StatsDisplayProps> = ({
   duration,
   title,
   width,
+  connectionType,
 }) => {
   const { stats } = useSessionStats();
   const { metrics } = stats;
@@ -228,6 +230,11 @@ export const StatsDisplay: React.FC<StatsDisplayProps> = ({
       <Box height={1} />
 
       <Section title={t('Interaction Summary')}>
+        {connectionType && (
+          <StatRow title={t('Connection type:')}>
+            <Text color={theme.text.primary}>{connectionType}</Text>
+          </StatRow>
+        )}
         <StatRow title={t('Session ID:')}>
           <Text color={theme.text.primary}>{stats.sessionId}</Text>
         </StatRow>

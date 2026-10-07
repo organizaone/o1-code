@@ -46,6 +46,7 @@ export const cdCommand: SlashCommand = {
   },
   kind: CommandKind.BUILT_IN,
   argumentHint: '<path>',
+  acceptsInput: true,
   supportedModes: ['interactive'] as const,
   completion: async (_context, partialArg) =>
     getSingleDirPathCompletions(partialArg),

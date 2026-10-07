@@ -15,6 +15,8 @@ import type {
 } from '../contexts/SessionContext.js';
 import { MAIN_SOURCE } from '@organizaone/o1-code-core';
 import { ConfigContext } from '../contexts/ConfigContext.js';
+import { AuthType } from '@organizaone/o1-code-core/utils/auth-type.js';
+import type { ContentGeneratorConfig } from '@organizaone/o1-code-core/core/contentGenerator.js';
 
 const mainOnly = (core: ModelMetricsCore): ModelMetrics => ({
   ...core,
@@ -36,6 +38,7 @@ const renderWithMockedStats = (
   sessionId: string = 'test-session-id-12345',
   promptCount: number = 5,
   chatRecordingEnabled: boolean = true,
+  connection?: ContentGeneratorConfig,
 ) => {
   useSessionStatsMock.mockReturnValue({
     stats: {
@@ -51,6 +54,7 @@ const renderWithMockedStats = (
   });
 
   const mockConfig = {
+    getContentGeneratorConfig: () => connection,
     getChatRecordingService: vi.fn(() =>
       chatRecordingEnabled ? ({} as never) : undefined,
     ),
@@ -58,12 +62,91 @@ const renderWithMockedStats = (
 
   return render(
     <ConfigContext.Provider value={mockConfig as never}>
-      <SessionSummaryDisplay duration="1h 23m 45s" />
+      <SessionSummaryDisplay duration="1h 23m 45s" width={100} />
     </ConfigContext.Provider>,
   );
 };
 
 describe('<SessionSummaryDisplay />', () => {
+  it.each([
+    [
+      { model: 'runtime-model', authType: AuthType.USE_OPENAI },
+      'OpenAI-compatible API',
+    ],
+    [
+      { model: 'runtime-model', authType: AuthType.USE_OPENAI_RESPONSES },
+      'OpenAI Responses API',
+    ],
+    [
+      { model: 'runtime-model', authType: AuthType.USE_ANTHROPIC },
+      'Anthropic API',
+    ],
+    [{ model: 'runtime-model', authType: AuthType.USE_GEMINI }, 'Gemini API'],
+    [{ model: 'runtime-model', authType: AuthType.USE_VERTEX_AI }, 'Vertex AI'],
+    [
+      {
+        model: 'runtime-model',
+        authType: AuthType.USE_ANTHROPIC,
+        connection: 'o1-connect',
+        baseUrl: 'http://127.0.0.1:1234',
+      },
+      'OrganizaOne · o1-gateway device code · Anthropic API',
+    ],
+    [
+      {
+        model: 'runtime-model',
+        authType: AuthType.USE_ANTHROPIC,
+        baseUrl: 'https://api.organizago.com',
+      },
+      'OrganizaOne · Anthropic API',
+    ],
+    [
+      {
+        model: 'runtime-model',
+        authType: AuthType.USE_OPENAI,
+        baseUrl: 'http://[::1]:1234/v1',
+      },
+      'Local · OpenAI-compatible API',
+    ],
+    [
+      {
+        model: 'runtime-model',
+        authType: AuthType.USE_OPENAI,
+        baseUrl: 'https://user:secret@custom.example/v1',
+        apiKey: 'private-api-key',
+      },
+      'OpenAI-compatible API',
+    ],
+    [undefined, 'Not connected'],
+  ] satisfies Array<[ContentGeneratorConfig | undefined, string]>)(
+    'shows the active connection %j',
+    (connection, expected) => {
+      const metrics: SessionMetrics = {
+        models: {},
+        tools: {
+          totalCalls: 0,
+          totalSuccess: 0,
+          totalFail: 0,
+          totalDurationMs: 0,
+          totalDecisions: { accept: 0, reject: 0, modify: 0 },
+          byName: {},
+        },
+        files: { totalLinesAdded: 0, totalLinesRemoved: 0 },
+      };
+      const { lastFrame } = renderWithMockedStats(
+        metrics,
+        'test-session-id',
+        0,
+        false,
+        connection,
+      );
+      expect(lastFrame()).toContain('Connection type:');
+      expect(lastFrame()).toContain(expected);
+      expect(lastFrame()).not.toContain('private-api-key');
+      expect(lastFrame()).not.toContain('user:secret');
+    },
+  );
+
   it('renders the summary display with a title', () => {
     const metrics: SessionMetrics = {
       models: {

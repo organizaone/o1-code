@@ -34,6 +34,7 @@ export interface TextInputProps {
   inputWidth?: number;
   initialCursorOffset?: number;
   ellipsizeOverflow?: boolean;
+  showScrollIndicator?: boolean;
   /**
    * Transforms each shown line, e.g. to hide a secret. It must keep the
    * line's length so the cursor stays where the person is typing.
@@ -69,6 +70,7 @@ export function TextInput({
   inputWidth = 80,
   initialCursorOffset,
   ellipsizeOverflow = false,
+  showScrollIndicator = false,
   mask,
 }: TextInputProps) {
   const allowMultiline = height > 1;
@@ -280,6 +282,17 @@ export function TextInput({
           )}
         </Box>
       </Box>
+
+      {showScrollIndicator && buffer.allVisualLines.length > height && (
+        <Text color={theme.text.secondary}>
+          {scrollVisualRow > 0 ? '↑ ' : ''}
+          {scrollVisualRow + 1}–{scrollVisualRow + linesToRender.length}/
+          {buffer.allVisualLines.length}
+          {scrollVisualRow + linesToRender.length < buffer.allVisualLines.length
+            ? ' ↓'
+            : ''}
+        </Text>
+      )}
 
       {validationErrors.length > 0 && (
         <Box flexDirection="column">

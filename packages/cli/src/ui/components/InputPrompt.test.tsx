@@ -19,6 +19,12 @@ import { ApprovalMode } from '@organizaone/o1-code-core';
 import type { LoadedSettings } from '../../config/settings.js';
 import * as path from 'node:path';
 import type { CommandContext, SlashCommand } from '../commands/types.js';
+import { cdCommand } from '../commands/cdCommand.js';
+import { btwCommand } from '../commands/btwCommand.js';
+import { rememberCommand } from '../commands/rememberCommand.js';
+import { forgetCommand } from '../commands/forgetCommand.js';
+import { forkCommand } from '../commands/forkCommand.js';
+import { learnCommand } from '../commands/learn-command.js';
 import { CommandKind } from '../commands/types.js';
 import { describe, it, expect, beforeEach, vi, type Mock } from 'vitest';
 import type { UseShellHistoryReturn } from '../hooks/useShellHistory.js';
@@ -404,6 +410,37 @@ describe('InputPrompt', () => {
       placeholder: '  Type your message or @path/to/file',
     };
   });
+
+  it.each([
+    cdCommand,
+    rememberCommand,
+    forgetCommand,
+    forkCommand,
+    learnCommand,
+    btwCommand,
+  ])(
+    'leaves /$name ready for arguments when selected from its category',
+    async (command) => {
+      props.slashCommands = [command];
+      props.buffer.setText('/');
+      const { stdin, unmount } = renderWithProviders(
+        <InputPrompt {...props} />,
+      );
+      await wait();
+      const press = async (key: string) => {
+        stdin.write(key);
+        await wait();
+      };
+      const groupIndex =
+        command.name === 'btw' ? 1 : command.name === 'fork' ? 4 : 3;
+      for (let index = 0; index < groupIndex; index++) await press('\u001b[B');
+      await press('\r');
+      await press('\r');
+      expect(props.buffer.text).toBe(`/${command.name} `);
+      expect(props.onSubmit).not.toHaveBeenCalled();
+      unmount();
+    },
+  );
 
   it('stashes non-empty input on Ctrl+S', async () => {
     props.buffer.setText('draft prompt');

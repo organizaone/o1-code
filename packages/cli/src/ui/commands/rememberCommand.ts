@@ -24,6 +24,7 @@ export const rememberCommand: SlashCommand = {
   kind: CommandKind.BUILT_IN,
   supportedModes: ['interactive', 'acp'] as const,
   argumentHint: '<text to remember>',
+  acceptsInput: true,
   action: (context: CommandContext, args): SlashCommandActionReturn | void => {
     const fact = args.trim();
     if (!fact) {

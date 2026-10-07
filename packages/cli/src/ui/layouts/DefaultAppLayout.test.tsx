@@ -236,6 +236,39 @@ describe('DefaultAppLayout', () => {
     expect(output).toContain('DialogManager 20');
   });
 
+  it('lets a short approval panel leave room for the conversation', () => {
+    mockedUseAgentViewState.mockReturnValue({
+      activeView: 'main',
+      agents: new Map(),
+    });
+    const { lastFrame } = renderLayout({
+      ...baseUIState,
+      dialogsVisible: true,
+      isApprovalModeDialogOpen: true,
+      terminalHeight: 40,
+    });
+    const frame = lastFrame() ?? '';
+    expect(frame).toContain('DialogManager 1');
+    expect(frameHeight(frame)).toBeLessThan(10);
+  });
+
+  it('still clips a tall approval panel to the available terminal height', () => {
+    mockedUseAgentViewState.mockReturnValue({
+      activeView: 'main',
+      agents: new Map(),
+    });
+    dialogManagerMockState.lineCount = 20;
+    const { lastFrame } = renderLayout({
+      ...baseUIState,
+      dialogsVisible: true,
+      isApprovalModeDialogOpen: true,
+      terminalHeight: 8,
+    });
+    const frame = lastFrame() ?? '';
+    expect(frameHeight(frame)).toBeLessThanOrEqual(8);
+    expect(frame).not.toContain('DialogManager 20');
+  });
+
   it('does not render sticky todo list while waiting for confirmation', () => {
     mockedUseAgentViewState.mockReturnValue({
       activeView: 'main',

@@ -13,6 +13,7 @@ import type { ToolAskUserQuestionConfirmationDetails } from '@organizaone/o1-cod
 import { ToolConfirmationOutcome } from '@organizaone/o1-code-core';
 import { renderWithProviders } from '../../../test-utils/render.js';
 import stripAnsi from 'strip-ansi';
+import { act } from 'react';
 
 const wait = (ms = 50) => new Promise((resolve) => setTimeout(resolve, ms));
 const writeText = async (
@@ -118,6 +119,47 @@ describe('computeHeaderCap', () => {
     expect(computeHeaderCap([10, 10], 0)).toBe(0);
     expect(computeHeaderCap([10, 10], -5)).toBe(0);
   });
+});
+
+describe('responsive custom answers', () => {
+  it.each([60, 100, 160])(
+    'keeps context while typing at %i columns and submits the complete answer once',
+    async (availableWidth) => {
+      const onConfirm = vi.fn();
+      const { stdin, lastFrame, unmount } = renderWithProviders(
+        <AskUserQuestionDialog
+          confirmationDetails={createConfirmationDetails()}
+          availableWidth={availableWidth}
+          onConfirm={onConfirm}
+        />,
+      );
+      await wait();
+      await act(async () => {
+        stdin.write('4');
+      });
+      await waitForFrame(() => expect(clean(lastFrame())).toContain('❯ 4.'));
+      const width = availableWidth - 10;
+      const firstLine = 'a'.repeat(width);
+      await writeText(stdin, firstLine + 'b');
+      await waitForFrame(() => {
+        expect(clean(lastFrame()).replace(/\s/g, '')).toContain(firstLine);
+        expect(clean(lastFrame())).toContain('b');
+      });
+      const remainder = 'c'.repeat(width * 4) + 'THE-END';
+      await writeText(stdin, remainder);
+      await waitForFrame(() => {
+        expect(clean(lastFrame())).toContain('THE-END');
+        expect(clean(lastFrame())).toMatch(/↑ \d+–\d+\/\d+/);
+      });
+      stdin.write('\r');
+      await waitForFrame(() => expect(onConfirm).toHaveBeenCalledTimes(1));
+      expect(onConfirm).toHaveBeenCalledWith(
+        ToolConfirmationOutcome.ProceedOnce,
+        { answers: { 0: firstLine + 'b' + remainder } },
+      );
+      unmount();
+    },
+  );
 });
 
 describe('<AskUserQuestionDialog />', () => {

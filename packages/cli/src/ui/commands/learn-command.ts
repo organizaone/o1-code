@@ -31,6 +31,7 @@ export const learnCommand: SlashCommand = {
   kind: CommandKind.BUILT_IN,
   supportedModes: ['interactive', 'acp'] as const,
   argumentHint: '<path|URL|text> [focus]',
+  acceptsInput: true,
   action: async (
     context: CommandContext,
     args: string,

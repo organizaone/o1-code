@@ -37,6 +37,11 @@ import {
 import { OUTPUT_LANGUAGE_AUTO } from '../../i18n/languageUtils.js';
 import { isSlowTestHost } from '../../test-utils/slow-test-host.js';
 
+const terminal = vi.hoisted(() => ({ columns: 80, rows: 40 }));
+vi.mock('../hooks/useTerminalSize.js', () => ({
+  useTerminalSize: () => terminal,
+}));
+
 // Mock the VimModeContext
 const mockToggleVimEnabled = vi.fn();
 const mockSetVimMode = vi.fn();
@@ -199,6 +204,7 @@ describe('SettingsDialog', () => {
   };
 
   beforeEach(() => {
+    terminal.columns = 80;
     // Reset keypress mock state (variables are commented out)
     // currentKeypressHandler = null;
     // isKeypressActive = false;
@@ -219,6 +225,74 @@ describe('SettingsDialog', () => {
   });
 
   describe('Initial Rendering', () => {
+    it.each([120, 160, 210])(
+      'bounds long help without growing the panel at %i columns',
+      async (columns) => {
+        terminal.columns = columns;
+        const { lastFrame, stdin } = render(
+          <KeypressProvider kittyProtocolEnabled={false}>
+            <SettingsDialog
+              settings={createMockSettings()}
+              onSelect={vi.fn()}
+              availableTerminalHeight={30}
+            />
+          </KeypressProvider>,
+        );
+        const initialHeight = (lastFrame() ?? '').split('\n').length;
+        expect((lastFrame() ?? '').split('\n')[0].length).toBe(columns - 4);
+        const index = getDialogSettingKeys().indexOf('review.attribution');
+        expect(index).toBeGreaterThan(0);
+        for (let step = 0; step < index; step++) {
+          act(() => stdin.write(TerminalKeys.DOWN_ARROW));
+          await waitFor(() => {
+            expect(lastFrame()).toContain(`${step + 2}/`);
+          });
+        }
+        expect(lastFrame()).toContain('review.attribution');
+        expect(lastFrame()).toContain('…');
+        expect(lastFrame()).toContain('Use Enter to select');
+        expect((lastFrame() ?? '').split('\n').length).toBeLessThanOrEqual(
+          initialHeight + 1,
+        );
+      },
+    );
+    it('shows the selected key in the help column on wide terminals', () => {
+      terminal.columns = 160;
+      const { lastFrame } = render(
+        <KeypressProvider kittyProtocolEnabled={false}>
+          <SettingsDialog
+            settings={createMockSettings()}
+            onSelect={vi.fn()}
+            availableTerminalHeight={24}
+          />
+        </KeypressProvider>,
+      );
+      expect(lastFrame()).toContain(getDialogSettingKeys()[0]);
+      expect(lastFrame()).toContain('Scope:');
+      expect(lastFrame()).toContain('1/');
+    });
+
+    it.each([9, 12])(
+      'retains search, scope and footer within %i rows',
+      (height) => {
+        terminal.columns = 60;
+        const { lastFrame } = render(
+          <KeypressProvider kittyProtocolEnabled={false}>
+            <SettingsDialog
+              settings={createMockSettings()}
+              onSelect={vi.fn()}
+              availableTerminalHeight={height}
+            />
+          </KeypressProvider>,
+        );
+        expect((lastFrame() ?? '').split('\n').length).toBeLessThanOrEqual(
+          height,
+        );
+        expect(lastFrame()).toContain('Search settings');
+        expect(lastFrame()).toContain('Scope:');
+        expect(lastFrame()).toContain('1/');
+      },
+    );
     it('should render the settings dialog with default state', () => {
       const settings = createMockSettings();
       const onSelect = vi.fn();
@@ -1161,6 +1235,41 @@ describe('SettingsDialog', () => {
   });
 
   describe('Output Language', () => {
+    it('keeps the edited text around the cursor visible in a narrow value column', async () => {
+      terminal.columns = 120;
+      const { stdin, lastFrame, unmount } = render(
+        <KeypressProvider kittyProtocolEnabled={false}>
+          <SettingsDialog
+            settings={createMockSettings()}
+            onSelect={() => {}}
+            availableTerminalHeight={30}
+          />
+        </KeypressProvider>,
+      );
+      const press = async (key: string) => {
+        act(() => stdin.write(key));
+        await wait();
+      };
+      await press('general.outputLanguage');
+      await press(TerminalKeys.ENTER);
+      await press(TerminalKeys.ENTER);
+      const value = 'Brazilian Portuguese formal ending';
+      await press(`\u001b[200~${value}\u001b[201~`);
+      expect(lastFrame()).toContain('formal ending');
+      await press('\u001b[H');
+      expect(lastFrame()).toContain('Brazilian');
+      await press(TerminalKeys.ENTER);
+      expect(vi.mocked(saveModifiedSettings)).toHaveBeenCalledWith(
+        new Set(['general.outputLanguage']),
+        expect.objectContaining({
+          general: expect.objectContaining({ outputLanguage: value }),
+        }),
+        expect.any(LoadedSettings),
+        SettingScope.User,
+      );
+      unmount();
+    });
+
     it('treats empty output language as auto', async () => {
       const settings = createMockSettings({
         general: { outputLanguage: 'en' },
@@ -1604,28 +1713,32 @@ describe('SettingsDialog', () => {
       unmount();
     });
 
-    it('allows spaces so multi-word queries can be typed', async () => {
-      const settings = createMockSettings();
-      const onSelect = vi.fn();
+    it.each([' ', '\u001b[32u', 'burst'])(
+      'preserves spaces in multi-word queries with %j',
+      async (space) => {
+        const settings = createMockSettings();
+        const onSelect = vi.fn();
 
-      const { stdin, lastFrame, unmount } = render(
-        <KeypressProvider kittyProtocolEnabled={false}>
-          <SettingsDialog settings={settings} onSelect={onSelect} />
-        </KeypressProvider>,
-      );
+        const { stdin, lastFrame, unmount } = render(
+          <KeypressProvider kittyProtocolEnabled={space !== ' '}>
+            <SettingsDialog settings={settings} onSelect={onSelect} />
+          </KeypressProvider>,
+        );
 
-      for (const ch of 'vim mode') {
-        act(() => {
-          stdin.write(ch);
-        });
-        await wait();
-      }
+        for (const ch of space === 'burst' ? ['vim mode'] : 'vim mode') {
+          act(() => {
+            stdin.write(ch === ' ' ? space : ch);
+          });
+          await wait();
+        }
 
-      // The space is preserved in the query rather than being swallowed.
-      expect(lastFrame()).toContain('⌕ vim mode');
+        // The space is preserved in the query rather than being swallowed.
+        expect(lastFrame()).toContain('⌕ vim mode');
+        expect(saveModifiedSettings).not.toHaveBeenCalled();
 
-      unmount();
-    });
+        unmount();
+      },
+    );
 
     it('routes digits into the search box for non-number settings', async () => {
       const settings = createMockSettings();
