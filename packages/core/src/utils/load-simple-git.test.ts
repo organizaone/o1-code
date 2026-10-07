@@ -5,6 +5,9 @@
  */
 
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import * as fs from 'node:fs/promises';
+import * as os from 'node:os';
+import * as path from 'node:path';
 
 describe('loadSimpleGit', () => {
   afterEach(() => {
@@ -113,5 +116,73 @@ describe('loadSimpleGit', () => {
     await expect(loadSimpleGit()).rejects.toThrow(
       'simple-git module does not match the expected API',
     );
+  });
+
+  it.each([
+    ['trailer.audit.cmd=untrusted-command', 'allowUnsafeCommandBinaries'],
+    ['trailer.audit.command=untrusted-command', 'allowUnsafeCommandBinaries'],
+    ['include.path=untrusted-config', 'allowUnsafeInclude'],
+    ['includeIf.onbranch:main.path=untrusted-config', 'allowUnsafeInclude'],
+  ])(
+    'rejects executable configuration %s before spawning Git',
+    async (config, category) => {
+      vi.doUnmock('simple-git');
+      vi.resetModules();
+      const { loadSimpleGit } = await import('./load-simple-git.js');
+      const { simpleGit } = await loadSimpleGit();
+      const tempDir = await fs.mkdtemp(path.join(os.tmpdir(), 'guarded-git-'));
+      try {
+        let spawned = false;
+        const git = simpleGit(tempDir, { config: [config] });
+        git.outputHandler(() => {
+          spawned = true;
+        });
+
+        await expect(git.version()).rejects.toThrow(category);
+        expect(spawned).toBe(false);
+      } finally {
+        await fs.rm(tempDir, { recursive: true, force: true });
+      }
+    },
+  );
+
+  it('instructs Git to reject abbreviated executable options', async () => {
+    vi.doUnmock('simple-git');
+    vi.resetModules();
+    const { loadSimpleGit } = await import('./load-simple-git.js');
+    const { simpleGit } = await loadSimpleGit();
+    const tempDir = await fs.mkdtemp(path.join(os.tmpdir(), 'guarded-git-'));
+    try {
+      const git = simpleGit(tempDir);
+      await git.init();
+
+      await expect(
+        git.raw(['push', '--receive-p=untrusted-command']),
+      ).rejects.toMatchObject({ reason: 'DISALLOWED_ABBREVIATED' });
+    } finally {
+      await fs.rm(tempDir, { recursive: true, force: true });
+    }
+  });
+
+  it('rejects an explicitly supplied VISUAL editor before spawning Git', async () => {
+    vi.doUnmock('simple-git');
+    vi.resetModules();
+    const { loadSimpleGit } = await import('./load-simple-git.js');
+    const { simpleGit } = await loadSimpleGit();
+    const tempDir = await fs.mkdtemp(path.join(os.tmpdir(), 'guarded-git-'));
+    try {
+      let spawned = false;
+      const git = simpleGit(tempDir).env({ VISUAL: 'untrusted-editor' });
+      git.outputHandler(() => {
+        spawned = true;
+      });
+
+      await expect(git.raw(['commit', '--amend'])).rejects.toThrow(
+        'allowUnsafeEditor',
+      );
+      expect(spawned).toBe(false);
+    } finally {
+      await fs.rm(tempDir, { recursive: true, force: true });
+    }
   });
 });

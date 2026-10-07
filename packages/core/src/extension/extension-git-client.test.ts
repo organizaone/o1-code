@@ -100,6 +100,26 @@ describe('createExtensionGitClient', () => {
       'credential helper',
       'https://git.example.com/owner/credential.helper.git',
     ],
+    ['diff tool', 'https://git.example.com/owner/difftool.audit.cmd.git'],
+    [
+      'filter process',
+      'https://git.example.com/owner/filter.audit.process.git',
+    ],
+    ['include', 'https://git.example.com/owner/include.path.git'],
+    ['conditional include', 'https://git.example.com/owner/includeIf.git'],
+    ['pager', 'https://git.example.com/owner/pager.audit.git'],
+    [
+      'upload pack hook',
+      'https://git.example.com/owner/uploadpack.packObjectsHook.git',
+    ],
+    ['submodule', 'https://git.example.com/owner/submodule.audit.update.git'],
+    ['archive command', 'https://git.example.com/owner/tar.audit.command.git'],
+    ['trailer cmd', 'https://git.example.com/owner/trailer.audit.cmd.git'],
+    [
+      'trailer command',
+      'https://git.example.com/owner/trailer.audit.command.git',
+    ],
+    ['URL rewrite', 'https://git.example.com/owner/url.audit.insteadOf.git'],
   ])(
     'runs authenticated Git commands when the URL contains %s text',
     async (_label, source) => {
@@ -154,6 +174,50 @@ describe('createExtensionGitClient', () => {
 
     await expect(git.version()).resolves.toBeDefined();
     expect(spawned).toBe(true);
+  });
+
+  it('passes only the scoped authentication header to the Git child', async () => {
+    vi.stubEnv('GIT_CONFIG_COUNT', '2');
+    vi.stubEnv('GIT_CONFIG_KEY_0', 'http.extraHeader');
+    vi.stubEnv('GIT_CONFIG_VALUE_0', 'Authorization: Basic ambient');
+    vi.stubEnv('GIT_CONFIG_KEY_1', 'trailer.audit.cmd');
+    vi.stubEnv('GIT_CONFIG_VALUE_1', 'ambient-command');
+    vi.stubEnv('VISUAL', 'ambient-editor');
+    const source = 'https://git.example.com/owner/repo.git';
+    const git = createExtensionGitClient(realSimpleGit, {
+      baseDir: tempDir,
+      authentication: {
+        source,
+        credential: { username: 'test-user', password: 'test-token' },
+      },
+    });
+
+    const value = await git.raw([
+      'config',
+      '--get',
+      `http.${source}.extraHeader`,
+    ]);
+    expect(value.trim()).toBe(
+      `Authorization: Basic ${Buffer.from('test-user:test-token').toString('base64')}`,
+    );
+    const config = await git.raw(['config', '--list']);
+    expect(config).not.toContain('http.extraheader=');
+    expect(config).not.toContain('trailer.audit.cmd=');
+  });
+
+  it('does not authorize additional Git environment keys', async () => {
+    let spawned = false;
+    const git = createExtensionGitClient(realSimpleGit, {
+      baseDir: tempDir,
+      networkPolicy: 'public',
+    });
+    git.outputHandler(() => {
+      spawned = true;
+    });
+    git.env('GIT_DIR', tempDir);
+
+    await expect(git.version()).rejects.toThrow('allowEnvironment');
+    expect(spawned).toBe(false);
   });
 
   it('does not inherit ambient secrets into restricted environments', () => {
