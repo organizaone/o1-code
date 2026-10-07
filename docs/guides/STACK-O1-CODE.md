@@ -16,7 +16,7 @@ bundle. Corepack no longer ships with Node 26; install it with `npm i -g corepac
 |---|---|---|
 | 1 Build | `corepack pnpm install --frozen-lockfile && npm run build -- --cli-only` | A plain install: `prepare` only generates sources, and `postinstall` applies `patches/ink+7.0.3.patch`, without which `packages/cli` does not compile. Add `npm run bundle` when the change affects the publishable artifact |
 | 2 Lint | `npm run lint && npm run typecheck` | Both. Typecheck after the build: the CLI checks against core's built types. The pre-commit hook runs Prettier and ESLint on staged files |
-| 3 Test | `cd packages/<cli\|core> && npx vitest run <files in reach>`, and `node --test scripts/o1/*.test.mjs` for the project's scripts | Never `npx vitest` from the root: the configs are per package. The full cli and core suites run before closing a slice that touches many areas; small, local changes run the tests in reach |
+| 3 Test | `cd packages/<cli\|core> && npx vitest run <files in reach>`, and `node --test scripts/o1/*.test.mjs` for the project's scripts | Never `npx vitest` from the root: the configs are per package. Local runs cover the areas in reach; full CLI and core suites run only in CI, on demand, per `TASK-COMPLETION.md` |
 | 5 Version | `npm run release:version -- <major\|minor\|patch>` | At the root. The root `package.json` version is the only one; the script aligns every workspace package to it |
 
 Outside the cycle: `node scripts/o1/smoke.mjs` proves the bundle starts,
@@ -67,7 +67,8 @@ Each one is an observed failure, not a hypothesis.
 The npm registry has been under sustained attack since late 2025, including a self-replicating worm.
 These are not optional.
 
-- `pnpm-workspace.yaml` sets a cooldown for freshly published versions; do not remove it.
+- The pinned pnpm version enforces its default cooldown for freshly published versions;
+  do not exempt dependencies from it in `pnpm-workspace.yaml`.
 - Versioned lockfile; installs use `--frozen-lockfile`.
 - CI actions pinned by commit hash, not by a moving tag.
 

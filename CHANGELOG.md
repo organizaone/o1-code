@@ -7,6 +7,8 @@ follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.10.2] - 2026-10-07
+
 ### Added
 
 - Bare `/` opens recent commands and seven context categories. Categories and
@@ -35,10 +37,8 @@ follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 - Exit-summary shortcuts align with the checkboxes and have a blank line after
   the preferences, separating actions from their keyboard hints.
-
 - Esc and Ctrl+C close the exit summary immediately without saving pending
   preferences; both shortcuts remain visible during the countdown and when paused.
-
 - Long settings descriptions no longer expand the panel or hide its footer.
   Editing long values keeps the cursor and nearby text visible, and typing search
   queries in a burst preserves spaces without changing a setting.
@@ -411,5 +411,6 @@ The first release of o1-code, a coding agent for the terminal.
 - `o1-code serve` runs a local daemon with a REST API and the Web Shell, a browser interface.
 - Editor companions for VS Code and Zed.
 
-[Unreleased]: https://github.com/organizaone/o1-code/compare/v0.1.0...HEAD
+[Unreleased]: https://github.com/organizaone/o1-code/compare/v0.10.2...HEAD
+[0.10.2]: https://github.com/organizaone/o1-code/releases/tag/v0.10.2
 [0.1.0]: https://github.com/organizaone/o1-code/releases/tag/v0.1.0

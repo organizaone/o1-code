@@ -466,7 +466,7 @@ Commands for obtaining information and performing system settings.
 | `/stats monthly` | Show monthly token usage statistics                                                                                            | `/stats monthly` (alias `month`), `/stats month [YYYY-MM]`                          |
 | `/stats export`  | Export usage statistics to CSV or JSON                                                                                         | `/stats export <daily\|monthly> [date\|month] [--format csv\|json] [--output path]` |
 | `/settings`      | Open settings editor                                                                                                           | `/settings`                                                                         |
-| `/config`        | Get or set any setting by dot-path key (writes to user settings)                                                               | `/config` (list all), `/config <key>`, `/config <key>=<value>`                      |
+| `/config`        | Open the settings editor, or get and set a setting by dot-path key (writes to user settings)                                   | `/config` (editor), `/config --help`, `/config <key>`, `/config <key>=<value>`      |
 | `/auth`          | Change authentication method                                                                                                   | `/auth`, `/connect`, `/login`                                                       |
 | `/doctor`        | Run installation and environment diagnostics                                                                                   | `/doctor`, `/doctor memory`                                                         |
 | → `memory`       | Show current process memory diagnostics                                                                                        | `/doctor memory [--json] [--sample] [--snapshot]`                                   |
@@ -477,7 +477,7 @@ Commands for obtaining information and performing system settings.
 | `/insight`       | Generate programming insights from chat history                                                                                | `/insight`                                                                          |
 | `/bug`           | Submit issue about O1-Code                                                                                                     | `/bug Button click unresponsive`                                                    |
 | `/copy`          | Copy to clipboard: reply (Nth-last), code (by lang), LaTeX, or Mermaid                                                         | `/copy`, `/copy 2`, `/copy python`, `/copy latex`, `/copy mermaid`                  |
-| `/quit`          | Exit O1-Code immediately                                                                                                       | `/quit` or `/exit`                                                                  |
+| `/quit`          | End the session and show the exit summary when enabled                                                                         | `/quit` or `/exit`                                                                  |
 
 > [!warning]
 >
@@ -485,7 +485,7 @@ Commands for obtaining information and performing system settings.
 
 > [!note]
 >
-> `/config` reads and writes individual settings by dot-path key (e.g. `general.vimMode`), complementing the interactive `/settings` editor. Running `/config` with no argument (or `--help`) lists every settable key with its type and current value. `/config <key>` prints the current value — except for boolean keys, where it toggles the value. `/config <key>=<value>` sets the value. Changes are written to user settings (`~/.o1-code/settings.json`). Only `boolean`, `string`, `number`, and `enum` settings can be changed this way — `array` and `object` settings must be edited in `settings.json` directly. Sensitive values (API keys, tokens, base URLs) are masked in output, and setting `tools.approvalMode` to `yolo` is blocked.
+> Running `/config` with no argument opens the interactive `/settings` editor. `/config --help` lists every settable key with its type and current value; bare `/config` also lists keys in headless mode. `/config` reads and writes individual settings by dot-path key (e.g. `general.vimMode`). `/config <key>` prints the current value — except for boolean keys, where it toggles the value. `/config <key>=<value>` sets the value. Changes are written to user settings (`~/.o1-code/settings.json`). Only `boolean`, `string`, `number`, and `enum` settings can be changed this way — `array` and `object` settings must be edited in `settings.json` directly. Sensitive values (API keys, tokens, base URLs) are masked in output, and setting `tools.approvalMode` to `yolo` is blocked.
 
 ### 1.11 Common Shortcuts
 
@@ -508,7 +508,7 @@ Use `/auth` inside an O1-Code session to configure authentication. Use `/doctor`
 
 > [!note]
 >
-> The standalone `o1-code auth` CLI command has been removed. Legacy invocations such as `o1-code auth status` print a removal notice with migration guidance. See the [Authentication](../configuration/auth.md) page for full details.
+> Legacy standalone authentication commands such as `o1-code auth status` print a removal notice with migration guidance. `o1-code auth logout <provider-id>` remains available to remove a saved provider credential. See the [Authentication](../configuration/auth.md) page for full details.
 
 ## 2. @ Commands (Introducing Files)
 
