@@ -46,7 +46,7 @@ function assertCredentialedHttpsSource(source: string): void {
 }
 
 // Mirrors the unsafe config-key blocklist matchers in @simple-git/argv-parser
-// (1.1.1 via simple-git 3.36). Re-sync this table on a dependency bump: a new
+// (2.0.1 via simple-git 4). Re-sync this table on a dependency bump: a new
 // matcher that this table misses fails credentialed installs pre-spawn.
 const generatedConfigKeyAllowances = [
   [/alias/, 'allowUnsafeAlias'],
@@ -60,18 +60,29 @@ const generatedConfigKeyAllowances = [
   [/credential(..+)?.helper/, 'allowUnsafeCredentialHelper'],
   [/diff(..+)?.command/, 'allowUnsafeDiffExternal'],
   [/diff.external/, 'allowUnsafeDiffExternal'],
+  [/difftool(..+)?.cmd/, 'allowUnsafeDiffExternal'],
   [/diff(..+)?.textconv/, 'allowUnsafeDiffTextConv'],
   [/filter(..+)?.clean/, 'allowUnsafeFilter'],
+  [/filter(..+)?.process/, 'allowUnsafeFilter'],
   [/filter(..+)?.smudge/, 'allowUnsafeFilter'],
   [/gpg(..+)?.program/, 'allowUnsafeGpgProgram'],
+  [/include.path/, 'allowUnsafeInclude'],
+  [/includeif/, 'allowUnsafeInclude'],
   [/init.templatedir/, 'allowUnsafeTemplateDir'],
+  [/pager(..+)?./, 'allowUnsafePager'],
   [/merge(..+)?.driver/, 'allowUnsafeMergeDriver'],
   [/mergetool(..+)?.path/, 'allowUnsafeMergeDriver'],
   [/mergetool(..+)?.cmd/, 'allowUnsafeMergeDriver'],
   [/protocol(..+)?.allow/, 'allowUnsafeProtocolOverride'],
   [/remote(..+)?.receivepack/, 'allowUnsafePack'],
   [/remote(..+)?.uploadpack/, 'allowUnsafePack'],
+  [/uploadpack.packobjectshook/, 'allowUnsafePack'],
   [/sequence.editor/, 'allowUnsafeEditor'],
+  [/submodule(..+)?.update/, 'allowUnsafeSubmodule'],
+  [/tar(..+)?.command/, 'allowUnsafeCommandBinaries'],
+  [/trailer(..+)?.cmd/, 'allowUnsafeCommandBinaries'],
+  [/trailer(..+)?.command/, 'allowUnsafeCommandBinaries'],
+  [/url(..+)?.insteadof/, 'allowUnsafeUrlRewrite'],
 ] as const satisfies ReadonlyArray<readonly [RegExp, keyof UnsafeOptions]>;
 
 function allowGeneratedConfigKeyFalsePositives(
@@ -120,6 +131,17 @@ export function createExtensionGitClient(
     ...(signal ? { abort: signal } : {}),
     ...(hasNetworkConfig ? { config: networkConfig } : {}),
     ...(restrictEnvironment || hasNetworkConfig ? { unsafe } : {}),
+    ...(restrictEnvironment
+      ? {
+          allowEnvironment: [
+            'GIT_CONFIG_NOSYSTEM',
+            'GIT_CONFIG_GLOBAL',
+            ...(authentication
+              ? ['GIT_CONFIG_COUNT', 'GIT_CONFIG_KEY_0', 'GIT_CONFIG_VALUE_0']
+              : []),
+          ],
+        }
+      : {}),
   });
   if (!restrictEnvironment) return git;
 

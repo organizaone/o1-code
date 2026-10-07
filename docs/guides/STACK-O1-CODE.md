@@ -71,6 +71,21 @@ These are not optional.
   do not exempt dependencies from it in `pnpm-workspace.yaml`.
 - Versioned lockfile; installs use `--frozen-lockfile`.
 - CI actions pinned by commit hash, not by a moving tag.
+- Security overrides are mirrored in `package.json` and `pnpm-workspace.yaml`.
+  Keep every transitive copy outside the affected advisory ranges; a direct dependency
+  upgrade alone does not ensure this. The `simple-git` 4 client also requires the
+  patched `@simple-git/argv-parser` 2.0.1. Extension downloads allow only their generated
+  Git authentication and isolation variables through the client's environment filter.
+
+The release review in issue [#55](https://github.com/organizaone/o1-code/issues/55)
+also checks embedded copies and the published artifact. Mermaid's embedded YAML
+loaders use `JSON_SCHEMA`, which excludes the merge tag required by
+`GHSA-2883-xcg3-v3hh`; the standalone YAML package is patched separately.
+`http-cache-semantics` is confined to the development `node-gyp` graph, where
+`make-fetch-happen` always constructs private policies with `shared: false`.
+The shared-cache condition for `GHSA-ch52-4w7c-c8xp` is absent in that consumer;
+the dependency is not included in the CLI bundle. Recheck these conditions when
+upgrading either consumer instead of treating the version range alone as a fix.
 
 ## See also
 

@@ -7,6 +7,16 @@ follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Fixed
+
+- Update the dependencies used for Git operations, shell quoting, MCP connections,
+  HTTP transport, proxy address parsing, image decoding, and telemetry to address
+  critical and high security advisories. Transitive overrides also cover affected
+  brace expansion, YAML parsing, source maps, and browser compatibility data.
+- Preserve the isolated Git environment used to download authenticated extensions
+  with the updated Git library, while rejecting inherited Git configuration and
+  executable configuration arguments before starting Git.
+
 ## [0.10.2] - 2026-10-07
 
 ### Added

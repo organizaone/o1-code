@@ -317,6 +317,7 @@ describe('git extension helpers', () => {
       }
 
       expect(simpleGit).toHaveBeenLastCalledWith('/dest', {
+        allowEnvironment: ['GIT_CONFIG_NOSYSTEM', 'GIT_CONFIG_GLOBAL'],
         config: [
           'http.curloptResolve=github.com:443:8.8.8.8',
           'http.followRedirects=false',
@@ -381,6 +382,7 @@ describe('git extension helpers', () => {
       );
 
       expect(simpleGit).toHaveBeenLastCalledWith('/dest', {
+        allowEnvironment: ['GIT_CONFIG_NOSYSTEM', 'GIT_CONFIG_GLOBAL'],
         config: [
           'http.curloptResolve=github.com:443:8.8.8.8',
           'http.followRedirects=false',
@@ -1864,6 +1866,7 @@ describe('git extension helpers', () => {
 
       expect(result).toBe(ExtensionUpdateState.UP_TO_DATE);
       expect(simpleGit).toHaveBeenLastCalledWith('/ext', {
+        allowEnvironment: ['GIT_CONFIG_NOSYSTEM', 'GIT_CONFIG_GLOBAL'],
         config: [
           'http.curloptResolve=github.com:443:8.8.8.8',
           'http.followRedirects=false',
