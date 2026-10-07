@@ -7,6 +7,12 @@ follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Changed
+
+- The welcome screen distinguishes recent session names from their timestamps.
+  Section headings use the brand color, and commands such as `/resume` use bold
+  accent text so the option to continue an earlier session is easier to find.
+
 ## [0.9.0] - 2026-10-06
 
 ### Added
