@@ -178,24 +178,26 @@ export const QuittingDisplay = ({ onExit }: { onExit?: () => void }) => {
           </Box>
         ))}
       </Box>
-      <Text color={theme.text.secondary}>
-        {paused
-          ? t('↑/↓ select · Space toggle · Enter confirm and exit')
-          : t(
-              'Closing in {{seconds}}s · press any key to keep this summary open',
-              { seconds: String(secondsLeft) },
-            )}
-      </Text>
-      <Text color={theme.text.secondary}>
-        {t('Esc / Ctrl+C exit without saving')}
-      </Text>
-      {saveError && (
-        <Text color={theme.status.error}>
-          {t(
-            'Could not save your preference. Press Enter to exit without saving.',
-          )}
+      <Box flexDirection="column" marginTop={1} paddingLeft={2}>
+        <Text color={theme.text.secondary}>
+          {paused
+            ? t('↑/↓ select · Space toggle · Enter confirm and exit')
+            : t(
+                'Closing in {{seconds}}s · press any key to keep this summary open',
+                { seconds: String(secondsLeft) },
+              )}
         </Text>
-      )}
+        <Text color={theme.text.secondary}>
+          {t('Esc / Ctrl+C exit without saving')}
+        </Text>
+        {saveError && (
+          <Text color={theme.status.error}>
+            {t(
+              'Could not save your preference. Press Enter to exit without saving.',
+            )}
+          </Text>
+        )}
+      </Box>
     </Box>
   );
 };

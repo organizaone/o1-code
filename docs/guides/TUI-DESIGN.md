@@ -399,7 +399,9 @@ never leaves; it only shortens from the start.
   recognized provider, and authentication by API key, browser account login,
   o1-gateway/o1-connect, or application default credentials.
   Esc and Ctrl+C exit immediately without saving pending preferences; their hint
-  remains visible during the countdown and when paused. Other non-paste keys
+  remains visible during the countdown and when paused. Footer hints and errors
+  align with the checkbox column, with one blank line after the choices.
+  Other non-paste keys
   pause it for the current exit. Keep-open and hide choices
   are exclusive; arrows/Tab choose, Space or a click toggles, and Enter confirms
   and saves both User preferences together before exiting. The first Enter

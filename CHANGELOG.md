@@ -33,6 +33,9 @@ follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Fixed
 
+- Exit-summary shortcuts align with the checkboxes and have a blank line after
+  the preferences, separating actions from their keyboard hints.
+
 - Esc and Ctrl+C close the exit summary immediately without saving pending
   preferences; both shortcuts remain visible during the countdown and when paused.
 
