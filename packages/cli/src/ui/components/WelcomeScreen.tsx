@@ -23,7 +23,7 @@ const AGE_COLUMN = 11;
 
 /**
  * Renders a translated line whose `{{name}}` placeholders are code (commands,
- * files), painted in the code colour instead of being interpolated as text.
+ * files), styled by their role instead of being interpolated as plain text.
  */
 function CodeLine({
   template,
@@ -38,7 +38,13 @@ function CodeLine({
       {parts.map((part, index) => {
         const name = /^\{\{(\w+)\}\}$/.exec(part)?.[1];
         return name && code[name] !== undefined ? (
-          <Text key={index} color={extendedTheme.activity.read}>
+          <Text
+            key={index}
+            color={
+              code[name].startsWith('/') ? theme.text.accent : theme.text.code
+            }
+            bold={code[name].startsWith('/')}
+          >
             {code[name]}
           </Text>
         ) : (
@@ -52,7 +58,7 @@ function CodeLine({
 function SectionTitle({ children }: { children: string }): React.JSX.Element {
   return (
     <Box marginTop={1}>
-      <Text color={extendedTheme.text.muted} bold>
+      <Text color={extendedTheme.ui.brand} bold>
         {children.toUpperCase()}
       </Text>
     </Box>
@@ -169,7 +175,7 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({
                   {formatSessionAge(session.mtime, now)}
                 </Text>
               </Box>
-              <Text color={theme.text.secondary} wrap="truncate-end">
+              <Text color={theme.text.primary} wrap="truncate-end">
                 {sessionTitle(session)}
               </Text>
             </Box>

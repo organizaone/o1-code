@@ -353,8 +353,9 @@ never leaves; it only shortens from the start.
   the settings JSON is not shown.
 - **Start screen** (`components/WelcomeScreen.tsx`, hidden by `ui.hideTips`): welcome line, one
   sentence on what the agent does, `GETTING STARTED` and `RECENT SESSIONS` (up to three, then
-  `/resume to continue a session`). Section titles muted, bold, upper case; commands and files in
-  teal.
+  `/resume to continue a session`). Section titles use brand colour, bold, upper case;
+  session names use primary text and their ages stay muted. Commands, including `/resume`,
+  use accent colour and bold; files use the code colour.
 
 ## Glyphs and the compatible mode
 
