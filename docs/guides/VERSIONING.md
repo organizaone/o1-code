@@ -163,13 +163,15 @@ Bumping the version (Step 5) and releasing are different events. A release is th
 - **Starting point.** The version line starts at `0.1.0`. The release scripts count only tags whose
   commit carries `brand.json`.
 - **Release.** A pushed `vX.Y.Z` tag drives `.github/workflows/release.yml`, which also runs by
-  hand for an existing tag. It builds the tag and, in order: checks that the tag equals the version
-  of the root and `packages/cli` manifests, that the version is not on npm yet and that
-  `CHANGELOG.md` has its section; builds, bundles and runs `prepare:package`; runs the fast gates;
+  hand for an existing tag. It checks out the tag and, in order: checks that the tag equals the
+  version of the root and `packages/cli` manifests and that `CHANGELOG.md` has its section;
+  restores the CI build for the tagged commit or builds and bundles as a fallback; runs
+  `prepare:package`, brand lint and both smoke checks;
   packs `dist/`, installs the tarball globally into a temporary prefix and runs
   `o1-code --version` and `--help`; publishes the tarball to npm as `@organizaone/o1-code`
   (`latest`, public), without waiting for the registry to show it; creates the GitHub release with
-  the notes from `node scripts/o1/release-notes.mjs <version>` and the tarball attached.
+  the notes from `node scripts/o1/release-notes.mjs <version>` and the tarball attached. If the
+  version is already on npm, publication is skipped while the GitHub release is completed.
 - **Release credentials.** The release job runs in the `npm` environment, which deploys only from
   `v*.*.*` tags and waits for the maintainer's approval. The publish uses npm trusted publishing
   (OIDC), bound on npmjs.com to this repository, `release.yml` and the `npm` environment. No token

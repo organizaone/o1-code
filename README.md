@@ -56,7 +56,7 @@ explain the structure of this project
 add input validation to POST /todos: reject an empty title with a 400, and add a test for it
 ```
 
-**3. Approve.** o1-code shows the edit or the command before it runs and waits for you. Press
+**3. Approve.** o1-code shows edits and commands that require approval before running them and waits for you. Press
 `Shift+Tab` to change the approval mode, `/help` to list the commands, `?` for the shortcuts.
 
 ## Features

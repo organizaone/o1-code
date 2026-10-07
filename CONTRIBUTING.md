@@ -128,7 +128,7 @@ Anything else connects through **Custom** in `/auth` or `/model`, with no code c
 An approved preset follows the `anthropic.ts` and `deepseek.ts` pattern in
 `packages/core/src/providers/presets/`: a fixed base URL or a short list of options, an env key, a
 `uiGroup`, and `customHeaders` only when the provider asks for attribution, with the env key added
-to `SECRET_ENV_VARS` in `packages/cli/src/serve/envSnapshot.ts`, a test in
+to `SECRET_ENV_VARS` in `packages/cli/src/serve/env-snapshot.ts`, a test in
 `packages/core/src/providers/__tests__/presets/`, and a row in
 `docs/users/configuration/model-providers.md`. The key the user enters is saved in the credential
 store under the preset's id.
