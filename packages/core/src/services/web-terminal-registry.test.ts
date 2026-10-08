@@ -4,7 +4,15 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import {
+  afterEach,
+  beforeEach,
+  describe,
+  expect,
+  it,
+  vi,
+  type Mock,
+} from 'vitest';
 import pkg from '@xterm/headless';
 
 const { Terminal } = pkg;
@@ -43,13 +51,13 @@ import {
 describe('WebTerminalRegistry', () => {
   let onData: (data: string) => void;
   let onExit: (event: { exitCode: number; signal?: number }) => void;
-  let write: ReturnType<typeof vi.fn>;
-  let resize: ReturnType<typeof vi.fn>;
-  let kill: ReturnType<typeof vi.fn>;
-  let nativeKill: ReturnType<typeof vi.fn>;
-  let conoutDispose: ReturnType<typeof vi.fn>;
-  let disposeData: ReturnType<typeof vi.fn>;
-  let disposeExit: ReturnType<typeof vi.fn>;
+  let write: Mock<(data: string) => void>;
+  let resize: Mock<(cols: number, rows: number) => void>;
+  let kill: Mock<(signal?: string) => void>;
+  let nativeKill: Mock<(handle: number, useConptyDll: boolean) => void>;
+  let conoutDispose: Mock<() => void>;
+  let disposeData: Mock<() => void>;
+  let disposeExit: Mock<() => void>;
 
   const createSpawnedPty = () => ({
     pid: 1,
@@ -91,13 +99,13 @@ describe('WebTerminalRegistry', () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
-    write = vi.fn();
-    resize = vi.fn();
-    kill = vi.fn();
-    nativeKill = vi.fn();
-    conoutDispose = vi.fn();
-    disposeData = vi.fn();
-    disposeExit = vi.fn();
+    write = vi.fn<(data: string) => void>();
+    resize = vi.fn<(cols: number, rows: number) => void>();
+    kill = vi.fn<(signal?: string) => void>();
+    nativeKill = vi.fn<(handle: number, useConptyDll: boolean) => void>();
+    conoutDispose = vi.fn<() => void>();
+    disposeData = vi.fn<() => void>();
+    disposeExit = vi.fn<() => void>();
     spawnSync.mockReturnValue({ stdout: '' });
     osPlatform.mockReturnValue(process.platform);
     spawn.mockImplementation(() => createSpawnedPty());

@@ -18,9 +18,9 @@ vi.mock('@organizaone/o1-code-core', async (importOriginal) => {
     await importOriginal<typeof import('@organizaone/o1-code-core')>();
   return {
     ...actual,
-    ExtensionManager: vi
-      .fn()
-      .mockImplementation(() => mockExtensionManagerInstance),
+    ExtensionManager: vi.fn().mockImplementation(function MockConstructor() {
+      return mockExtensionManagerInstance;
+    }),
   };
 });
 

@@ -363,14 +363,13 @@ describe('subagent.ts', () => {
       mockGetHistoryToolCallFingerprints = vi.fn(
         () => new Map<string, string>(),
       );
-      vi.mocked(LlmChat).mockImplementation(
-        () =>
-          ({
-            sendMessageStream: mockSendMessageStream,
-            setLastPromptTokenCount: vi.fn(),
-            getHistoryToolCallFingerprints: mockGetHistoryToolCallFingerprints,
-          }) as unknown as LlmChat,
-      );
+      vi.mocked(LlmChat).mockImplementation(function MockConstructor() {
+        return {
+          sendMessageStream: mockSendMessageStream,
+          setLastPromptTokenCount: vi.fn(),
+          getHistoryToolCallFingerprints: mockGetHistoryToolCallFingerprints,
+        } as unknown as LlmChat;
+      });
 
       // Default mock for executeToolCall
       vi.mocked(executeToolCall).mockResolvedValue({
@@ -3330,16 +3329,15 @@ describe('subagent.ts', () => {
           { text: 'Let me think...' as string, thought: true },
           { text: 'Here is the answer.' as string },
         ]);
-        vi.mocked(LlmChat).mockImplementation(
-          () =>
-            ({
-              sendMessageStream: mockSendMessageStream,
-              setLastPromptTokenCount: vi.fn(),
-              getHistoryToolCallFingerprints: vi.fn(
-                () => new Map<string, string>(),
-              ),
-            }) as unknown as LlmChat,
-        );
+        vi.mocked(LlmChat).mockImplementation(function MockConstructor() {
+          return {
+            sendMessageStream: mockSendMessageStream,
+            setLastPromptTokenCount: vi.fn(),
+            getHistoryToolCallFingerprints: vi.fn(
+              () => new Map<string, string>(),
+            ),
+          } as unknown as LlmChat;
+        });
 
         const eventEmitter = new AgentEventEmitter();
         const events: AgentStreamTextEvent[] = [];
@@ -3426,16 +3424,15 @@ describe('subagent.ts', () => {
           { text: 'Internal reasoning here.' as string, thought: true },
           { text: 'The final answer.' as string },
         ]);
-        vi.mocked(LlmChat).mockImplementation(
-          () =>
-            ({
-              sendMessageStream: mockSendMessageStream,
-              setLastPromptTokenCount: vi.fn(),
-              getHistoryToolCallFingerprints: vi.fn(
-                () => new Map<string, string>(),
-              ),
-            }) as unknown as LlmChat,
-        );
+        vi.mocked(LlmChat).mockImplementation(function MockConstructor() {
+          return {
+            sendMessageStream: mockSendMessageStream,
+            setLastPromptTokenCount: vi.fn(),
+            getHistoryToolCallFingerprints: vi.fn(
+              () => new Map<string, string>(),
+            ),
+          } as unknown as LlmChat;
+        });
 
         const scope = await AgentHeadless.create(
           'test-agent',
@@ -3494,16 +3491,15 @@ describe('subagent.ts', () => {
             }
           })();
         });
-        vi.mocked(LlmChat).mockImplementation(
-          () =>
-            ({
-              sendMessageStream: mockSendMessageStream,
-              setLastPromptTokenCount: vi.fn(),
-              getHistoryToolCallFingerprints: vi.fn(
-                () => new Map<string, string>(),
-              ),
-            }) as unknown as LlmChat,
-        );
+        vi.mocked(LlmChat).mockImplementation(function MockConstructor() {
+          return {
+            sendMessageStream: mockSendMessageStream,
+            setLastPromptTokenCount: vi.fn(),
+            getHistoryToolCallFingerprints: vi.fn(
+              () => new Map<string, string>(),
+            ),
+          } as unknown as LlmChat;
+        });
 
         const scope = await AgentHeadless.create(
           'test-agent',

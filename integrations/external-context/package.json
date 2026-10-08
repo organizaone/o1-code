@@ -1,6 +1,6 @@
 {
   "name": "@organizaone/o1-code-external-context",
-  "version": "0.10.3",
+  "version": "0.10.4",
   "private": true,
   "description": "Provider-bound external context for O1-Code",
   "type": "module",
@@ -38,6 +38,6 @@
     "@types/node": "^22.0.0",
     "ajv": "^8.17.1",
     "typescript": "^5.4.5",
-    "vitest": "^3.2.4"
+    "vitest": "^4.1.11"
   }
 }

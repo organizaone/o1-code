@@ -42,14 +42,16 @@ vi.mock('../../../utils/debugLogger.js', () => ({
 
 // Mock OpenAI
 vi.mock('openai', () => ({
-  default: vi.fn().mockImplementation((config) => ({
-    config,
-    chat: {
-      completions: {
-        create: vi.fn(),
+  default: vi.fn().mockImplementation(function MockConstructor(config) {
+    return {
+      config,
+      chat: {
+        completions: {
+          create: vi.fn(),
+        },
       },
-    },
-  })),
+    };
+  }),
 }));
 
 vi.mock('../../../utils/runtimeFetchOptions.js', () => ({

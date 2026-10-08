@@ -28,14 +28,14 @@ import { AtFileProcessor } from './prompt-processors/atFileProcessor.js';
 const mockShellProcess = vi.hoisted(() => vi.fn());
 const mockAtFileProcess = vi.hoisted(() => vi.fn());
 vi.mock('./prompt-processors/atFileProcessor.js', () => ({
-  AtFileProcessor: vi.fn().mockImplementation(() => ({
-    process: mockAtFileProcess,
-  })),
+  AtFileProcessor: vi.fn().mockImplementation(function MockConstructor() {
+    return { process: mockAtFileProcess };
+  }),
 }));
 vi.mock('./prompt-processors/shellProcessor.js', () => ({
-  ShellProcessor: vi.fn().mockImplementation(() => ({
-    process: mockShellProcess,
-  })),
+  ShellProcessor: vi.fn().mockImplementation(function MockConstructor() {
+    return { process: mockShellProcess };
+  }),
   ConfirmationRequiredError: class extends Error {
     constructor(
       message: string,
@@ -55,7 +55,9 @@ vi.mock('./prompt-processors/argumentProcessor.js', async (importOriginal) => {
   return {
     DefaultArgumentProcessor: vi
       .fn()
-      .mockImplementation(() => new original.DefaultArgumentProcessor()),
+      .mockImplementation(function MockConstructor() {
+        return new original.DefaultArgumentProcessor();
+      }),
   };
 });
 vi.mock('@organizaone/o1-code-core', async (importOriginal) => {
@@ -1170,10 +1172,11 @@ describe('FileCommandLoader', () => {
       );
 
       vi.mocked(DefaultArgumentProcessor).mockImplementation(
-        () =>
-          ({
+        function MockConstructor() {
+          return {
             process: defaultProcessMock,
-          }) as unknown as DefaultArgumentProcessor,
+          } as unknown as DefaultArgumentProcessor;
+        },
       );
 
       const loader = new FileCommandLoader(null as unknown as Config);
@@ -1266,10 +1269,11 @@ describe('FileCommandLoader', () => {
 
       // Prevent default processor from interfering
       vi.mocked(DefaultArgumentProcessor).mockImplementation(
-        () =>
-          ({
+        function MockConstructor() {
+          return {
             process: (p: PromptPipelineContent) => Promise.resolve(p),
-          }) as unknown as DefaultArgumentProcessor,
+          } as unknown as DefaultArgumentProcessor;
+        },
       );
 
       const loader = new FileCommandLoader(null as unknown as Config);

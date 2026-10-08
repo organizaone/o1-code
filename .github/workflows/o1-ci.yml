@@ -353,7 +353,7 @@ jobs:
   full:
     name: 'Full suites (${{ matrix.package }})'
     needs: 'fast'
-    if: '${{ inputs.full }}'
+    if: "${{ !cancelled() && needs.fast.result == 'success' && inputs.full }}"
     strategy:
       fail-fast: false
       matrix:

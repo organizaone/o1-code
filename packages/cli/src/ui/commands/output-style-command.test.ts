@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { describe, it, expect, beforeEach, vi, type Mock } from 'vitest';
 import type { Config, OutputStyleDefinition } from '@organizaone/o1-code-core';
 import {
   BUILT_IN_OUTPUT_STYLES,
@@ -13,7 +13,7 @@ import {
 } from '@organizaone/o1-code-core';
 import { type CommandContext } from './types.js';
 import { outputStyleCommand } from './output-style-command.js';
-import { SettingScope } from '../../config/settings.js';
+import { SettingScope, type LoadedSettings } from '../../config/settings.js';
 import { createMockCommandContext } from '../../test-utils/mockCommandContext.js';
 import { t } from '../../i18n/index.js';
 
@@ -41,10 +41,12 @@ const CUSTOM_STYLE: OutputStyleDefinition = {
 };
 
 describe('outputStyleCommand', () => {
-  let setOutputStyle: ReturnType<typeof vi.fn>;
-  let getOutputStyle: ReturnType<typeof vi.fn>;
-  let refreshSystemInstruction: ReturnType<typeof vi.fn>;
-  let setValue: ReturnType<typeof vi.fn>;
+  let setOutputStyle: Mock<Config['setOutputStyle']>;
+  let getOutputStyle: Mock<Config['getOutputStyle']>;
+  let refreshSystemInstruction: Mock<
+    ReturnType<Config['getLlmClient']>['refreshSystemInstruction']
+  >;
+  let setValue: Mock<LoadedSettings['setValue']>;
   let context: CommandContext;
 
   beforeEach(() => {

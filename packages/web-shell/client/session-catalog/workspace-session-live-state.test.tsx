@@ -26,6 +26,10 @@ import {
 } from './workspace-session-live-state';
 
 globalThis.IS_REACT_ACT_ENVIRONMENT = true;
+const originalDocumentHidden = Object.getOwnPropertyDescriptor(
+  document,
+  'hidden',
+);
 
 function liveState(
   revision: number,
@@ -103,8 +107,14 @@ describe('useWorkspaceSessionLiveState', () => {
   afterEach(() => {
     act(() => root.unmount());
     container.remove();
-    vi.useRealTimers();
+    if (originalDocumentHidden) {
+      Object.defineProperty(document, 'hidden', originalDocumentHidden);
+    } else {
+      Reflect.deleteProperty(document, 'hidden');
+    }
+    vi.resetAllMocks();
     vi.restoreAllMocks();
+    vi.useRealTimers();
   });
 
   function Probe({

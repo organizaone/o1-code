@@ -11,6 +11,7 @@ export default defineConfig({
     coverage: {
       provider: 'v8',
       reporter: ['text', 'json', 'html'],
+      include: ['**/*.{js,cjs,mjs,ts,mts,cts,tsx,jsx,vue,svelte,marko}'],
       exclude: [
         'node_modules/',
         'dist/',
@@ -30,12 +31,8 @@ export default defineConfig({
     exclude: ['node_modules/', 'dist/'],
     retry: 2,
     fileParallelism: true,
-    poolOptions: {
-      threads: {
-        minThreads: 2,
-        maxThreads: 4,
-      },
-    },
+    pool: 'threads',
+    maxWorkers: 4,
     testTimeout: testTimeoutMs,
     hookTimeout: 10000,
     // RPC-timeout exemption; see scripts/tests/unit-vitest-configs.test.ts.

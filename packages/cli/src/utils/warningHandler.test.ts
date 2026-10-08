@@ -4,7 +4,15 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import {
+  afterEach,
+  beforeEach,
+  describe,
+  expect,
+  it,
+  vi,
+  type Mock,
+} from 'vitest';
 import {
   initializeWarningHandler,
   resetWarningHandlerForTests,
@@ -20,7 +28,7 @@ describe('initializeWarningHandler', () => {
   // This is the channel the real Node default printer travels on, so
   // asserting fan-out here is equivalent to asserting "the default printer
   // would have fired" without coupling tests to internal Node behavior.
-  let priorListener: ReturnType<typeof vi.fn>;
+  let priorListener: Mock<NodeJS.WarningListener>;
 
   beforeEach(() => {
     for (const k of ENV_KEYS) originalEnv[k] = process.env[k];

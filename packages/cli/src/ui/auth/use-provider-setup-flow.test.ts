@@ -6,7 +6,7 @@
 // @vitest-environment jsdom
 
 import { act, renderHook } from '@testing-library/react';
-import { describe, expect, it, vi } from 'vitest';
+import { describe, expect, it, vi, type Mock } from 'vitest';
 import {
   AuthType,
   buildInstallPlan,
@@ -303,7 +303,7 @@ describe('useProviderSetupFlow API selection', () => {
   // Reconnect the custom provider on Chat Completions at `baseUrl` with the
   // given ids and stop on the review step, where the preview is computed.
   const reviewCustomReconnect = (
-    submit: ReturnType<typeof vi.fn>,
+    submit: Mock<Parameters<typeof useProviderSetupFlow>[0]>,
     modelProviders: Parameters<typeof useProviderSetupFlow>[1],
     baseUrl: string,
     modelIds: string,

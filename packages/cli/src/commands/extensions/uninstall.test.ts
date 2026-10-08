@@ -20,10 +20,12 @@ vi.mock('@organizaone/o1-code-core', async (importOriginal) => {
     await importOriginal<typeof import('@organizaone/o1-code-core')>();
   return {
     ...actual,
-    ExtensionManager: vi.fn(() => ({
-      refreshCache: mockRefreshCache,
-      uninstallExtension: mockUninstallExtension,
-    })),
+    ExtensionManager: vi.fn(function MockConstructor() {
+      return {
+        refreshCache: mockRefreshCache,
+        uninstallExtension: mockUninstallExtension,
+      };
+    }),
   };
 });
 

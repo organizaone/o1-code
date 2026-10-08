@@ -112,11 +112,21 @@ describe('HookSystem', () => {
       setMessagesProvider: vi.fn(),
     } as unknown as HookEventHandler;
 
-    vi.mocked(HookRegistry).mockImplementation(() => mockHookRegistry);
-    vi.mocked(HookRunner).mockImplementation(() => mockHookRunner);
-    vi.mocked(HookAggregator).mockImplementation(() => mockHookAggregator);
-    vi.mocked(HookPlanner).mockImplementation(() => mockHookPlanner);
-    vi.mocked(HookEventHandler).mockImplementation(() => mockHookEventHandler);
+    vi.mocked(HookRegistry).mockImplementation(function MockConstructor() {
+      return mockHookRegistry;
+    });
+    vi.mocked(HookRunner).mockImplementation(function MockConstructor() {
+      return mockHookRunner;
+    });
+    vi.mocked(HookAggregator).mockImplementation(function MockConstructor() {
+      return mockHookAggregator;
+    });
+    vi.mocked(HookPlanner).mockImplementation(function MockConstructor() {
+      return mockHookPlanner;
+    });
+    vi.mocked(HookEventHandler).mockImplementation(function MockConstructor() {
+      return mockHookEventHandler;
+    });
 
     hookSystem = new HookSystem(mockConfig);
   });

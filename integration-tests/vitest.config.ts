@@ -29,24 +29,14 @@ export default defineConfig({
     retry: 2,
     fileParallelism: true,
     pool: 'forks',
-    poolOptions: {
-      forks: {
-        // Each ECS host runs several Actions runners. Keep every E2E shard to
-        // one child process there so concurrent jobs cannot multiply the host
-        // load and starve latency-sensitive integration paths.
-        minForks: isSelfHostedRunner ? 1 : 2,
-        maxForks: isSelfHostedRunner ? 1 : 4,
-      },
-    },
-    // The worker->main `onTaskUpdate` RPC runs on a 60s budget; under
-    // resource pressure a stall longer than that surfaces as an unhandled
-    // error and exits an all-green run red (the same failure class the
-    // core, cli, and scripts suites hit on the macOS lane). The Linux shards
-    // run on the shared self-hosted pool instead of ubuntu-hosted VMs and
-    // hit the same pressure class there, so self-hosted runners are exempted
-    // as well. Test failures still fail the run; only unhandled errors stop
-    // being fatal — github-hosted Linux
-    // (the nightly isolated legs) and local Linux runs keep the signal.
+    // Each ECS host runs several Actions runners. Keep every E2E shard to
+    // one child process there so concurrent jobs cannot multiply the host
+    // load and starve latency-sensitive integration paths.
+    maxWorkers: isSelfHostedRunner ? 1 : 4,
+    // Preserve the exemption for historical worker RPC timeouts under
+    // resource pressure on non-Linux and shared self-hosted runners.
+    // Test failures still fail the run; GitHub-hosted and local Linux
+    // runs keep unhandled errors fatal.
     dangerouslyIgnoreUnhandledErrors:
       process.platform !== 'linux' || isSelfHostedRunner,
   },

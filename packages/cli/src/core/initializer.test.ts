@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi, type Mock } from 'vitest';
 import { connectIdeForStartup, initializeApp } from './initializer.js';
 
 const mockPerformInitialAuth = vi.fn();
@@ -34,7 +34,11 @@ vi.mock('@organizaone/o1-code-core', async (importOriginal) => {
   return {
     ...actual,
     IdeClient: { getInstance: () => mockGetInstance() },
-    IdeConnectionEvent: vi.fn().mockImplementation((type) => ({ type })),
+    IdeConnectionEvent: vi.fn().mockImplementation(function MockConstructor(
+      type: unknown,
+    ) {
+      return { type };
+    }),
     IdeConnectionType: { START: 'start' },
     logIdeConnection: (...args: unknown[]) => mockLogIdeConnection(...args),
   };
@@ -42,7 +46,13 @@ vi.mock('@organizaone/o1-code-core', async (importOriginal) => {
 
 describe('initializeApp', () => {
   let mockConfig: {
-    getModelsConfig: ReturnType<typeof vi.fn>;
+    getModelsConfig: Mock<
+      () => {
+        [K in 'getCurrentAuthType' | 'wasAuthTypeExplicitlyProvided']: Mock<
+          ReturnType<Parameters<typeof initializeApp>[0]['getModelsConfig']>[K]
+        >;
+      }
+    >;
     getIdeMode: ReturnType<typeof vi.fn>;
     getMemoryFileCount: ReturnType<typeof vi.fn>;
   };

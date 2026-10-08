@@ -4,10 +4,19 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { vi, describe, it, expect, beforeEach, afterEach } from 'vitest';
+import {
+  vi,
+  describe,
+  it,
+  expect,
+  beforeEach,
+  afterEach,
+  type Mock,
+} from 'vitest';
 import { DataProcessor } from './DataProcessor.js';
 import { dayKey } from '../dates.js';
 import type { Config, ChatRecord } from '@organizaone/o1-code-core';
+import type { SideQueryJsonOptions } from '@organizaone/o1-code-core/utils/sideQuery.js';
 import type {
   InsightData,
   SessionFacets,
@@ -52,12 +61,15 @@ const mockedReadJsonlFile = vi.mocked(readJsonlFile);
 describe('DataProcessor', () => {
   let mockConfig: Config;
   let dataProcessor: DataProcessor;
-  let mockGenerateJson: ReturnType<typeof vi.fn>;
+  let mockGenerateJson: Mock<
+    (request: SideQueryJsonOptions<unknown>) => Promise<unknown>
+  >;
 
   beforeEach(() => {
     vi.clearAllMocks();
 
-    mockGenerateJson = vi.fn();
+    mockGenerateJson =
+      vi.fn<(request: SideQueryJsonOptions<unknown>) => Promise<unknown>>();
     mockRunSideQuery.mockImplementation((_config, request) =>
       mockGenerateJson(request),
     );

@@ -183,7 +183,7 @@ describe('execution tool facade', () => {
   ] as const)('cancels pending %s on %s', async (phase, action) => {
     let pendingSignal!: AbortSignal;
     vi.spyOn(environment, phase).mockImplementation(
-      (_request, signal) =>
+      (_request: unknown, signal: AbortSignal) =>
         new Promise<never>((_resolve, reject) => {
           pendingSignal = signal;
           signal.addEventListener('abort', () => reject(signal.reason), {

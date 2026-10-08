@@ -20,6 +20,7 @@ export default defineConfig({
       entry: join(__dirname, 'src/App.tsx'),
       name: 'InsightApp',
       fileName: () => 'main.js',
+      cssFileName: 'style',
       formats: ['iife'],
     },
     rollupOptions: {

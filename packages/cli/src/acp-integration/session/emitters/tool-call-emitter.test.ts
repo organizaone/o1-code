@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, type Mock } from 'vitest';
 import { ToolCallEmitter } from './tool-call-emitter.js';
 import type {
   SessionContext,
@@ -29,9 +29,23 @@ const createMockMessage = (text?: string): Part[] =>
 
 describe('ToolCallEmitter', () => {
   let mockContext: SessionContext;
-  let sendUpdateSpy: ReturnType<typeof vi.fn>;
+  let sendUpdateSpy: Mock<SessionContext['sendUpdate']>;
   let mockToolRegistry: ToolRegistry;
   let emitter: ToolCallEmitter;
+
+  function capturedToolCallUpdate(): Extract<
+    Parameters<SessionContext['sendUpdate']>[0],
+    { sessionUpdate: 'tool_call' | 'tool_call_update' }
+  > {
+    const update = sendUpdateSpy.mock.calls[0][0];
+    if (
+      update.sessionUpdate !== 'tool_call' &&
+      update.sessionUpdate !== 'tool_call_update'
+    ) {
+      throw new Error('Expected a tool call update');
+    }
+    return update;
+  }
 
   // Helper to create mock tool
   const createMockTool = (
@@ -90,7 +104,7 @@ describe('ToolCallEmitter', () => {
           subagentType: 'general-purpose',
         },
       });
-      expect(sendUpdateSpy.mock.calls[0][0]._meta).not.toHaveProperty(
+      expect(capturedToolCallUpdate()._meta).not.toHaveProperty(
         'subagentSessionReady',
       );
     });
@@ -414,7 +428,7 @@ describe('ToolCallEmitter', () => {
         resultDisplay,
       });
 
-      const update = sendUpdateSpy.mock.calls[0][0] as {
+      const update = capturedToolCallUpdate() as {
         content: Array<{ content?: { text?: string } }>;
       };
       const disclosure = update.content[0].content?.text;
@@ -588,7 +602,7 @@ describe('ToolCallEmitter', () => {
           _meta: { toolName: 'edit_file', provenance: 'builtin' },
         }),
       );
-      expect(sendUpdateSpy.mock.calls[0][0].rawOutput).toEqual({
+      expect(capturedToolCallUpdate().rawOutput).toEqual({
         fileName: '/test/file.ts',
         originalContent: 'old content',
         newContent: 'new content',
@@ -628,7 +642,7 @@ describe('ToolCallEmitter', () => {
           _meta: { toolName: 'edit_file', provenance: 'builtin' },
         }),
       );
-      expect(sendUpdateSpy.mock.calls[0][0].rawOutput).toBeUndefined();
+      expect(capturedToolCallUpdate().rawOutput).toBeUndefined();
     });
 
     it('should replay an intact saved patch without truncated file bodies', async () => {
@@ -649,11 +663,11 @@ describe('ToolCallEmitter', () => {
         },
       });
 
-      expect(sendUpdateSpy.mock.calls[0][0].rawOutput).toEqual({
+      expect(capturedToolCallUpdate().rawOutput).toEqual({
         fileName: '/test/file.ts',
         fileDiff,
       });
-      expect(sendUpdateSpy.mock.calls[0][0].content).not.toContainEqual(
+      expect(capturedToolCallUpdate().content).not.toContainEqual(
         expect.objectContaining({ type: 'diff' }),
       );
     });
@@ -898,7 +912,7 @@ describe('ToolCallEmitter', () => {
         'Running command\x1b[31mred text\x1b[0m',
       );
 
-      const call = sendUpdateSpy.mock.calls[0][0] as {
+      const call = capturedToolCallUpdate() as {
         content: Array<{ content?: { text?: string } }>;
       };
 
@@ -1032,12 +1046,12 @@ describe('ToolCallEmitter', () => {
 
       // First call (e.g., from normal flow)
       await emitter.emitStart(params);
-      const firstCall = sendUpdateSpy.mock.calls[0][0];
+      const firstCall = capturedToolCallUpdate();
 
       // Reset and call again (e.g., from replay)
       sendUpdateSpy.mockClear();
       await emitter.emitStart(params);
-      const secondCall = sendUpdateSpy.mock.calls[0][0];
+      const secondCall = capturedToolCallUpdate();
 
       // Both should produce identical output
       expect(firstCall).toEqual(secondCall);
@@ -1112,7 +1126,7 @@ describe('ToolCallEmitter', () => {
           message: [],
         });
 
-        const call = sendUpdateSpy.mock.calls[0][0];
+        const call = capturedToolCallUpdate();
         expect(call.rawOutput).toBeUndefined();
         expect(call._meta).toEqual({
           toolName: 'test_tool',
@@ -1146,7 +1160,7 @@ describe('ToolCallEmitter', () => {
           resultDisplay,
         });
 
-        expect(sendUpdateSpy.mock.calls[0][0].rawOutput).toEqual({
+        expect(capturedToolCallUpdate().rawOutput).toEqual({
           ...resultDisplay,
           toolCalls: [
             {
@@ -1382,9 +1396,9 @@ describe('ToolCallEmitter', () => {
         args: {},
         subagentMeta: { agentType: 'researcher' } as unknown as SubagentMeta,
       });
-      const call = sendUpdateSpy.mock.calls[0][0];
-      expect(call._meta.provenance).toBe('subagent');
-      expect(call._meta.serverId).toBeUndefined();
+      const call = capturedToolCallUpdate();
+      expect(call._meta!['provenance']).toBe('subagent');
+      expect(call._meta!['serverId']).toBeUndefined();
     });
 
     it('stamps provenance on emitResult so reconnecting clients can re-derive it', async () => {
@@ -1394,16 +1408,16 @@ describe('ToolCallEmitter', () => {
         success: true,
         message: [],
       });
-      const call = sendUpdateSpy.mock.calls[0][0];
-      expect(call._meta.provenance).toBe('mcp');
-      expect(call._meta.serverId).toBe('db');
+      const call = capturedToolCallUpdate();
+      expect(call._meta!['provenance']).toBe('mcp');
+      expect(call._meta!['serverId']).toBe('db');
     });
 
     it('stamps provenance on emitError as well', async () => {
       await emitter.emitError('call-e', 'mcp__fs__write', new Error('boom'));
-      const call = sendUpdateSpy.mock.calls[0][0];
-      expect(call._meta.provenance).toBe('mcp');
-      expect(call._meta.serverId).toBe('fs');
+      const call = capturedToolCallUpdate();
+      expect(call._meta!['provenance']).toBe('mcp');
+      expect(call._meta!['serverId']).toBe('fs');
     });
   });
 });

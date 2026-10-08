@@ -495,6 +495,17 @@ export default tseslint.config(
       ],
     },
   },
+  {
+    files: [
+      'packages/**/src/**/*.test.{ts,tsx}',
+      'integrations/**/src/**/*.test.{ts,tsx}',
+      'packages/core/src/agents/runtime/agent-core-test-mock.ts',
+    ],
+    rules: {
+      // Vitest constructor mocks require constructable functions, not arrows.
+      'prefer-arrow-callback': ['error', { allowNamedFunctions: true }],
+    },
+  },
   // extra settings for scripts that we run directly with node
   {
     files: [

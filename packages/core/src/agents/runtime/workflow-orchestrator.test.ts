@@ -122,7 +122,7 @@ const worktreeStubs = vi.hoisted(() => {
         },
       }),
     ),
-    removeUserWorktree: vi.fn(async () => ({ success: true })),
+    removeUserWorktree: vi.fn(async (_slug: string) => ({ success: true })),
   });
   return { makeStub, instances: [] as Array<ReturnType<typeof makeStub>> };
 });
@@ -136,7 +136,7 @@ vi.mock('../../services/gitWorktreeService.js', async (importOriginal) => {
     ...actual,
     generateAgentWorktreeSlug: () => 'agent-deadbe1',
     writeWorktreeSessionMarker: vi.fn(async () => {}),
-    GitWorktreeService: vi.fn().mockImplementation(() => {
+    GitWorktreeService: vi.fn().mockImplementation(function MockConstructor() {
       const stub = worktreeStubs.makeStub();
       worktreeStubs.instances.push(stub);
       return stub;
@@ -3548,11 +3548,13 @@ describe('WorkflowOrchestrator P3 — agentType / model / isolation / schema', (
     pinStub.resolve.value = undefined;
     pinStub.seenLabels.length = 0;
     worktreeStubs.instances.length = 0;
-    vi.mocked(GitWorktreeService).mockImplementation(() => {
-      const stub = worktreeStubs.makeStub();
-      worktreeStubs.instances.push(stub);
-      return stub as unknown as InstanceType<typeof GitWorktreeService>;
-    });
+    vi.mocked(GitWorktreeService).mockImplementation(
+      function MockConstructor() {
+        const stub = worktreeStubs.makeStub();
+        worktreeStubs.instances.push(stub);
+        return stub as unknown as InstanceType<typeof GitWorktreeService>;
+      },
+    );
   });
 
   type StubSubagentCall = {
@@ -5833,14 +5835,15 @@ describe('WorkflowOrchestrator P3 — agentType / model / isolation / schema', (
       '../../services/gitWorktreeService.js'
     );
     vi.mocked(GitWorktreeService).mockImplementation(
-      () =>
-        ({
+      function MockConstructor() {
+        return {
           ...worktreeStubs.makeStub(),
           checkGitAvailable: vi.fn(async () => ({
             available: false,
             error: 'git binary missing',
           })),
-        }) as unknown as InstanceType<typeof GitWorktreeService>,
+        } as unknown as InstanceType<typeof GitWorktreeService>;
+      },
     );
     const { config } = fakeConfigWithMgr({
       onCreate: async () => ({ finalText: 'unused', terminateMode: 'GOAL' }),
@@ -5856,11 +5859,12 @@ describe('WorkflowOrchestrator P3 — agentType / model / isolation / schema', (
       '../../services/gitWorktreeService.js'
     );
     vi.mocked(GitWorktreeService).mockImplementation(
-      () =>
-        ({
+      function MockConstructor() {
+        return {
           ...worktreeStubs.makeStub(),
           isGitRepository: vi.fn(async () => false),
-        }) as unknown as InstanceType<typeof GitWorktreeService>,
+        } as unknown as InstanceType<typeof GitWorktreeService>;
+      },
     );
     const { config } = fakeConfigWithMgr({
       onCreate: async () => ({ finalText: 'unused', terminateMode: 'GOAL' }),
@@ -5876,11 +5880,12 @@ describe('WorkflowOrchestrator P3 — agentType / model / isolation / schema', (
       '../../services/gitWorktreeService.js'
     );
     vi.mocked(GitWorktreeService).mockImplementation(
-      () =>
-        ({
+      function MockConstructor() {
+        return {
           ...worktreeStubs.makeStub(),
           hasWorktreeChanges: vi.fn(async () => true),
-        }) as unknown as InstanceType<typeof GitWorktreeService>,
+        } as unknown as InstanceType<typeof GitWorktreeService>;
+      },
     );
     const { config } = fakeConfigWithMgr({
       onCreate: async () => ({ finalText: 'unused', terminateMode: 'GOAL' }),
@@ -5896,14 +5901,15 @@ describe('WorkflowOrchestrator P3 — agentType / model / isolation / schema', (
       '../../services/gitWorktreeService.js'
     );
     vi.mocked(GitWorktreeService).mockImplementation(
-      () =>
-        ({
+      function MockConstructor() {
+        return {
           ...worktreeStubs.makeStub(),
           createUserWorktree: vi.fn(async () => ({
             success: false,
             error: 'simulated worktree create failure',
           })),
-        }) as unknown as InstanceType<typeof GitWorktreeService>,
+        } as unknown as InstanceType<typeof GitWorktreeService>;
+      },
     );
     const { config } = fakeConfigWithMgr({
       onCreate: async () => ({ finalText: 'unused', terminateMode: 'GOAL' }),
@@ -5926,8 +5932,8 @@ describe('WorkflowOrchestrator P3 — agentType / model / isolation / schema', (
       '../../services/gitWorktreeService.js'
     );
     vi.mocked(GitWorktreeService).mockImplementation(
-      () =>
-        ({
+      function MockConstructor() {
+        return {
           ...worktreeStubs.makeStub(),
           // Subagent left the worktree clean.
           hasWorktreeChanges: vi
@@ -5940,7 +5946,8 @@ describe('WorkflowOrchestrator P3 — agentType / model / isolation / schema', (
             success: false,
             error: 'simulated remove failure',
           })),
-        }) as unknown as InstanceType<typeof GitWorktreeService>,
+        } as unknown as InstanceType<typeof GitWorktreeService>;
+      },
     );
     const { config } = fakeConfigWithMgr({
       onCreate: async () => ({ finalText: 'done', terminateMode: 'GOAL' }),
@@ -5958,14 +5965,15 @@ describe('WorkflowOrchestrator P3 — agentType / model / isolation / schema', (
       '../../services/gitWorktreeService.js'
     );
     vi.mocked(GitWorktreeService).mockImplementation(
-      () =>
-        ({
+      function MockConstructor() {
+        return {
           ...worktreeStubs.makeStub(),
           removeUserWorktree: vi.fn(async () => ({
             success: true,
             branchPreserved: true, // race: commits landed between checks and delete
           })),
-        }) as unknown as InstanceType<typeof GitWorktreeService>,
+        } as unknown as InstanceType<typeof GitWorktreeService>;
+      },
     );
     const { config } = fakeConfigWithMgr({
       onCreate: async () => ({ finalText: 'done', terminateMode: 'GOAL' }),
@@ -5983,13 +5991,14 @@ describe('WorkflowOrchestrator P3 — agentType / model / isolation / schema', (
       '../../services/gitWorktreeService.js'
     );
     vi.mocked(GitWorktreeService).mockImplementation(
-      () =>
-        ({
+      function MockConstructor() {
+        return {
           ...worktreeStubs.makeStub(),
           removeUserWorktree: vi.fn(async () => {
             throw new Error('simulated git crash during remove');
           }),
-        }) as unknown as InstanceType<typeof GitWorktreeService>,
+        } as unknown as InstanceType<typeof GitWorktreeService>;
+      },
     );
     const { config } = fakeConfigWithMgr({
       onCreate: async () => ({ finalText: 'done', terminateMode: 'GOAL' }),
@@ -6100,16 +6109,18 @@ describe('WorkflowOrchestrator P3 — agentType / model / isolation / schema', (
     const { GitWorktreeService } = await import(
       '../../services/gitWorktreeService.js'
     );
-    vi.mocked(GitWorktreeService).mockImplementation(() => {
-      const stub = worktreeStubs.makeStub();
-      // Track removeUserWorktree calls — the fallback finally must call it.
-      stub.removeUserWorktree = vi.fn(async (slug: string) => {
-        removeCalls.push(slug);
-        return { success: true };
-      });
-      worktreeStubs.instances.push(stub);
-      return stub as unknown as InstanceType<typeof GitWorktreeService>;
-    });
+    vi.mocked(GitWorktreeService).mockImplementation(
+      function MockConstructor() {
+        const stub = worktreeStubs.makeStub();
+        // Track removeUserWorktree calls — the fallback finally must call it.
+        stub.removeUserWorktree = vi.fn(async (slug: string) => {
+          removeCalls.push(slug);
+          return { success: true };
+        });
+        worktreeStubs.instances.push(stub);
+        return stub as unknown as InstanceType<typeof GitWorktreeService>;
+      },
+    );
     // fakeConfigWithMgr's getToolRegistry returns fakeRegistry which has a
     // no-op copyDiscoveredToolsFrom. Patch the worktree-override path so
     // createSchemaConfigOverride's rebuildToolRegistryOnOverride throws.

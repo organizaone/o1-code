@@ -4,7 +4,15 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
+import {
+  describe,
+  it,
+  expect,
+  beforeEach,
+  afterEach,
+  vi,
+  type Mock,
+} from 'vitest';
 import { EventEmitter } from 'node:events';
 vi.mock('./clipboard-image-worker.js', () => ({
   saveNativeClipboardImage: vi.fn().mockResolvedValue(null),
@@ -38,20 +46,22 @@ vi.mock('@teddyzhu/clipboard', async () => {
   // Both exports share one implementation so the throw flags apply no matter
   // which shape the caller destructures. The flags are read per call, not per
   // factory evaluation.
-  const ClipboardManager = vi.fn().mockImplementation(() => {
-    if (clipboardMockState.throwOnConstruct) {
-      throw new Error('native clipboard addon ABI mismatch');
-    }
-    return {
-      hasFormat: vi.fn().mockImplementation(() => {
-        if (clipboardMockState.throwOnHasFormat) {
-          throw new Error('native clipboard addon ABI mismatch');
-        }
-        return false;
-      }),
-      getImageData: vi.fn().mockReturnValue({ data: null }),
-    };
-  });
+  const ClipboardManager = vi
+    .fn()
+    .mockImplementation(function MockConstructor() {
+      if (clipboardMockState.throwOnConstruct) {
+        throw new Error('native clipboard addon ABI mismatch');
+      }
+      return {
+        hasFormat: vi.fn().mockImplementation(() => {
+          if (clipboardMockState.throwOnHasFormat) {
+            throw new Error('native clipboard addon ABI mismatch');
+          }
+          return false;
+        }),
+        getImageData: vi.fn().mockReturnValue({ data: null }),
+      };
+    });
   return {
     default: { ClipboardManager },
     ClipboardManager,
@@ -812,8 +822,16 @@ describe('clipboardUtils', () => {
   describe('writeOsc52', () => {
     const originalStdoutIsTTY = process.stdout.isTTY;
     const originalStderrIsTTY = process.stderr.isTTY;
-    let stdoutWriteMock: ReturnType<typeof vi.fn>;
-    let stderrWriteMock: ReturnType<typeof vi.fn>;
+    type StreamWrite = (
+      ...args:
+        | Parameters<typeof process.stdout.write>
+        | [
+            buffer: Parameters<typeof process.stdout.write>[0],
+            callback?: Parameters<typeof process.stdout.write>[2],
+          ]
+    ) => ReturnType<typeof process.stdout.write>;
+    let stdoutWriteMock: Mock<StreamWrite>;
+    let stderrWriteMock: Mock<StreamWrite>;
 
     beforeEach(() => {
       stdoutWriteMock = vi.fn();

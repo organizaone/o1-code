@@ -136,6 +136,7 @@ afterEach(() => {
     container.remove();
   }
   vi.unstubAllGlobals();
+  vi.restoreAllMocks();
   vi.useRealTimers();
 });
 
@@ -483,6 +484,17 @@ describe('LocalControlQrButton', () => {
 
   it('recovers from a refresh that never settles', async () => {
     vi.useFakeTimers();
+    vi.spyOn(AbortSignal, 'timeout').mockImplementation((milliseconds) => {
+      const controller = new AbortController();
+      setTimeout(
+        () =>
+          controller.abort(
+            new DOMException('The operation timed out.', 'TimeoutError'),
+          ),
+        milliseconds,
+      );
+      return controller.signal;
+    });
     vi.mocked(fetch).mockResolvedValueOnce(
       localControlResponse({
         active: true,

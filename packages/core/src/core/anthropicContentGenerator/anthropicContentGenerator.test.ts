@@ -5,7 +5,15 @@
  */
 
 import { getEventListeners } from 'node:events';
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import {
+  afterEach,
+  beforeEach,
+  describe,
+  expect,
+  it,
+  vi,
+  type Mock,
+} from 'vitest';
 import type { GenerateContentParameters } from '@google/genai';
 import { FinishReason, GenerateContentResponse } from '@google/genai';
 import type { ContentGeneratorConfig } from '../contentGenerator.js';
@@ -39,11 +47,11 @@ type AnthropicCreateArgs = [
 const anthropicMockState: {
   constructorOptions?: Record<string, unknown>;
   lastCreateArgs?: AnthropicCreateArgs;
-  createImpl: ReturnType<typeof vi.fn>;
+  createImpl: Mock<(...args: AnthropicCreateArgs) => unknown>;
 } = {
   constructorOptions: undefined,
   lastCreateArgs: undefined,
-  createImpl: vi.fn(),
+  createImpl: vi.fn<(...args: AnthropicCreateArgs) => unknown>(),
 };
 
 vi.mock('@anthropic-ai/sdk', () => {
@@ -84,7 +92,7 @@ describe('AnthropicContentGenerator', () => {
   let anthropicState: {
     constructorOptions?: Record<string, unknown>;
     lastCreateArgs?: AnthropicCreateArgs;
-    createImpl: ReturnType<typeof vi.fn>;
+    createImpl: Mock<(...args: AnthropicCreateArgs) => unknown>;
   };
   let savedMaxOutputTokensEnv: string | undefined;
 
@@ -1585,7 +1593,7 @@ describe('AnthropicContentGenerator', () => {
       // Reproduce the SDK leak (see the generateContentStream test): the client
       // registers a non-removed 'abort' listener on whatever signal it gets.
       anthropicState.createImpl.mockImplementation(
-        (_req: unknown, opts: { signal?: AbortSignal }) => {
+        (_req: unknown, opts: { signal?: AbortSignal } = {}) => {
           opts.signal?.addEventListener('abort', () => {});
           return {
             id: 'anthropic-1',
@@ -1630,7 +1638,7 @@ describe('AnthropicContentGenerator', () => {
       const callerAc = new AbortController();
       let capturedSignal: AbortSignal | undefined;
       anthropicState.createImpl.mockImplementation(
-        (_req: unknown, opts: { signal?: AbortSignal }) => {
+        (_req: unknown, opts: { signal?: AbortSignal } = {}) => {
           capturedSignal = opts.signal;
           // The caller aborts while the request is in flight.
           callerAc.abort();
@@ -5119,7 +5127,7 @@ describe('AnthropicContentGenerator', () => {
       // removes it. Whichever signal the generator passes to the client is
       // where that listener accumulates.
       anthropicState.createImpl.mockImplementation(
-        (_req: unknown, opts: { signal?: AbortSignal }) => {
+        (_req: unknown, opts: { signal?: AbortSignal } = {}) => {
           opts.signal?.addEventListener('abort', () => {});
           return (async function* () {
             yield {
@@ -5625,7 +5633,7 @@ describe('AnthropicContentGenerator', () => {
             })(),
           )
           .mockImplementationOnce(
-            (_req: unknown, opts: { signal?: AbortSignal }) => {
+            (_req: unknown, opts: { signal?: AbortSignal } = {}) => {
               if (opts?.signal?.aborted) {
                 const abortErr = new Error('The operation was aborted');
                 abortErr.name = 'AbortError';
@@ -5686,7 +5694,7 @@ describe('AnthropicContentGenerator', () => {
           .mockImplementationOnce(
             // A probe that hangs until its signal aborts, modelling an
             // in-flight non-streaming request.
-            (_req: unknown, opts: { signal?: AbortSignal }) =>
+            (_req: unknown, opts: { signal?: AbortSignal } = {}) =>
               new Promise((_resolve, reject) => {
                 const abortErr = new Error('The operation was aborted');
                 abortErr.name = 'AbortError';

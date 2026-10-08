@@ -25,9 +25,9 @@ vi.mock('@organizaone/o1-code-core', async (importOriginal) => {
 });
 
 vi.mock('../../services/insight/generators/StaticInsightGenerator.js', () => ({
-  StaticInsightGenerator: vi.fn(() => ({
-    generateStaticInsight: mockGenerateStaticInsight,
-  })),
+  StaticInsightGenerator: vi.fn(function MockConstructor() {
+    return { generateStaticInsight: mockGenerateStaticInsight };
+  }),
 }));
 
 describe('insightCommand', () => {

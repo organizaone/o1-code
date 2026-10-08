@@ -106,8 +106,12 @@ describe('mcp reconnect command', () => {
       getLoadedExtensions: vi.fn().mockReturnValue([]),
     };
 
-    MockedConfig.mockImplementation(() => mockConfig);
-    MockedExtensionManager.mockImplementation(() => mockExtensionManager);
+    MockedConfig.mockImplementation(function MockConstructor() {
+      return mockConfig;
+    });
+    MockedExtensionManager.mockImplementation(function MockConstructor() {
+      return mockExtensionManager;
+    });
     mockGetPendingGatedMcpServers.mockReturnValue([]);
     // Discovery is best-effort and swallows connect errors, so the command
     // verifies the outcome through the status registry; default to a live

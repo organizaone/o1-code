@@ -71,6 +71,7 @@ vi.mock('simple-git');
 
 describe('git extension helpers', () => {
   beforeEach(() => {
+    vi.clearAllMocks();
     vi.stubEnv('GITHUB_TOKEN', '');
     resetLocalGitVersionCacheForTesting();
   });

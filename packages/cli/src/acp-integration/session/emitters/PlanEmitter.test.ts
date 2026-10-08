@@ -4,14 +4,14 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, type Mock } from 'vitest';
 import { PlanEmitter } from './PlanEmitter.js';
 import type { SessionContext, TodoItem } from '../types.js';
 import type { Config } from '@organizaone/o1-code-core';
 
 describe('PlanEmitter', () => {
   let mockContext: SessionContext;
-  let sendUpdateSpy: ReturnType<typeof vi.fn>;
+  let sendUpdateSpy: Mock<SessionContext['sendUpdate']>;
   let emitter: PlanEmitter;
 
   beforeEach(() => {
@@ -105,9 +105,18 @@ describe('PlanEmitter', () => {
 
       const update = sendUpdateSpy.mock.calls[0][0];
       expect(update['_meta']).toEqual({ stats: { ...cumulativeUsage } });
+      const stats = update['_meta']?.['stats'];
+      if (
+        typeof stats !== 'object' ||
+        stats === null ||
+        !('promptTokens' in stats) ||
+        typeof stats['promptTokens'] !== 'number'
+      ) {
+        throw new Error('Expected cumulative usage statistics');
+      }
       // Snapshot is a copy: later accumulation must not mutate what was sent.
       cumulativeUsage.promptTokens = 999;
-      expect(update['_meta'].stats.promptTokens).toBe(100);
+      expect(stats['promptTokens']).toBe(100);
     });
 
     it('should set default priority to medium for all entries', async () => {
@@ -118,6 +127,9 @@ describe('PlanEmitter', () => {
       await emitter.emitPlan({ todos });
 
       const call = sendUpdateSpy.mock.calls[0][0];
+      if (call.sessionUpdate !== 'plan') {
+        throw new Error('Expected a plan update');
+      }
       expect(call.entries[0].priority).toBe('medium');
     });
   });

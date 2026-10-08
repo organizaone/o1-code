@@ -12,6 +12,7 @@ import {
   beforeEach,
   afterEach,
   afterAll,
+  type Mock,
   type MockInstance,
 } from 'vitest';
 import {
@@ -227,11 +228,13 @@ vi.mock('../config/mcpApprovals.js', () => ({
 
 vi.mock('@agentclientprotocol/sdk', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@agentclientprotocol/sdk')>()),
-  AgentSideConnection: vi.fn().mockImplementation(() => ({
-    get closed() {
-      return mockConnectionState.promise;
-    },
-  })),
+  AgentSideConnection: vi.fn().mockImplementation(function MockConstructor() {
+    return {
+      get closed() {
+        return mockConnectionState.promise;
+      },
+    };
+  }),
   RequestError: class RequestError extends Error {
     code: number;
     data: unknown;
@@ -682,10 +685,12 @@ vi.mock('@organizaone/o1-code-core', async (importOriginal) => ({
       return undefined;
     },
   ),
-  ExtensionManager: vi.fn().mockImplementation(() => ({
-    refreshCache: mockExtensionManagerState.refreshCache,
-    getLoadedExtensions: vi.fn(() => mockExtensionManagerState.extensions),
-  })),
+  ExtensionManager: vi.fn().mockImplementation(function MockConstructor() {
+    return {
+      refreshCache: mockExtensionManagerState.refreshCache,
+      getLoadedExtensions: vi.fn(() => mockExtensionManagerState.extensions),
+    };
+  }),
   ExtensionSettingScope: {
     USER: 'user',
     WORKSPACE: 'workspace',
@@ -772,9 +777,11 @@ vi.mock('@organizaone/o1-code-core', async (importOriginal) => ({
     CONNECTING: 'connecting',
     CONNECTED: 'connected',
   },
-  MCPOAuthTokenStorage: vi.fn().mockImplementation(() => ({
-    getCredentials: vi.fn().mockResolvedValue(null),
-  })),
+  MCPOAuthTokenStorage: vi.fn().mockImplementation(function MockConstructor() {
+    return {
+      getCredentials: vi.fn().mockResolvedValue(null),
+    };
+  }),
   // SkillError is referenced by status.ts's `mapDomainErrorToErrorKind`
   // helper for `instanceof` classification. The mock must surface it as
   // a real class so that `instanceof` works inside the helper.
@@ -809,23 +816,31 @@ vi.mock('@organizaone/o1-code-core', async (importOriginal) => ({
   ).skillRestrictionNames,
   getMCPDiscoveryState: vi.fn().mockReturnValue('completed'),
   getMCPServerStatus: vi.fn().mockReturnValue('connected'),
-  MCPServerConfig: vi.fn().mockImplementation((...args: unknown[]) => ({
-    _args: args,
-  })),
-  McpTransportPool: vi.fn().mockImplementation(() => ({
-    drainAll: mockMcpPoolDrainAll,
-    getSnapshot: mockMcpPoolGetSnapshot,
-    releaseSession: vi.fn(),
-    restartByName: vi.fn().mockResolvedValue([]),
-    getBudget: vi.fn().mockReturnValue(undefined),
-  })),
+  MCPServerConfig: vi.fn().mockImplementation(function MockConstructor(
+    ...args: unknown[]
+  ) {
+    return {
+      _args: args,
+    };
+  }),
+  McpTransportPool: vi.fn().mockImplementation(function MockConstructor() {
+    return {
+      drainAll: mockMcpPoolDrainAll,
+      getSnapshot: mockMcpPoolGetSnapshot,
+      releaseSession: vi.fn(),
+      restartByName: vi.fn().mockResolvedValue([]),
+      getBudget: vi.fn().mockReturnValue(undefined),
+    };
+  }),
   POOLED_TRANSPORTS_DEFAULT: new Set(['stdio', 'websocket']),
-  WorkspaceMcpBudget: vi.fn().mockImplementation(() => ({
-    getReservedCount: vi.fn().mockReturnValue(0),
-    getBudget: vi.fn().mockReturnValue(undefined),
-    getMode: vi.fn().mockReturnValue('off'),
-    getRefusedServerNames: vi.fn().mockReturnValue([]),
-  })),
+  WorkspaceMcpBudget: vi.fn().mockImplementation(function MockConstructor() {
+    return {
+      getReservedCount: vi.fn().mockReturnValue(0),
+      getBudget: vi.fn().mockReturnValue(undefined),
+      getMode: vi.fn().mockReturnValue('off'),
+      getRefusedServerNames: vi.fn().mockReturnValue([]),
+    };
+  }),
   MCP_BUDGET_WARN_FRACTION: 0.75,
   SessionService: vi.fn(),
   SESSION_WRITER_RPC_CODES: {
@@ -983,15 +998,15 @@ const { mockHistoryPendingToolCalls } = vi.hoisted(() => ({
 }));
 vi.mock('./session/history-replayer.js', () => {
   const HistoryReplayer = Object.assign(
-    vi.fn().mockImplementation(
-      (context: {
-        cumulativeUsage: {
-          promptTokens: number;
-          cachedTokens: number;
-          candidateTokens: number;
-          apiTimeMs: number;
-        };
-      }) => ({
+    vi.fn().mockImplementation(function MockConstructor(context: {
+      cumulativeUsage: {
+        promptTokens: number;
+        cachedTokens: number;
+        candidateTokens: number;
+        apiTimeMs: number;
+      };
+    }) {
+      return {
         replay: (
           messages: unknown,
           gaps: unknown,
@@ -1013,8 +1028,8 @@ vi.mock('./session/history-replayer.js', () => {
           })),
           cumulativeUsage: { ...context.cumulativeUsage },
         }),
-      }),
-    ),
+      };
+    }),
     { v2GoalBootstrap: mockHistoryV2GoalBootstrap },
   );
   return { HistoryReplayer };
@@ -2053,9 +2068,11 @@ describe('runAcpAgent shutdown cleanup', () => {
       })),
       dispose,
     });
-    vi.mocked(AgentSideConnection).mockImplementationOnce(() => {
-      throw new Error('connection setup failed');
-    });
+    vi.mocked(AgentSideConnection).mockImplementationOnce(
+      function MockConstructor() {
+        throw new Error('connection setup failed');
+      },
+    );
 
     await expect(
       runAcpAgent(mockConfig, mockSettings, mockArgv),
@@ -2527,7 +2544,9 @@ describe('O1CodeAgent MCP SSE/HTTP support', () => {
     capturedAgentFactory = undefined;
 
     // Override AgentSideConnection mock to capture factory
-    vi.mocked(AgentSideConnection).mockImplementation((factory: unknown) => {
+    vi.mocked(AgentSideConnection).mockImplementation(function MockConstructor(
+      factory: unknown,
+    ) {
       capturedAgentFactory = factory as typeof capturedAgentFactory;
       return {
         get closed() {
@@ -3965,19 +3984,20 @@ describe('O1CodeAgent MCP SSE/HTTP support', () => {
         return innerConfigA as unknown as Config;
       })
       .mockImplementationOnce(async () => innerConfigB as unknown as Config);
-    vi.mocked(Session).mockImplementation(
-      (sessionId: string) =>
-        ({
-          getDefaultReasoningConfig: vi.fn(),
-          getId: vi.fn().mockReturnValue(sessionId),
-          shouldHintAskUserQuestionRestore: vi.fn().mockReturnValue(false),
-          sendAvailableCommandsUpdate: vi.fn().mockResolvedValue(undefined),
-          replayHistory: vi.fn().mockResolvedValue(undefined),
-          installRewriter: vi.fn(),
-          startCronScheduler: vi.fn(),
-          dispose: vi.fn(),
-        }) as unknown as InstanceType<typeof Session>,
-    );
+    vi.mocked(Session).mockImplementation(function MockConstructor(
+      sessionId: string,
+    ) {
+      return {
+        getDefaultReasoningConfig: vi.fn(),
+        getId: vi.fn().mockReturnValue(sessionId),
+        shouldHintAskUserQuestionRestore: vi.fn().mockReturnValue(false),
+        sendAvailableCommandsUpdate: vi.fn().mockResolvedValue(undefined),
+        replayHistory: vi.fn().mockResolvedValue(undefined),
+        installRewriter: vi.fn(),
+        startCronScheduler: vi.fn(),
+        dispose: vi.fn(),
+      } as unknown as InstanceType<typeof Session>;
+    });
 
     const agentPromise = runAcpAgent(
       mockConfig,
@@ -4322,19 +4342,20 @@ describe('O1CodeAgent MCP SSE/HTTP support', () => {
     vi.mocked(loadCliConfig).mockResolvedValue(
       innerConfig as unknown as Config,
     );
-    vi.mocked(Session).mockImplementation(
-      (sessionId: string) =>
-        ({
-          getDefaultReasoningConfig: vi.fn(),
-          getId: vi.fn().mockReturnValue(sessionId),
-          shouldHintAskUserQuestionRestore: vi.fn().mockReturnValue(false),
-          sendAvailableCommandsUpdate: vi.fn().mockResolvedValue(undefined),
-          replayHistory: vi.fn().mockResolvedValue(undefined),
-          installRewriter: vi.fn(),
-          startCronScheduler: vi.fn(),
-          dispose: vi.fn(),
-        }) as unknown as InstanceType<typeof Session>,
-    );
+    vi.mocked(Session).mockImplementation(function MockConstructor(
+      sessionId: string,
+    ) {
+      return {
+        getDefaultReasoningConfig: vi.fn(),
+        getId: vi.fn().mockReturnValue(sessionId),
+        shouldHintAskUserQuestionRestore: vi.fn().mockReturnValue(false),
+        sendAvailableCommandsUpdate: vi.fn().mockResolvedValue(undefined),
+        replayHistory: vi.fn().mockResolvedValue(undefined),
+        installRewriter: vi.fn(),
+        startCronScheduler: vi.fn(),
+        dispose: vi.fn(),
+      } as unknown as InstanceType<typeof Session>;
+    });
 
     const agentPromise = runAcpAgent(
       mockConfig,
@@ -4390,18 +4411,19 @@ describe('O1CodeAgent MCP SSE/HTTP support', () => {
     vi.mocked(loadCliConfig).mockResolvedValue(
       innerConfig as unknown as Config,
     );
-    vi.mocked(Session).mockImplementation(
-      (sessionId: string) =>
-        ({
-          getDefaultReasoningConfig: vi.fn(),
-          getId: vi.fn().mockReturnValue(sessionId),
-          sendAvailableCommandsUpdate: vi.fn().mockResolvedValue(undefined),
-          replayHistory: vi.fn().mockResolvedValue(undefined),
-          installRewriter: vi.fn(),
-          startCronScheduler: vi.fn(),
-          dispose: vi.fn(),
-        }) as unknown as InstanceType<typeof Session>,
-    );
+    vi.mocked(Session).mockImplementation(function MockConstructor(
+      sessionId: string,
+    ) {
+      return {
+        getDefaultReasoningConfig: vi.fn(),
+        getId: vi.fn().mockReturnValue(sessionId),
+        sendAvailableCommandsUpdate: vi.fn().mockResolvedValue(undefined),
+        replayHistory: vi.fn().mockResolvedValue(undefined),
+        installRewriter: vi.fn(),
+        startCronScheduler: vi.fn(),
+        dispose: vi.fn(),
+      } as unknown as InstanceType<typeof Session>;
+    });
 
     const agentPromise = runAcpAgent(
       mockConfig,
@@ -4611,19 +4633,20 @@ describe('O1CodeAgent MCP SSE/HTTP support', () => {
     vi.mocked(loadCliConfig).mockResolvedValue(
       innerConfig as unknown as Config,
     );
-    vi.mocked(Session).mockImplementation(
-      (sessionId: string) =>
-        ({
-          getDefaultReasoningConfig: vi.fn(),
-          getId: vi.fn().mockReturnValue(sessionId),
-          shouldHintAskUserQuestionRestore: vi.fn().mockReturnValue(false),
-          sendAvailableCommandsUpdate: vi.fn().mockResolvedValue(undefined),
-          replayHistory: vi.fn().mockResolvedValue(undefined),
-          installRewriter: vi.fn(),
-          startCronScheduler: vi.fn(),
-          dispose: vi.fn(),
-        }) as unknown as InstanceType<typeof Session>,
-    );
+    vi.mocked(Session).mockImplementation(function MockConstructor(
+      sessionId: string,
+    ) {
+      return {
+        getDefaultReasoningConfig: vi.fn(),
+        getId: vi.fn().mockReturnValue(sessionId),
+        shouldHintAskUserQuestionRestore: vi.fn().mockReturnValue(false),
+        sendAvailableCommandsUpdate: vi.fn().mockResolvedValue(undefined),
+        replayHistory: vi.fn().mockResolvedValue(undefined),
+        installRewriter: vi.fn(),
+        startCronScheduler: vi.fn(),
+        dispose: vi.fn(),
+      } as unknown as InstanceType<typeof Session>;
+    });
 
     const agentPromise = runAcpAgent(
       mockConfig,
@@ -4677,9 +4700,11 @@ describe('O1CodeAgent MCP SSE/HTTP support', () => {
 
   it('records a failed synchronous newSession stage', async () => {
     const fileSystemError = new Error('file system setup failed');
-    vi.mocked(AcpFileSystemService).mockImplementationOnce(() => {
-      throw fileSystemError;
-    });
+    vi.mocked(AcpFileSystemService).mockImplementationOnce(
+      function MockConstructor() {
+        throw fileSystemError;
+      },
+    );
     const innerConfig = {
       ...makeInnerConfig(),
       storage: {
@@ -4736,19 +4761,18 @@ describe('O1CodeAgent MCP SSE/HTTP support', () => {
       innerConfig as unknown as Config,
     );
 
-    vi.mocked(Session).mockImplementation(
-      () =>
-        ({
-          getDefaultReasoningConfig: vi.fn(),
-          getId: vi.fn().mockReturnValue('test-session-id'),
-          shouldHintAskUserQuestionRestore: vi.fn().mockReturnValue(false),
-          getConfig: vi.fn().mockReturnValue(innerConfig),
-          sendAvailableCommandsUpdate: vi.fn().mockResolvedValue(undefined),
-          replayHistory: vi.fn().mockResolvedValue(undefined),
-          installRewriter: vi.fn(),
-          startCronScheduler: vi.fn(),
-        }) as unknown as InstanceType<typeof Session>,
-    );
+    vi.mocked(Session).mockImplementation(function MockConstructor() {
+      return {
+        getDefaultReasoningConfig: vi.fn(),
+        getId: vi.fn().mockReturnValue('test-session-id'),
+        shouldHintAskUserQuestionRestore: vi.fn().mockReturnValue(false),
+        getConfig: vi.fn().mockReturnValue(innerConfig),
+        sendAvailableCommandsUpdate: vi.fn().mockResolvedValue(undefined),
+        replayHistory: vi.fn().mockResolvedValue(undefined),
+        installRewriter: vi.fn(),
+        startCronScheduler: vi.fn(),
+      } as unknown as InstanceType<typeof Session>;
+    });
 
     const agentPromise = runAcpAgent(
       mockConfig,
@@ -4969,20 +4993,19 @@ describe('O1CodeAgent MCP SSE/HTTP support', () => {
     vi.mocked(loadCliConfig).mockResolvedValue(
       innerConfig as unknown as Config,
     );
-    vi.mocked(Session).mockImplementation(
-      () =>
-        ({
-          getDefaultReasoningConfig: vi.fn(),
-          getId: vi.fn().mockReturnValue(sessionId),
-          shouldHintAskUserQuestionRestore: vi.fn().mockReturnValue(false),
-          getConfig: vi.fn().mockReturnValue(innerConfig),
-          sendAvailableCommandsUpdate: vi.fn().mockResolvedValue(undefined),
-          replayHistory: vi.fn().mockResolvedValue(undefined),
-          installRewriter: vi.fn(),
-          startCronScheduler: vi.fn(),
-          dispose: vi.fn(),
-        }) as unknown as InstanceType<typeof Session>,
-    );
+    vi.mocked(Session).mockImplementation(function MockConstructor() {
+      return {
+        getDefaultReasoningConfig: vi.fn(),
+        getId: vi.fn().mockReturnValue(sessionId),
+        shouldHintAskUserQuestionRestore: vi.fn().mockReturnValue(false),
+        getConfig: vi.fn().mockReturnValue(innerConfig),
+        sendAvailableCommandsUpdate: vi.fn().mockResolvedValue(undefined),
+        replayHistory: vi.fn().mockResolvedValue(undefined),
+        installRewriter: vi.fn(),
+        startCronScheduler: vi.fn(),
+        dispose: vi.fn(),
+      } as unknown as InstanceType<typeof Session>;
+    });
 
     const agentPromise = runAcpAgent(
       mockConfig,
@@ -5164,90 +5187,84 @@ describe('O1CodeAgent MCP SSE/HTTP support', () => {
     vi.mocked(loadCliConfig).mockResolvedValue(
       innerConfig as unknown as Config,
     );
-    vi.mocked(Session).mockImplementation(
-      (
-        createdSessionId,
-        createdConfig,
-        _client,
-        _settings,
-        _runExclusiveAutomaticHistoryMutation,
-        _onActiveWorkChanged,
-        workflowHistory = [],
-      ) => {
-        const sessionMock = {
-          sessionId: createdSessionId,
-          getRecoveryStatus: vi.fn().mockReturnValue({
-            kind: 'clean',
-            canContinue: false,
-          }),
-          getId: vi.fn().mockReturnValue(createdSessionId),
-          shouldHintAskUserQuestionRestore: vi.fn().mockReturnValue(false),
-          getConfig: vi.fn().mockReturnValue(createdConfig),
-          getWorkflowHistory: vi.fn().mockReturnValue(workflowHistory),
-          refreshWorkflowHistory: vi.fn(() =>
-            mockListWorkflowSnapshots(createdConfig),
-          ),
-          deleteWorkflowHistory: vi.fn().mockResolvedValue(false),
-          noteExternalWorkflowDeletion: vi.fn(),
-          sendAvailableCommandsUpdate: vi.fn().mockResolvedValue(undefined),
-          replayHistory: vi.fn().mockResolvedValue(undefined),
-          installRewriter: vi.fn(),
-          startCronScheduler: vi.fn(),
-          beginClose: vi.fn().mockReturnValue(vi.fn()),
-          beginCloseIfAvailable: vi.fn().mockReturnValue(vi.fn()),
-          waitForCloseGateToRelease: vi.fn().mockResolvedValue(undefined),
-          waitForActiveTurnsToSettle: vi.fn().mockResolvedValue(undefined),
-          cancelPendingPrompt: vi.fn().mockResolvedValue(undefined),
-          enqueueBackgroundNotification: vi
-            .fn()
-            .mockResolvedValue({ accepted: true }),
-          buildAvailableCommandsSnapshot: vi.fn(() =>
-            buildAvailableCommandsSnapshot(createdConfig),
-          ),
-          installManagedConversationActivation: vi.fn(),
-          installPendingManagedConversationBinding: vi.fn(),
-          commitManagedConversationBinding: vi
-            .fn()
-            .mockResolvedValue(undefined),
-          releaseManagedConversationBinding: vi
-            .fn()
-            .mockResolvedValue(undefined),
-          collectActiveWorkHolds: vi.fn().mockReturnValue([]),
-          hasStandaloneRelocationBlockers: vi.fn().mockReturnValue(false),
-          assertCanStartTurn: vi.fn().mockResolvedValue(undefined),
-          dispose: vi.fn(),
-          emitGoalStatus: vi.fn(),
-          renderLegacyGoalSupersession: vi.fn().mockReturnValue([]),
-          captureHistorySnapshot: vi
-            .fn()
-            .mockReturnValue([{ role: 'user', parts: [{ text: 'before' }] }]),
-          restoreHistory: vi.fn(),
-          rewindToTurn: vi
-            .fn()
-            .mockReturnValue({ targetTurnIndex: 1, apiTruncateIndex: 2 }),
-          beginHistoryMutation: vi.fn().mockImplementation(() => vi.fn()),
-          getRewindableUserTurnCount: vi.fn().mockReturnValue(1),
-          clearActiveTodoPlanRevision: vi.fn(),
-          clearTodoStopGuardTrust: vi.fn(),
-          getDefaultReasoningConfig: vi.fn(() =>
-            getDefaultReasoningConfig(createdConfig, _settings),
-          ),
-          reloadReasoningSelection: vi.fn(),
-          persistReasoningSelection: vi.fn(),
-          setSessionReasoningSelection: vi.fn(),
-          getSessionReasoningSelection: vi.fn(),
-          hardSuspendTodoStopGuard: vi.fn(),
-          releaseTodoStopGuardQueuedPromptWait: vi.fn().mockReturnValue(true),
-          isIdle: vi.fn().mockReturnValue(true),
-          isTurnIdle: vi.fn().mockReturnValue(true),
-          getCreatedAt: vi.fn().mockReturnValue(1_700_000_000_000),
-          getTurnCount: vi.fn().mockReturnValue(3),
-          prompt: vi.fn().mockResolvedValue({ stopReason: 'end_turn' }),
-        };
-        lastSessionMock = sessionMock;
-        return sessionMock as unknown as InstanceType<typeof Session>;
-      },
-    );
+    vi.mocked(Session).mockImplementation(function MockConstructor(
+      createdSessionId,
+      createdConfig,
+      _client,
+      _settings,
+      _runExclusiveAutomaticHistoryMutation,
+      _onActiveWorkChanged,
+      workflowHistory = [],
+    ) {
+      const sessionMock = {
+        sessionId: createdSessionId,
+        getRecoveryStatus: vi.fn().mockReturnValue({
+          kind: 'clean',
+          canContinue: false,
+        }),
+        getId: vi.fn().mockReturnValue(createdSessionId),
+        shouldHintAskUserQuestionRestore: vi.fn().mockReturnValue(false),
+        getConfig: vi.fn().mockReturnValue(createdConfig),
+        getWorkflowHistory: vi.fn().mockReturnValue(workflowHistory),
+        refreshWorkflowHistory: vi.fn(() =>
+          mockListWorkflowSnapshots(createdConfig),
+        ),
+        deleteWorkflowHistory: vi.fn().mockResolvedValue(false),
+        noteExternalWorkflowDeletion: vi.fn(),
+        sendAvailableCommandsUpdate: vi.fn().mockResolvedValue(undefined),
+        replayHistory: vi.fn().mockResolvedValue(undefined),
+        installRewriter: vi.fn(),
+        startCronScheduler: vi.fn(),
+        beginClose: vi.fn().mockReturnValue(vi.fn()),
+        beginCloseIfAvailable: vi.fn().mockReturnValue(vi.fn()),
+        waitForCloseGateToRelease: vi.fn().mockResolvedValue(undefined),
+        waitForActiveTurnsToSettle: vi.fn().mockResolvedValue(undefined),
+        cancelPendingPrompt: vi.fn().mockResolvedValue(undefined),
+        enqueueBackgroundNotification: vi
+          .fn()
+          .mockResolvedValue({ accepted: true }),
+        buildAvailableCommandsSnapshot: vi.fn(() =>
+          buildAvailableCommandsSnapshot(createdConfig),
+        ),
+        installManagedConversationActivation: vi.fn(),
+        installPendingManagedConversationBinding: vi.fn(),
+        commitManagedConversationBinding: vi.fn().mockResolvedValue(undefined),
+        releaseManagedConversationBinding: vi.fn().mockResolvedValue(undefined),
+        collectActiveWorkHolds: vi.fn().mockReturnValue([]),
+        hasStandaloneRelocationBlockers: vi.fn().mockReturnValue(false),
+        assertCanStartTurn: vi.fn().mockResolvedValue(undefined),
+        dispose: vi.fn(),
+        emitGoalStatus: vi.fn(),
+        renderLegacyGoalSupersession: vi.fn().mockReturnValue([]),
+        captureHistorySnapshot: vi
+          .fn()
+          .mockReturnValue([{ role: 'user', parts: [{ text: 'before' }] }]),
+        restoreHistory: vi.fn(),
+        rewindToTurn: vi
+          .fn()
+          .mockReturnValue({ targetTurnIndex: 1, apiTruncateIndex: 2 }),
+        beginHistoryMutation: vi.fn().mockImplementation(() => vi.fn()),
+        getRewindableUserTurnCount: vi.fn().mockReturnValue(1),
+        clearActiveTodoPlanRevision: vi.fn(),
+        clearTodoStopGuardTrust: vi.fn(),
+        getDefaultReasoningConfig: vi.fn(() =>
+          getDefaultReasoningConfig(createdConfig, _settings),
+        ),
+        reloadReasoningSelection: vi.fn(),
+        persistReasoningSelection: vi.fn(),
+        setSessionReasoningSelection: vi.fn(),
+        getSessionReasoningSelection: vi.fn(),
+        hardSuspendTodoStopGuard: vi.fn(),
+        releaseTodoStopGuardQueuedPromptWait: vi.fn().mockReturnValue(true),
+        isIdle: vi.fn().mockReturnValue(true),
+        isTurnIdle: vi.fn().mockReturnValue(true),
+        getCreatedAt: vi.fn().mockReturnValue(1_700_000_000_000),
+        getTurnCount: vi.fn().mockReturnValue(3),
+        prompt: vi.fn().mockResolvedValue({ stopReason: 'end_turn' }),
+      };
+      lastSessionMock = sessionMock;
+      return sessionMock as unknown as InstanceType<typeof Session>;
+    });
     return innerConfig;
   }
 
@@ -8974,8 +8991,8 @@ describe('O1CodeAgent MCP SSE/HTTP support', () => {
       getMcpBudgetMode: vi.fn().mockReturnValue('warn'),
     };
     vi.mocked(McpTransportPool).mockImplementationOnce(
-      () =>
-        ({
+      function MockConstructor() {
+        return {
           drainAll: mockMcpPoolDrainAll,
           getSnapshot: vi.fn().mockReturnValue({
             total: 1,
@@ -8996,16 +9013,18 @@ describe('O1CodeAgent MCP SSE/HTTP support', () => {
           releaseSession: vi.fn(),
           restartByName: vi.fn().mockResolvedValue([]),
           getBudget: vi.fn().mockReturnValue(undefined),
-        }) as unknown as InstanceType<typeof McpTransportPool>,
+        } as unknown as InstanceType<typeof McpTransportPool>;
+      },
     );
     vi.mocked(WorkspaceMcpBudget).mockImplementationOnce(
-      () =>
-        ({
+      function MockConstructor() {
+        return {
           getReservedCount: vi.fn().mockReturnValue(9),
           getBudget: vi.fn().mockReturnValue(10),
           getMode: vi.fn().mockReturnValue('warn'),
           getRefusedServerNames: vi.fn().mockReturnValue([]),
-        }) as unknown as InstanceType<typeof WorkspaceMcpBudget>,
+        } as unknown as InstanceType<typeof WorkspaceMcpBudget>;
+      },
     );
     process.env['O1CODE_SERVE_MCP_CLIENT_BUDGET'] = '10';
     const cachedSkills = [
@@ -13849,20 +13868,19 @@ describe('O1CodeAgent MCP SSE/HTTP support', () => {
     vi.mocked(loadCliConfig).mockResolvedValue(
       innerConfig as unknown as Config,
     );
-    vi.mocked(Session).mockImplementation(
-      () =>
-        ({
-          getDefaultReasoningConfig: vi.fn(),
-          getId: vi.fn().mockReturnValue('remember-session'),
-          shouldHintAskUserQuestionRestore: vi.fn().mockReturnValue(false),
-          getConfig: vi.fn().mockReturnValue(innerConfig),
-          sendAvailableCommandsUpdate: vi.fn().mockResolvedValue(undefined),
-          replayHistory: vi.fn().mockResolvedValue(undefined),
-          installRewriter: vi.fn(),
-          startCronScheduler: vi.fn(),
-          dispose: vi.fn(),
-        }) as unknown as InstanceType<typeof Session>,
-    );
+    vi.mocked(Session).mockImplementation(function MockConstructor() {
+      return {
+        getDefaultReasoningConfig: vi.fn(),
+        getId: vi.fn().mockReturnValue('remember-session'),
+        shouldHintAskUserQuestionRestore: vi.fn().mockReturnValue(false),
+        getConfig: vi.fn().mockReturnValue(innerConfig),
+        sendAvailableCommandsUpdate: vi.fn().mockResolvedValue(undefined),
+        replayHistory: vi.fn().mockResolvedValue(undefined),
+        installRewriter: vi.fn(),
+        startCronScheduler: vi.fn(),
+        dispose: vi.fn(),
+      } as unknown as InstanceType<typeof Session>;
+    });
     vi.mocked(buildAvailableCommandsSnapshot).mockResolvedValue({
       availableCommands: [],
       availableSkills: [],
@@ -13929,20 +13947,19 @@ describe('O1CodeAgent MCP SSE/HTTP support', () => {
     vi.mocked(loadCliConfig).mockResolvedValue(
       innerConfig as unknown as Config,
     );
-    vi.mocked(Session).mockImplementation(
-      () =>
-        ({
-          getDefaultReasoningConfig: vi.fn(),
-          getId: vi.fn().mockReturnValue('remember-noop-session'),
-          shouldHintAskUserQuestionRestore: vi.fn().mockReturnValue(false),
-          getConfig: vi.fn().mockReturnValue(innerConfig),
-          sendAvailableCommandsUpdate: vi.fn().mockResolvedValue(undefined),
-          replayHistory: vi.fn().mockResolvedValue(undefined),
-          installRewriter: vi.fn(),
-          startCronScheduler: vi.fn(),
-          dispose: vi.fn(),
-        }) as unknown as InstanceType<typeof Session>,
-    );
+    vi.mocked(Session).mockImplementation(function MockConstructor() {
+      return {
+        getDefaultReasoningConfig: vi.fn(),
+        getId: vi.fn().mockReturnValue('remember-noop-session'),
+        shouldHintAskUserQuestionRestore: vi.fn().mockReturnValue(false),
+        getConfig: vi.fn().mockReturnValue(innerConfig),
+        sendAvailableCommandsUpdate: vi.fn().mockResolvedValue(undefined),
+        replayHistory: vi.fn().mockResolvedValue(undefined),
+        installRewriter: vi.fn(),
+        startCronScheduler: vi.fn(),
+        dispose: vi.fn(),
+      } as unknown as InstanceType<typeof Session>;
+    });
     vi.mocked(buildAvailableCommandsSnapshot).mockResolvedValue({
       availableCommands: [],
       availableSkills: [],
@@ -14009,20 +14026,19 @@ describe('O1CodeAgent MCP SSE/HTTP support', () => {
     vi.mocked(loadCliConfig).mockResolvedValue(
       innerConfig as unknown as Config,
     );
-    vi.mocked(Session).mockImplementation(
-      () =>
-        ({
-          getDefaultReasoningConfig: vi.fn(),
-          getId: vi.fn().mockReturnValue('remember-fail-session'),
-          shouldHintAskUserQuestionRestore: vi.fn().mockReturnValue(false),
-          getConfig: vi.fn().mockReturnValue(innerConfig),
-          sendAvailableCommandsUpdate: vi.fn().mockResolvedValue(undefined),
-          replayHistory: vi.fn().mockResolvedValue(undefined),
-          installRewriter: vi.fn(),
-          startCronScheduler: vi.fn(),
-          dispose: vi.fn(),
-        }) as unknown as InstanceType<typeof Session>,
-    );
+    vi.mocked(Session).mockImplementation(function MockConstructor() {
+      return {
+        getDefaultReasoningConfig: vi.fn(),
+        getId: vi.fn().mockReturnValue('remember-fail-session'),
+        shouldHintAskUserQuestionRestore: vi.fn().mockReturnValue(false),
+        getConfig: vi.fn().mockReturnValue(innerConfig),
+        sendAvailableCommandsUpdate: vi.fn().mockResolvedValue(undefined),
+        replayHistory: vi.fn().mockResolvedValue(undefined),
+        installRewriter: vi.fn(),
+        startCronScheduler: vi.fn(),
+        dispose: vi.fn(),
+      } as unknown as InstanceType<typeof Session>;
+    });
     vi.mocked(buildAvailableCommandsSnapshot).mockResolvedValue({
       availableCommands: [],
       availableSkills: [],
@@ -18556,10 +18572,11 @@ describe('O1CodeAgent MCP SSE/HTTP support', () => {
       lastUpdated: 'end',
     });
     vi.mocked(SessionTranscriptReader).mockImplementation(
-      () =>
-        ({
+      function MockConstructor() {
+        return {
           readPage,
-        }) as unknown as InstanceType<typeof SessionTranscriptReader>,
+        } as unknown as InstanceType<typeof SessionTranscriptReader>;
+      },
     );
 
     const agentPromise = runAcpAgent(
@@ -18598,10 +18615,11 @@ describe('O1CodeAgent MCP SSE/HTTP support', () => {
       lastUpdated: 'end',
     });
     vi.mocked(SessionTranscriptReader).mockImplementation(
-      () =>
-        ({
+      function MockConstructor() {
+        return {
           readPage,
-        }) as unknown as InstanceType<typeof SessionTranscriptReader>,
+        } as unknown as InstanceType<typeof SessionTranscriptReader>;
+      },
     );
 
     const agentPromise = runAcpAgent(
@@ -18658,10 +18676,11 @@ describe('O1CodeAgent MCP SSE/HTTP support', () => {
       lastUpdated: 'end',
     });
     vi.mocked(SessionTranscriptReader).mockImplementation(
-      () =>
-        ({
+      function MockConstructor() {
+        return {
           readTurnIndexPage,
-        }) as unknown as InstanceType<typeof SessionTranscriptReader>,
+        } as unknown as InstanceType<typeof SessionTranscriptReader>;
+      },
     );
     const { agent, agentPromise } =
       await bootCoreSettingsAgent(makeCoreSettings());
@@ -18724,10 +18743,11 @@ describe('O1CodeAgent MCP SSE/HTTP support', () => {
       lastUpdated: 'end',
     });
     vi.mocked(SessionTranscriptReader).mockImplementation(
-      () =>
-        ({
+      function MockConstructor() {
+        return {
           readPage,
-        }) as unknown as InstanceType<typeof SessionTranscriptReader>,
+        } as unknown as InstanceType<typeof SessionTranscriptReader>;
+      },
     );
 
     const agentPromise = runAcpAgent(
@@ -18783,10 +18803,11 @@ describe('O1CodeAgent MCP SSE/HTTP support', () => {
       lastUpdated: 'end',
     });
     vi.mocked(SessionTranscriptReader).mockImplementation(
-      () =>
-        ({
+      function MockConstructor() {
+        return {
           readPage,
-        }) as unknown as InstanceType<typeof SessionTranscriptReader>,
+        } as unknown as InstanceType<typeof SessionTranscriptReader>;
+      },
     );
 
     const agentPromise = runAcpAgent(
@@ -18824,10 +18845,11 @@ describe('O1CodeAgent MCP SSE/HTTP support', () => {
       lastUpdated: 'end',
     });
     vi.mocked(SessionTranscriptReader).mockImplementation(
-      () =>
-        ({
+      function MockConstructor() {
+        return {
           readPage,
-        }) as unknown as InstanceType<typeof SessionTranscriptReader>,
+        } as unknown as InstanceType<typeof SessionTranscriptReader>;
+      },
     );
 
     const agentPromise = runAcpAgent(
@@ -20414,15 +20436,14 @@ describe('O1CodeAgent MCP SSE/HTTP support', () => {
   const VALID_SESSION_ID = '12345678-1234-1234-1234-1234567890ab';
 
   function mockSessionServiceLoad(result: unknown, onRead?: () => void) {
-    vi.mocked(SessionService).mockImplementation(
-      () =>
-        ({
-          loadSession: vi.fn().mockImplementation(async () => {
-            onRead?.();
-            return result;
-          }),
-        }) as unknown as InstanceType<typeof SessionService>,
-    );
+    vi.mocked(SessionService).mockImplementation(function MockConstructor() {
+      return {
+        loadSession: vi.fn().mockImplementation(async () => {
+          onRead?.();
+          return result;
+        }),
+      } as unknown as InstanceType<typeof SessionService>;
+    });
   }
 
   it('o1code/session/loadUpdates rejects an invalid sessionId', async () => {
@@ -20631,10 +20652,11 @@ describe('O1CodeAgent MCP SSE/HTTP support', () => {
       lastUpdated: 'end',
     });
     vi.mocked(SessionTranscriptReader).mockImplementation(
-      () =>
-        ({
+      function MockConstructor() {
+        return {
           readPage,
-        }) as unknown as InstanceType<typeof SessionTranscriptReader>,
+        } as unknown as InstanceType<typeof SessionTranscriptReader>;
+      },
     );
     mockHistoryReplayPage.mockImplementation(
       async (context: { sendUpdate: (u: unknown) => Promise<void> }) => {
@@ -20749,10 +20771,11 @@ describe('O1CodeAgent MCP SSE/HTTP support', () => {
       lastUpdated: 'end',
     });
     vi.mocked(SessionTranscriptReader).mockImplementation(
-      () =>
-        ({
+      function MockConstructor() {
+        return {
           readPage,
-        }) as unknown as InstanceType<typeof SessionTranscriptReader>,
+        } as unknown as InstanceType<typeof SessionTranscriptReader>;
+      },
     );
     mockHistoryReplayPage.mockResolvedValue({ pendingToolCalls: [] });
     const { agent, agentPromise } = await bootCoreSettingsAgent(settings);
@@ -20801,10 +20824,11 @@ describe('O1CodeAgent MCP SSE/HTTP support', () => {
       lastUpdated: 'end',
     });
     vi.mocked(SessionTranscriptReader).mockImplementation(
-      () =>
-        ({
+      function MockConstructor() {
+        return {
           readPage,
-        }) as unknown as InstanceType<typeof SessionTranscriptReader>,
+        } as unknown as InstanceType<typeof SessionTranscriptReader>;
+      },
     );
     mockHistoryReplayPage.mockResolvedValue({ pendingToolCalls: [] });
     const { agent, agentPromise } = await bootAcpAgent();
@@ -20850,10 +20874,11 @@ describe('O1CodeAgent MCP SSE/HTTP support', () => {
       ],
     });
     vi.mocked(SessionTranscriptReader).mockImplementation(
-      () =>
-        ({
+      function MockConstructor() {
+        return {
           readTurnIndexPage,
-        }) as unknown as InstanceType<typeof SessionTranscriptReader>,
+        } as unknown as InstanceType<typeof SessionTranscriptReader>;
+      },
     );
     const { agent, agentPromise } = await bootAcpAgent();
     await agent.newSession({ cwd: '/tmp', mcpServers: [] });
@@ -20956,10 +20981,11 @@ describe('O1CodeAgent MCP SSE/HTTP support', () => {
     async ({ error, snapshot, expected }) => {
       const settings = makeCoreSettings();
       vi.mocked(SessionTranscriptReader).mockImplementation(
-        () =>
-          ({
+        function MockConstructor() {
+          return {
             readTurnIndexPage: vi.fn().mockRejectedValue(error),
-          }) as unknown as InstanceType<typeof SessionTranscriptReader>,
+          } as unknown as InstanceType<typeof SessionTranscriptReader>;
+        },
       );
       const { agent, agentPromise } = await bootCoreSettingsAgent(settings);
 
@@ -21002,10 +21028,11 @@ describe('O1CodeAgent MCP SSE/HTTP support', () => {
       lastUpdated: 'end',
     });
     vi.mocked(SessionTranscriptReader).mockImplementation(
-      () =>
-        ({
+      function MockConstructor() {
+        return {
           readPage,
-        }) as unknown as InstanceType<typeof SessionTranscriptReader>,
+        } as unknown as InstanceType<typeof SessionTranscriptReader>;
+      },
     );
     mockHistoryReplayPage.mockResolvedValue({ pendingToolCalls: [] });
     const { agent, agentPromise } = await bootCoreSettingsAgent(settings);
@@ -21041,10 +21068,11 @@ describe('O1CodeAgent MCP SSE/HTTP support', () => {
     };
     const readPage = vi.fn().mockResolvedValue(page);
     vi.mocked(SessionTranscriptReader).mockImplementation(
-      () =>
-        ({
+      function MockConstructor() {
+        return {
           readPage,
-        }) as unknown as InstanceType<typeof SessionTranscriptReader>,
+        } as unknown as InstanceType<typeof SessionTranscriptReader>;
+      },
     );
     mockHistoryReplayPage.mockResolvedValue({ pendingToolCalls: [] });
     const { agent, agentPromise } = await bootAcpAgent();
@@ -21093,17 +21121,16 @@ describe('O1CodeAgent MCP SSE/HTTP support', () => {
     innerConfig.getSessionRuntimeBaseDir = vi
       .fn()
       .mockReturnValue('/tmp/o1-code-runtime-test');
-    vi.mocked(SessionService).mockImplementation(
-      () =>
-        ({
-          readLiveRestoreProjection: vi.fn().mockResolvedValue({
-            replay: {
-              records: [{ role: 'user' }],
-              gaps: [],
-            },
-          }),
-        }) as unknown as InstanceType<typeof SessionService>,
-    );
+    vi.mocked(SessionService).mockImplementation(function MockConstructor() {
+      return {
+        readLiveRestoreProjection: vi.fn().mockResolvedValue({
+          replay: {
+            records: [{ role: 'user' }],
+            gaps: [],
+          },
+        }),
+      } as unknown as InstanceType<typeof SessionService>;
+    });
     mockHistoryReplay.mockResolvedValue(undefined);
     const { agent, agentPromise } = await bootAcpAgent();
     const loadSession = (params: Record<string, unknown>) =>
@@ -21307,8 +21334,8 @@ describe('O1CodeAgent MCP SSE/HTTP support', () => {
       .mockResolvedValueOnce(oldConfig)
       .mockResolvedValueOnce(newConfig);
     vi.mocked(SessionTranscriptReader).mockImplementation(
-      () =>
-        ({
+      function MockConstructor() {
+        return {
           readPage: vi.fn().mockResolvedValue({
             sessionId: VALID_SESSION_ID,
             records: [],
@@ -21316,7 +21343,8 @@ describe('O1CodeAgent MCP SSE/HTTP support', () => {
             startTime: 'start',
             lastUpdated: 'end',
           }),
-        }) as unknown as InstanceType<typeof SessionTranscriptReader>,
+        } as unknown as InstanceType<typeof SessionTranscriptReader>;
+      },
     );
     mockHistoryReplayPage.mockResolvedValue({ pendingToolCalls: [] });
     const { agent, agentPromise } = await bootCoreSettingsAgent(oldSettings);
@@ -21355,8 +21383,8 @@ describe('O1CodeAgent MCP SSE/HTTP support', () => {
       getToolRegistry: vi.fn(() => toolRegistry),
     } as unknown as Config);
     vi.mocked(SessionTranscriptReader).mockImplementation(
-      () =>
-        ({
+      function MockConstructor() {
+        return {
           readPage: vi.fn().mockResolvedValue({
             sessionId: VALID_SESSION_ID,
             records: [],
@@ -21364,7 +21392,8 @@ describe('O1CodeAgent MCP SSE/HTTP support', () => {
             startTime: 'start',
             lastUpdated: 'end',
           }),
-        }) as unknown as InstanceType<typeof SessionTranscriptReader>,
+        } as unknown as InstanceType<typeof SessionTranscriptReader>;
+      },
     );
     mockHistoryReplayPage.mockResolvedValue({ pendingToolCalls: [] });
     const { agent, agentPromise } = await bootCoreSettingsAgent(settings);
@@ -21400,8 +21429,8 @@ describe('O1CodeAgent MCP SSE/HTTP support', () => {
       getToolRegistry: vi.fn(() => toolRegistry),
     } as unknown as Config);
     vi.mocked(SessionTranscriptReader).mockImplementation(
-      () =>
-        ({
+      function MockConstructor() {
+        return {
           readPage: vi.fn().mockResolvedValue({
             sessionId: VALID_SESSION_ID,
             records: [],
@@ -21409,7 +21438,8 @@ describe('O1CodeAgent MCP SSE/HTTP support', () => {
             startTime: 'start',
             lastUpdated: 'end',
           }),
-        }) as unknown as InstanceType<typeof SessionTranscriptReader>,
+        } as unknown as InstanceType<typeof SessionTranscriptReader>;
+      },
     );
     const { agent, agentPromise } = await bootCoreSettingsAgent(settings);
 
@@ -21433,10 +21463,11 @@ describe('O1CodeAgent MCP SSE/HTTP support', () => {
     const settings = makeCoreSettings();
     const readPage = vi.fn();
     vi.mocked(SessionTranscriptReader).mockImplementation(
-      () =>
-        ({
+      function MockConstructor() {
+        return {
           readPage,
-        }) as unknown as InstanceType<typeof SessionTranscriptReader>,
+        } as unknown as InstanceType<typeof SessionTranscriptReader>;
+      },
     );
     const { agent, agentPromise } = await bootCoreSettingsAgent(settings);
 
@@ -21510,10 +21541,11 @@ describe('O1CodeAgent MCP SSE/HTTP support', () => {
       lastUpdated: 'end',
     });
     vi.mocked(SessionTranscriptReader).mockImplementation(
-      () =>
-        ({
+      function MockConstructor() {
+        return {
           readPage,
-        }) as unknown as InstanceType<typeof SessionTranscriptReader>,
+        } as unknown as InstanceType<typeof SessionTranscriptReader>;
+      },
     );
     mockHistoryReplayPage.mockRejectedValue(new Error('replay boom'));
     mockHistoryPendingToolCalls.mockReturnValue([
@@ -21560,10 +21592,11 @@ describe('O1CodeAgent MCP SSE/HTTP support', () => {
         new SessionTranscriptTooLargeError(VALID_SESSION_ID, 300, 200),
       );
     vi.mocked(SessionTranscriptReader).mockImplementation(
-      () =>
-        ({
+      function MockConstructor() {
+        return {
           readPage,
-        }) as unknown as InstanceType<typeof SessionTranscriptReader>,
+        } as unknown as InstanceType<typeof SessionTranscriptReader>;
+      },
     );
     const { agent, agentPromise } = await bootCoreSettingsAgent(settings);
 
@@ -21596,10 +21629,11 @@ describe('O1CodeAgent MCP SSE/HTTP support', () => {
         new SessionTranscriptPageTooLargeError(VALID_SESSION_ID, 300, 200),
       );
     vi.mocked(SessionTranscriptReader).mockImplementation(
-      () =>
-        ({
+      function MockConstructor() {
+        return {
           readPage,
-        }) as unknown as InstanceType<typeof SessionTranscriptReader>,
+        } as unknown as InstanceType<typeof SessionTranscriptReader>;
+      },
     );
     const { agent, agentPromise } = await bootCoreSettingsAgent(settings);
 
@@ -21696,10 +21730,11 @@ describe('O1CodeAgent MCP SSE/HTTP support', () => {
     async ({ error, cursor, snapshot, expected }) => {
       const settings = makeCoreSettings();
       vi.mocked(SessionTranscriptReader).mockImplementation(
-        () =>
-          ({
+        function MockConstructor() {
+          return {
             readPage: vi.fn().mockRejectedValue(error),
-          }) as unknown as InstanceType<typeof SessionTranscriptReader>,
+          } as unknown as InstanceType<typeof SessionTranscriptReader>;
+        },
       );
       const { agent, agentPromise } = await bootCoreSettingsAgent(settings);
 
@@ -21723,8 +21758,8 @@ describe('O1CodeAgent MCP SSE/HTTP support', () => {
       getToolRegistry: vi.fn(() => undefined),
     } as unknown as Config);
     vi.mocked(SessionTranscriptReader).mockImplementation(
-      () =>
-        ({
+      function MockConstructor() {
+        return {
           readPage: vi.fn().mockResolvedValue({
             sessionId: VALID_SESSION_ID,
             records: [],
@@ -21738,7 +21773,8 @@ describe('O1CodeAgent MCP SSE/HTTP support', () => {
             startTime: 'start',
             lastUpdated: 'end',
           }),
-        }) as unknown as InstanceType<typeof SessionTranscriptReader>,
+        } as unknown as InstanceType<typeof SessionTranscriptReader>;
+      },
     );
     mockHistoryReplayPage.mockResolvedValue({ pendingToolCalls: [] });
     const { agent, agentPromise } = await bootCoreSettingsAgent(settings);
@@ -21771,8 +21807,8 @@ describe('O1CodeAgent MCP SSE/HTTP support', () => {
       getToolRegistry: vi.fn(() => undefined),
     } as unknown as Config);
     vi.mocked(SessionTranscriptReader).mockImplementation(
-      () =>
-        ({
+      function MockConstructor() {
+        return {
           readPage: vi.fn().mockResolvedValue({
             sessionId: VALID_SESSION_ID,
             records: [],
@@ -21784,7 +21820,8 @@ describe('O1CodeAgent MCP SSE/HTTP support', () => {
             startTime: 'start',
             lastUpdated: 'end',
           }),
-        }) as unknown as InstanceType<typeof SessionTranscriptReader>,
+        } as unknown as InstanceType<typeof SessionTranscriptReader>;
+      },
     );
     mockHistoryReplayPage.mockResolvedValue({ pendingToolCalls: [] });
     const { agent, agentPromise } = await bootCoreSettingsAgent(settings);
@@ -21837,10 +21874,11 @@ describe('O1CodeAgent MCP SSE/HTTP support', () => {
       lastUpdated: 'end',
     });
     vi.mocked(SessionTranscriptReader).mockImplementation(
-      () =>
-        ({
+      function MockConstructor() {
+        return {
           readPage,
-        }) as unknown as InstanceType<typeof SessionTranscriptReader>,
+        } as unknown as InstanceType<typeof SessionTranscriptReader>;
+      },
     );
     // First record replays successfully (emitting one update) then the second
     // throws — mirroring a mid-page conversion failure.
@@ -21927,10 +21965,11 @@ describe('O1CodeAgent MCP SSE/HTTP support', () => {
       .mockResolvedValueOnce(page1)
       .mockResolvedValueOnce(page2);
     vi.mocked(SessionTranscriptReader).mockImplementation(
-      () =>
-        ({
+      function MockConstructor() {
+        return {
           readPage,
-        }) as unknown as InstanceType<typeof SessionTranscriptReader>,
+        } as unknown as InstanceType<typeof SessionTranscriptReader>;
+      },
     );
     // Page 1: spend 100 prompt tokens, mutating the shared usage object in
     // place exactly as the real replayer does.
@@ -23757,7 +23796,9 @@ describe('O1CodeAgent MCP SSE/HTTP support', () => {
     vi.mocked(loadCliConfig)
       .mockResolvedValueOnce(innerConfigA as unknown as Config)
       .mockResolvedValueOnce(innerConfigB as unknown as Config);
-    vi.mocked(Session).mockImplementation((...args: unknown[]) => {
+    vi.mocked(Session).mockImplementation(function MockConstructor(
+      ...args: unknown[]
+    ) {
       const sessionId = args[0] as string;
       const cfg = sessionId === 'session-end-a' ? innerConfigA : innerConfigB;
       return {
@@ -23832,12 +23873,11 @@ describe('O1CodeAgent MCP SSE/HTTP support', () => {
       stickyEphemeralIds: [],
       warnings: [],
     };
-    vi.mocked(SessionService).mockImplementation(
-      () =>
-        ({
-          loadSession: vi.fn().mockResolvedValue({ artifactSnapshot }),
-        }) as unknown as InstanceType<typeof SessionService>,
-    );
+    vi.mocked(SessionService).mockImplementation(function MockConstructor() {
+      return {
+        loadSession: vi.fn().mockResolvedValue({ artifactSnapshot }),
+      } as unknown as InstanceType<typeof SessionService>;
+    });
 
     const agentPromise = runAcpAgent(
       mockConfig,
@@ -23932,12 +23972,11 @@ describe('O1CodeAgent MCP SSE/HTTP support', () => {
   it('rewindSession extension method marks artifact snapshot unavailable when session reload is missing', async () => {
     const sessionId = '11111111-1111-1111-1111-111111111111';
     await setupSessionMocks(sessionId);
-    vi.mocked(SessionService).mockImplementation(
-      () =>
-        ({
-          loadSession: vi.fn().mockResolvedValue(undefined),
-        }) as unknown as InstanceType<typeof SessionService>,
-    );
+    vi.mocked(SessionService).mockImplementation(function MockConstructor() {
+      return {
+        loadSession: vi.fn().mockResolvedValue(undefined),
+      } as unknown as InstanceType<typeof SessionService>;
+    });
 
     const agentPromise = runAcpAgent(
       mockConfig,
@@ -23972,12 +24011,11 @@ describe('O1CodeAgent MCP SSE/HTTP support', () => {
   it('rewindSession extension method returns an empty artifact snapshot when reload has no artifact records', async () => {
     const sessionId = '11111111-1111-1111-1111-111111111111';
     await setupSessionMocks(sessionId);
-    vi.mocked(SessionService).mockImplementation(
-      () =>
-        ({
-          loadSession: vi.fn().mockResolvedValue({ conversation: {} }),
-        }) as unknown as InstanceType<typeof SessionService>,
-    );
+    vi.mocked(SessionService).mockImplementation(function MockConstructor() {
+      return {
+        loadSession: vi.fn().mockResolvedValue({ conversation: {} }),
+      } as unknown as InstanceType<typeof SessionService>;
+    });
 
     const agentPromise = runAcpAgent(
       mockConfig,
@@ -24096,12 +24134,11 @@ describe('O1CodeAgent MCP SSE/HTTP support', () => {
     const forkGate = new Promise<void>((resolve) => {
       releaseFork = resolve;
     });
-    vi.mocked(SessionService).mockImplementation(
-      () =>
-        ({
-          forkSession: vi.fn(() => forkGate),
-        }) as unknown as InstanceType<typeof SessionService>,
-    );
+    vi.mocked(SessionService).mockImplementation(function MockConstructor() {
+      return {
+        forkSession: vi.fn(() => forkGate),
+      } as unknown as InstanceType<typeof SessionService>;
+    });
 
     const agentPromise = runAcpAgent(
       mockConfig,
@@ -24157,12 +24194,11 @@ describe('O1CodeAgent MCP SSE/HTTP support', () => {
     const forkGate = new Promise<void>((resolve) => {
       releaseFork = resolve;
     });
-    vi.mocked(SessionService).mockImplementation(
-      () =>
-        ({
-          forkSession: vi.fn(() => forkGate),
-        }) as unknown as InstanceType<typeof SessionService>,
-    );
+    vi.mocked(SessionService).mockImplementation(function MockConstructor() {
+      return {
+        forkSession: vi.fn(() => forkGate),
+      } as unknown as InstanceType<typeof SessionService>;
+    });
 
     const agentPromise = runAcpAgent(
       mockConfig,
@@ -24892,7 +24928,9 @@ describe('O1CodeAgent sessionIdContext binding', () => {
     mockConnectionState.reset();
     capturedAgentFactory = undefined;
 
-    vi.mocked(AgentSideConnection).mockImplementation((factory: unknown) => {
+    vi.mocked(AgentSideConnection).mockImplementation(function MockConstructor(
+      factory: unknown,
+    ) {
       capturedAgentFactory = factory as typeof capturedAgentFactory;
       return {
         get closed() {
@@ -25202,7 +25240,7 @@ describe('O1CodeAgent session-management routing (rename / delete / list / branc
   let liveBeginCloseIfAvailable: ReturnType<typeof vi.fn>;
   let liveWaitForCloseGateToRelease: ReturnType<typeof vi.fn>;
   let liveReleaseCloseGate: ReturnType<typeof vi.fn>;
-  let liveBeginClose: ReturnType<typeof vi.fn>;
+  let liveBeginClose: Mock<Session['beginClose']>;
   let liveIsIdle: ReturnType<typeof vi.fn>;
   let liveIsTurnIdle: ReturnType<typeof vi.fn>;
   let liveAssertCanStartTurn: ReturnType<typeof vi.fn>;
@@ -25231,7 +25269,9 @@ describe('O1CodeAgent session-management routing (rename / delete / list / branc
       .fn()
       .mockReturnValue(liveReleaseHistoryMutation);
 
-    vi.mocked(AgentSideConnection).mockImplementation((factory: unknown) => {
+    vi.mocked(AgentSideConnection).mockImplementation(function MockConstructor(
+      factory: unknown,
+    ) {
       capturedAgentFactory = factory as typeof capturedAgentFactory;
       return {
         get closed() {
@@ -25337,29 +25377,28 @@ describe('O1CodeAgent session-management routing (rename / delete / list / branc
     vi.mocked(loadCliConfig).mockResolvedValue(
       innerConfig as unknown as Config,
     );
-    vi.mocked(Session).mockImplementation(
-      () =>
-        ({
-          getDefaultReasoningConfig: vi.fn(),
-          getId: vi.fn().mockReturnValue(liveSessionId),
-          shouldHintAskUserQuestionRestore: vi.fn().mockReturnValue(false),
-          getConfig: vi.fn().mockReturnValue(innerConfig),
-          cancelPendingPrompt: liveCancelPendingPrompt,
-          beginClose: liveBeginClose,
-          beginCloseIfAvailable: liveBeginCloseIfAvailable,
-          waitForCloseGateToRelease: liveWaitForCloseGateToRelease,
-          waitForActiveTurnsToSettle: liveWaitForActiveTurnsToSettle,
-          isIdle: liveIsIdle,
-          isTurnIdle: liveIsTurnIdle,
-          assertCanStartTurn: liveAssertCanStartTurn,
-          beginHistoryMutation: liveBeginHistoryMutation,
-          sendAvailableCommandsUpdate: vi.fn().mockResolvedValue(undefined),
-          replayHistory: vi.fn().mockResolvedValue(undefined),
-          installRewriter: vi.fn(),
-          startCronScheduler: vi.fn(),
-          dispose: vi.fn(),
-        }) as unknown as InstanceType<typeof Session>,
-    );
+    vi.mocked(Session).mockImplementation(function MockConstructor() {
+      return {
+        getDefaultReasoningConfig: vi.fn(),
+        getId: vi.fn().mockReturnValue(liveSessionId),
+        shouldHintAskUserQuestionRestore: vi.fn().mockReturnValue(false),
+        getConfig: vi.fn().mockReturnValue(innerConfig),
+        cancelPendingPrompt: liveCancelPendingPrompt,
+        beginClose: liveBeginClose,
+        beginCloseIfAvailable: liveBeginCloseIfAvailable,
+        waitForCloseGateToRelease: liveWaitForCloseGateToRelease,
+        waitForActiveTurnsToSettle: liveWaitForActiveTurnsToSettle,
+        isIdle: liveIsIdle,
+        isTurnIdle: liveIsTurnIdle,
+        assertCanStartTurn: liveAssertCanStartTurn,
+        beginHistoryMutation: liveBeginHistoryMutation,
+        sendAvailableCommandsUpdate: vi.fn().mockResolvedValue(undefined),
+        replayHistory: vi.fn().mockResolvedValue(undefined),
+        installRewriter: vi.fn(),
+        startCronScheduler: vi.fn(),
+        dispose: vi.fn(),
+      } as unknown as InstanceType<typeof Session>;
+    });
 
     const agentPromise = runAcpAgent(
       mockConfig,
@@ -25521,12 +25560,11 @@ describe('O1CodeAgent session-management routing (rename / delete / list / branc
       renameContext = sessionIdContext.getStore();
       return true;
     });
-    vi.mocked(SessionService).mockImplementation(
-      () =>
-        ({
-          renameSession: renameSpy,
-        }) as unknown as InstanceType<typeof SessionService>,
-    );
+    vi.mocked(SessionService).mockImplementation(function MockConstructor() {
+      return {
+        renameSession: renameSpy,
+      } as unknown as InstanceType<typeof SessionService>;
+    });
 
     const deadSessionId = '6ba7b810-9dad-11d1-80b4-00c04fd430c8';
     const result = await agent.extMethod('renameSession', {
@@ -25564,10 +25602,11 @@ describe('O1CodeAgent session-management routing (rename / delete / list / branc
       removeSessionContext = sessionIdContext.getStore();
       return true;
     });
-    vi.mocked(SessionService).mockImplementation(
-      () =>
-        ({ removeSession }) as unknown as InstanceType<typeof SessionService>,
-    );
+    vi.mocked(SessionService).mockImplementation(function MockConstructor() {
+      return { removeSession } as unknown as InstanceType<
+        typeof SessionService
+      >;
+    });
 
     const deletedSessionId = '6ba7b810-9dad-11d1-80b4-00c04fd430c8';
     await expect(
@@ -25597,10 +25636,11 @@ describe('O1CodeAgent session-management routing (rename / delete / list / branc
     const { agent, agentPromise } = await bootAgent(innerConfig);
 
     const removeSession = vi.fn().mockResolvedValue(false);
-    vi.mocked(SessionService).mockImplementation(
-      () =>
-        ({ removeSession }) as unknown as InstanceType<typeof SessionService>,
-    );
+    vi.mocked(SessionService).mockImplementation(function MockConstructor() {
+      return { removeSession } as unknown as InstanceType<
+        typeof SessionService
+      >;
+    });
 
     const deletedSessionId = '6ba7b810-9dad-11d1-80b4-00c04fd430c8';
     await expect(
@@ -25626,10 +25666,11 @@ describe('O1CodeAgent session-management routing (rename / delete / list / branc
     const { agent, agentPromise } = await bootAgent(innerConfig);
 
     const removeSession = vi.fn().mockResolvedValue(true);
-    vi.mocked(SessionService).mockImplementation(
-      () =>
-        ({ removeSession }) as unknown as InstanceType<typeof SessionService>,
-    );
+    vi.mocked(SessionService).mockImplementation(function MockConstructor() {
+      return { removeSession } as unknown as InstanceType<
+        typeof SessionService
+      >;
+    });
 
     const deletedSessionId = '6ba7b810-9dad-11d1-80b4-00c04fd430c8';
     await expect(
@@ -25661,10 +25702,11 @@ describe('O1CodeAgent session-management routing (rename / delete / list / branc
     const perRequestSettings = makeAcpSettings();
     vi.mocked(loadSettings).mockReturnValue(perRequestSettings);
     const removeSession = vi.fn().mockResolvedValue(true);
-    vi.mocked(SessionService).mockImplementation(
-      () =>
-        ({ removeSession }) as unknown as InstanceType<typeof SessionService>,
-    );
+    vi.mocked(SessionService).mockImplementation(function MockConstructor() {
+      return { removeSession } as unknown as InstanceType<
+        typeof SessionService
+      >;
+    });
     vi.mocked(runWithAcpRuntimeOutputDir).mockClear();
 
     await agent.extMethod('deleteSession', {
@@ -25695,10 +25737,11 @@ describe('O1CodeAgent session-management routing (rename / delete / list / branc
     const perRequestSettings = makeAcpSettings();
     vi.mocked(loadSettings).mockReturnValue(perRequestSettings);
     const renameSession = vi.fn().mockResolvedValue(true);
-    vi.mocked(SessionService).mockImplementation(
-      () =>
-        ({ renameSession }) as unknown as InstanceType<typeof SessionService>,
-    );
+    vi.mocked(SessionService).mockImplementation(function MockConstructor() {
+      return { renameSession } as unknown as InstanceType<
+        typeof SessionService
+      >;
+    });
     vi.mocked(runWithAcpRuntimeOutputDir).mockClear();
 
     // No newSession: the target is not live in this process, so the rename
@@ -25734,10 +25777,9 @@ describe('O1CodeAgent session-management routing (rename / delete / list / branc
     const listSessions = vi
       .fn()
       .mockResolvedValue({ items: [], nextCursor: undefined });
-    vi.mocked(SessionService).mockImplementation(
-      () =>
-        ({ listSessions }) as unknown as InstanceType<typeof SessionService>,
-    );
+    vi.mocked(SessionService).mockImplementation(function MockConstructor() {
+      return { listSessions } as unknown as InstanceType<typeof SessionService>;
+    });
     vi.mocked(runWithAcpRuntimeOutputDir).mockClear();
 
     await (
@@ -25770,9 +25812,9 @@ describe('O1CodeAgent session-management routing (rename / delete / list / branc
     const perRequestSettings = makeAcpSettings();
     vi.mocked(loadSettings).mockReturnValue(perRequestSettings);
     const loadSession = vi.fn().mockResolvedValue(null);
-    vi.mocked(SessionService).mockImplementation(
-      () => ({ loadSession }) as unknown as InstanceType<typeof SessionService>,
-    );
+    vi.mocked(SessionService).mockImplementation(function MockConstructor() {
+      return { loadSession } as unknown as InstanceType<typeof SessionService>;
+    });
     vi.mocked(runWithAcpRuntimeOutputDir).mockClear();
 
     await expect(
@@ -26753,7 +26795,9 @@ describe('O1CodeAgent unstable_listSessions cursor parsing', () => {
     mockConnectionState.reset();
     capturedAgentFactory = undefined;
 
-    vi.mocked(AgentSideConnection).mockImplementation((factory: unknown) => {
+    vi.mocked(AgentSideConnection).mockImplementation(function MockConstructor(
+      factory: unknown,
+    ) {
       capturedAgentFactory = factory as typeof capturedAgentFactory;
       return {
         get closed() {
@@ -26831,12 +26875,11 @@ describe('O1CodeAgent unstable_listSessions cursor parsing', () => {
       items: [],
       nextCursor: undefined,
     });
-    vi.mocked(SessionService).mockImplementation(
-      () =>
-        ({
-          listSessions,
-        }) as unknown as InstanceType<typeof SessionService>,
-    );
+    vi.mocked(SessionService).mockImplementation(function MockConstructor() {
+      return {
+        listSessions,
+      } as unknown as InstanceType<typeof SessionService>;
+    });
     const { agent, agentPromise } = await bootAgent();
 
     try {
@@ -26864,12 +26907,11 @@ describe('O1CodeAgent unstable_listSessions cursor parsing', () => {
       items: [],
       nextCursor: undefined,
     });
-    vi.mocked(SessionService).mockImplementation(
-      () =>
-        ({
-          listSessions,
-        }) as unknown as InstanceType<typeof SessionService>,
-    );
+    vi.mocked(SessionService).mockImplementation(function MockConstructor() {
+      return {
+        listSessions,
+      } as unknown as InstanceType<typeof SessionService>;
+    });
     const { agent, agentPromise } = await bootAgent();
 
     try {
@@ -26907,12 +26949,11 @@ describe('O1CodeAgent unstable_listSessions cursor parsing', () => {
       items: [],
       nextCursor: undefined,
     });
-    vi.mocked(SessionService).mockImplementation(
-      () =>
-        ({
-          listSessions,
-        }) as unknown as InstanceType<typeof SessionService>,
-    );
+    vi.mocked(SessionService).mockImplementation(function MockConstructor() {
+      return {
+        listSessions,
+      } as unknown as InstanceType<typeof SessionService>;
+    });
     const { agent, agentPromise } = await bootAgent();
 
     try {
@@ -26955,12 +26996,11 @@ describe('O1CodeAgent unstable_listSessions cursor parsing', () => {
       ],
       nextCursor: 1_797_859_999_000,
     });
-    vi.mocked(SessionService).mockImplementation(
-      () =>
-        ({
-          listSessions,
-        }) as unknown as InstanceType<typeof SessionService>,
-    );
+    vi.mocked(SessionService).mockImplementation(function MockConstructor() {
+      return {
+        listSessions,
+      } as unknown as InstanceType<typeof SessionService>;
+    });
     const { agent, agentPromise } = await bootAgent();
 
     try {
@@ -27022,7 +27062,7 @@ describe('O1CodeAgent loadSession / unstable_resumeSession', () => {
   let lastSessionMock:
     | {
         getId: ReturnType<typeof vi.fn>;
-        getConfig: ReturnType<typeof vi.fn>;
+        getConfig: Mock<() => ReturnType<typeof makeRestoreInnerConfig>>;
         sendAvailableCommandsUpdate: ReturnType<typeof vi.fn>;
         replayHistory: ReturnType<typeof vi.fn>;
         primeTurnFromHistory: ReturnType<typeof vi.fn>;
@@ -27082,7 +27122,9 @@ describe('O1CodeAgent loadSession / unstable_resumeSession', () => {
     lastManagedConversationActivation = undefined;
     capturedAgentFactory = undefined;
 
-    vi.mocked(AgentSideConnection).mockImplementation((factory: unknown) => {
+    vi.mocked(AgentSideConnection).mockImplementation(function MockConstructor(
+      factory: unknown,
+    ) {
       capturedAgentFactory = factory as typeof capturedAgentFactory;
       return {
         get closed() {
@@ -27406,24 +27448,23 @@ describe('O1CodeAgent loadSession / unstable_resumeSession', () => {
       innerConfig.consumeSessionRestoreProjection.mockReturnValue(projection);
       return innerConfig as unknown as Config;
     });
-    vi.mocked(SessionService).mockImplementation(
-      () =>
-        ({
-          findSessionIdIgnoringCase: opts.resolverError
-            ? vi.fn().mockRejectedValue(opts.resolverError)
-            : vi
-                .fn()
-                .mockImplementation(async (sessionId: string) =>
-                  opts.sessionExists
-                    ? (opts.persistedSpelling ?? sessionId)
-                    : undefined,
-                ),
-          loadSession,
-          readRestoreProjection,
-          readLiveRestoreProjection,
-        }) as unknown as InstanceType<typeof SessionService>,
-    );
-    vi.mocked(Session).mockImplementation(() => {
+    vi.mocked(SessionService).mockImplementation(function MockConstructor() {
+      return {
+        findSessionIdIgnoringCase: opts.resolverError
+          ? vi.fn().mockRejectedValue(opts.resolverError)
+          : vi
+              .fn()
+              .mockImplementation(async (sessionId: string) =>
+                opts.sessionExists
+                  ? (opts.persistedSpelling ?? sessionId)
+                  : undefined,
+              ),
+        loadSession,
+        readRestoreProjection,
+        readLiveRestoreProjection,
+      } as unknown as InstanceType<typeof SessionService>;
+    });
+    vi.mocked(Session).mockImplementation(function MockConstructor() {
       const releaseCloseGate = vi.fn();
       const sessionMock = {
         getDefaultReasoningConfig: vi.fn(),
@@ -28320,16 +28361,14 @@ describe('O1CodeAgent loadSession / unstable_resumeSession', () => {
       .fn()
       .mockImplementation(() => innerConfig.getResumedSessionData());
     const projectionService = innerConfig.getSessionService();
-    vi.mocked(SessionService).mockImplementation(
-      () =>
-        ({
-          findSessionIdIgnoringCase,
-          loadSession,
-          readRestoreProjection: projectionService.readRestoreProjection,
-          readLiveRestoreProjection:
-            projectionService.readLiveRestoreProjection,
-        }) as unknown as InstanceType<typeof SessionService>,
-    );
+    vi.mocked(SessionService).mockImplementation(function MockConstructor() {
+      return {
+        findSessionIdIgnoringCase,
+        loadSession,
+        readRestoreProjection: projectionService.readRestoreProjection,
+        readLiveRestoreProjection: projectionService.readLiveRestoreProjection,
+      } as unknown as InstanceType<typeof SessionService>;
+    });
     const { agent, agentPromise } = await spawnAgent();
     vi.mocked(loadSettings).mockClear();
     const params = {
@@ -30582,7 +30621,9 @@ describe('O1CodeAgent extMethod runtime MCP add/remove (T2.8)', () => {
       removeRuntimeMcpServer: vi.fn(),
     };
 
-    vi.mocked(AgentSideConnection).mockImplementation((factory: unknown) => {
+    vi.mocked(AgentSideConnection).mockImplementation(function MockConstructor(
+      factory: unknown,
+    ) {
       capturedAgentFactory = factory as typeof capturedAgentFactory;
       return {
         get closed() {
@@ -31470,7 +31511,9 @@ describe('sessionLanguage multi-session propagation', () => {
     mockConnectionState.reset();
     capturedAgentFactory = undefined;
 
-    vi.mocked(AgentSideConnection).mockImplementation((factory: unknown) => {
+    vi.mocked(AgentSideConnection).mockImplementation(function MockConstructor(
+      factory: unknown,
+    ) {
       capturedAgentFactory = factory as typeof capturedAgentFactory;
       return {
         get closed() {
@@ -31591,9 +31634,9 @@ describe('sessionLanguage multi-session propagation', () => {
       async () => sessionConfigs[sessionIdx]! as unknown as Config,
     );
 
-    vi.mocked(Session).mockImplementation(() => {
+    vi.mocked(Session).mockImplementation(function MockConstructor() {
       const cfg = sessionConfigs[sessionIdx]!;
-      const id = (cfg.getSessionId as ReturnType<typeof vi.fn>)();
+      const id = cfg.getSessionId();
       const mock = {
         getDefaultReasoningConfig: vi.fn(),
         getId: vi.fn().mockReturnValue(id),
@@ -31698,9 +31741,9 @@ describe('sessionLanguage multi-session propagation', () => {
       return cfg as unknown as Config;
     });
 
-    vi.mocked(Session).mockImplementation(() => {
+    vi.mocked(Session).mockImplementation(function MockConstructor() {
       const cfg = sessionConfigs[sessionIdx] ?? cfgB;
-      const id = (cfg.getSessionId as ReturnType<typeof vi.fn>)();
+      const id = cfg.getSessionId();
       const mock = {
         getDefaultReasoningConfig: vi.fn(),
         getId: vi.fn().mockReturnValue(id),
@@ -31785,9 +31828,9 @@ describe('sessionLanguage multi-session propagation', () => {
     vi.mocked(loadCliConfig).mockImplementation(
       async () => sessionConfigs[sessionIdx]! as unknown as Config,
     );
-    vi.mocked(Session).mockImplementation(() => {
+    vi.mocked(Session).mockImplementation(function MockConstructor() {
       const cfg = sessionConfigs[sessionIdx]!;
-      const id = (cfg.getSessionId as ReturnType<typeof vi.fn>)();
+      const id = cfg.getSessionId();
       sessionIdx++;
       return {
         getDefaultReasoningConfig: vi.fn(),
@@ -31895,7 +31938,7 @@ describe('sessionLanguage multi-session propagation', () => {
     vi.mocked(loadCliConfig)
       .mockResolvedValueOnce(cfg1 as unknown as Config)
       .mockResolvedValueOnce(cfg2 as unknown as Config);
-    vi.mocked(Session).mockImplementation(() => {
+    vi.mocked(Session).mockImplementation(function MockConstructor() {
       const index = sessionIndex++;
       const cfg = configs[index]!;
       const id = cfg.getSessionId();
@@ -32026,22 +32069,21 @@ describe('sessionLanguage multi-session propagation', () => {
 
     vi.mocked(loadSettings).mockReturnValue(settings);
     vi.mocked(loadCliConfig).mockResolvedValue(cfg as unknown as Config);
-    vi.mocked(Session).mockImplementation(
-      () =>
-        ({
-          getDefaultReasoningConfig: vi.fn(),
-          getId: vi.fn().mockReturnValue('s-reload'),
-          shouldHintAskUserQuestionRestore: vi.fn().mockReturnValue(false),
-          getConfig: vi.fn().mockReturnValue(cfg),
-          isIdle: vi.fn().mockReturnValue(true),
-          reloadReasoningSelection,
-          getSessionReasoningSelection,
-          sendAvailableCommandsUpdate: vi.fn().mockResolvedValue(undefined),
-          installRewriter: vi.fn(),
-          startCronScheduler: vi.fn(),
-          dispose: vi.fn(),
-        }) as unknown as InstanceType<typeof Session>,
-    );
+    vi.mocked(Session).mockImplementation(function MockConstructor() {
+      return {
+        getDefaultReasoningConfig: vi.fn(),
+        getId: vi.fn().mockReturnValue('s-reload'),
+        shouldHintAskUserQuestionRestore: vi.fn().mockReturnValue(false),
+        getConfig: vi.fn().mockReturnValue(cfg),
+        isIdle: vi.fn().mockReturnValue(true),
+        reloadReasoningSelection,
+        getSessionReasoningSelection,
+        sendAvailableCommandsUpdate: vi.fn().mockResolvedValue(undefined),
+        installRewriter: vi.fn(),
+        startCronScheduler: vi.fn(),
+        dispose: vi.fn(),
+      } as unknown as InstanceType<typeof Session>;
+    });
     vi.mocked(buildAvailableCommandsSnapshot).mockResolvedValue({
       availableCommands: [],
       availableSkills: [],
@@ -32115,22 +32157,21 @@ describe('sessionLanguage multi-session propagation', () => {
 
     vi.mocked(loadSettings).mockReturnValue(settings);
     vi.mocked(loadCliConfig).mockResolvedValue(cfg as unknown as Config);
-    vi.mocked(Session).mockImplementation(
-      () =>
-        ({
-          getDefaultReasoningConfig: vi.fn(),
-          getId: vi.fn().mockReturnValue('s-plan-reload'),
-          shouldHintAskUserQuestionRestore: vi.fn().mockReturnValue(false),
-          getConfig: vi.fn().mockReturnValue(cfg),
-          isIdle: vi.fn().mockReturnValue(true),
-          clearActiveTodoPlanRevision,
-          clearTodoStopGuardTrust,
-          sendAvailableCommandsUpdate: vi.fn().mockResolvedValue(undefined),
-          installRewriter: vi.fn(),
-          startCronScheduler: vi.fn(),
-          dispose: vi.fn(),
-        }) as unknown as InstanceType<typeof Session>,
-    );
+    vi.mocked(Session).mockImplementation(function MockConstructor() {
+      return {
+        getDefaultReasoningConfig: vi.fn(),
+        getId: vi.fn().mockReturnValue('s-plan-reload'),
+        shouldHintAskUserQuestionRestore: vi.fn().mockReturnValue(false),
+        getConfig: vi.fn().mockReturnValue(cfg),
+        isIdle: vi.fn().mockReturnValue(true),
+        clearActiveTodoPlanRevision,
+        clearTodoStopGuardTrust,
+        sendAvailableCommandsUpdate: vi.fn().mockResolvedValue(undefined),
+        installRewriter: vi.fn(),
+        startCronScheduler: vi.fn(),
+        dispose: vi.fn(),
+      } as unknown as InstanceType<typeof Session>;
+    });
     vi.mocked(buildAvailableCommandsSnapshot).mockResolvedValue({
       availableCommands: [],
       availableSkills: [],
@@ -32222,21 +32263,20 @@ describe('sessionLanguage multi-session propagation', () => {
 
     vi.mocked(loadSettings).mockReturnValue(settings);
     vi.mocked(loadCliConfig).mockResolvedValue(cfg as unknown as Config);
-    vi.mocked(Session).mockImplementation(
-      () =>
-        ({
-          getDefaultReasoningConfig: vi.fn(),
-          getId: vi.fn().mockReturnValue('s-workflow-reload'),
-          getConfig: vi.fn().mockReturnValue(cfg),
-          isIdle: vi.fn().mockReturnValue(true),
-          clearActiveTodoPlanRevision,
-          clearTodoStopGuardTrust: vi.fn(),
-          sendAvailableCommandsUpdate: vi.fn().mockResolvedValue(undefined),
-          installRewriter: vi.fn(),
-          startCronScheduler: vi.fn(),
-          dispose: vi.fn(),
-        }) as unknown as InstanceType<typeof Session>,
-    );
+    vi.mocked(Session).mockImplementation(function MockConstructor() {
+      return {
+        getDefaultReasoningConfig: vi.fn(),
+        getId: vi.fn().mockReturnValue('s-workflow-reload'),
+        getConfig: vi.fn().mockReturnValue(cfg),
+        isIdle: vi.fn().mockReturnValue(true),
+        clearActiveTodoPlanRevision,
+        clearTodoStopGuardTrust: vi.fn(),
+        sendAvailableCommandsUpdate: vi.fn().mockResolvedValue(undefined),
+        installRewriter: vi.fn(),
+        startCronScheduler: vi.fn(),
+        dispose: vi.fn(),
+      } as unknown as InstanceType<typeof Session>;
+    });
     vi.mocked(buildAvailableCommandsSnapshot).mockResolvedValue({
       availableCommands: [],
       availableSkills: [],
@@ -32337,21 +32377,20 @@ describe('sessionLanguage multi-session propagation', () => {
 
     vi.mocked(loadSettings).mockReturnValue(settings);
     vi.mocked(loadCliConfig).mockResolvedValue(cfg as unknown as Config);
-    vi.mocked(Session).mockImplementation(
-      () =>
-        ({
-          getDefaultReasoningConfig: vi.fn(),
-          getId: vi.fn().mockReturnValue('s-workflow-stale-reload'),
-          getConfig: vi.fn().mockReturnValue(cfg),
-          isIdle: vi.fn().mockReturnValue(true),
-          clearActiveTodoPlanRevision,
-          clearTodoStopGuardTrust: vi.fn(),
-          sendAvailableCommandsUpdate: vi.fn().mockResolvedValue(undefined),
-          installRewriter: vi.fn(),
-          startCronScheduler: vi.fn(),
-          dispose: vi.fn(),
-        }) as unknown as InstanceType<typeof Session>,
-    );
+    vi.mocked(Session).mockImplementation(function MockConstructor() {
+      return {
+        getDefaultReasoningConfig: vi.fn(),
+        getId: vi.fn().mockReturnValue('s-workflow-stale-reload'),
+        getConfig: vi.fn().mockReturnValue(cfg),
+        isIdle: vi.fn().mockReturnValue(true),
+        clearActiveTodoPlanRevision,
+        clearTodoStopGuardTrust: vi.fn(),
+        sendAvailableCommandsUpdate: vi.fn().mockResolvedValue(undefined),
+        installRewriter: vi.fn(),
+        startCronScheduler: vi.fn(),
+        dispose: vi.fn(),
+      } as unknown as InstanceType<typeof Session>;
+    });
     vi.mocked(buildAvailableCommandsSnapshot).mockResolvedValue({
       availableCommands: [],
       availableSkills: [],
@@ -32445,21 +32484,20 @@ describe('sessionLanguage multi-session propagation', () => {
 
     vi.mocked(loadSettings).mockReturnValue(settings);
     vi.mocked(loadCliConfig).mockResolvedValue(cfg as unknown as Config);
-    vi.mocked(Session).mockImplementation(
-      () =>
-        ({
-          getDefaultReasoningConfig: vi.fn(),
-          getId: vi.fn().mockReturnValue('s-workflow-swapped-settings'),
-          getConfig: vi.fn().mockReturnValue(cfg),
-          isIdle: vi.fn().mockReturnValue(true),
-          clearActiveTodoPlanRevision,
-          clearTodoStopGuardTrust: vi.fn(),
-          sendAvailableCommandsUpdate: vi.fn().mockResolvedValue(undefined),
-          installRewriter: vi.fn(),
-          startCronScheduler: vi.fn(),
-          dispose: vi.fn(),
-        }) as unknown as InstanceType<typeof Session>,
-    );
+    vi.mocked(Session).mockImplementation(function MockConstructor() {
+      return {
+        getDefaultReasoningConfig: vi.fn(),
+        getId: vi.fn().mockReturnValue('s-workflow-swapped-settings'),
+        getConfig: vi.fn().mockReturnValue(cfg),
+        isIdle: vi.fn().mockReturnValue(true),
+        clearActiveTodoPlanRevision,
+        clearTodoStopGuardTrust: vi.fn(),
+        sendAvailableCommandsUpdate: vi.fn().mockResolvedValue(undefined),
+        installRewriter: vi.fn(),
+        startCronScheduler: vi.fn(),
+        dispose: vi.fn(),
+      } as unknown as InstanceType<typeof Session>;
+    });
     vi.mocked(buildAvailableCommandsSnapshot).mockResolvedValue({
       availableCommands: [],
       availableSkills: [],
@@ -32545,21 +32583,20 @@ describe('sessionLanguage multi-session propagation', () => {
 
     vi.mocked(loadSettings).mockReturnValue(settings);
     vi.mocked(loadCliConfig).mockResolvedValue(cfg as unknown as Config);
-    vi.mocked(Session).mockImplementation(
-      () =>
-        ({
-          getDefaultReasoningConfig: vi.fn(),
-          getId: vi.fn().mockReturnValue('s-approval-swapped-settings'),
-          getConfig: vi.fn().mockReturnValue(cfg),
-          isIdle: vi.fn().mockReturnValue(true),
-          clearActiveTodoPlanRevision,
-          clearTodoStopGuardTrust,
-          sendAvailableCommandsUpdate: vi.fn().mockResolvedValue(undefined),
-          installRewriter: vi.fn(),
-          startCronScheduler: vi.fn(),
-          dispose: vi.fn(),
-        }) as unknown as InstanceType<typeof Session>,
-    );
+    vi.mocked(Session).mockImplementation(function MockConstructor() {
+      return {
+        getDefaultReasoningConfig: vi.fn(),
+        getId: vi.fn().mockReturnValue('s-approval-swapped-settings'),
+        getConfig: vi.fn().mockReturnValue(cfg),
+        isIdle: vi.fn().mockReturnValue(true),
+        clearActiveTodoPlanRevision,
+        clearTodoStopGuardTrust,
+        sendAvailableCommandsUpdate: vi.fn().mockResolvedValue(undefined),
+        installRewriter: vi.fn(),
+        startCronScheduler: vi.fn(),
+        dispose: vi.fn(),
+      } as unknown as InstanceType<typeof Session>;
+    });
     vi.mocked(buildAvailableCommandsSnapshot).mockResolvedValue({
       availableCommands: [],
       availableSkills: [],
@@ -32661,21 +32698,20 @@ describe('sessionLanguage multi-session propagation', () => {
 
     vi.mocked(loadSettings).mockReturnValue(settings);
     vi.mocked(loadCliConfig).mockResolvedValue(cfg as unknown as Config);
-    vi.mocked(Session).mockImplementation(
-      () =>
-        ({
-          getDefaultReasoningConfig: vi.fn(),
-          getId: vi.fn().mockReturnValue('s-runtime-mode'),
-          getConfig: vi.fn().mockReturnValue(cfg),
-          isIdle: vi.fn().mockReturnValue(true),
-          clearActiveTodoPlanRevision,
-          clearTodoStopGuardTrust,
-          sendAvailableCommandsUpdate: vi.fn().mockResolvedValue(undefined),
-          installRewriter: vi.fn(),
-          startCronScheduler: vi.fn(),
-          dispose: vi.fn(),
-        }) as unknown as InstanceType<typeof Session>,
-    );
+    vi.mocked(Session).mockImplementation(function MockConstructor() {
+      return {
+        getDefaultReasoningConfig: vi.fn(),
+        getId: vi.fn().mockReturnValue('s-runtime-mode'),
+        getConfig: vi.fn().mockReturnValue(cfg),
+        isIdle: vi.fn().mockReturnValue(true),
+        clearActiveTodoPlanRevision,
+        clearTodoStopGuardTrust,
+        sendAvailableCommandsUpdate: vi.fn().mockResolvedValue(undefined),
+        installRewriter: vi.fn(),
+        startCronScheduler: vi.fn(),
+        dispose: vi.fn(),
+      } as unknown as InstanceType<typeof Session>;
+    });
     vi.mocked(buildAvailableCommandsSnapshot).mockResolvedValue({
       availableCommands: [],
       availableSkills: [],
@@ -32777,21 +32813,20 @@ describe('sessionLanguage multi-session propagation', () => {
 
     vi.mocked(loadSettings).mockReturnValue(settings);
     vi.mocked(loadCliConfig).mockResolvedValue(cfg as unknown as Config);
-    vi.mocked(Session).mockImplementation(
-      () =>
-        ({
-          getDefaultReasoningConfig: vi.fn(),
-          getId: vi.fn().mockReturnValue('s-reload-retry'),
-          getConfig: vi.fn().mockReturnValue(cfg),
-          isIdle: vi.fn(() => idle),
-          clearActiveTodoPlanRevision,
-          clearTodoStopGuardTrust,
-          sendAvailableCommandsUpdate: vi.fn().mockResolvedValue(undefined),
-          installRewriter: vi.fn(),
-          startCronScheduler: vi.fn(),
-          dispose: vi.fn(),
-        }) as unknown as InstanceType<typeof Session>,
-    );
+    vi.mocked(Session).mockImplementation(function MockConstructor() {
+      return {
+        getDefaultReasoningConfig: vi.fn(),
+        getId: vi.fn().mockReturnValue('s-reload-retry'),
+        getConfig: vi.fn().mockReturnValue(cfg),
+        isIdle: vi.fn(() => idle),
+        clearActiveTodoPlanRevision,
+        clearTodoStopGuardTrust,
+        sendAvailableCommandsUpdate: vi.fn().mockResolvedValue(undefined),
+        installRewriter: vi.fn(),
+        startCronScheduler: vi.fn(),
+        dispose: vi.fn(),
+      } as unknown as InstanceType<typeof Session>;
+    });
     vi.mocked(buildAvailableCommandsSnapshot).mockResolvedValue({
       availableCommands: [],
       availableSkills: [],
@@ -32898,21 +32933,20 @@ describe('sessionLanguage multi-session propagation', () => {
 
     vi.mocked(loadSettings).mockReturnValue(settings);
     vi.mocked(loadCliConfig).mockResolvedValue(cfg as unknown as Config);
-    vi.mocked(Session).mockImplementation(
-      () =>
-        ({
-          getDefaultReasoningConfig: vi.fn(),
-          getId: vi.fn().mockReturnValue('s-mode-removal'),
-          getConfig: vi.fn().mockReturnValue(cfg),
-          isIdle: vi.fn().mockReturnValue(true),
-          clearActiveTodoPlanRevision,
-          clearTodoStopGuardTrust,
-          sendAvailableCommandsUpdate: vi.fn().mockResolvedValue(undefined),
-          installRewriter: vi.fn(),
-          startCronScheduler: vi.fn(),
-          dispose: vi.fn(),
-        }) as unknown as InstanceType<typeof Session>,
-    );
+    vi.mocked(Session).mockImplementation(function MockConstructor() {
+      return {
+        getDefaultReasoningConfig: vi.fn(),
+        getId: vi.fn().mockReturnValue('s-mode-removal'),
+        getConfig: vi.fn().mockReturnValue(cfg),
+        isIdle: vi.fn().mockReturnValue(true),
+        clearActiveTodoPlanRevision,
+        clearTodoStopGuardTrust,
+        sendAvailableCommandsUpdate: vi.fn().mockResolvedValue(undefined),
+        installRewriter: vi.fn(),
+        startCronScheduler: vi.fn(),
+        dispose: vi.fn(),
+      } as unknown as InstanceType<typeof Session>;
+    });
     vi.mocked(buildAvailableCommandsSnapshot).mockResolvedValue({
       availableCommands: [],
       availableSkills: [],
@@ -33013,21 +33047,20 @@ describe('sessionLanguage multi-session propagation', () => {
 
     vi.mocked(loadSettings).mockReturnValue(settings);
     vi.mocked(loadCliConfig).mockResolvedValue(cfg as unknown as Config);
-    vi.mocked(Session).mockImplementation(
-      () =>
-        ({
-          getDefaultReasoningConfig: vi.fn(),
-          getId: vi.fn().mockReturnValue('s-mode-invalid'),
-          getConfig: vi.fn().mockReturnValue(cfg),
-          isIdle: vi.fn().mockReturnValue(true),
-          clearActiveTodoPlanRevision,
-          clearTodoStopGuardTrust,
-          sendAvailableCommandsUpdate: vi.fn().mockResolvedValue(undefined),
-          installRewriter: vi.fn(),
-          startCronScheduler: vi.fn(),
-          dispose: vi.fn(),
-        }) as unknown as InstanceType<typeof Session>,
-    );
+    vi.mocked(Session).mockImplementation(function MockConstructor() {
+      return {
+        getDefaultReasoningConfig: vi.fn(),
+        getId: vi.fn().mockReturnValue('s-mode-invalid'),
+        getConfig: vi.fn().mockReturnValue(cfg),
+        isIdle: vi.fn().mockReturnValue(true),
+        clearActiveTodoPlanRevision,
+        clearTodoStopGuardTrust,
+        sendAvailableCommandsUpdate: vi.fn().mockResolvedValue(undefined),
+        installRewriter: vi.fn(),
+        startCronScheduler: vi.fn(),
+        dispose: vi.fn(),
+      } as unknown as InstanceType<typeof Session>;
+    });
     vi.mocked(buildAvailableCommandsSnapshot).mockResolvedValue({
       availableCommands: [],
       availableSkills: [],
@@ -33106,21 +33139,20 @@ describe('sessionLanguage multi-session propagation', () => {
 
     vi.mocked(loadSettings).mockReturnValue(settings);
     vi.mocked(loadCliConfig).mockResolvedValue(cfg as unknown as Config);
-    vi.mocked(Session).mockImplementation(
-      () =>
-        ({
-          getDefaultReasoningConfig: vi.fn(),
-          getId: vi.fn().mockReturnValue('s-invalid-roundtrip'),
-          getConfig: vi.fn().mockReturnValue(cfg),
-          isIdle: vi.fn().mockReturnValue(true),
-          clearActiveTodoPlanRevision,
-          clearTodoStopGuardTrust,
-          sendAvailableCommandsUpdate: vi.fn().mockResolvedValue(undefined),
-          installRewriter: vi.fn(),
-          startCronScheduler: vi.fn(),
-          dispose: vi.fn(),
-        }) as unknown as InstanceType<typeof Session>,
-    );
+    vi.mocked(Session).mockImplementation(function MockConstructor() {
+      return {
+        getDefaultReasoningConfig: vi.fn(),
+        getId: vi.fn().mockReturnValue('s-invalid-roundtrip'),
+        getConfig: vi.fn().mockReturnValue(cfg),
+        isIdle: vi.fn().mockReturnValue(true),
+        clearActiveTodoPlanRevision,
+        clearTodoStopGuardTrust,
+        sendAvailableCommandsUpdate: vi.fn().mockResolvedValue(undefined),
+        installRewriter: vi.fn(),
+        startCronScheduler: vi.fn(),
+        dispose: vi.fn(),
+      } as unknown as InstanceType<typeof Session>;
+    });
     vi.mocked(buildAvailableCommandsSnapshot).mockResolvedValue({
       availableCommands: [],
       availableSkills: [],
@@ -33235,7 +33267,7 @@ describe('sessionLanguage multi-session propagation', () => {
       return reloadSessions.get(id)!.cfg as unknown as Config;
     });
     let sessionsSpawned = 0;
-    vi.mocked(Session).mockImplementation(() => {
+    vi.mocked(Session).mockImplementation(function MockConstructor() {
       const id = sessionsSpawned++ === 0 ? 's-roundtrip-a' : 's-roundtrip-b';
       return reloadSessions.get(id)!.session;
     });
@@ -33336,21 +33368,20 @@ describe('sessionLanguage multi-session propagation', () => {
 
     vi.mocked(loadSettings).mockReturnValue(settings);
     vi.mocked(loadCliConfig).mockResolvedValue(cfg as unknown as Config);
-    vi.mocked(Session).mockImplementation(
-      () =>
-        ({
-          getDefaultReasoningConfig: vi.fn(),
-          getId: vi.fn().mockReturnValue('s-mode-alias'),
-          getConfig: vi.fn().mockReturnValue(cfg),
-          isIdle: vi.fn().mockReturnValue(true),
-          clearActiveTodoPlanRevision,
-          clearTodoStopGuardTrust,
-          sendAvailableCommandsUpdate: vi.fn().mockResolvedValue(undefined),
-          installRewriter: vi.fn(),
-          startCronScheduler: vi.fn(),
-          dispose: vi.fn(),
-        }) as unknown as InstanceType<typeof Session>,
-    );
+    vi.mocked(Session).mockImplementation(function MockConstructor() {
+      return {
+        getDefaultReasoningConfig: vi.fn(),
+        getId: vi.fn().mockReturnValue('s-mode-alias'),
+        getConfig: vi.fn().mockReturnValue(cfg),
+        isIdle: vi.fn().mockReturnValue(true),
+        clearActiveTodoPlanRevision,
+        clearTodoStopGuardTrust,
+        sendAvailableCommandsUpdate: vi.fn().mockResolvedValue(undefined),
+        installRewriter: vi.fn(),
+        startCronScheduler: vi.fn(),
+        dispose: vi.fn(),
+      } as unknown as InstanceType<typeof Session>;
+    });
     vi.mocked(buildAvailableCommandsSnapshot).mockResolvedValue({
       availableCommands: [],
       availableSkills: [],
@@ -33421,21 +33452,20 @@ describe('sessionLanguage multi-session propagation', () => {
 
     vi.mocked(loadSettings).mockReturnValue(settings);
     vi.mocked(loadCliConfig).mockResolvedValue(cfg as unknown as Config);
-    vi.mocked(Session).mockImplementation(
-      () =>
-        ({
-          getDefaultReasoningConfig: vi.fn(),
-          getId: vi.fn().mockReturnValue('s-mode-case'),
-          getConfig: vi.fn().mockReturnValue(cfg),
-          isIdle: vi.fn().mockReturnValue(true),
-          clearActiveTodoPlanRevision,
-          clearTodoStopGuardTrust,
-          sendAvailableCommandsUpdate: vi.fn().mockResolvedValue(undefined),
-          installRewriter: vi.fn(),
-          startCronScheduler: vi.fn(),
-          dispose: vi.fn(),
-        }) as unknown as InstanceType<typeof Session>,
-    );
+    vi.mocked(Session).mockImplementation(function MockConstructor() {
+      return {
+        getDefaultReasoningConfig: vi.fn(),
+        getId: vi.fn().mockReturnValue('s-mode-case'),
+        getConfig: vi.fn().mockReturnValue(cfg),
+        isIdle: vi.fn().mockReturnValue(true),
+        clearActiveTodoPlanRevision,
+        clearTodoStopGuardTrust,
+        sendAvailableCommandsUpdate: vi.fn().mockResolvedValue(undefined),
+        installRewriter: vi.fn(),
+        startCronScheduler: vi.fn(),
+        dispose: vi.fn(),
+      } as unknown as InstanceType<typeof Session>;
+    });
     vi.mocked(buildAvailableCommandsSnapshot).mockResolvedValue({
       availableCommands: [],
       availableSkills: [],
@@ -33503,21 +33533,20 @@ describe('sessionLanguage multi-session propagation', () => {
 
     vi.mocked(loadSettings).mockReturnValue(settings);
     vi.mocked(loadCliConfig).mockResolvedValue(cfg as unknown as Config);
-    vi.mocked(Session).mockImplementation(
-      () =>
-        ({
-          getDefaultReasoningConfig: vi.fn(),
-          getId: vi.fn().mockReturnValue('s-safe-mode'),
-          getConfig: vi.fn().mockReturnValue(cfg),
-          isIdle: vi.fn().mockReturnValue(true),
-          clearActiveTodoPlanRevision,
-          clearTodoStopGuardTrust,
-          sendAvailableCommandsUpdate: vi.fn().mockResolvedValue(undefined),
-          installRewriter: vi.fn(),
-          startCronScheduler: vi.fn(),
-          dispose: vi.fn(),
-        }) as unknown as InstanceType<typeof Session>,
-    );
+    vi.mocked(Session).mockImplementation(function MockConstructor() {
+      return {
+        getDefaultReasoningConfig: vi.fn(),
+        getId: vi.fn().mockReturnValue('s-safe-mode'),
+        getConfig: vi.fn().mockReturnValue(cfg),
+        isIdle: vi.fn().mockReturnValue(true),
+        clearActiveTodoPlanRevision,
+        clearTodoStopGuardTrust,
+        sendAvailableCommandsUpdate: vi.fn().mockResolvedValue(undefined),
+        installRewriter: vi.fn(),
+        startCronScheduler: vi.fn(),
+        dispose: vi.fn(),
+      } as unknown as InstanceType<typeof Session>;
+    });
     vi.mocked(buildAvailableCommandsSnapshot).mockResolvedValue({
       availableCommands: [],
       availableSkills: [],
@@ -33592,21 +33621,20 @@ describe('sessionLanguage multi-session propagation', () => {
 
     vi.mocked(loadSettings).mockReturnValue(settings);
     vi.mocked(loadCliConfig).mockResolvedValue(cfg as unknown as Config);
-    vi.mocked(Session).mockImplementation(
-      () =>
-        ({
-          getDefaultReasoningConfig: vi.fn(),
-          getId: vi.fn().mockReturnValue('s-bare-mode'),
-          getConfig: vi.fn().mockReturnValue(cfg),
-          isIdle: vi.fn().mockReturnValue(true),
-          clearActiveTodoPlanRevision,
-          clearTodoStopGuardTrust,
-          sendAvailableCommandsUpdate: vi.fn().mockResolvedValue(undefined),
-          installRewriter: vi.fn(),
-          startCronScheduler: vi.fn(),
-          dispose: vi.fn(),
-        }) as unknown as InstanceType<typeof Session>,
-    );
+    vi.mocked(Session).mockImplementation(function MockConstructor() {
+      return {
+        getDefaultReasoningConfig: vi.fn(),
+        getId: vi.fn().mockReturnValue('s-bare-mode'),
+        getConfig: vi.fn().mockReturnValue(cfg),
+        isIdle: vi.fn().mockReturnValue(true),
+        clearActiveTodoPlanRevision,
+        clearTodoStopGuardTrust,
+        sendAvailableCommandsUpdate: vi.fn().mockResolvedValue(undefined),
+        installRewriter: vi.fn(),
+        startCronScheduler: vi.fn(),
+        dispose: vi.fn(),
+      } as unknown as InstanceType<typeof Session>;
+    });
     vi.mocked(buildAvailableCommandsSnapshot).mockResolvedValue({
       availableCommands: [],
       availableSkills: [],
@@ -33688,22 +33716,21 @@ describe('sessionLanguage multi-session propagation', () => {
 
     vi.mocked(loadSettings).mockReturnValue(settings);
     vi.mocked(loadCliConfig).mockResolvedValue(cfg as unknown as Config);
-    vi.mocked(Session).mockImplementation(
-      () =>
-        ({
-          getDefaultReasoningConfig: vi.fn(),
-          getId: vi.fn().mockReturnValue('s-wf-reload'),
-          shouldHintAskUserQuestionRestore: vi.fn().mockReturnValue(false),
-          getConfig: vi.fn().mockReturnValue(cfg),
-          isIdle: vi.fn().mockReturnValue(true),
-          sendAvailableCommandsUpdate,
-          clearActiveTodoPlanRevision: vi.fn(),
-          clearTodoStopGuardTrust: vi.fn(),
-          installRewriter: vi.fn(),
-          startCronScheduler: vi.fn(),
-          dispose: vi.fn(),
-        }) as unknown as InstanceType<typeof Session>,
-    );
+    vi.mocked(Session).mockImplementation(function MockConstructor() {
+      return {
+        getDefaultReasoningConfig: vi.fn(),
+        getId: vi.fn().mockReturnValue('s-wf-reload'),
+        shouldHintAskUserQuestionRestore: vi.fn().mockReturnValue(false),
+        getConfig: vi.fn().mockReturnValue(cfg),
+        isIdle: vi.fn().mockReturnValue(true),
+        sendAvailableCommandsUpdate,
+        clearActiveTodoPlanRevision: vi.fn(),
+        clearTodoStopGuardTrust: vi.fn(),
+        installRewriter: vi.fn(),
+        startCronScheduler: vi.fn(),
+        dispose: vi.fn(),
+      } as unknown as InstanceType<typeof Session>;
+    });
     vi.mocked(buildAvailableCommandsSnapshot).mockResolvedValue({
       availableCommands: [],
       availableSkills: [],
@@ -33785,22 +33812,21 @@ describe('sessionLanguage multi-session propagation', () => {
     vi.mocked(loadCliConfig)
       .mockResolvedValueOnce(cfg1 as unknown as Config)
       .mockResolvedValueOnce(cfg2 as unknown as Config);
-    vi.mocked(Session).mockImplementation(
-      (id) =>
-        ({
-          getDefaultReasoningConfig: vi.fn(),
-          getId: vi.fn().mockReturnValue(id),
-          shouldHintAskUserQuestionRestore: vi.fn().mockReturnValue(false),
-          getConfig: vi.fn().mockReturnValue(id === 'skill-1' ? cfg1 : cfg2),
-          isIdle: vi.fn().mockReturnValue(false),
-          reloadSkillSettings: id === 'skill-1' ? reload1 : reload2,
-          refreshSkillsFromSettings: id === 'skill-1' ? refresh1 : refresh2,
-          sendAvailableCommandsUpdate: vi.fn().mockResolvedValue(undefined),
-          installRewriter: vi.fn(),
-          startCronScheduler: vi.fn(),
-          dispose: vi.fn(),
-        }) as unknown as InstanceType<typeof Session>,
-    );
+    vi.mocked(Session).mockImplementation(function MockConstructor(id) {
+      return {
+        getDefaultReasoningConfig: vi.fn(),
+        getId: vi.fn().mockReturnValue(id),
+        shouldHintAskUserQuestionRestore: vi.fn().mockReturnValue(false),
+        getConfig: vi.fn().mockReturnValue(id === 'skill-1' ? cfg1 : cfg2),
+        isIdle: vi.fn().mockReturnValue(false),
+        reloadSkillSettings: id === 'skill-1' ? reload1 : reload2,
+        refreshSkillsFromSettings: id === 'skill-1' ? refresh1 : refresh2,
+        sendAvailableCommandsUpdate: vi.fn().mockResolvedValue(undefined),
+        installRewriter: vi.fn(),
+        startCronScheduler: vi.fn(),
+        dispose: vi.fn(),
+      } as unknown as InstanceType<typeof Session>;
+    });
 
     const agentPromise = runAcpAgent(
       makeConfig() as unknown as Config,
@@ -33872,22 +33898,21 @@ describe('sessionLanguage multi-session propagation', () => {
     vi.mocked(loadCliConfig).mockResolvedValue(
       sessionConfig as unknown as Config,
     );
-    vi.mocked(Session).mockImplementation(
-      () =>
-        ({
-          getDefaultReasoningConfig: vi.fn(),
-          getId: vi.fn().mockReturnValue('skill-content'),
-          shouldHintAskUserQuestionRestore: vi.fn().mockReturnValue(false),
-          getConfig: vi.fn().mockReturnValue(sessionConfig),
-          isIdle: vi.fn().mockReturnValue(false),
-          reloadSkillSettings: reloadSessionSettings,
-          refreshSkillsFromSettings: publishSessionSkills,
-          sendAvailableCommandsUpdate: vi.fn().mockResolvedValue(undefined),
-          installRewriter: vi.fn(),
-          startCronScheduler: vi.fn(),
-          dispose: vi.fn(),
-        }) as unknown as InstanceType<typeof Session>,
-    );
+    vi.mocked(Session).mockImplementation(function MockConstructor() {
+      return {
+        getDefaultReasoningConfig: vi.fn(),
+        getId: vi.fn().mockReturnValue('skill-content'),
+        shouldHintAskUserQuestionRestore: vi.fn().mockReturnValue(false),
+        getConfig: vi.fn().mockReturnValue(sessionConfig),
+        isIdle: vi.fn().mockReturnValue(false),
+        reloadSkillSettings: reloadSessionSettings,
+        refreshSkillsFromSettings: publishSessionSkills,
+        sendAvailableCommandsUpdate: vi.fn().mockResolvedValue(undefined),
+        installRewriter: vi.fn(),
+        startCronScheduler: vi.fn(),
+        dispose: vi.fn(),
+      } as unknown as InstanceType<typeof Session>;
+    });
 
     const agentPromise = runAcpAgent(
       bootstrapConfig as unknown as Config,
@@ -33997,21 +34022,20 @@ describe('sessionLanguage multi-session propagation', () => {
     } as unknown as LoadedSettings;
     vi.mocked(loadSettings).mockReturnValue(bootstrapSettings);
     vi.mocked(loadCliConfig).mockResolvedValue(cfg as unknown as Config);
-    vi.mocked(Session).mockImplementation(
-      () =>
-        ({
-          getDefaultReasoningConfig: vi.fn(),
-          getId: vi.fn().mockReturnValue('s-state'),
-          shouldHintAskUserQuestionRestore: vi.fn().mockReturnValue(false),
-          getConfig: vi.fn().mockReturnValue(cfg),
-          sendAvailableCommandsUpdate,
-          refreshSkillsFromSettings,
-          reloadSkillSettings,
-          installRewriter: vi.fn(),
-          startCronScheduler: vi.fn(),
-          dispose: vi.fn(),
-        }) as unknown as InstanceType<typeof Session>,
-    );
+    vi.mocked(Session).mockImplementation(function MockConstructor() {
+      return {
+        getDefaultReasoningConfig: vi.fn(),
+        getId: vi.fn().mockReturnValue('s-state'),
+        shouldHintAskUserQuestionRestore: vi.fn().mockReturnValue(false),
+        getConfig: vi.fn().mockReturnValue(cfg),
+        sendAvailableCommandsUpdate,
+        refreshSkillsFromSettings,
+        reloadSkillSettings,
+        installRewriter: vi.fn(),
+        startCronScheduler: vi.fn(),
+        dispose: vi.fn(),
+      } as unknown as InstanceType<typeof Session>;
+    });
     const agentPromise = runAcpAgent(
       bootstrapConfig as unknown as Config,
       bootstrapSettings,
@@ -34113,19 +34137,18 @@ describe('sessionLanguage multi-session propagation', () => {
       getProjectHooks: vi.fn().mockReturnValue({}),
     } as unknown as LoadedSettings);
     vi.mocked(loadCliConfig).mockResolvedValue(cfg as unknown as Config);
-    vi.mocked(Session).mockImplementation(
-      () =>
-        ({
-          getDefaultReasoningConfig: vi.fn(),
-          getId: vi.fn().mockReturnValue('s-ext'),
-          shouldHintAskUserQuestionRestore: vi.fn().mockReturnValue(false),
-          getConfig: vi.fn().mockReturnValue(cfg),
-          sendAvailableCommandsUpdate,
-          installRewriter: vi.fn(),
-          startCronScheduler: vi.fn(),
-          dispose: vi.fn(),
-        }) as unknown as InstanceType<typeof Session>,
-    );
+    vi.mocked(Session).mockImplementation(function MockConstructor() {
+      return {
+        getDefaultReasoningConfig: vi.fn(),
+        getId: vi.fn().mockReturnValue('s-ext'),
+        shouldHintAskUserQuestionRestore: vi.fn().mockReturnValue(false),
+        getConfig: vi.fn().mockReturnValue(cfg),
+        sendAvailableCommandsUpdate,
+        installRewriter: vi.fn(),
+        startCronScheduler: vi.fn(),
+        dispose: vi.fn(),
+      } as unknown as InstanceType<typeof Session>;
+    });
 
     const agentPromise = runAcpAgent(
       bootstrapConfig as unknown as Config,
@@ -34219,19 +34242,18 @@ describe('sessionLanguage multi-session propagation', () => {
       getProjectHooks: vi.fn().mockReturnValue({}),
     } as unknown as LoadedSettings);
     vi.mocked(loadCliConfig).mockResolvedValue(cfg as unknown as Config);
-    vi.mocked(Session).mockImplementation(
-      () =>
-        ({
-          getDefaultReasoningConfig: vi.fn(),
-          getId: vi.fn().mockReturnValue('s-ext'),
-          shouldHintAskUserQuestionRestore: vi.fn().mockReturnValue(false),
-          getConfig: vi.fn().mockReturnValue(cfg),
-          sendAvailableCommandsUpdate,
-          installRewriter: vi.fn(),
-          startCronScheduler: vi.fn(),
-          dispose: vi.fn(),
-        }) as unknown as InstanceType<typeof Session>,
-    );
+    vi.mocked(Session).mockImplementation(function MockConstructor() {
+      return {
+        getDefaultReasoningConfig: vi.fn(),
+        getId: vi.fn().mockReturnValue('s-ext'),
+        shouldHintAskUserQuestionRestore: vi.fn().mockReturnValue(false),
+        getConfig: vi.fn().mockReturnValue(cfg),
+        sendAvailableCommandsUpdate,
+        installRewriter: vi.fn(),
+        startCronScheduler: vi.fn(),
+        dispose: vi.fn(),
+      } as unknown as InstanceType<typeof Session>;
+    });
 
     const agentPromise = runAcpAgent(
       makeConfig() as unknown as Config,
@@ -34298,19 +34320,18 @@ describe('sessionLanguage multi-session propagation', () => {
       getProjectHooks: vi.fn().mockReturnValue({}),
     } as unknown as LoadedSettings);
     vi.mocked(loadCliConfig).mockResolvedValue(cfg as unknown as Config);
-    vi.mocked(Session).mockImplementation(
-      () =>
-        ({
-          getDefaultReasoningConfig: vi.fn(),
-          getId: vi.fn().mockReturnValue('s-ext'),
-          shouldHintAskUserQuestionRestore: vi.fn().mockReturnValue(false),
-          getConfig: vi.fn().mockReturnValue(cfg),
-          sendAvailableCommandsUpdate,
-          installRewriter: vi.fn(),
-          startCronScheduler: vi.fn(),
-          dispose: vi.fn(),
-        }) as unknown as InstanceType<typeof Session>,
-    );
+    vi.mocked(Session).mockImplementation(function MockConstructor() {
+      return {
+        getDefaultReasoningConfig: vi.fn(),
+        getId: vi.fn().mockReturnValue('s-ext'),
+        shouldHintAskUserQuestionRestore: vi.fn().mockReturnValue(false),
+        getConfig: vi.fn().mockReturnValue(cfg),
+        sendAvailableCommandsUpdate,
+        installRewriter: vi.fn(),
+        startCronScheduler: vi.fn(),
+        dispose: vi.fn(),
+      } as unknown as InstanceType<typeof Session>;
+    });
 
     const agentPromise = runAcpAgent(
       makeConfig() as unknown as Config,
@@ -34447,9 +34468,9 @@ describe('sessionLanguage multi-session propagation', () => {
     vi.mocked(loadCliConfig).mockImplementation(
       async () => sessionConfigs[sessionIdx]! as unknown as Config,
     );
-    vi.mocked(Session).mockImplementation(() => {
+    vi.mocked(Session).mockImplementation(function MockConstructor() {
       const cfg = sessionConfigs[sessionIdx]!;
-      const id = (cfg.getSessionId as ReturnType<typeof vi.fn>)();
+      const id = cfg.getSessionId();
       sessionIdx++;
       return {
         getDefaultReasoningConfig: vi.fn(),
@@ -34520,19 +34541,18 @@ describe('sessionLanguage multi-session propagation', () => {
     } as unknown as LoadedSettings;
     vi.mocked(loadSettings).mockReturnValue(settings);
     vi.mocked(loadCliConfig).mockResolvedValue(cfgA as unknown as Config);
-    vi.mocked(Session).mockImplementation(
-      () =>
-        ({
-          getDefaultReasoningConfig: vi.fn(),
-          getId: vi.fn().mockReturnValue('s-a'),
-          shouldHintAskUserQuestionRestore: vi.fn().mockReturnValue(false),
-          getConfig: vi.fn().mockReturnValue(cfgA),
-          sendAvailableCommandsUpdate: vi.fn().mockResolvedValue(undefined),
-          installRewriter: vi.fn(),
-          startCronScheduler: vi.fn(),
-          dispose: vi.fn(),
-        }) as unknown as InstanceType<typeof Session>,
-    );
+    vi.mocked(Session).mockImplementation(function MockConstructor() {
+      return {
+        getDefaultReasoningConfig: vi.fn(),
+        getId: vi.fn().mockReturnValue('s-a'),
+        shouldHintAskUserQuestionRestore: vi.fn().mockReturnValue(false),
+        getConfig: vi.fn().mockReturnValue(cfgA),
+        sendAvailableCommandsUpdate: vi.fn().mockResolvedValue(undefined),
+        installRewriter: vi.fn(),
+        startCronScheduler: vi.fn(),
+        dispose: vi.fn(),
+      } as unknown as InstanceType<typeof Session>;
+    });
     vi.mocked(buildAvailableCommandsSnapshot).mockResolvedValue({
       availableCommands: [],
       availableSkills: [],

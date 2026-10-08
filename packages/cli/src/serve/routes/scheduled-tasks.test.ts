@@ -9,7 +9,15 @@ import type { Request } from 'express';
 import { promises as fsp } from 'node:fs';
 import * as os from 'node:os';
 import * as path from 'node:path';
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import {
+  afterEach,
+  beforeEach,
+  describe,
+  expect,
+  it,
+  vi,
+  type Mock,
+} from 'vitest';
 import request from 'supertest';
 import {
   MAX_CRON_TASK_ROUTING_ID_LENGTH,
@@ -27,6 +35,7 @@ import {
   registerWorkspaceQualifiedScheduledTasksRoutes,
   createScheduledTaskWithExistingSession,
   scheduledTaskSessionName,
+  type ScheduledTasksSessionBridge,
 } from './scheduled-tasks.js';
 import type {
   WorkspaceRegistry,
@@ -101,7 +110,9 @@ interface StubBridge {
       sourceId?: string;
     }
   >;
-  markSessionCatalogChanged: ReturnType<typeof vi.fn>;
+  markSessionCatalogChanged: Mock<
+    NonNullable<ScheduledTasksSessionBridge['markSessionCatalogChanged']>
+  >;
   spawned: string[];
   spawnScopes: Array<'single' | 'thread' | undefined>;
   spawnSources: Array<{ sourceType?: string; sourceId?: string }>;
@@ -132,7 +143,10 @@ function makeStubBridge(): StubBridge {
     closed: [],
     persisted: [],
     named: [],
-    markSessionCatalogChanged: vi.fn(),
+    markSessionCatalogChanged:
+      vi.fn<
+        NonNullable<ScheduledTasksSessionBridge['markSessionCatalogChanged']>
+      >(),
     failNext: false,
     liveSessions: new Map(),
     async spawnOrAttach(req) {

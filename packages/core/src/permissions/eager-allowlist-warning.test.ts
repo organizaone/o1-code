@@ -4,7 +4,15 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import {
+  afterEach,
+  beforeEach,
+  describe,
+  expect,
+  it,
+  vi,
+  type Mock,
+} from 'vitest';
 
 import { makeFakeConfig } from '../test-utils/config.js';
 import type { Config } from '../config/config.js';
@@ -74,7 +82,7 @@ async function runDiscoveryPass(
 }
 
 describe('tools.eager entries that match no discovered tool', () => {
-  let warnSpy: ReturnType<typeof vi.spyOn>;
+  let warnSpy: Mock<typeof console.warn>;
   const touchedServers: string[] = [];
 
   beforeEach(() => {

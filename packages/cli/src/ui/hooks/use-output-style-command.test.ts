@@ -5,7 +5,7 @@
  */
 // @vitest-environment jsdom
 
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, type Mock } from 'vitest';
 import { renderHook, act, waitFor } from '@testing-library/react';
 import type { Config, OutputStyleDefinition } from '@organizaone/o1-code-core';
 import {
@@ -31,11 +31,17 @@ const CUSTOM_STYLE: OutputStyleDefinition = {
 };
 
 describe('useOutputStyleCommand', () => {
-  let setOutputStyle: ReturnType<typeof vi.fn>;
-  let refreshSystemInstruction: ReturnType<typeof vi.fn>;
-  let setValue: ReturnType<typeof vi.fn>;
-  let addItem: ReturnType<typeof vi.fn>;
-  let recordSlashCommand: ReturnType<typeof vi.fn>;
+  let setOutputStyle: Mock<Config['setOutputStyle']>;
+  let refreshSystemInstruction: Mock<
+    ReturnType<Config['getLlmClient']>['refreshSystemInstruction']
+  >;
+  let setValue: Mock<LoadedSettings['setValue']>;
+  let addItem: Mock<NonNullable<Parameters<typeof useOutputStyleCommand>[2]>>;
+  let recordSlashCommand: Mock<
+    NonNullable<
+      ReturnType<Config['getChatRecordingService']>
+    >['recordSlashCommand']
+  >;
   let config: Config;
   let settings: LoadedSettings;
 

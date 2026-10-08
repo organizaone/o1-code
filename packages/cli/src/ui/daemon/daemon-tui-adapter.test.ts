@@ -5,7 +5,7 @@
  */
 
 import { Kind } from '@organizaone/o1-code-core/tools/tools.js';
-import { describe, expect, it, vi } from 'vitest';
+import { describe, expect, it, vi, type Mock } from 'vitest';
 import type {
   ContentBlock,
   RequestPermissionRequest,
@@ -84,11 +84,11 @@ class EventQueue implements AsyncGenerator<DaemonTuiEvent> {
 }
 
 interface FakeSession extends DaemonTuiSessionClient {
-  prompt: ReturnType<typeof vi.fn>;
-  events: ReturnType<typeof vi.fn>;
-  cancel: ReturnType<typeof vi.fn>;
-  setModel: ReturnType<typeof vi.fn>;
-  respondToPermission: ReturnType<typeof vi.fn>;
+  prompt: Mock<DaemonTuiSessionClient['prompt']>;
+  events: Mock<DaemonTuiSessionClient['events']>;
+  cancel: Mock<DaemonTuiSessionClient['cancel']>;
+  setModel: Mock<DaemonTuiSessionClient['setModel']>;
+  respondToPermission: Mock<DaemonTuiSessionClient['respondToPermission']>;
 }
 
 function createFakeSession(events: EventQueue): FakeSession {

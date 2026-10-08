@@ -305,6 +305,7 @@ const {
   rootWorkspaceVoice,
   qualifiedWorkspaceVoice,
   qualifiedSetWorkspaceSetting,
+  runtimeStop,
   sessionCatalogController,
   mockReleaseDetachedWebTerminal,
   mockReleaseWebTerminal,
@@ -812,6 +813,7 @@ const {
     rootWorkspaceVoice,
     qualifiedWorkspaceVoice,
     qualifiedSetWorkspaceSetting,
+    runtimeStop,
     sessionCatalogController: {
       invalidateWorkspace: vi.fn(),
       refreshWorkspace: vi.fn(),
@@ -10784,6 +10786,7 @@ beforeEach(() => {
     }),
   }));
   mockWorkspace.client.workspaceById.mockClear();
+  runtimeStop.mockReset();
   mockWorkspace.client.sessionStatus.mockReset();
   mockWorkspace.client.sessionStatus.mockResolvedValue({
     workspaceCwd: '/tmp/project',
@@ -10958,9 +10961,10 @@ beforeEach(() => {
   });
   mockFollowup.clear.mockClear();
   for (const value of Object.values(mockSessionActions)) {
-    if (typeof value === 'function' && 'mockClear' in value) value.mockClear();
+    if (typeof value === 'function' && 'mockReset' in value) value.mockReset();
   }
   mockSessionActions.sendPrompt.mockResolvedValue(undefined);
+  mockSessionActions.continueSession.mockResolvedValue(undefined);
   mockSessionActions.btwSession.mockResolvedValue({ answer: 'side answer' });
   mockSessionActions.createSession.mockResolvedValue({
     sessionId: 'session-1',
@@ -10992,6 +10996,7 @@ beforeEach(() => {
     switchStarted: true,
   });
   mockSessionActions.submitPermission.mockResolvedValue(undefined);
+  mockSessionActions.respondToPermission.mockResolvedValue(true);
   mockSessionActions.clearGoal.mockResolvedValue(undefined);
   mockSessionActions.getGoal.mockResolvedValue({
     snapshot: { v: 2, activity: 'idle', goal: null },
@@ -11008,6 +11013,7 @@ beforeEach(() => {
     data: 'aGVsbG8=',
     mimeType: 'text/plain',
   });
+  mockSessionActions.listAttachments.mockResolvedValue([]);
   mockSessionActions.listSources.mockReset();
   mockSessionActions.listSources.mockResolvedValue({
     revision: 0,
@@ -11025,11 +11031,15 @@ beforeEach(() => {
     now: 1,
     tasks: [],
   });
+  mockSessionActions.loadArtifacts.mockResolvedValue({ artifacts: [] });
+  mockSessionActions.addArtifact.mockResolvedValue({});
   mockSessionActions.loadSession.mockResolvedValue(undefined);
   mockStore.reset.mockClear();
   mockStore.getSnapshot.mockClear();
   mockStore.dispatch.mockClear();
-  mockWorkspaceActions.loadSkillsStatus.mockResolvedValue({ skills: [] });
+  mockWorkspaceActions.loadSkillsStatus
+    .mockReset()
+    .mockResolvedValue({ skills: [] });
   mockWorkspaceActions.readWorkspaceFile.mockReset();
   mockWorkspaceActions.readWorkspaceFile.mockResolvedValue({
     content: '',
@@ -11043,7 +11053,10 @@ beforeEach(() => {
     sizeBytes: 0,
     modifiedMs: 0,
   });
-  mockWorkspaceActions.loadProviders.mockResolvedValue({ current: null });
+  mockWorkspaceActions.loadProviders
+    .mockReset()
+    .mockResolvedValue({ current: null });
+  mockWorkspaceActions.controlGoal.mockReset();
   mockWorkspaceActions.controlGoal.mockResolvedValue({
     snapshot: { v: 2, activity: 'idle', goal: null },
   });

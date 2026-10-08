@@ -44,7 +44,7 @@ const { terminal, terminalInstances, createMockTerminal } = vi.hoisted(() => {
 });
 
 vi.mock('@xterm/xterm', () => ({
-  Terminal: vi.fn((options: Record<string, unknown>) => {
+  Terminal: vi.fn(function (options: Record<string, unknown>) {
     const instance = terminalInstances.length ? createMockTerminal() : terminal;
     instance.options = options;
     terminalInstances.push(instance);
@@ -52,7 +52,9 @@ vi.mock('@xterm/xterm', () => ({
   }),
 }));
 vi.mock('@xterm/addon-fit', () => ({
-  FitAddon: vi.fn(() => ({ fit })),
+  FitAddon: vi.fn(function () {
+    return { fit };
+  }),
 }));
 vi.mock('../../themeContext', () => ({ useTheme: () => 'light' }));
 vi.mock('../../config/daemon', () => ({ getDaemonToken: () => '' }));

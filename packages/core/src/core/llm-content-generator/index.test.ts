@@ -11,7 +11,9 @@ import type { Config } from '../../config/config.js';
 import { AuthType } from '../contentGenerator.js';
 
 vi.mock('./llm-content-generator.js', () => ({
-  LlmContentGenerator: vi.fn().mockImplementation(() => ({})),
+  LlmContentGenerator: vi.fn().mockImplementation(function MockConstructor() {
+    return {};
+  }),
 }));
 
 describe('createLlmContentGenerator', () => {

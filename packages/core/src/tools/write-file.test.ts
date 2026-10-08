@@ -117,7 +117,9 @@ describe('WriteFileTool', () => {
     mockLlmClientInstance = new (vi.mocked(LlmClient))(
       mockConfig,
     ) as Mocked<LlmClient>;
-    vi.mocked(LlmClient).mockImplementation(() => mockLlmClientInstance);
+    vi.mocked(LlmClient).mockImplementation(function MockConstructor() {
+      return mockLlmClientInstance;
+    });
 
     // Now that mockLlmClientInstance is initialized, set the mock implementation for getLlmClient
     mockConfigInternal.getLlmClient.mockReturnValue(mockLlmClientInstance);

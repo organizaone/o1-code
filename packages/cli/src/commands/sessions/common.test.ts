@@ -22,6 +22,7 @@ vi.mock('@organizaone/o1-code-core', () => ({
 }));
 
 import { initSessionService } from './common.js';
+import { mockConstructorReturning } from '../../test-utils/mock-constructor.js';
 
 const mockedLoadSettings = mockLoadSettings as Mock;
 const mockedSetRuntimeBaseDir = mockSetRuntimeBaseDir as Mock;
@@ -35,7 +36,9 @@ describe('common', () => {
     mockedLoadSettings.mockReturnValue({
       merged: { advanced: { runtimeOutputDir: '/custom/runtime' } },
     });
-    mockSessionServiceConstructor.mockReturnValue({});
+    mockSessionServiceConstructor.mockImplementation(
+      mockConstructorReturning({}),
+    );
 
     initSessionService();
 
@@ -49,7 +52,9 @@ describe('common', () => {
     mockedLoadSettings.mockReturnValue({
       merged: { advanced: {} },
     });
-    mockSessionServiceConstructor.mockReturnValue({});
+    mockSessionServiceConstructor.mockImplementation(
+      mockConstructorReturning({}),
+    );
 
     initSessionService();
 
@@ -64,7 +69,9 @@ describe('common', () => {
     mockedLoadSettings.mockReturnValue({
       merged: { advanced: {} },
     });
-    mockSessionServiceConstructor.mockReturnValue(mockInstance);
+    mockSessionServiceConstructor.mockImplementation(
+      mockConstructorReturning(mockInstance),
+    );
 
     const result = initSessionService();
 

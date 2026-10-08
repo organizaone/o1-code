@@ -20,11 +20,13 @@ const mockWriteStdoutLine = vi.hoisted(() => vi.fn());
 const mockWriteStderrLine = vi.hoisted(() => vi.fn());
 
 vi.mock('@organizaone/o1-code-core', () => ({
-  ExtensionManager: vi.fn().mockImplementation(() => ({
-    installExtension: mockInstallExtension,
-    refreshCache: mockRefreshCache,
-    setExtensionScope: mockSetExtensionScope,
-  })),
+  ExtensionManager: vi.fn().mockImplementation(function MockConstructor() {
+    return {
+      installExtension: mockInstallExtension,
+      refreshCache: mockRefreshCache,
+      setExtensionScope: mockSetExtensionScope,
+    };
+  }),
   parseInstallSource: mockParseInstallSource,
   isExtensionCommittedWithWarningsError: (error: unknown) =>
     error instanceof Error &&

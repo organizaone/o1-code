@@ -55,7 +55,9 @@ const mockSessionServiceInstance = vi.hoisted(() => ({
   findSessionIdIgnoringCase: vi.fn(),
 }));
 const mockSessionServiceCtor = vi.hoisted(() =>
-  vi.fn(() => mockSessionServiceInstance),
+  vi.fn(function MockConstructor() {
+    return mockSessionServiceInstance;
+  }),
 );
 const mockConfigConstructorParams = vi.hoisted(() => vi.fn());
 
@@ -236,9 +238,9 @@ vi.mock('@organizaone/o1-code-core', async (importOriginal) => {
   return {
     ...actualServer,
     Config: ConfigWithParamCapture,
-    NativeLspService: vi
-      .fn()
-      .mockImplementation(() => createNativeLspServiceInstance()),
+    NativeLspService: vi.fn().mockImplementation(function MockConstructor() {
+      return createNativeLspServiceInstance();
+    }),
     SessionService: mockSessionServiceCtor,
     SkillManager: SkillManagerMock,
     // Reset to `undefined` per test, which resolveOutputStyle treats as
@@ -1213,10 +1215,12 @@ describe('loadCliConfig', () => {
   beforeEach(() => {
     vi.resetAllMocks();
     nativeLspServiceMock.mockReset();
-    nativeLspServiceMock.mockImplementation(
-      () => createNativeLspServiceInstance() as unknown as NativeLspService,
-    );
-    mockSessionServiceCtor.mockImplementation(() => mockSessionServiceInstance);
+    nativeLspServiceMock.mockImplementation(function MockConstructor() {
+      return createNativeLspServiceInstance() as unknown as NativeLspService;
+    });
+    mockSessionServiceCtor.mockImplementation(function MockConstructor() {
+      return mockSessionServiceInstance;
+    });
     mockSessionServiceInstance.loadLastSession.mockResolvedValue(undefined);
     mockSessionServiceInstance.loadSession.mockResolvedValue(undefined);
     mockSessionServiceInstance.forkSession.mockResolvedValue({

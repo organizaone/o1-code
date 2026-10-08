@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, type Mock } from 'vitest';
 import { MessageEmitter } from './MessageEmitter.js';
 import type { SessionContext } from '../types.js';
 import {
@@ -15,7 +15,7 @@ import {
 
 describe('MessageEmitter', () => {
   let mockContext: SessionContext;
-  let sendUpdateSpy: ReturnType<typeof vi.fn>;
+  let sendUpdateSpy: Mock<SessionContext['sendUpdate']>;
   let emitter: MessageEmitter;
 
   beforeEach(() => {
@@ -537,7 +537,7 @@ describe('MessageEmitter', () => {
         .filter(
           (update) =>
             update.sessionUpdate === 'agent_message_chunk' &&
-            update._meta?.usage,
+            update._meta?.['usage'],
         );
       const secondMeta = privateUsageUpdates.at(-1)?._meta;
       expect(secondMeta).not.toHaveProperty('apiErrors');

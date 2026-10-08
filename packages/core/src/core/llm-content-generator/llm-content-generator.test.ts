@@ -21,13 +21,15 @@ vi.mock('@google/genai', () => {
   const mockEmbedContent = vi.fn();
 
   return {
-    GoogleGenAI: vi.fn().mockImplementation(() => ({
-      models: {
-        generateContent: mockGenerateContent,
-        generateContentStream: mockGenerateContentStream,
-        embedContent: mockEmbedContent,
-      },
-    })),
+    GoogleGenAI: vi.fn().mockImplementation(function MockConstructor() {
+      return {
+        models: {
+          generateContent: mockGenerateContent,
+          generateContentStream: mockGenerateContentStream,
+          embedContent: mockEmbedContent,
+        },
+      };
+    }),
   };
 });
 vi.mock('../../telemetry/gen-ai-request.js', () => ({

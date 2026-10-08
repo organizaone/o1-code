@@ -915,11 +915,11 @@ describe('package scripts', () => {
     const packageJson = readPackageJson();
 
     expect(packageJson.scripts['test:integration:sdk:sandbox:none']).toContain(
-      '--poolOptions.forks.maxForks 2',
+      '--maxWorkers 2',
     );
     expect(
       packageJson.scripts['test:integration:sdk:sandbox:docker'],
-    ).toContain('--poolOptions.forks.maxForks 2');
+    ).toContain('--maxWorkers 2');
   });
 
   it('cleans package build artifacts before checking the serve fast path bundle', () => {

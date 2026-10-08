@@ -730,6 +730,7 @@ beforeEach(() => {
     exportSession,
     exportArchivedSession,
   }));
+  workspaceActions.updateWorkspace.mockReset();
   workspaceActions.removeWorkspace.mockReset();
   workspaceActions.removeWorkspace.mockResolvedValue({ removed: true });
   workspaceActions.addWorkspace.mockReset();

@@ -238,7 +238,9 @@ describe('createForkedChat', () => {
 
   it('marks the fork so its history rewrites skip parent skill tracking', () => {
     const forked = {} as unknown as LlmChat;
-    vi.mocked(LlmChat).mockImplementation(() => forked);
+    vi.mocked(LlmChat).mockImplementation(function MockConstructor() {
+      return forked;
+    });
 
     saveCacheSafeParams({ systemInstruction: 'si' }, [], 'test-model');
     const chat = createForkedChat(
@@ -336,13 +338,12 @@ describe('runForkedAgent (cache path)', () => {
     );
 
     const enableManualPlanExitNotices = vi.fn();
-    vi.mocked(LlmChat).mockImplementation(
-      () =>
-        ({
-          sendMessageStream: mockSendMessageStream,
-          enableManualPlanExitNotices,
-        }) as unknown as LlmChat,
-    );
+    vi.mocked(LlmChat).mockImplementation(function MockConstructor() {
+      return {
+        sendMessageStream: mockSendMessageStream,
+        enableManualPlanExitNotices,
+      } as unknown as LlmChat;
+    });
 
     const mockConfig = {} as unknown as Config;
 
@@ -412,10 +413,9 @@ describe('runForkedAgent (cache path)', () => {
       }
       return Promise.resolve(generate());
     });
-    vi.mocked(LlmChat).mockImplementation(
-      () =>
-        ({ sendMessageStream: mockSendMessageStream }) as unknown as LlmChat,
-    );
+    vi.mocked(LlmChat).mockImplementation(function MockConstructor() {
+      return { sendMessageStream: mockSendMessageStream } as unknown as LlmChat;
+    });
 
     const result = await runForkedAgent({
       config: {} as Config,
@@ -471,12 +471,11 @@ describe('runForkedAgent (cache path)', () => {
       },
     );
 
-    vi.mocked(LlmChat).mockImplementation(
-      () =>
-        ({
-          sendMessageStream: mockSendMessageStream,
-        }) as unknown as LlmChat,
-    );
+    vi.mocked(LlmChat).mockImplementation(function MockConstructor() {
+      return {
+        sendMessageStream: mockSendMessageStream,
+      } as unknown as LlmChat;
+    });
 
     const schema = {
       type: 'object',
@@ -540,12 +539,11 @@ describe('runForkedAgent (cache path)', () => {
       },
     );
 
-    vi.mocked(LlmChat).mockImplementation(
-      () =>
-        ({
-          sendMessageStream: mockSendMessageStream,
-        }) as unknown as LlmChat,
-    );
+    vi.mocked(LlmChat).mockImplementation(function MockConstructor() {
+      return {
+        sendMessageStream: mockSendMessageStream,
+      } as unknown as LlmChat;
+    });
 
     const mockConfig = {
       getModel: vi.fn().mockReturnValue('claude-main'),
@@ -627,12 +625,11 @@ describe('runForkedAgent (cache path)', () => {
       },
     );
 
-    vi.mocked(LlmChat).mockImplementation(
-      () =>
-        ({
-          sendMessageStream: mockSendMessageStream,
-        }) as unknown as LlmChat,
-    );
+    vi.mocked(LlmChat).mockImplementation(function MockConstructor() {
+      return {
+        sendMessageStream: mockSendMessageStream,
+      } as unknown as LlmChat;
+    });
 
     const mockConfig = {
       getModel: vi.fn().mockReturnValue('gpt-4'),
@@ -719,12 +716,11 @@ describe('runForkedAgent (cache path)', () => {
       },
     );
 
-    vi.mocked(LlmChat).mockImplementation(
-      () =>
-        ({
-          sendMessageStream: mockSendMessageStream,
-        }) as unknown as LlmChat,
-    );
+    vi.mocked(LlmChat).mockImplementation(function MockConstructor() {
+      return {
+        sendMessageStream: mockSendMessageStream,
+      } as unknown as LlmChat;
+    });
 
     const mockConfig = {
       getModel: vi.fn().mockReturnValue('parent-model'),
@@ -793,12 +789,11 @@ describe('runForkedAgent (cache path)', () => {
       },
     );
 
-    vi.mocked(LlmChat).mockImplementation(
-      () =>
-        ({
-          sendMessageStream: mockSendMessageStream,
-        }) as unknown as LlmChat,
-    );
+    vi.mocked(LlmChat).mockImplementation(function MockConstructor() {
+      return {
+        sendMessageStream: mockSendMessageStream,
+      } as unknown as LlmChat;
+    });
 
     await runForkedAgent({
       config: {} as Config,
@@ -852,12 +847,11 @@ describe('runForkedAgent (cache path)', () => {
       },
     );
 
-    vi.mocked(LlmChat).mockImplementation(
-      () =>
-        ({
-          sendMessageStream: mockSendMessageStream,
-        }) as unknown as LlmChat,
-    );
+    vi.mocked(LlmChat).mockImplementation(function MockConstructor() {
+      return {
+        sendMessageStream: mockSendMessageStream,
+      } as unknown as LlmChat;
+    });
 
     await runForkedAgent({
       config: {} as Config,
@@ -924,12 +918,11 @@ describe('runForkedAgent (cache path)', () => {
         },
       );
 
-      vi.mocked(LlmChat).mockImplementation(
-        () =>
-          ({
-            sendMessageStream: mockSendMessageStream,
-          }) as unknown as LlmChat,
-      );
+      vi.mocked(LlmChat).mockImplementation(function MockConstructor() {
+        return {
+          sendMessageStream: mockSendMessageStream,
+        } as unknown as LlmChat;
+      });
 
       const result = await runForkedAgent({
         config: { getAgentExecutionBackend: () => backend } as Config,
@@ -991,12 +984,11 @@ describe('runForkedAgent (cache path)', () => {
       },
     );
 
-    vi.mocked(LlmChat).mockImplementation(
-      () =>
-        ({
-          sendMessageStream: mockSendMessageStream,
-        }) as unknown as LlmChat,
-    );
+    vi.mocked(LlmChat).mockImplementation(function MockConstructor() {
+      return {
+        sendMessageStream: mockSendMessageStream,
+      } as unknown as LlmChat;
+    });
 
     const result = await runForkedAgent({
       config: {} as Config,
@@ -1053,12 +1045,11 @@ describe('runForkedAgent (cache path)', () => {
       },
     );
 
-    vi.mocked(LlmChat).mockImplementation(
-      () =>
-        ({
-          sendMessageStream: mockSendMessageStream,
-        }) as unknown as LlmChat,
-    );
+    vi.mocked(LlmChat).mockImplementation(function MockConstructor() {
+      return {
+        sendMessageStream: mockSendMessageStream,
+      } as unknown as LlmChat;
+    });
 
     const schema = {
       type: 'object',

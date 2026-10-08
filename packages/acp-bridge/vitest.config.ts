@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { defineConfig } from 'vitest/config';
+import { configDefaults, defineConfig } from 'vitest/config';
 import path from 'node:path';
 
 export default defineConfig({
@@ -37,6 +37,7 @@ export default defineConfig({
     },
   },
   test: {
+    exclude: [...configDefaults.exclude, '**/dist/**'],
     reporters: ['default'],
     silent: true,
     // RPC-timeout exemption; see scripts/tests/unit-vitest-configs.test.ts.

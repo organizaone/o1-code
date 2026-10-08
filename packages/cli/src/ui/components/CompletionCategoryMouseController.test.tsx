@@ -5,10 +5,10 @@
  */
 // @vitest-environment jsdom
 
-import { type MutableRefObject } from 'react';
+import { type ComponentProps, type MutableRefObject } from 'react';
 import { type DOMElement } from 'ink';
 import { render } from '@testing-library/react';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi, type Mock } from 'vitest';
 import { CompletionCategoryMouseController } from './CompletionCategoryMouseController.js';
 import { useMouseEvents } from '../hooks/useMouseEvents.js';
 import { useTerminalSize } from '../hooks/useTerminalSize.js';
@@ -43,11 +43,18 @@ describe('CompletionCategoryMouseController', () => {
     { tag: 'session' },
   ] as unknown as DOMElement[];
   const categories = ['all', 'file', 'session'] as const;
-  let onSelectCategory: ReturnType<typeof vi.fn>;
+  let onSelectCategory: Mock<
+    ComponentProps<typeof CompletionCategoryMouseController>['onSelectCategory']
+  >;
 
   beforeEach(() => {
     vi.clearAllMocks();
-    onSelectCategory = vi.fn();
+    onSelectCategory =
+      vi.fn<
+        ComponentProps<
+          typeof CompletionCategoryMouseController
+        >['onSelectCategory']
+      >();
     vi.mocked(useTerminalSize).mockReturnValue({ rows: 40, columns: 80 });
     vi.mocked(findElementAtMouseEvent).mockReturnValue(null);
   });

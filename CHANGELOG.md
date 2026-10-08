@@ -7,8 +7,15 @@ follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Changed
+
+- Update development test and frontend build tooling to patched versions, keeping
+  the existing worker limits, SDK coverage thresholds, and generated report styles.
+
 ### Fixed
 
+- Run explicitly requested full CI suites after the fast gates pass, including
+  when an optional documentation job is skipped.
 - Update the dependencies used for Git operations, shell quoting, MCP connections,
   HTTP transport, proxy address parsing, image decoding, and telemetry to address
   critical and high security advisories. Transitive overrides also cover affected

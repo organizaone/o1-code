@@ -4,9 +4,9 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, type Mock } from 'vitest';
 import { render } from 'ink-testing-library';
-import { TextInput } from './TextInput.js';
+import { TextInput, type TextInputProps } from './TextInput.js';
 import { useKeypress } from '../../hooks/useKeypress.js';
 import type { Key } from '../../hooks/useKeypress.js';
 
@@ -89,13 +89,13 @@ describe('TextInput', () => {
     );
     expect(lastFrame()).not.toMatch(/\d–\d\/\d/);
   });
-  let onChange: ReturnType<typeof vi.fn>;
-  let onSubmit: ReturnType<typeof vi.fn>;
+  let onChange: Mock<TextInputProps['onChange']>;
+  let onSubmit: Mock<NonNullable<TextInputProps['onSubmit']>>;
 
   beforeEach(() => {
     vi.clearAllMocks();
-    onChange = vi.fn();
-    onSubmit = vi.fn();
+    onChange = vi.fn<TextInputProps['onChange']>();
+    onSubmit = vi.fn<NonNullable<TextInputProps['onSubmit']>>();
   });
 
   describe('mask', () => {

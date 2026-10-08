@@ -50,33 +50,31 @@ describe('extensionSettings', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockKeychainData = {};
-    vi.mocked(KeychainTokenStorage).mockImplementation(
-      (serviceName: string) => {
-        if (!mockKeychainData[serviceName]) {
-          mockKeychainData[serviceName] = {};
-        }
-        const keychainData = mockKeychainData[serviceName];
-        return {
-          getSecret: vi
-            .fn()
-            .mockImplementation(
-              async (key: string) => keychainData[key] || null,
-            ),
-          setSecret: vi
-            .fn()
-            .mockImplementation(async (key: string, value: string) => {
-              keychainData[key] = value;
-            }),
-          deleteSecret: vi.fn().mockImplementation(async (key: string) => {
-            delete keychainData[key];
+    vi.mocked(KeychainTokenStorage).mockImplementation(function MockConstructor(
+      serviceName: string,
+    ) {
+      if (!mockKeychainData[serviceName]) {
+        mockKeychainData[serviceName] = {};
+      }
+      const keychainData = mockKeychainData[serviceName];
+      return {
+        getSecret: vi
+          .fn()
+          .mockImplementation(async (key: string) => keychainData[key] || null),
+        setSecret: vi
+          .fn()
+          .mockImplementation(async (key: string, value: string) => {
+            keychainData[key] = value;
           }),
-          listSecrets: vi
-            .fn()
-            .mockImplementation(async () => Object.keys(keychainData)),
-          isAvailable: vi.fn().mockResolvedValue(true),
-        } as unknown as KeychainTokenStorage;
-      },
-    );
+        deleteSecret: vi.fn().mockImplementation(async (key: string) => {
+          delete keychainData[key];
+        }),
+        listSecrets: vi
+          .fn()
+          .mockImplementation(async () => Object.keys(keychainData)),
+        isAvailable: vi.fn().mockResolvedValue(true),
+      } as unknown as KeychainTokenStorage;
+    });
     tempHomeDir = os.tmpdir() + path.sep + `o1-code-test-home-${Date.now()}`;
     tempWorkspaceDir = path.join(
       os.tmpdir(),
@@ -762,14 +760,15 @@ describe('extensionSettings', () => {
       const mockListSecrets = vi.fn();
 
       vi.mocked(KeychainTokenStorage).mockImplementation(
-        () =>
-          ({
+        function MockConstructor() {
+          return {
             isAvailable: mockIsAvailable,
             listSecrets: mockListSecrets,
             deleteSecret: vi.fn(),
             getSecret: vi.fn(),
             setSecret: vi.fn(),
-          }) as unknown as KeychainTokenStorage,
+          } as unknown as KeychainTokenStorage;
+        },
       );
 
       const config: ExtensionConfig = {
@@ -1103,11 +1102,12 @@ describe('extensionSettings', () => {
     it('surfaces authoritative sensitive setting write failures', async () => {
       mockRequestSetting.mockResolvedValue('new-value2');
       vi.mocked(KeychainTokenStorage).mockImplementationOnce(
-        () =>
-          ({
+        function MockConstructor() {
+          return {
             isAvailable: vi.fn().mockResolvedValue(true),
             setSecret: vi.fn().mockRejectedValue(new Error('write failed')),
-          }) as unknown as KeychainTokenStorage,
+          } as unknown as KeychainTokenStorage;
+        },
       );
 
       await expect(

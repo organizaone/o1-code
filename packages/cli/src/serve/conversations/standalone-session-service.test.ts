@@ -25,7 +25,7 @@ import {
 import { promises as fs } from 'node:fs';
 import * as os from 'node:os';
 import * as path from 'node:path';
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, vi, type Mock } from 'vitest';
 import type { WorkspaceRuntime } from '../workspace-registry.js';
 import { SessionArchiveCoordinator } from '../server/session-archive.js';
 import { ConversationRuntimeOwnershipError } from './conversation-runtime-errors.js';
@@ -93,7 +93,7 @@ interface Harness {
   inspectStandaloneDirectory: ReturnType<typeof vi.fn>;
   ensureStandaloneDirectory: ReturnType<typeof vi.fn>;
   lifecycle: SessionArchiveCoordinator;
-  quarantineRuntime: ReturnType<typeof vi.fn>;
+  quarantineRuntime: Mock<StandaloneSessionServiceOptions['quarantineRuntime']>;
   hasForeignSessionOwner: ReturnType<typeof vi.fn>;
   invalidateSessionListCache: ReturnType<typeof vi.fn>;
   deletionJournal: {
