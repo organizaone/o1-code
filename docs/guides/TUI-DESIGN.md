@@ -389,8 +389,10 @@ never leaves; it only shortens from the start.
   remain unchanged. `settings-translations.test.ts` guards this coverage.
 - **Plugin configuration** (`extensions/ExtensionsManagerDialog.tsx`):
   `/extensions`, `/plugins` and `/plugin` open the same manager, capped at its
-  existing 100-column frame. Tabs stay on one row; narrow layouts omit the switch
-  hint and extra margins before truncating labels. The parent uses the layout's
+  existing 100-column frame. In full-screen mode the conversation frame is hidden
+  while the manager is open and returns when it closes. Tabs stay on one row;
+  narrow layouts omit the switch hint and extra margins before truncating labels.
+  The parent uses the layout's
   actual dialog-height reservation and subtracts borders, tabs, footer, status
   and gaps before passing an inner budget to the editors. Short panels reduce
   gaps and keep footer/status text on one row.

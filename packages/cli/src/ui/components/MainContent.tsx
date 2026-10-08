@@ -559,6 +559,10 @@ export const MainContent = ({
     ],
   );
 
+  if (useVirtualScroll && uiState.isExtensionsManagerDialogOpen) {
+    return null;
+  }
+
   if (useVirtualScroll) {
     const scrollContainerHeight = Math.max(
       0,

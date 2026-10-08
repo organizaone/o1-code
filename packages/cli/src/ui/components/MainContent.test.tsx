@@ -253,18 +253,20 @@ const createUIActions = (): UIActions =>
     refreshStatic: vi.fn(),
   }) as unknown as UIActions;
 
+const mainContentTree = (uiState: UIState) => (
+  <AppContext.Provider value={{ version: '1.2.3', startupWarnings: [] }}>
+    <UIActionsContext.Provider value={createUIActions()}>
+      <UIStateContext.Provider value={uiState}>
+        <OverflowProvider>
+          <MainContent />
+        </OverflowProvider>
+      </UIStateContext.Provider>
+    </UIActionsContext.Provider>
+  </AppContext.Provider>
+);
+
 const renderMainContent = (uiState: UIState) =>
-  render(
-    <AppContext.Provider value={{ version: '1.2.3', startupWarnings: [] }}>
-      <UIActionsContext.Provider value={createUIActions()}>
-        <UIStateContext.Provider value={uiState}>
-          <OverflowProvider>
-            <MainContent />
-          </OverflowProvider>
-        </UIStateContext.Provider>
-      </UIActionsContext.Provider>
-    </AppContext.Provider>,
-  );
+  render(mainContentTree(uiState));
 
 describe('<MainContent />', () => {
   it('renders AppHeader inside Static at the top of the static content', () => {
@@ -863,6 +865,34 @@ describe('<MainContent />', () => {
   });
 
   describe('virtual viewport path (ui.useTerminalBuffer)', () => {
+    it.each([40, 160])(
+      'hides the conversation frame while plugins are open at %i columns and restores it on close',
+      async (terminalWidth) => {
+        const state = createUIState({
+          useTerminalBuffer: true,
+          availableTerminalHeight: 10,
+          terminalWidth,
+          history: [{ id: 1, type: 'user', text: '/plugins' }],
+          messageQueue: ['run the tests'],
+        });
+        const { lastFrame, rerender } = renderMainContent(state);
+        expect(lastFrame()).toContain('HISTORY:1');
+        expect(lastFrame()).toContain('╭');
+
+        rerender(
+          mainContentTree({ ...state, isExtensionsManagerDialogOpen: true }),
+        );
+        await new Promise((resolve) => setImmediate(resolve));
+        expect(lastFrame()).toBe('');
+
+        rerender(mainContentTree(state));
+        await new Promise((resolve) => setImmediate(resolve));
+        expect(lastFrame()).toContain('HISTORY:1');
+        expect(lastFrame()).toContain('run the tests');
+        expect(lastFrame()).toContain('╭');
+      },
+    );
+
     it('draws the conversation in a bordered well with the queue at the bottom', () => {
       scrollableListPropsSpy.mockClear();
       const { lastFrame } = renderMainContent(
