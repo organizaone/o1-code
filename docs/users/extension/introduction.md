@@ -20,7 +20,7 @@ You can manage extensions at runtime within the interactive CLI. The manager ref
 
 #### The interactive extension manager
 
-Running `/extensions` (or its aliases `/plugins` and `/plugin`) opens an interactive manager with three tabs. Press `Tab` or the `←`/`→` arrows to switch between them when a child editor is not active.
+Running `/extensions` (or its aliases `/plugins` and `/plugin`) opens an interactive manager with three tabs. Press `Tab` or the `←`/`→` arrows to switch between them from a tab's main list. On Discover, `Tab` clears an active marketplace filter first. Close details and child views before switching tabs.
 
 - **Discover** — browse plugins from your configured marketplace sources. Type to search, `Enter` to view a plugin's details, and install it (you'll be asked to choose an install scope). Press `Ctrl+R` to re-fetch the listings, and `Esc` to go back.
 - **Installed** — your installed extensions, grouped by scope (**User level**, **Project level**, and favorites). Use `↑`/`↓` to navigate, `Space` to enable/disable an extension, `f` to favorite it, and `Enter` to open its details. MCP servers bundled by an extension appear nested under their parent extension with live connection status; you can enable or disable each server individually from there.
