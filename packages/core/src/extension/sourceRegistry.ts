@@ -304,6 +304,36 @@ export class SourceRegistryStore {
     this.write(sources);
   }
 
+  /** Replaces a validated source only while its original entry is unchanged. */
+  replace(original: ExtensionSource, replacement: ExtensionSource): void {
+    const sources = this.read();
+    const index = sources.findIndex((entry) => entry.name === original.name);
+    const current = sources[index];
+    if (
+      !current ||
+      current.source !== original.source ||
+      current.type !== original.type ||
+      current.addedAt !== original.addedAt ||
+      current.lastUpdatedAt !== original.lastUpdatedAt
+    ) {
+      throw new Error(
+        'The selected marketplace source changed while it was being validated. Refresh the source list and try again.',
+      );
+    }
+    if (
+      sources.some(
+        (entry, entryIndex) =>
+          entryIndex !== index &&
+          (entry.name === replacement.name ||
+            entry.source === replacement.source),
+      )
+    ) {
+      throw new Error('Another marketplace already uses that name or source.');
+    }
+    sources[index] = replacement;
+    this.write(sources);
+  }
+
   /** Removes a marketplace by name. Returns true if anything was removed. */
   remove(name: string): boolean {
     const sources = this.read();

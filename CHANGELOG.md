@@ -7,6 +7,27 @@ follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Added
+
+- `/plugins` and `/plugin` open the extension manager. Installed plugins with
+  declared settings now have an editor for User and Project values, including
+  inherited values and masked secret replacement. Parameter changes take effect
+  after restarting the application.
+- Marketplace details offer **Edit source**, separate from refreshing the store.
+  Replacements are validated before saving; failed edits keep the original
+  source, and installed plugins retain their existing origins.
+
+### Fixed
+
+- Plugin settings preserve whitespace, quotes, comment markers, backslashes,
+  tabs and multiline values when saved. Values that cannot round-trip through
+  the settings file fail before replacing its contents.
+- Plugin and marketplace editors fit the manager's actual available space,
+  showing input continuation and save/cancel controls. Compact tabs and bounded
+  marketplace previews keep actions visible on short terminals.
+- Superseded marketplace responses no longer overwrite a newer detail or cached
+  discovery result, and pending source edits remain locked through refresh.
+
 ## [0.10.4] - 2026-10-08
 
 ### Added

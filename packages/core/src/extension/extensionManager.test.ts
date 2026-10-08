@@ -46,6 +46,9 @@ import {
 import { resetLocalGitVersionCacheForTesting } from './github.js';
 import { FileTokenStorage } from '../mcp/token-storage/file-token-storage.js';
 import { SkillManager } from '../skills/skill-manager.js';
+import * as marketplace from './marketplace.js';
+import * as atomicFileWrite from '../utils/atomicFileWrite.js';
+import type { ClaudeMarketplaceConfig } from './claude-converter.js';
 
 const mockGit = {
   clone: vi.fn(),
@@ -302,6 +305,390 @@ describe('extension tests', () => {
       ...options,
     });
   }
+
+  describe('updateSource', () => {
+    const registryPath = () =>
+      path.join(userExtensionsDir, 'marketplaces.json');
+    const manifest = (name: string, pluginName = 'first-plugin') => ({
+      name,
+      plugins: [{ name: pluginName, source: 'team/plugins', version: '1.0.0' }],
+    });
+    const writeMarketplace = (fileName: string, config: unknown): string => {
+      const filePath = path.join(tempHomeDir, fileName);
+      fs.writeFileSync(filePath, JSON.stringify(config));
+      return filePath;
+    };
+
+    it('preserves creation time and installed origins while updating discovery', async () => {
+      const source = writeMarketplace('original.json', manifest('Original'));
+      const replacement = writeMarketplace(
+        'replacement.json',
+        manifest('Updated', 'next-plugin'),
+      );
+      const other = writeMarketplace('other.json', manifest('Other'));
+      const extensionPath = createExtension({
+        extensionsDir: userExtensionsDir,
+        installMetadata: { type: 'git', source: `${source}:first-plugin` },
+      });
+      const manager = createExtensionManager();
+      await manager.refreshCache();
+      const original = await manager.addSource(source);
+      const unrelated = await manager.addSource(other);
+      const addedAt = '2025-01-01T00:00:00.000Z';
+      fs.writeFileSync(
+        registryPath(),
+        JSON.stringify([
+          { ...original, addedAt, lastUpdatedAt: addedAt },
+          unrelated,
+        ]),
+      );
+      const installedMetadataPath = path.join(
+        extensionPath,
+        INSTALL_METADATA_FILENAME,
+      );
+      const installedMetadata = fs.readFileSync(installedMetadataPath, 'utf-8');
+      expect(
+        (await manager.discoverPlugins()).map((plugin) => plugin.name),
+      ).toEqual(['first-plugin', 'first-plugin']);
+      const events: ExtensionMutationEvent[] = [];
+      manager.addMutationListener((event) => events.push(event));
+
+      const updated = await manager.updateSource(
+        'Original',
+        `  ${replacement}  `,
+      );
+
+      expect(updated).toEqual({
+        name: 'Updated',
+        source: replacement,
+        type: 'local',
+        addedAt,
+        lastUpdatedAt: expect.any(String),
+      });
+      expect(updated.lastUpdatedAt).not.toBe(addedAt);
+      expect(manager.getSources()).toEqual([updated, unrelated]);
+      expect(
+        (await manager.discoverPlugins()).map((plugin) => plugin.name),
+      ).toEqual(['next-plugin', 'first-plugin']);
+      expect(fs.readFileSync(installedMetadataPath, 'utf-8')).toBe(
+        installedMetadata,
+      );
+      expect(manager.getLoadedExtensions()[0].installMetadata?.source).toBe(
+        `${source}:first-plugin`,
+      );
+      expect(events).toEqual([
+        { id: 3, phase: 'start', operation: 'updateSource' },
+        { id: 3, phase: 'end', operation: 'updateSource' },
+      ]);
+    });
+
+    it('retains the raw-source name fallback for legacy manifests', async () => {
+      const source = writeMarketplace('original.json', manifest('Original'));
+      const replacement = writeMarketplace('legacy.json', { plugins: [] });
+      const manager = createExtensionManager();
+      const original = await manager.addSource(source);
+
+      const updated = await manager.updateSource(original.name, replacement);
+
+      expect(updated.name).toBe(replacement);
+      expect(updated.addedAt).toBe(original.addedAt);
+      expect(manager.getSources()).toEqual([updated]);
+    });
+
+    it('passes the configured network policy and refreshes the source type', async () => {
+      const source = writeMarketplace('original.json', manifest('Original'));
+      const manager = createExtensionManager({ networkPolicy: 'public' });
+      await manager.addSource(source);
+      const load = vi
+        .spyOn(marketplace, 'loadMarketplaceConfigFromSource')
+        .mockResolvedValueOnce(manifest('Remote'));
+
+      const updated = await manager.updateSource(
+        'Original',
+        'https://registry.example/marketplace.json',
+      );
+
+      expect(load).toHaveBeenCalledWith(
+        'https://registry.example/marketplace.json',
+        'public',
+      );
+      expect(updated).toMatchObject({ name: 'Remote', type: 'http' });
+    });
+
+    it('rejects missing and empty sources before loading or emitting mutations', async () => {
+      const source = writeMarketplace('original.json', manifest('Original'));
+      const manager = createExtensionManager();
+      await manager.addSource(source);
+      const persisted = fs.readFileSync(registryPath(), 'utf-8');
+      const load = vi.spyOn(marketplace, 'loadMarketplaceConfigFromSource');
+      const events: ExtensionMutationEvent[] = [];
+      manager.addMutationListener((event) => events.push(event));
+
+      await expect(manager.updateSource('Missing', source)).rejects.toThrow(
+        'no longer exists',
+      );
+      await expect(manager.updateSource('Original', '   ')).rejects.toThrow(
+        'cannot be empty',
+      );
+
+      expect(load).not.toHaveBeenCalled();
+      expect(events).toEqual([]);
+      expect(fs.readFileSync(registryPath(), 'utf-8')).toBe(persisted);
+    });
+
+    it.each(['\n', '\r', '\t', '\x00', '\x1b', '\x7f', '\u009b'])(
+      'rejects a control character in the source before loading: %j',
+      async (control) => {
+        const source = writeMarketplace('original.json', manifest('Original'));
+        const manager = createExtensionManager();
+        await manager.addSource(source);
+        const persisted = fs.readFileSync(registryPath(), 'utf-8');
+        const load = vi.spyOn(marketplace, 'loadMarketplaceConfigFromSource');
+
+        await expect(
+          manager.updateSource(
+            'Original',
+            `https://example.com/${control}marketplace.json`,
+          ),
+        ).rejects.toThrow(
+          'Marketplace source must be a single line without control characters.',
+        );
+
+        expect(load).not.toHaveBeenCalled();
+        expect(fs.readFileSync(registryPath(), 'utf-8')).toBe(persisted);
+      },
+    );
+
+    it.each([
+      null,
+      [],
+      {},
+      { name: 'Not a marketplace' },
+      { name: 42, plugins: [] },
+      { name: 'Invalid', plugins: 'plugins' },
+      { name: 'Invalid', plugins: [null] },
+      { name: 'Invalid', plugins: [{ name: '   ' }] },
+    ])(
+      'preserves the registry when fetched JSON is not a marketplace: %j',
+      async (invalid) => {
+        const source = writeMarketplace('original.json', manifest('Original'));
+        const replacement = writeMarketplace('invalid.json', invalid);
+        const manager = createExtensionManager();
+        await manager.addSource(source);
+        const persisted = fs.readFileSync(registryPath(), 'utf-8');
+        const events: ExtensionMutationEvent[] = [];
+        manager.addMutationListener((event) => events.push(event));
+
+        await expect(
+          manager.updateSource('Original', replacement),
+        ).rejects.toThrow('No valid marketplace found');
+
+        expect(fs.readFileSync(registryPath(), 'utf-8')).toBe(persisted);
+        expect(events).toEqual([]);
+      },
+    );
+
+    it('preserves discovery after a failed fetch and never exposes the replacement URL in validation errors', async () => {
+      const source = writeMarketplace('original.json', manifest('Original'));
+      const manager = createExtensionManager();
+      await manager.addSource(source);
+      const cached = await manager.discoverPlugins();
+      const persisted = fs.readFileSync(registryPath(), 'utf-8');
+      const load = vi
+        .spyOn(marketplace, 'loadMarketplaceConfigFromSource')
+        .mockRejectedValueOnce(new Error('Manifest fetch failed'))
+        .mockResolvedValueOnce(null);
+
+      await expect(
+        manager.updateSource('Original', 'https://example.com/unavailable'),
+      ).rejects.toThrow('Manifest fetch failed');
+      await expect(
+        manager.updateSource(
+          'Original',
+          'https://user:secret@example.com/?token=hidden#private',
+        ),
+      ).rejects.toThrow(
+        'No valid marketplace found. Expected a marketplace manifest with a plugin list.',
+      );
+
+      expect(fs.readFileSync(registryPath(), 'utf-8')).toBe(persisted);
+      expect(await manager.discoverPlugins()).toEqual(cached);
+      expect(load).toHaveBeenCalledTimes(2);
+    });
+
+    it.each(['name', 'source'] as const)(
+      'rejects a collision with another marketplace %s',
+      async (collision) => {
+        const source = writeMarketplace('original.json', manifest('Original'));
+        const other = writeMarketplace('other.json', manifest('Other'));
+        const manager = createExtensionManager();
+        await manager.addSource(source);
+        await manager.addSource(other);
+        const persisted = fs.readFileSync(registryPath(), 'utf-8');
+        vi.spyOn(
+          marketplace,
+          'loadMarketplaceConfigFromSource',
+        ).mockResolvedValueOnce(
+          manifest(collision === 'name' ? 'Other' : 'Updated'),
+        );
+
+        await expect(
+          manager.updateSource(
+            'Original',
+            collision === 'source' ? other : 'https://example.com/new.json',
+          ),
+        ).rejects.toThrow(
+          'Another marketplace already uses that name or source.',
+        );
+
+        expect(fs.readFileSync(registryPath(), 'utf-8')).toBe(persisted);
+      },
+    );
+
+    it('does not persist until validation finishes and keeps sources added during validation', async () => {
+      const source = writeMarketplace('original.json', manifest('Original'));
+      const other = writeMarketplace('other.json', manifest('Other'));
+      const manager = createExtensionManager();
+      await manager.addSource(source);
+      const persisted = fs.readFileSync(registryPath(), 'utf-8');
+      let finishValidation!: (config: ClaudeMarketplaceConfig) => void;
+      const validation = new Promise<ClaudeMarketplaceConfig>((resolve) => {
+        finishValidation = resolve;
+      });
+      const realLoad = marketplace.loadMarketplaceConfigFromSource;
+      vi.spyOn(marketplace, 'loadMarketplaceConfigFromSource')
+        .mockImplementation(realLoad)
+        .mockReturnValueOnce(validation);
+
+      const updating = manager.updateSource(
+        'Original',
+        'https://example.com/new.json',
+      );
+      expect(fs.readFileSync(registryPath(), 'utf-8')).toBe(persisted);
+      const unrelated = await manager.addSource(other);
+      finishValidation(manifest('Updated'));
+      const updated = await updating;
+
+      expect(manager.getSources()).toEqual([updated, unrelated]);
+    });
+
+    it('does not recreate a source removed during validation', async () => {
+      const source = writeMarketplace('original.json', manifest('Original'));
+      const manager = createExtensionManager();
+      await manager.addSource(source);
+      let finishValidation!: (config: ClaudeMarketplaceConfig) => void;
+      vi.spyOn(
+        marketplace,
+        'loadMarketplaceConfigFromSource',
+      ).mockReturnValueOnce(
+        new Promise<ClaudeMarketplaceConfig>((resolve) => {
+          finishValidation = resolve;
+        }),
+      );
+
+      const updating = manager.updateSource(
+        'Original',
+        'https://example.com/new.json',
+      );
+      expect(manager.removeSource('Original')).toBe(true);
+      finishValidation(manifest('Updated'));
+
+      await expect(updating).rejects.toThrow(
+        'changed while it was being validated',
+      );
+      expect(manager.getSources()).toEqual([]);
+    });
+
+    it('does not overwrite a newer edit that completes during validation', async () => {
+      const source = writeMarketplace('original.json', manifest('Original'));
+      const manager = createExtensionManager();
+      await manager.addSource(source);
+      let finishValidation!: (config: ClaudeMarketplaceConfig) => void;
+      vi.spyOn(marketplace, 'loadMarketplaceConfigFromSource')
+        .mockReturnValueOnce(
+          new Promise<ClaudeMarketplaceConfig>((resolve) => {
+            finishValidation = resolve;
+          }),
+        )
+        .mockResolvedValueOnce(manifest('Newer'));
+
+      const olderUpdate = manager.updateSource(
+        'Original',
+        'https://example.com/older.json',
+      );
+      const newer = await manager.updateSource(
+        'Original',
+        'https://example.com/newer.json',
+      );
+      finishValidation(manifest('Older'));
+
+      await expect(olderUpdate).rejects.toThrow(
+        'changed while it was being validated',
+      );
+      expect(manager.getSources()).toEqual([newer]);
+    });
+
+    it('does not cache an old discovery response after the source is edited', async () => {
+      const source = writeMarketplace('original.json', manifest('Original'));
+      const manager = createExtensionManager();
+      await manager.addSource(source);
+      let finishDiscovery!: (config: ClaudeMarketplaceConfig) => void;
+      const load = vi
+        .spyOn(marketplace, 'loadMarketplaceConfigFromSource')
+        .mockReturnValueOnce(
+          new Promise<ClaudeMarketplaceConfig>((resolve) => {
+            finishDiscovery = resolve;
+          }),
+        )
+        .mockResolvedValue(manifest('Updated', 'next-plugin'));
+
+      const oldDiscovery = manager.discoverPlugins();
+      await manager.updateSource('Original', 'https://example.com/new.json');
+      finishDiscovery(manifest('Original'));
+      expect((await oldDiscovery)[0].name).toBe('first-plugin');
+
+      const current = await manager.discoverPlugins();
+
+      expect(current[0].name).toBe('next-plugin');
+      expect(load).toHaveBeenCalledTimes(3);
+      expect(load).toHaveBeenLastCalledWith(
+        'https://example.com/new.json',
+        undefined,
+      );
+    });
+
+    it('keeps discovery and balances mutation events when persistence fails', async () => {
+      const source = writeMarketplace('original.json', manifest('Original'));
+      const replacement = writeMarketplace(
+        'replacement.json',
+        manifest('Updated'),
+      );
+      const manager = createExtensionManager();
+      await manager.addSource(source);
+      const cached = await manager.discoverPlugins();
+      const persisted = fs.readFileSync(registryPath(), 'utf-8');
+      const events: ExtensionMutationEvent[] = [];
+      manager.addMutationListener((event) => events.push(event));
+      vi.spyOn(atomicFileWrite, 'atomicWriteFileSync').mockImplementation(
+        () => {
+          throw new Error('Registry write failed');
+        },
+      );
+      const load = vi.spyOn(marketplace, 'loadMarketplaceConfigFromSource');
+
+      await expect(
+        manager.updateSource('Original', replacement),
+      ).rejects.toThrow('Registry write failed');
+
+      expect(fs.readFileSync(registryPath(), 'utf-8')).toBe(persisted);
+      expect(await manager.discoverPlugins()).toEqual(cached);
+      expect(load).toHaveBeenCalledTimes(1);
+      expect(events).toEqual([
+        { id: 2, phase: 'start', operation: 'updateSource' },
+        { id: 2, phase: 'end', operation: 'updateSource' },
+      ]);
+    });
+  });
 
   describe('extension workflows', () => {
     const workflowSource = (name: string) =>

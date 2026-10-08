@@ -9,6 +9,7 @@ import { render } from 'ink-testing-library';
 import { TextInput, type TextInputProps } from './TextInput.js';
 import { useKeypress } from '../../hooks/useKeypress.js';
 import type { Key } from '../../hooks/useKeypress.js';
+import * as textBuffer from './text-buffer.js';
 
 vi.mock('../../hooks/useKeypress.js', () => ({
   useKeypress: vi.fn(),
@@ -99,6 +100,35 @@ describe('TextInput', () => {
   });
 
   describe('mask', () => {
+    it.each([true, false])(
+      'honors external-editor access %s when Ctrl+X is pressed',
+      (allowed) => {
+        const original = textBuffer.useTextBuffer;
+        const openInExternalEditor = vi.fn();
+        const spy = vi
+          .spyOn(textBuffer, 'useTextBuffer')
+          .mockImplementation((options) => ({
+            ...original(options),
+            openInExternalEditor,
+          }));
+        try {
+          render(
+            <TextInput
+              value="private-value"
+              onChange={onChange}
+              allowExternalEditor={allowed}
+            />,
+          );
+          captureKeypressHandler()(
+            makeKey({ name: 'x', ctrl: true, sequence: '\x18' }),
+          );
+          expect(openInExternalEditor).toHaveBeenCalledTimes(allowed ? 1 : 0);
+        } finally {
+          spy.mockRestore();
+        }
+      },
+    );
+
     it('shows the masked value, never the typed characters', () => {
       const key = 'zai-7c1f0123456789ab3f9a';
       const { lastFrame } = render(

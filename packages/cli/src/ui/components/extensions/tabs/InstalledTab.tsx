@@ -78,6 +78,7 @@ interface InstalledTabProps {
   onStatus: (status: StatusMessage | null) => void;
   extensionsUpdateState: Map<string, string>;
   reloadSignal: number;
+  availableTerminalHeight?: number;
   /** Adopt the state an update settled on into the app's update-state map. */
   onUpdateStateChange?: (name: string, state: ExtensionUpdateState) => void;
 }
@@ -101,6 +102,7 @@ export const InstalledTab = ({
   extensionsUpdateState,
   reloadSignal,
   onUpdateStateChange,
+  availableTerminalHeight,
 }: InstalledTabProps) => {
   const [items, setItems] = useState<InstalledItem[]>([]);
   const [selectedIndex, setSelectedIndex] = useState(0);
@@ -697,6 +699,7 @@ export const InstalledTab = ({
         onReload={load}
         onExit={goToList}
         onUpdateStateChange={onUpdateStateChange}
+        availableTerminalHeight={availableTerminalHeight}
       />
     );
   }

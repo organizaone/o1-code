@@ -20,6 +20,7 @@ export type PluginDetailAction =
   | 'toggle'
   | 'favorite'
   | 'change-scope'
+  | 'settings'
   | 'mark-update'
   | 'update'
   | 'uninstall';
@@ -102,6 +103,15 @@ export const PluginDetailView = ({
         label: t('Change scope'),
         value: 'change-scope',
       },
+      ...(ext.config.settings?.length
+        ? [
+            {
+              key: 'settings',
+              label: t('Plugin settings'),
+              value: 'settings' as const,
+            },
+          ]
+        : []),
       {
         key: 'mark-update',
         label: t('Mark for Update'),
@@ -117,7 +127,13 @@ export const PluginDetailView = ({
       },
     ];
     return items;
-  }, [isActive, isFavorite, hasUpdateAvailable, showFavorite]);
+  }, [
+    isActive,
+    isFavorite,
+    hasUpdateAvailable,
+    showFavorite,
+    ext.config.settings,
+  ]);
 
   // Cursor seed, resolved ONCE per mount against the rows offered at that
   // moment: the index of `initialAction`, or the first row when it is absent

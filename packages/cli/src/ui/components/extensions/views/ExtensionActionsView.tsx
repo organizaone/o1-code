@@ -25,15 +25,17 @@ import {
   type PluginDetailAction,
 } from './PluginDetailView.js';
 import { UninstallConfirmStep } from '../steps/UninstallConfirmStep.js';
+import { PluginSettingsView } from './PluginSettingsView.js';
 import type { StatusMessage } from '../ExtensionsManagerDialog.js';
 
-type SubView = 'detail' | 'scope-select' | 'uninstall-confirm';
+type SubView = 'detail' | 'scope-select' | 'uninstall-confirm' | 'settings';
 
 interface ExtensionActionsViewProps {
   config: Config;
   /** The extension to manage. A fresh mount is expected per detail open. */
   extension: Extension;
   isActive: boolean;
+  availableTerminalHeight?: number;
   /** Current update state for this extension, if known. */
   updateState?: string;
   /** Whether to offer the favorite toggle (hidden in the Sources tab). */
@@ -81,6 +83,7 @@ export const ExtensionActionsView = ({
   onReload,
   onExit,
   onUpdateStateChange,
+  availableTerminalHeight,
 }: ExtensionActionsViewProps) => {
   const manager = config.getExtensionManager();
   const [sub, setSub] = useState<SubView>('detail');
@@ -189,6 +192,11 @@ export const ExtensionActionsView = ({
           }
           case 'change-scope':
             setSub('scope-select');
+            break;
+          case 'settings':
+            setLastActivatedAction(action);
+            onStatus(null);
+            setSub('settings');
             break;
           case 'mark-update': {
             // Check only the selected extension (not every installed one), and
@@ -409,8 +417,21 @@ export const ExtensionActionsView = ({
       if (sub === 'detail') onExit();
       else setSub('detail');
     },
-    { isActive: isActive && sub !== 'uninstall-confirm' },
+    { isActive: isActive && sub !== 'uninstall-confirm' && sub !== 'settings' },
   );
+
+  if (sub === 'settings') {
+    return (
+      <PluginSettingsView
+        extension={extension}
+        isActive={isActive}
+        onExit={() => setSub('detail')}
+        onReload={onReload}
+        onStatus={onStatus}
+        availableTerminalHeight={availableTerminalHeight}
+      />
+    );
+  }
 
   if (sub === 'scope-select') {
     const items = scopeItems();

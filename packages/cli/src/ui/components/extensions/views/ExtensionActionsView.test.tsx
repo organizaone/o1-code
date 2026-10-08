@@ -18,12 +18,16 @@ import {
 import type { StatusMessage } from '../ExtensionsManagerDialog.js';
 import type { PluginDetailAction } from './PluginDetailView.js';
 import { ExtensionActionsView } from './ExtensionActionsView.js';
+import { useKeypress } from '../../../hooks/useKeypress.js';
 
 const mockPluginDetailView = vi.hoisted(() => vi.fn((_props: unknown) => null));
 const mockRadioButtonSelect = vi.hoisted(() =>
   vi.fn((_props: unknown) => null),
 );
 const mockUninstallConfirmStep = vi.hoisted(() =>
+  vi.fn((_props: unknown) => null),
+);
+const mockPluginSettingsView = vi.hoisted(() =>
   vi.fn((_props: unknown) => null),
 );
 
@@ -33,6 +37,9 @@ vi.mock('../../../hooks/useKeypress.js', () => ({
 
 vi.mock('./PluginDetailView.js', () => ({
   PluginDetailView: mockPluginDetailView,
+}));
+vi.mock('./PluginSettingsView.js', () => ({
+  PluginSettingsView: mockPluginSettingsView,
 }));
 
 vi.mock('../../shared/RadioButtonSelect.js', () => ({
@@ -123,6 +130,46 @@ async function openScopeSelect(): Promise<SelectProps> {
 describe('ExtensionActionsView', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+  });
+
+  it('keeps plugin parameter editing independent of activation and returns to its action', async () => {
+    const manager = createManager();
+    const onStatus = vi.fn();
+    const disabled = { ...extension, isActive: false };
+    const { onExit, onReload } = renderView(
+      manager,
+      onStatus,
+      vi.fn(),
+      vi.fn(),
+      disabled,
+    );
+    const detail = mockPluginDetailView.mock.calls.at(-1)?.[0] as DetailProps;
+    await act(async () => {
+      detail.onAction('settings');
+    });
+
+    const settings = mockPluginSettingsView.mock.calls.at(-1)?.[0] as {
+      extension: Extension;
+      isActive: boolean;
+      onExit: () => void;
+      onReload: () => void;
+    };
+    expect(settings.extension.isActive).toBe(false);
+    expect(settings.isActive).toBe(true);
+    expect(vi.mocked(useKeypress).mock.calls.at(-1)?.[1]?.isActive).toBe(false);
+    expect(manager.enableExtension).not.toHaveBeenCalled();
+    expect(manager.disableExtension).not.toHaveBeenCalled();
+    expect(onStatus).toHaveBeenCalledWith(null);
+
+    await act(async () => {
+      settings.onReload();
+      settings.onExit();
+    });
+    expect(onReload).toHaveBeenCalledOnce();
+    expect(onExit).not.toHaveBeenCalled();
+    expect(mockPluginDetailView.mock.calls.at(-1)?.[0]).toMatchObject({
+      initialAction: 'settings',
+    });
   });
 
   it('commits a scope change atomically and surfaces committed warnings', async () => {

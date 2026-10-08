@@ -4,11 +4,12 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { Box, Text } from 'ink';
 import { theme } from '../../../semantic-colors.js';
 import { ICON } from '../../../constants.js';
 import { useKeypress } from '../../../hooks/useKeypress.js';
+import { useTerminalSize } from '../../../hooks/useTerminalSize.js';
 import { keyMatchers, Command } from '../../../keyMatchers.js';
 import { TextInput } from '../../shared/TextInput.js';
 import { RadioButtonSelect } from '../../shared/RadioButtonSelect.js';
@@ -19,10 +20,10 @@ import {
   type ExtensionSource,
   type ClaudeMarketplaceConfig,
   parseInstallSource,
-  redactUrlCredentials,
   createDebugLogger,
   isExtensionCommittedWithWarningsError,
 } from '@organizaone/o1-code-core';
+import { redactUrlCredentials } from '@organizaone/o1-code-core/extension/redaction.js';
 import { getErrorMessage } from '../../../../utils/errors.js';
 import { stripUnsafeCharacters } from '../../../utils/textUtils.js';
 import type { StatusMessage } from '../ExtensionsManagerDialog.js';
@@ -38,8 +39,9 @@ type SourcesView =
   | 'install-extension'
   | 'add'
   | 'detail'
+  | 'edit'
   | 'remove-confirm';
-type SourceDetailAction = 'browse' | 'update' | 'remove';
+type SourceDetailAction = 'browse' | 'update' | 'edit' | 'remove';
 
 // Flat, navigable entries shown on the Marketplaces tab list. Installed
 // extensions are not listed here — they live on the Installed tab.
@@ -59,6 +61,27 @@ interface SourcesTabProps {
   /** Provide a context-aware footer hint for the list (null = default). */
   onFooter: (hint: string | null) => void;
   reloadSignal: number;
+  terminalWidth?: number;
+  availableTerminalHeight?: number;
+}
+
+function sourceDisplay(value: string): string {
+  return stripUnsafeCharacters(redactUrlCredentials(value))
+    .replace(/[\r\n\t\x7f]/g, ' ')
+    .replace(/([?#])[^\s]*/g, '$1…');
+}
+
+function sourceInputDisplay(value: string, savedSourceHidden: boolean): string {
+  const authority = value.match(/^\s*[a-z][a-z0-9+.-]*:\/\/([^/?#]*)/i);
+  // An unfinished authority's colon can start either a password or a port.
+  const partialUserinfo =
+    authority &&
+    !authority[1].startsWith('[') &&
+    authority[1].includes(':') &&
+    (authority[0].length === value.length || !/:\d+$/.test(authority[1]));
+  return savedSourceHidden || partialUserinfo || sourceDisplay(value) !== value
+    ? value.replace(/./gu, '*')
+    : value;
 }
 
 function formatDate(iso?: string): string | null {
@@ -77,13 +100,24 @@ export const SourcesTab = ({
   onBrowse,
   onFooter,
   reloadSignal,
+  terminalWidth,
+  availableTerminalHeight,
 }: SourcesTabProps) => {
+  const { columns, rows } = useTerminalSize();
+  const contentHeight = Math.max(1, availableTerminalHeight ?? rows - 10);
+  const inputWidth = Math.max(
+    1,
+    Math.min(terminalWidth ?? Math.min(columns - 8, 96), columns - 8),
+  );
   const [sources, setSources] = useState<ExtensionSource[]>([]);
   const [extensions, setExtensions] = useState<Extension[]>([]);
   const [selectedIndex, setSelectedIndex] = useState(0);
   const [view, setView] = useState<SourcesView>('list');
   const [input, setInput] = useState('');
   const [busy, setBusy] = useState(false);
+  const savingSource = useRef(false);
+  const detailRequest = useRef(0);
+  const mounted = useRef(true);
   const [detailConfig, setDetailConfig] =
     useState<ClaudeMarketplaceConfig | null>(null);
   const [detailLoading, setDetailLoading] = useState(false);
@@ -93,6 +127,14 @@ export const SourcesTab = ({
   );
 
   const extensionManager = config.getExtensionManager();
+
+  useEffect(() => {
+    mounted.current = true;
+    return () => {
+      mounted.current = false;
+      detailRequest.current += 1;
+    };
+  }, []);
 
   const load = useCallback(async () => {
     if (!extensionManager) return;
@@ -135,7 +177,17 @@ export const SourcesTab = ({
       onFooter(null);
       return;
     }
+    if (view === 'edit') {
+      onFooter(
+        busy ? t('Saving source...') : t('Enter save source · Esc cancel'),
+      );
+      return () => onFooter(null);
+    }
     if (view === 'detail') {
+      if (busy) {
+        onFooter(t('Saving source...'));
+        return () => onFooter(null);
+      }
       // R re-fetches in the detail view either way; advertise it in the
       // footer (as a retry on failure, a refresh once loaded).
       if (detailLoading) {
@@ -167,13 +219,17 @@ export const SourcesTab = ({
     onFooter,
     detailLoading,
     detailConfig,
+    busy,
   ]);
 
   const goToList = useCallback(() => {
+    if (savingSource.current) return;
+    detailRequest.current++;
     setView('list');
     setInput('');
     setDetailConfig(null);
     setDetailSource(null);
+    setDetailLoading(false);
     onLockChange(false);
   }, [onLockChange]);
 
@@ -184,7 +240,9 @@ export const SourcesTab = ({
       const entry = await extensionManager.addSource(input.trim());
       onStatus({
         type: 'success',
-        text: t('Added marketplace "{{name}}".', { name: entry.name }),
+        text: t('Added marketplace "{{name}}".', {
+          name: sourceDisplay(entry.name),
+        }),
       });
       await load();
       onChanged();
@@ -192,7 +250,7 @@ export const SourcesTab = ({
     } catch (error) {
       onStatus({
         type: 'error',
-        text: redactUrlCredentials(getErrorMessage(error)),
+        text: sourceDisplay(getErrorMessage(error)),
       });
     } finally {
       setBusy(false);
@@ -207,7 +265,9 @@ export const SourcesTab = ({
       const ext = await extensionManager.installExtension(metadata);
       onStatus({
         type: 'success',
-        text: t('Installed extension "{{name}}".', { name: ext.name }),
+        text: t('Installed extension "{{name}}".', {
+          name: sourceDisplay(ext.name),
+        }),
       });
       await load();
       onChanged();
@@ -216,7 +276,7 @@ export const SourcesTab = ({
       if (isExtensionCommittedWithWarningsError(error)) {
         onStatus({
           type: 'warning',
-          text: redactUrlCredentials(getErrorMessage(error)),
+          text: sourceDisplay(getErrorMessage(error)),
         });
         await load();
         onChanged();
@@ -225,7 +285,7 @@ export const SourcesTab = ({
       }
       onStatus({
         type: 'error',
-        text: redactUrlCredentials(getErrorMessage(error)),
+        text: sourceDisplay(getErrorMessage(error)),
       });
     } finally {
       setBusy(false);
@@ -234,6 +294,8 @@ export const SourcesTab = ({
 
   const openSourceDetail = useCallback(
     async (source: ExtensionSource) => {
+      if (!mounted.current) return;
+      const request = ++detailRequest.current;
       onStatus(null);
       setDetailSource(source);
       setView('detail');
@@ -242,29 +304,106 @@ export const SourcesTab = ({
       setDetailConfig(null);
       try {
         const cfg = await extensionManager?.loadSource(source.source);
-        setDetailConfig(cfg ?? null);
+        if (mounted.current && request === detailRequest.current) {
+          setDetailConfig(cfg ?? null);
+        }
       } catch (error) {
-        debugLogger.error('Failed to load marketplace detail:', error);
+        if (mounted.current && request === detailRequest.current) {
+          debugLogger.error('Failed to load marketplace detail:', error);
+        }
       } finally {
-        setDetailLoading(false);
+        if (mounted.current && request === detailRequest.current) {
+          setDetailLoading(false);
+        }
       }
     },
     [extensionManager, onLockChange, onStatus],
   );
 
+  const submitEdit = useCallback(
+    async (submittedValue = input) => {
+      if (!extensionManager || !detailSource || savingSource.current) return;
+      if (!submittedValue.trim()) {
+        onStatus({ type: 'error', text: t('Enter a marketplace source.') });
+        return;
+      }
+      if (
+        /[\r\n\t\x7f]/.test(submittedValue) ||
+        stripUnsafeCharacters(submittedValue) !== submittedValue
+      ) {
+        onStatus({
+          type: 'error',
+          text: t(
+            'Enter a source on a single line without control characters.',
+          ),
+        });
+        return;
+      }
+      savingSource.current = true;
+      setBusy(true);
+      onStatus(null);
+      try {
+        const updated = await extensionManager.updateSource(
+          detailSource.name,
+          submittedValue.trim(),
+        );
+        if (!mounted.current) return;
+        await load();
+        if (!mounted.current) return;
+        const index = extensionManager
+          .getSources()
+          .findIndex((source) => source.name === updated.name);
+        if (index >= 0) setSelectedIndex(index + 2);
+        onChanged();
+        setInput('');
+        await openSourceDetail(updated);
+        if (!mounted.current) return;
+        onStatus({
+          type: 'success',
+          text: t('Marketplace source saved.'),
+        });
+      } catch (error) {
+        if (!mounted.current) return;
+        onStatus({
+          type: 'error',
+          text: t(sourceDisplay(getErrorMessage(error))),
+        });
+      } finally {
+        savingSource.current = false;
+        if (mounted.current) setBusy(false);
+      }
+    },
+    [
+      extensionManager,
+      detailSource,
+      input,
+      load,
+      onChanged,
+      onStatus,
+      openSourceDetail,
+    ],
+  );
+
   // Re-fetch the marketplace config for the currently-open detail. Used by the
   // R key so a failed load can be retried without leaving the detail view.
   const refetchDetail = useCallback(async () => {
-    if (!extensionManager || !detailSource) return;
+    if (!extensionManager || !detailSource || savingSource.current) return;
+    const request = ++detailRequest.current;
     setDetailLoading(true);
     setDetailConfig(null);
     try {
       const cfg = await extensionManager.loadSource(detailSource.source);
-      setDetailConfig(cfg ?? null);
+      if (mounted.current && request === detailRequest.current) {
+        setDetailConfig(cfg ?? null);
+      }
     } catch (error) {
-      debugLogger.error('Failed to load marketplace detail:', error);
+      if (mounted.current && request === detailRequest.current) {
+        debugLogger.error('Failed to load marketplace detail:', error);
+      }
     } finally {
-      setDetailLoading(false);
+      if (mounted.current && request === detailRequest.current) {
+        setDetailLoading(false);
+      }
     }
   }, [extensionManager, detailSource]);
 
@@ -281,23 +420,25 @@ export const SourcesTab = ({
         onStatus({
           type: 'success',
           text: t('Removed marketplace "{{name}}".', {
-            name: detailSource.name,
+            name: sourceDisplay(detailSource.name),
           }),
         });
         void load();
         onChanged();
       }
     } catch (error) {
-      onStatus({ type: 'error', text: getErrorMessage(error) });
+      onStatus({ type: 'error', text: sourceDisplay(getErrorMessage(error)) });
     }
     goToList();
   }, [extensionManager, detailSource, onStatus, load, onChanged, goToList]);
 
   const updateSource = useCallback(async () => {
-    if (!extensionManager || !detailSource) return;
+    if (!extensionManager || !detailSource || savingSource.current) return;
+    const request = ++detailRequest.current;
     setDetailLoading(true);
     try {
       const cfg = await extensionManager.loadSource(detailSource.source);
+      if (!mounted.current || request !== detailRequest.current) return;
       setDetailConfig(cfg ?? null);
       // loadSource returns null when the marketplace is unreachable / invalid.
       // Only advance the lastUpdated timestamp and report success on a real
@@ -306,7 +447,7 @@ export const SourcesTab = ({
         onStatus({
           type: 'error',
           text: t('Could not update marketplace "{{name}}".', {
-            name: detailSource.name,
+            name: sourceDisplay(detailSource.name),
           }),
         });
         await load();
@@ -314,33 +455,47 @@ export const SourcesTab = ({
       }
       extensionManager.markSourceUpdated(detailSource.name);
       await load();
+      if (!mounted.current || request !== detailRequest.current) return;
       onChanged();
       onStatus({
         type: 'success',
-        text: t('Updated marketplace "{{name}}".', { name: detailSource.name }),
+        text: t('Updated marketplace "{{name}}".', {
+          name: sourceDisplay(detailSource.name),
+        }),
       });
     } catch (error) {
+      if (!mounted.current || request !== detailRequest.current) return;
       onStatus({
         type: 'error',
-        text: redactUrlCredentials(getErrorMessage(error)),
+        text: sourceDisplay(getErrorMessage(error)),
       });
     } finally {
-      setDetailLoading(false);
+      if (mounted.current && request === detailRequest.current) {
+        setDetailLoading(false);
+      }
     }
   }, [extensionManager, detailSource, load, onChanged, onStatus]);
 
   const handleSourceDetailAction = useCallback(
     (action: SourceDetailAction) => {
-      if (!detailSource) return;
+      if (!detailSource || detailLoading || savingSource.current) return;
       if (action === 'browse') {
         onBrowse(detailSource.name);
       } else if (action === 'update') {
         void updateSource();
+      } else if (action === 'edit') {
+        onStatus(null);
+        setInput(
+          sourceDisplay(detailSource.source) === detailSource.source
+            ? detailSource.source
+            : '',
+        );
+        setView('edit');
       } else if (action === 'remove') {
         setView('remove-confirm');
       }
     },
-    [detailSource, onBrowse, updateSource],
+    [detailSource, detailLoading, onBrowse, updateSource, onStatus],
   );
 
   // List keyboard: navigate entries, Enter dispatches by kind, d removes.
@@ -405,6 +560,7 @@ export const SourcesTab = ({
   // the selector owns Enter.
   useKeypress(
     (key) => {
+      if (savingSource.current) return;
       if (key.name === 'escape') {
         goToList();
       } else if (
@@ -419,6 +575,17 @@ export const SourcesTab = ({
     { isActive: isActive && view === 'detail' },
   );
 
+  useKeypress(
+    (key) => {
+      if (key.name === 'escape' && !savingSource.current) {
+        setInput('');
+        onStatus(null);
+        setView('detail');
+      }
+    },
+    { isActive: isActive && view === 'edit' },
+  );
+
   // Remove-marketplace confirmation.
   useKeypress(
     (key) => {
@@ -430,6 +597,84 @@ export const SourcesTab = ({
     },
     { isActive: isActive && view === 'remove-confirm' },
   );
+
+  if (view === 'edit' && detailSource) {
+    const savedSourceHidden =
+      sourceDisplay(detailSource.source) !== detailSource.source;
+    const budget = contentHeight;
+    const headerRows = budget >= 9 ? 3 : budget >= 7 ? 2 : budget >= 5 ? 1 : 0;
+    const showFooter = budget >= 2;
+    const indicatorRows = budget >= 4 ? 2 : 0;
+    const inputHeight = Math.max(
+      1,
+      Math.min(3, budget - headerRows - Number(showFooter) - indicatorRows),
+    );
+    const helpHeight = Math.max(
+      0,
+      Math.min(
+        4,
+        budget - headerRows - inputHeight - Number(showFooter) - indicatorRows,
+      ),
+    );
+    return (
+      <Box
+        flexDirection="column"
+        width={inputWidth}
+        maxHeight={budget}
+        overflowY="hidden"
+      >
+        {headerRows > 0 && (
+          <Text color={theme.text.primary} bold wrap="truncate-end">
+            {t('Edit marketplace source')}
+          </Text>
+        )}
+        {headerRows > 1 && (
+          <Text color={theme.text.secondary} wrap="truncate-end">
+            {sourceDisplay(detailSource.name)}
+          </Text>
+        )}
+        {headerRows > 2 && (
+          <Text color={theme.text.secondary} wrap="truncate-end">
+            {sourceDisplay(detailSource.source)}
+          </Text>
+        )}
+        {helpHeight > 0 && (
+          <Box height={helpHeight} flexShrink={0} overflowY="hidden">
+            <Text
+              color={
+                savedSourceHidden ? theme.status.warning : theme.text.secondary
+              }
+            >
+              {savedSourceHidden
+                ? t(
+                    'The saved source contains hidden values. Enter a replacement; cancel keeps the original source.',
+                  )
+                : t(
+                    'Changes affect marketplace discovery. Installed extensions keep their sources.',
+                  )}
+            </Text>
+          </Box>
+        )}
+        <TextInput
+          value={input}
+          onChange={setInput}
+          onSubmit={(text) => void submitEdit(text)}
+          inputWidth={Math.max(1, inputWidth - 3)}
+          height={inputHeight}
+          showScrollIndicator={indicatorRows > 0}
+          allowExternalEditor={false}
+          isActive={isActive && !busy}
+          mask={(text) => sourceInputDisplay(text, savedSourceHidden)}
+          placeholder={t('URL, repository or local path')}
+        />
+        {showFooter && (
+          <Text color={theme.text.secondary} wrap="truncate-end">
+            {busy ? t('Saving source...') : t('Enter save · Esc cancel')}
+          </Text>
+        )}
+      </Box>
+    );
+  }
 
   if (view === 'install-extension') {
     return (
@@ -500,6 +745,27 @@ export const SourcesTab = ({
   }
 
   if (view === 'detail' && detailSource) {
+    const detailHeight = Math.max(
+      1,
+      availableTerminalHeight ?? Number.MAX_SAFE_INTEGER,
+    );
+    const compact = detailHeight < 12;
+    const headerRows = detailHeight >= 8 ? 2 : detailHeight >= 6 ? 1 : 0;
+    const showCount = detailHeight >= 7;
+    const previewLimit = Math.max(
+      0,
+      Math.min(
+        INSTALLED_PREVIEW_LIMIT,
+        detailHeight -
+          headerRows -
+          Number(showCount) -
+          4 -
+          (compact ? 0 : 3) -
+          2,
+      ),
+    );
+    const showInstalled =
+      detailHeight > headerRows + Number(showCount) + 4 + (compact ? 0 : 3);
     const plugins = detailConfig?.plugins ?? [];
     const availableCount = plugins.length;
     const installedNames = new Set(extensions.map((ext) => ext.name));
@@ -529,55 +795,64 @@ export const SourcesTab = ({
           : t('Update marketplace'),
         value: 'update',
       },
+      { key: 'edit', label: t('Edit source'), value: 'edit' },
       { key: 'remove', label: t('Remove marketplace'), value: 'remove' },
     ];
 
     return (
-      <Box flexDirection="column" gap={1}>
-        <Box flexDirection="column">
-          <Text color={theme.text.primary} bold>
-            {stripUnsafeCharacters(detailSource.name)}
-          </Text>
-          <Text color={theme.text.secondary}>
-            {redactUrlCredentials(detailSource.source)}
-          </Text>
-        </Box>
+      <Box flexDirection="column" gap={compact ? 0 : 1}>
+        {headerRows > 0 && (
+          <Box flexDirection="column" width={inputWidth}>
+            <Text color={theme.text.primary} bold wrap="truncate-end">
+              {sourceDisplay(detailSource.name)}
+            </Text>
+            {headerRows > 1 && (
+              <Text color={theme.text.secondary} wrap="truncate-end">
+                {sourceDisplay(detailSource.source)}
+              </Text>
+            )}
+          </Box>
+        )}
 
         {detailLoading ? (
-          <Text color={theme.text.secondary}>{t('Loading...')}</Text>
+          <Text color={theme.text.secondary}>
+            {busy ? t('Saving source...') : t('Loading...')}
+          </Text>
         ) : detailConfig ? (
-          <Box flexDirection="column" gap={1}>
-            <Text color={theme.text.primary}>
-              {t('{{count}} available extensions', {
-                count: String(availableCount),
-              })}
-            </Text>
+          <Box flexDirection="column" gap={compact ? 0 : 1}>
+            {showCount && (
+              <Text color={theme.text.primary}>
+                {t('{{count}} available extensions', {
+                  count: String(availableCount),
+                })}
+              </Text>
+            )}
 
-            {installedHere.length > 0 ? (
+            {installedHere.length > 0 && showInstalled ? (
               <Box flexDirection="column">
-                <Text color={theme.text.primary} bold>
-                  {t('Installed extensions ({{count}}):', {
-                    count: String(installedHere.length),
-                  })}
-                </Text>
-                {installedHere.slice(0, INSTALLED_PREVIEW_LIMIT).map((p) => (
+                {previewLimit > 0 && (
+                  <Text color={theme.text.primary} bold>
+                    {t('Installed extensions ({{count}}):', {
+                      count: String(installedHere.length),
+                    })}
+                  </Text>
+                )}
+                {installedHere.slice(0, previewLimit).map((p) => (
                   <Box key={p.name}>
                     <Box minWidth={2} flexShrink={0}>
                       <Text color={theme.status.success}>
                         {ICON.CIRCLE_FILLED}
                       </Text>
                     </Box>
-                    <Text color={theme.text.primary}>
+                    <Text color={theme.text.primary} wrap="truncate-end">
                       {stripUnsafeCharacters(p.name)}
                     </Text>
                   </Box>
                 ))}
-                {installedHere.length > INSTALLED_PREVIEW_LIMIT ? (
-                  <Text color={theme.text.secondary}>
+                {installedHere.length > previewLimit ? (
+                  <Text color={theme.text.secondary} wrap="truncate-end">
                     {t('... and {{count}} more', {
-                      count: String(
-                        installedHere.length - INSTALLED_PREVIEW_LIMIT,
-                      ),
+                      count: String(installedHere.length - previewLimit),
                     })}
                   </Text>
                 ) : null}
@@ -592,15 +867,24 @@ export const SourcesTab = ({
             />
           </Box>
         ) : (
-          <Box flexDirection="column" gap={1}>
-            <Text color={theme.status.error}>
-              {t('Could not load this marketplace.')}
-            </Text>
-            <Text color={theme.text.secondary}>
-              {t('Press R to retry · Esc to go back')}
-            </Text>
+          <Box flexDirection="column" gap={compact ? 0 : 1}>
+            {detailHeight - headerRows >= 3 && (
+              <Text color={theme.status.error} wrap="truncate-end">
+                {t('Could not load this marketplace.')}
+              </Text>
+            )}
+            {detailHeight - headerRows >= 4 + (compact ? 0 : 2) && (
+              <Text color={theme.text.secondary} wrap="truncate-end">
+                {t('Press R to retry · Esc to go back')}
+              </Text>
+            )}
             <RadioButtonSelect
               items={[
+                {
+                  key: 'edit',
+                  label: t('Edit source'),
+                  value: 'edit' as SourceDetailAction,
+                },
                 {
                   key: 'remove',
                   label: t('Remove marketplace'),
@@ -622,7 +906,7 @@ export const SourcesTab = ({
       <Box flexDirection="column" gap={1}>
         <Text color={theme.status.warning}>
           {t('Remove marketplace "{{name}}"?', {
-            name: stripUnsafeCharacters(detailSource?.name ?? ''),
+            name: sourceDisplay(detailSource?.name ?? ''),
           })}
         </Text>
         <Text color={theme.text.secondary}>
@@ -640,23 +924,35 @@ export const SourcesTab = ({
     isAction = false,
   ) => {
     const isSelected = index === selectedIndex;
+    const markerWidth = Math.min(2, inputWidth);
+    const availableWidth = inputWidth - markerWidth;
+    const showRight =
+      rightText && availableWidth >= 24 && (!isAction || inputWidth >= 64);
+    const rightWidth = showRight ? Math.floor((availableWidth - 1) / 2) : 0;
+    const labelWidth = availableWidth - (showRight ? rightWidth + 1 : 0);
     const labelColor = isSelected
       ? theme.text.accent
       : isAction
         ? theme.text.link
         : theme.text.primary;
     return (
-      <Box key={`row-${index}`}>
-        <Box minWidth={2} flexShrink={0}>
+      <Box key={`row-${index}`} width={inputWidth} flexShrink={0}>
+        <Box width={markerWidth} flexShrink={0}>
           <Text color={isSelected ? theme.text.accent : theme.text.primary}>
             {isSelected ? ICON.CIRCLE_FILLED : ' '}
           </Text>
         </Box>
-        <Box flexGrow={1}>
-          <Text color={labelColor}>{label}</Text>
+        <Box width={labelWidth} flexShrink={0}>
+          <Text color={labelColor} wrap="truncate-end">
+            {label}
+          </Text>
         </Box>
-        {rightText ? (
-          <Text color={theme.text.secondary}>{rightText}</Text>
+        {showRight ? (
+          <Box width={rightWidth} marginLeft={1} flexShrink={0}>
+            <Text color={theme.text.secondary} wrap="truncate-end">
+              {rightText}
+            </Text>
+          </Box>
         ) : null}
       </Box>
     );
@@ -690,8 +986,8 @@ export const SourcesTab = ({
               // Persisted marketplace name is stored raw from untrusted config;
               // scrub it at the render site (also defends already-persisted
               // entries) like the detail header does.
-              stripUnsafeCharacters(source.name),
-              `${redactUrlCredentials(source.source)} (${source.type})`,
+              sourceDisplay(source.name),
+              `${sourceDisplay(source.source)} (${source.type})`,
             ),
           )}
         </Box>

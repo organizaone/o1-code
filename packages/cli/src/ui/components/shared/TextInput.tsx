@@ -35,6 +35,7 @@ export interface TextInputProps {
   initialCursorOffset?: number;
   ellipsizeOverflow?: boolean;
   showScrollIndicator?: boolean;
+  allowExternalEditor?: boolean;
   /**
    * Transforms each shown line, e.g. to hide a secret. It must keep the
    * line's length so the cursor stays where the person is typing.
@@ -71,6 +72,7 @@ export function TextInput({
   initialCursorOffset,
   ellipsizeOverflow = false,
   showScrollIndicator = false,
+  allowExternalEditor = true,
   mask,
 }: TextInputProps) {
   const allowMultiline = height > 1;
@@ -180,7 +182,7 @@ export function TextInput({
       }
 
       if (keyMatchers[Command.OPEN_EXTERNAL_EDITOR](key)) {
-        buffer.openInExternalEditor();
+        if (allowExternalEditor) buffer.openInExternalEditor();
         return;
       }
 

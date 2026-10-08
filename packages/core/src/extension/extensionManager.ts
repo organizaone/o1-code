@@ -27,6 +27,7 @@ import * as os from 'node:os';
 
 import { atomicWriteFile } from '../utils/atomicFileWrite.js';
 import { getErrorMessage } from '../utils/errors.js';
+import { stripAnsiAndControl } from '../utils/textUtils.js';
 import {
   EXTENSIONS_CONFIG_FILENAME,
   EXTENSION_SETTINGS_FILENAME,
@@ -1280,6 +1281,59 @@ export class ExtensionManager {
     }
   }
 
+  async updateSource(name: string, source: string): Promise<ExtensionSource> {
+    const original = this.getSources().find((entry) => entry.name === name);
+    if (!original) {
+      throw new Error('The selected marketplace source no longer exists.');
+    }
+    if (stripAnsiAndControl(source) !== source) {
+      throw new Error(
+        'Marketplace source must be a single line without control characters.',
+      );
+    }
+    const trimmed = source.trim();
+    if (!trimmed) {
+      throw new Error('Marketplace source cannot be empty.');
+    }
+    const config = await loadMarketplaceConfigFromSource(
+      trimmed,
+      this.networkPolicy,
+    );
+    if (
+      !config ||
+      typeof config !== 'object' ||
+      Array.isArray(config) ||
+      (config.name !== undefined && typeof config.name !== 'string') ||
+      !Array.isArray(config.plugins) ||
+      config.plugins.some(
+        (plugin) =>
+          !plugin ||
+          typeof plugin !== 'object' ||
+          typeof plugin.name !== 'string' ||
+          !plugin.name.trim(),
+      )
+    ) {
+      throw new Error(
+        'No valid marketplace found. Expected a marketplace manifest with a plugin list.',
+      );
+    }
+    const updated: ExtensionSource = {
+      ...original,
+      name: config.name || trimmed,
+      source: trimmed,
+      type: parseExtensionSourceType(trimmed),
+      lastUpdatedAt: new Date().toISOString(),
+    };
+    const endMutation = this.beginMutation('updateSource');
+    try {
+      this.sourceRegistryStore.replace(original, updated);
+      this.discoverCache = null;
+      return updated;
+    } finally {
+      endMutation();
+    }
+  }
+
   removeSource(name: string): boolean {
     const endMutation = this.beginMutation('removeSource');
     try {
@@ -1333,12 +1387,17 @@ export class ExtensionManager {
         installed: installedNames.has(plugin.name),
       }));
     }
+    const sources = this.getSources();
+    const sourceFingerprint = JSON.stringify(sources);
     const result = await discoverPlugins(
-      this.getSources(),
+      sources,
       installedNames,
       this.networkPolicy,
     );
-    this.discoverCache = result;
+    // An edit may complete while an older source listing is still loading.
+    if (JSON.stringify(this.getSources()) === sourceFingerprint) {
+      this.discoverCache = result;
+    }
     return result;
   }
 
