@@ -29,6 +29,7 @@ describe('Shell Command Processor - Encoding Functions', () => {
   let mockedChardetDetect: ReturnType<typeof vi.mocked<typeof chardetDetect>>;
 
   beforeEach(() => {
+    vi.resetAllMocks();
     mockedExecSync = vi.mocked(execSync);
     mockedOsPlatform = vi.mocked(os.platform);
     mockedChardetDetect = vi.mocked(chardetDetect);

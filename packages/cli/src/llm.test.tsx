@@ -159,17 +159,21 @@ vi.mock('@organizaone/o1-code-core', async (importOriginal) => {
 });
 
 vi.mock('./config/config.js', () => ({
-  loadCliConfig: vi.fn().mockResolvedValue({
-    getSandbox: vi.fn(() => false),
-    getQuestion: vi.fn(() => ''),
-    isInteractive: () => false,
-    isLspEnabled: () => false,
-    getLspClient: () => undefined,
-    getWarnings: vi.fn(() => []),
-    isSafeMode: vi.fn(() => false),
-    getModelsConfig: vi.fn(() => ({ getCurrentAuthType: () => null })),
-  } as unknown as Config),
-  parseArguments: vi.fn().mockResolvedValue({}),
+  loadCliConfig: vi.fn(
+    async () =>
+      ({
+        getSandbox: vi.fn(() => false),
+        getQuestion: vi.fn(() => ''),
+        isInteractive: () => false,
+        isLspEnabled: () => false,
+        getLspClient: () => undefined,
+        getWarnings: vi.fn(() => []),
+        getContentGeneratorConfig: () => undefined,
+        isSafeMode: vi.fn(() => false),
+        getModelsConfig: vi.fn(() => ({ getCurrentAuthType: () => null })),
+      }) as unknown as Config,
+  ),
+  parseArguments: vi.fn(async () => ({})),
   isDebugMode: vi.fn(() => false),
   buildDisabledSkillNamesProvider: vi.fn(() => () => new Set<string>()),
   buildEnabledSkillNamesProvider: vi.fn(() => () => new Set<string>()),
@@ -182,10 +186,10 @@ vi.mock('./config/config.js', () => ({
 }));
 
 vi.mock('read-package-up', () => ({
-  readPackageUp: vi.fn().mockResolvedValue({
+  readPackageUp: vi.fn(async () => ({
     packageJson: { name: 'test-pkg', version: 'test-version' },
     path: '/fake/path/package.json',
-  }),
+  })),
 }));
 
 vi.mock('update-notifier', () => ({
@@ -226,12 +230,12 @@ vi.mock('./config/sandboxConfig.js', () => ({
 }));
 
 vi.mock('./core/initializer.js', () => ({
-  initializeApp: vi.fn().mockResolvedValue({
+  initializeApp: vi.fn(async () => ({
     authError: null,
     themeError: null,
     shouldOpenAuthDialog: false,
     memoryFileCount: 0,
-  }),
+  })),
 }));
 
 vi.mock('./startup/startup-prefetch.js', () => ({
@@ -336,6 +340,7 @@ describe('llm.tsx main function', () => {
     [];
 
   beforeEach(() => {
+    vi.resetAllMocks();
     mockStartNonInteractiveOpenAILogHousekeeping.mockClear();
     mockStopNonInteractiveOpenAILogHousekeeping.mockClear();
     lspConfigWatcherMock.instances.length = 0;
@@ -429,7 +434,7 @@ describe('llm.tsx main function', () => {
           O1CODE_PRIVATE_EXTERNAL_TOOL_GUARD:
             EXTERNAL_TOOL_GUARD_REQUIRED_VALUE,
           O1CODE_PRIVATE_RELAUNCH_ENV_PROVENANCE:
-            '{"dotEnv":[],"settingsEnv":[]}',
+            '{"dotEnv":[],"settingsEnv":[],"credentialEnv":[],"supervised":true}',
         });
       },
     );
@@ -454,6 +459,7 @@ describe('llm.tsx main function', () => {
         getProjectRoot: () => '/',
         getOutputFormat: () => OutputFormat.TEXT,
         getWarnings: () => [],
+        getContentGeneratorConfig: () => undefined,
         isSafeMode: () => false,
         getModelsConfig: () => ({ getCurrentAuthType: () => null }),
         getSessionId: () => 'test-session-id',
@@ -501,7 +507,7 @@ describe('llm.tsx main function', () => {
           O1CODE_PRIVATE_EXTERNAL_TOOL_GUARD:
             EXTERNAL_TOOL_GUARD_REQUIRED_VALUE,
           O1CODE_PRIVATE_RELAUNCH_ENV_PROVENANCE:
-            '{"dotEnv":[],"settingsEnv":[]}',
+            '{"dotEnv":[],"settingsEnv":[],"credentialEnv":[],"supervised":true}',
         },
         onUpdateRelaunch: expect.any(Function),
       }),
@@ -536,7 +542,7 @@ describe('llm.tsx main function', () => {
           O1CODE_PRIVATE_ACP_CAPABILITY: 'private-capability',
           O1CODE_PRIVATE_CONVERSATIONS_RUNTIME: '1',
           O1CODE_PRIVATE_RELAUNCH_ENV_PROVENANCE:
-            '{"dotEnv":[],"settingsEnv":[]}',
+            '{"dotEnv":[],"settingsEnv":[],"credentialEnv":[],"supervised":true}',
         });
       },
     );
@@ -566,6 +572,7 @@ describe('llm.tsx main function', () => {
         getProjectRoot: () => '/',
         getOutputFormat: () => OutputFormat.TEXT,
         getWarnings: () => [],
+        getContentGeneratorConfig: () => undefined,
         isSafeMode: () => false,
         getModelsConfig: () => ({ getCurrentAuthType: () => null }),
         getSessionId: () => 'test-session-id',
@@ -604,7 +611,7 @@ describe('llm.tsx main function', () => {
           O1CODE_PRIVATE_ACP_CAPABILITY: 'private-capability',
           O1CODE_PRIVATE_CONVERSATIONS_RUNTIME: '1',
           O1CODE_PRIVATE_RELAUNCH_ENV_PROVENANCE:
-            '{"dotEnv":[],"settingsEnv":[]}',
+            '{"dotEnv":[],"settingsEnv":[],"credentialEnv":[],"supervised":true}',
         },
         onUpdateRelaunch: expect.any(Function),
       }),
@@ -657,6 +664,7 @@ describe('llm.tsx main function', () => {
           getProjectRoot: () => '/',
           getOutputFormat: () => OutputFormat.TEXT,
           getWarnings: () => [],
+          getContentGeneratorConfig: () => undefined,
           isSafeMode: () => false,
           getModelsConfig: () => ({ getCurrentAuthType: () => null }),
           getSessionId: () => 'test-session-id',
@@ -714,7 +722,7 @@ describe('llm.tsx main function', () => {
         expect(options?.childEnv).toEqual({
           O1CODE_PRIVATE_ACP_CAPABILITY: 'private-capability',
           O1CODE_PRIVATE_RELAUNCH_ENV_PROVENANCE:
-            '{"dotEnv":[],"settingsEnv":[]}',
+            '{"dotEnv":[],"settingsEnv":[],"credentialEnv":[],"supervised":true}',
         });
       },
     );
@@ -739,6 +747,7 @@ describe('llm.tsx main function', () => {
           getProjectRoot: () => '/',
           getOutputFormat: () => OutputFormat.TEXT,
           getWarnings: () => [],
+          getContentGeneratorConfig: () => undefined,
           isSafeMode: () => false,
           getModelsConfig: () => ({ getCurrentAuthType: () => null }),
           getSessionId: () => 'test-session-id',
@@ -843,6 +852,7 @@ describe('llm.tsx main function', () => {
           getProjectRoot: () => '/',
           getOutputFormat: () => OutputFormat.TEXT,
           getWarnings: () => [],
+          getContentGeneratorConfig: () => undefined,
           isSafeMode: () => false,
           getModelsConfig: () => ({ getCurrentAuthType: () => null }),
           getSessionId: () => 'test-session-id',
@@ -1559,6 +1569,7 @@ describe('llm.tsx main function', () => {
       getProjectRoot: () => '/',
       getOutputFormat: () => OutputFormat.TEXT,
       getWarnings: () => [],
+      getContentGeneratorConfig: () => undefined,
       isSafeMode: () => false,
       getModelsConfig: () => ({ getCurrentAuthType: () => null }),
       getSessionId: () => 'test-session-id',
@@ -2608,6 +2619,7 @@ describe('llm.tsx main function kitty protocol', () => {
   let initialSigtermListeners: NodeJS.SignalsListener[];
 
   beforeEach(() => {
+    vi.resetAllMocks();
     // Set no relaunch in tests since process spawning causing issues in tests
     originalEnvNoRelaunch = process.env['O1CODE_NO_RELAUNCH'];
     process.env['O1CODE_NO_RELAUNCH'] = 'true';
@@ -2690,6 +2702,7 @@ describe('llm.tsx main function kitty protocol', () => {
       getScreenReader: () => false,
       getMemoryFileCount: () => 0,
       getWarnings: () => [],
+      getContentGeneratorConfig: () => undefined,
       isSafeMode: () => false,
       getModelsConfig: () => ({ getCurrentAuthType: () => null }),
       getUsageStatisticsEnabled: () => true,
@@ -2820,6 +2833,7 @@ describe('llm.tsx main function kitty protocol', () => {
       getScreenReader: () => false,
       getMemoryFileCount: () => 0,
       getWarnings: () => [],
+      getContentGeneratorConfig: () => undefined,
       isSafeMode: () => false,
       getModelsConfig: () => ({ getCurrentAuthType: () => null }),
       getUsageStatisticsEnabled: () => true,
@@ -2949,6 +2963,7 @@ describe('llm.tsx main function kitty protocol', () => {
       getScreenReader: () => false,
       getMemoryFileCount: () => 0,
       getWarnings: () => [],
+      getContentGeneratorConfig: () => undefined,
       isSafeMode: () => false,
       getModelsConfig: () => ({ getCurrentAuthType: () => null }),
       getUsageStatisticsEnabled: () => true,
@@ -3075,6 +3090,7 @@ describe('llm.tsx main function kitty protocol', () => {
       getScreenReader: () => false,
       getMemoryFileCount: () => 0,
       getWarnings: () => [],
+      getContentGeneratorConfig: () => undefined,
       isSafeMode: () => false,
       getModelsConfig: () => ({ getCurrentAuthType: () => null }),
       getUsageStatisticsEnabled: () => true,
@@ -3228,6 +3244,7 @@ describe('llm.tsx main function kitty protocol', () => {
       getScreenReader: () => false,
       getMemoryFileCount: () => 0,
       getWarnings: () => [],
+      getContentGeneratorConfig: () => undefined,
       isSafeMode: () => false,
       getModelsConfig: () => ({
         getCurrentAuthType: () => null,
@@ -3548,6 +3565,7 @@ describe('llm.tsx main function kitty protocol', () => {
       getScreenReader: () => false,
       getMemoryFileCount: () => 0,
       getWarnings: () => [],
+      getContentGeneratorConfig: () => undefined,
       isSafeMode: () => false,
       getModelsConfig: () => ({ getCurrentAuthType: () => null }),
       getUsageStatisticsEnabled: () => true,
@@ -3764,7 +3782,7 @@ describe('startInteractiveUI', () => {
   }));
 
   vi.mock('ink', () => ({
-    render: vi.fn().mockReturnValue({ unmount: vi.fn() }),
+    render: vi.fn(() => ({ unmount: vi.fn() })),
   }));
 
   vi.mock('./ui/components/shared/ErrorBoundary.js', async (importOriginal) => {
@@ -3843,6 +3861,7 @@ describe('startInteractiveUI', () => {
       exitOnCtrlC: false,
       isScreenReaderEnabled: false,
       alternateScreen: true,
+      incrementalRendering: true,
       maxFps: 60,
     });
 

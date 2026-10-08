@@ -112,6 +112,17 @@ export function registerWorkspaceAuthRoutes(
         });
         return;
       }
+      if (
+        knownProvider.comingSoon ||
+        knownProvider.signIn ||
+        knownProvider.connection
+      ) {
+        res.status(400).json({
+          error: 'This provider requires a dedicated connection flow',
+          code: 'unsupported_provider',
+        });
+        return;
+      }
       if (installRequest.protocol) {
         const allowedProtocols =
           knownProvider.protocolOptions && knownProvider.protocolOptions.length

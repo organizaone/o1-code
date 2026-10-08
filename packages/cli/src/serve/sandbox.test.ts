@@ -14,7 +14,7 @@ import {
   PRIVATE_ACP_CAPABILITY_ENV,
   O1CODE_DIR,
 } from '@organizaone/o1-code-core';
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 const spawnMock = vi.hoisted(() => vi.fn());
 const execSyncMock = vi.hoisted(() => vi.fn());
@@ -42,6 +42,11 @@ import {
 } from './sandbox.js';
 import { parseSandboxImageName } from '../utils/sandboxImageName.js';
 import { parseSandboxMountSpec } from '../utils/sandboxMounts.js';
+
+beforeEach(() => {
+  spawnMock.mockReset();
+  execSyncMock.mockReset();
+});
 
 afterEach(() => {
   vi.restoreAllMocks();

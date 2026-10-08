@@ -59,6 +59,8 @@ import type {
 } from '@organizaone/o1-code-acp-bridge/bridgeTypes';
 import type { ServeWorkspaceSkillStatus } from '@organizaone/o1-code-acp-bridge/status';
 import * as o1codeCore from '@organizaone/o1-code-core';
+import { readSavedApiKey } from '@organizaone/o1-code-core/providers/credential-store.js';
+import { generateCustomCredentialId } from '@organizaone/o1-code-core/providers/presets/custom-provider.js';
 import * as serverModule from './server.js';
 import type { IdleAcpReclaimer } from './idle-acp-reclamation.js';
 import { hashDaemonWorkspace } from '@organizaone/o1-code-core/telemetry/daemon-tracing.js';
@@ -424,6 +426,10 @@ it.each([
     const envKey =
       o1codeCore.generateCustomEnvKey(o1codeCore.AuthType.USE_OPENAI, baseUrl) +
       (purpose === 'chat' ? '' : `_${purpose.toUpperCase()}`);
+    const credential =
+      purpose === 'chat'
+        ? generateCustomCredentialId(o1codeCore.AuthType.USE_OPENAI, baseUrl)
+        : `env-${envKey.toLowerCase().replace(/_/g, '-')}`;
     vi.stubEnv(envKey, 'before');
     const model = {
       id,
@@ -491,8 +497,10 @@ it.each([
         );
       }
       const saved = JSON.parse(fs.readFileSync(file, 'utf8'));
-      expect(saved.modelProviders.openai).toEqual([model]);
-      expect(saved.env[envKey]).toBe('after');
+      expect(saved.modelProviders.openai).toEqual([{ ...model, credential }]);
+      expect(readSavedApiKey(credential)).toBe('after');
+      expect(saved.env[envKey]).toBe('before');
+      expect(process.env[envKey]).toBe('before');
       if (purpose !== 'chat') {
         expect(saved.security?.auth?.selectedType).toBeUndefined();
         expect(saved.model?.name).toBeUndefined();
@@ -515,6 +523,7 @@ it.each([
       ).toEqual([
         {
           ...model,
+          credential,
           generationConfig: { customHeaders: { 'X-Route': 'paid' } },
         },
       ]);

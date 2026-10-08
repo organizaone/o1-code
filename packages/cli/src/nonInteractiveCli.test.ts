@@ -275,6 +275,7 @@ describe('runNonInteractive', () => {
   let goalRuntime: GoalRuntime;
 
   beforeEach(async () => {
+    vi.resetAllMocks();
     // Reset module-level state from any prior test in this file. Without
     // these resets the once-set exit latch parks subsequent JSON-mode
     // handleError tests in the never-resolving promise (5s vitest timeout).

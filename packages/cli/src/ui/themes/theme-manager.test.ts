@@ -55,6 +55,7 @@ const validCustomTheme: CustomTheme = {
 
 describe('ThemeManager', () => {
   beforeEach(() => {
+    vi.resetAllMocks();
     // Reset themeManager state. themeManager is a module-level singleton,
     // so the cached async auto-detection result would otherwise leak across
     // tests and make ordering load-bearing.

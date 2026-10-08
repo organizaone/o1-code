@@ -23,6 +23,7 @@ import { StreamJsonOutputAdapter } from './io/StreamJsonOutputAdapter.js';
 import { ControlDispatcher } from './control/ControlDispatcher.js';
 import { ControlContext } from './control/ControlContext.js';
 import { ControlService } from './control/ControlService.js';
+import { mockConstructorReturning } from '../test-utils/mock-constructor.js';
 
 const runNonInteractiveMock = vi.fn();
 
@@ -225,6 +226,7 @@ describe('runNonInteractiveStreamJson', () => {
     };
   };
   beforeEach(() => {
+    vi.resetAllMocks();
     mockMonitorRegistry = {
       setNotificationCallback: vi.fn(),
       setRegisterCallback: vi.fn(),
@@ -255,7 +257,7 @@ describe('runNonInteractiveStreamJson', () => {
     };
     (
       StreamJsonOutputAdapter as unknown as ReturnType<typeof vi.fn>
-    ).mockImplementation(() => mockOutputAdapter);
+    ).mockImplementation(mockConstructorReturning(mockOutputAdapter));
 
     mockDispatcher = {
       dispatch: vi.fn().mockResolvedValue(undefined),
@@ -271,12 +273,12 @@ describe('runNonInteractiveStreamJson', () => {
     };
     (
       ControlDispatcher as unknown as ReturnType<typeof vi.fn>
-    ).mockImplementation(() => mockDispatcher);
+    ).mockImplementation(mockConstructorReturning(mockDispatcher));
     (ControlContext as unknown as ReturnType<typeof vi.fn>).mockImplementation(
-      () => ({}),
+      mockConstructorReturning({}),
     );
     (ControlService as unknown as ReturnType<typeof vi.fn>).mockImplementation(
-      () => ({}),
+      mockConstructorReturning({}),
     );
 
     mockInputReader = {
@@ -287,7 +289,7 @@ describe('runNonInteractiveStreamJson', () => {
     };
     (
       StreamJsonInputReader as unknown as ReturnType<typeof vi.fn>
-    ).mockImplementation(() => mockInputReader);
+    ).mockImplementation(mockConstructorReturning(mockInputReader));
 
     runNonInteractiveMock.mockResolvedValue(undefined);
   });
@@ -312,9 +314,9 @@ describe('runNonInteractiveStreamJson', () => {
     const continueResults: Array<Record<string, unknown> | undefined> = [];
 
     (ControlContext as unknown as ReturnType<typeof vi.fn>).mockImplementation(
-      (options: {
+      function MockConstructor(options: {
         onContinueLastTurn?: () => Promise<Record<string, unknown>>;
-      }) => {
+      }) {
         controlContext = options;
         return {};
       },
@@ -621,7 +623,7 @@ describe('runNonInteractiveStreamJson', () => {
   it('interrupts only the active turn and accepts a later prompt', async () => {
     let controlContext: CapturedControlContext | undefined;
     (ControlContext as unknown as ReturnType<typeof vi.fn>).mockImplementation(
-      (options: CapturedControlContext) => {
+      function MockConstructor(options: CapturedControlContext) {
         controlContext = options;
         return {};
       },
@@ -1410,7 +1412,7 @@ describe('runNonInteractiveStreamJson', () => {
     // Capture abort signal from ControlContext
     let abortSignal: AbortSignal | null = null;
     (ControlContext as unknown as ReturnType<typeof vi.fn>).mockImplementation(
-      (options: { abortSignal?: AbortSignal }) => {
+      function MockConstructor(options: { abortSignal?: AbortSignal }) {
         abortSignal = options.abortSignal ?? null;
         return {};
       },
@@ -1598,7 +1600,7 @@ describe('runNonInteractiveStreamJson', () => {
     let turnSignal: AbortSignal | undefined;
 
     (ControlContext as unknown as ReturnType<typeof vi.fn>).mockImplementation(
-      (options: { abortSignal: AbortSignal }) => {
+      function MockConstructor(options: { abortSignal: AbortSignal }) {
         sessionSignal = options.abortSignal;
         return {};
       },

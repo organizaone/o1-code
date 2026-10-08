@@ -165,11 +165,7 @@ describe('createDaemonToolGuard', () => {
   // Windows lanes deny them at the divergent-syntax gate before analysis.
   it
     .runIf(bashSemanticsLane)
-    .each([
-      "git $'-C' /outside/repo reset --hard",
-      "$'git' -C /outside/repo reset --hard",
-      'git $(echo -C) /outside/repo reset --hard',
-    ])(
+    .each(['git $(echo -C) /outside/repo reset --hard'])(
     'denies shell-expansion relocation forms on the bash lanes %#',
     async (command) => {
       const guard = createDaemonToolGuard();
@@ -177,6 +173,23 @@ describe('createDaemonToolGuard', () => {
       await expect(guard(request(command))).resolves.toMatchObject({
         allowed: false,
         reason: expect.stringContaining('dynamic repository location'),
+      });
+    },
+  );
+
+  it
+    .runIf(bashSemanticsLane)
+    .each([
+      () => `git $'-C' ${cmdPath(outsideRepo)} reset --hard`,
+      () => `$'git' -C ${cmdPath(outsideRepo)} reset --hard`,
+    ])(
+    'denies statically decoded ANSI-C quoted relocations %#',
+    async (command) => {
+      const guard = createDaemonToolGuard();
+
+      await expect(guard(request(command()))).resolves.toMatchObject({
+        allowed: false,
+        reason: expect.stringContaining(outsideRepo),
       });
     },
   );

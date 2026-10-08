@@ -291,6 +291,7 @@ describe('cleanupOldOpenAILogs', () => {
   });
 
   afterEach(() => {
+    vi.mocked(fsPromises.unlink).mockReset();
     vi.restoreAllMocks();
     fs.rmSync(logDir, { recursive: true, force: true });
   });

@@ -123,7 +123,7 @@ function makeSettings(
 
 describe('startupPrefetch', () => {
   beforeEach(() => {
-    vi.clearAllMocks();
+    vi.resetAllMocks();
     delete process.env['O1CODE_CUSTOM_SANDBOX_IMAGE'];
     delete process.env['O1CODE_HOST_UPDATE_RELAUNCH'];
     delete process.env['O1CODE_SKIP_UPDATE_CHECK_ONCE'];
@@ -214,6 +214,12 @@ describe('startupPrefetch', () => {
     startPostRenderPrefetches(config, makeSettings());
 
     await vi.dynamicImportSettled();
+    await vi.waitFor(() => {
+      expect(mockRecordStartupEvent).toHaveBeenCalledWith(
+        'startup_prefetch_completed',
+        { name: 'update_check' },
+      );
+    });
 
     expect(mockCheckForUpdatesDetailed).toHaveBeenCalledTimes(1);
     expect(mockRequestUpdateOnExit).not.toHaveBeenCalled();

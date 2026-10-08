@@ -16,6 +16,10 @@ follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 - Run explicitly requested full CI suites after the fast gates pass, including
   when an optional documentation job is skipped.
+- Reject account-login and connection-code providers in the Web Shell's API-key
+  installation route, which cannot perform their dedicated connection flows.
+- Keep terminal exit-summary and incremental-rendering controls out of the Web
+  Shell's settings panel.
 - Update the dependencies used for Git operations, shell quoting, MCP connections,
   HTTP transport, proxy address parsing, image decoding, and telemetry to address
   critical and high security advisories. Transitive overrides also cover affected

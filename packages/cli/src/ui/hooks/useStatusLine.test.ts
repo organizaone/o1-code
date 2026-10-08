@@ -21,8 +21,15 @@ const debugLogMock = vi.hoisted(() => ({
   warn: vi.fn(),
 }));
 
-// --- Mock child_process (auto-mock, then override exec in beforeEach) ---
-vi.mock('child_process');
+vi.mock('child_process', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('child_process')>();
+  const exec = vi.fn<typeof actual.exec>();
+  return {
+    ...actual,
+    exec,
+    default: { ...actual, exec },
+  };
+});
 
 // --- Mock context hooks ---
 
@@ -157,7 +164,7 @@ function setStatusLineConfig(
 describe('useStatusLine', () => {
   beforeEach(() => {
     vi.useFakeTimers();
-    vi.clearAllMocks();
+    vi.resetAllMocks();
     mockConfig.getShellExecutionSandbox.mockReturnValue(undefined);
     lastExecCommand = undefined;
     stdinWrittenData = '';

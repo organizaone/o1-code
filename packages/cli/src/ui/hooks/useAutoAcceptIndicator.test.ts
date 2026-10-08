@@ -78,7 +78,7 @@ describe('useAutoAcceptIndicator', () => {
 
     (
       Config as unknown as MockedFunction<() => MockConfigInstanceShape>
-    ).mockImplementation(() => {
+    ).mockImplementation(function MockConfig() {
       const instanceGetApprovalModeMock = vi.fn();
       const instanceSetApprovalModeMock = vi.fn();
 

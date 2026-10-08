@@ -58,6 +58,7 @@ import { toggleKeyHint } from './messages/ConversationMessages.js';
 describe('<HistoryItemDisplay />', () => {
   const mockConfig = {
     getChatRecordingService: () => undefined,
+    getContentGeneratorConfig: () => undefined,
   } as unknown as Config;
   const baseItem = {
     id: 1,

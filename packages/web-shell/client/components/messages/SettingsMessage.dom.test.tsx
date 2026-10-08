@@ -560,6 +560,32 @@ describe('SettingsMessage user-scope editing', () => {
     expect(container.textContent).not.toContain('Compact Mode');
   });
 
+  it.each([
+    'ui.showSessionSummary',
+    'ui.keepSessionSummaryOpen',
+    'ui.sessionSummaryTimeoutSeconds',
+    'ui.incrementalRendering',
+  ])('keeps terminal-only setting %s out of the panel', (key) => {
+    const setValue = vi.fn(() =>
+      Promise.resolve({} as DaemonSettingUpdateResult),
+    );
+    const terminalSetting: DaemonSettingDescriptor = {
+      ...(key === 'ui.sessionSummaryTimeoutSeconds'
+        ? integerSetting()
+        : boolSetting()),
+      key,
+      label: 'Terminal-only control',
+    };
+    const container = renderPanel(
+      makeState([boolSetting(), terminalSetting], setValue),
+    );
+
+    expect(container.textContent).toContain('Test Flag');
+    expect(switchButton(container)).toBeTruthy();
+    expect(container.textContent).not.toContain('Terminal-only control');
+    expect(setValue).not.toHaveBeenCalled();
+  });
+
   it('keeps model.reasoningEffort out of the generic settings panel', () => {
     const setValue = vi.fn(() =>
       Promise.resolve({} as DaemonSettingUpdateResult),
