@@ -29,21 +29,21 @@ Roles live in two places: `SemanticColors` (`theme.*`, `themes/semantic-tokens.t
 `ExtendedColors` (`extendedTheme.*`, `themes/extended-tokens.ts`) for the roles the inherited set did
 not have. Themes that do not declare extended colours get them derived from their palette.
 
-| Role                   | Token                                       | Dark      | Light     | Used for                                                          |
-| ---------------------- | ------------------------------------------- | --------- | --------- | ----------------------------------------------------------------- |
-| primary text           | `theme.text.primary`                        | terminal  | `#162033` | main text, selected item, titles                                  |
-| secondary text         | `theme.text.secondary`                      | `#95a5be` | `#46546d` | unselected items, queued messages                                 |
-| muted                  | `extendedTheme.text.muted`                  | `#8593aa` | `#56637b` | labels, hints, metadata                                           |
-| placeholder            | `extendedTheme.text.placeholder`            | `#7a879e` | `#65728a` | input placeholder                                                 |
-| separator              | `extendedTheme.ui.separator`                | `#52679c` | `#9fadca` | `·` and `│`, empty bar cells, inactive chips                      |
-| rule                   | `extendedTheme.ui.rule`, `theme.border.default` | `#46598a` | `#a3b4d2` | conversation border, autocomplete box, unfocused input        |
-| brand                  | `extendedTheme.ui.brand`, `theme.border.focused` | `#6e9bff` | `#2b5bd7` | logo, `❯`, selection arrow, focused input, dialogs asking a choice |
-| brand soft             | `extendedTheme.ui.brandSoft`                | `#8fb2ff` | `#2f5fdb` | default/auto mode label, active skill, update notice, user message text, `monitoring` chip |
-| accent (purple)        | `theme.text.accent`                         | `#a48bff` | `#6547c9` | branch, memory bar, assistant `◆`, `@path` and `/command` in input |
-| code (teal)            | `theme.text.code`                           | `#3fc7d6` | `#0a6d78` | inline code and paths                                             |
-| success                | `theme.status.success`                      | `#3fd07f` | `#157a44` | online, added lines, current model dot                            |
-| warning (amber)        | `theme.status.warning`                      | `#ffa347` | `#9a5200` | MCP offline, Safe/Debug Mode, warnings                            |
-| error                  | `theme.status.error`                        | `#ff6b6b` | `#c02d2d` | failure, removed lines, provider error                            |
+| Role            | Token                                            | Dark      | Light     | Used for                                                                                   |
+| --------------- | ------------------------------------------------ | --------- | --------- | ------------------------------------------------------------------------------------------ |
+| primary text    | `theme.text.primary`                             | terminal  | `#162033` | main text, selected item, titles                                                           |
+| secondary text  | `theme.text.secondary`                           | `#95a5be` | `#46546d` | unselected items, queued messages                                                          |
+| muted           | `extendedTheme.text.muted`                       | `#8593aa` | `#56637b` | labels, hints, metadata                                                                    |
+| placeholder     | `extendedTheme.text.placeholder`                 | `#7a879e` | `#65728a` | input placeholder                                                                          |
+| separator       | `extendedTheme.ui.separator`                     | `#52679c` | `#9fadca` | `·` and `│`, empty bar cells, inactive chips                                               |
+| rule            | `extendedTheme.ui.rule`, `theme.border.default`  | `#46598a` | `#a3b4d2` | conversation border, autocomplete box, unfocused input                                     |
+| brand           | `extendedTheme.ui.brand`, `theme.border.focused` | `#6e9bff` | `#2b5bd7` | logo, `❯`, selection arrow, focused input, dialogs asking a choice                         |
+| brand soft      | `extendedTheme.ui.brandSoft`                     | `#8fb2ff` | `#2f5fdb` | default/auto mode label, active skill, update notice, user message text, `monitoring` chip |
+| accent (purple) | `theme.text.accent`                              | `#a48bff` | `#6547c9` | branch, memory bar, assistant `◆`, `@path` and `/command` in input                         |
+| code (teal)     | `theme.text.code`                                | `#3fc7d6` | `#0a6d78` | inline code and paths                                                                      |
+| success         | `theme.status.success`                           | `#3fd07f` | `#157a44` | online, added lines, current model dot                                                     |
+| warning (amber) | `theme.status.warning`                           | `#ffa347` | `#9a5200` | MCP offline, Safe/Debug Mode, warnings                                                     |
+| error           | `theme.status.error`                             | `#ff6b6b` | `#c02d2d` | failure, removed lines, provider error                                                     |
 
 **Why the dark theme's primary text is empty (the terminal's foreground):** without `ui.theme`,
 background detection falls back to the dark theme when it fails. An explicit near-white would be
@@ -63,13 +63,13 @@ has no colour detection of its own and nothing is designed for 16 colours on pur
 Every tool belongs to a category (`utils/activity-category.ts`, from the tool's `Kind` in core). The
 same colour and label appear on the tool row and on the activity-line chip.
 
-| Category  | Colour token                | Kinds                    | en / pt label          |
-| --------- | --------------------------- | ------------------------ | ---------------------- |
-| `info`    | `activity.info` (brand)     | thinking, answering, other | info / info          |
-| `read`    | `activity.read` (teal)      | Read, Search, Fetch      | reading / leitura      |
-| `write`   | `activity.write` (purple)   | Edit, Delete, Move       | writing / escrita      |
-| `execute` | `activity.execute` (amber)  | Execute                  | running / executando   |
-| `success` | `activity.success` (green)  | explicit completion      | done / sucesso         |
+| Category  | Colour token               | Kinds                      | en / pt label        |
+| --------- | -------------------------- | -------------------------- | -------------------- |
+| `info`    | `activity.info` (brand)    | thinking, answering, other | info / info          |
+| `read`    | `activity.read` (teal)     | Read, Search, Fetch        | reading / leitura    |
+| `write`   | `activity.write` (purple)  | Edit, Delete, Move         | writing / escrita    |
+| `execute` | `activity.execute` (amber) | Execute                    | running / executando |
+| `success` | `activity.success` (green) | explicit completion        | done / sucesso       |
 
 States outside the categories: failed (`✗`, error colour), canceled (`○`, muted), pending (`●`,
 muted — not the separator colour, so the label stays legible), awaiting approval (spinner in amber,
@@ -151,19 +151,22 @@ Top to bottom, in full-screen mode:
 5. **Footer** (`components/Footer.tsx`, `footer-zones.tsx`).
 
 While a tool waits for approval, or a dialog is open, the input, activity line and footer are not
-rendered; the approval box or dialog takes their place. In scrollback mode and screen-reader mode
+rendered; the approval box or dialog takes their place. Provider selection,
+authentication progress and authentication errors also hide the full-screen
+conversation frame, including on unauthenticated startup. Closing authentication
+restores the transcript and queue. In scrollback mode and screen-reader mode
 the header is not pinned, and the update notice renders as its own box above the input.
 
 ### Header
 
 Each row has an independent left and right side: a long item on the right never squeezes the left.
 
-| Row | Left                         | Right                                                            |
-| --- | ---------------------------- | ---------------------------------------------------------------- |
-| 1   | logo, row 1                  | `v0.1.0 · ORGANIZAONE`, bold, muted (from `brand.json` and `package.json`) |
-| 2   | logo, row 2                  | `memory 6.2 / 16 GB` and an 8-cell purple bar (machine RAM)       |
-| 3   | empty                        | notices, only when present: `↑ v… available · /update` (brand soft), `● N MCP offline · /mcp` (amber) |
-| 4   | shortcut hints               | workspace path: parents muted, folder bold primary               |
+| Row | Left           | Right                                                                                                 |
+| --- | -------------- | ----------------------------------------------------------------------------------------------------- |
+| 1   | logo, row 1    | `v0.1.0 · ORGANIZAONE`, bold, muted (from `brand.json` and `package.json`)                            |
+| 2   | logo, row 2    | `memory 6.2 / 16 GB` and an 8-cell purple bar (machine RAM)                                           |
+| 3   | empty          | notices, only when present: `↑ v… available · /update` (brand soft), `● N MCP offline · /mcp` (amber) |
+| 4   | shortcut hints | workspace path: parents muted, folder bold primary                                                    |
 
 Hints: `esc cancel · shift+tab mode · / commands · @ files · ctrl+c quit`, key in secondary, label
 in muted, `·` in separator. Hints are dropped whole from the end until the folder name fits. The
@@ -308,11 +311,11 @@ zones stay visible.
 and `sideMargin(tier)`. Components read it through `hooks/use-layout-tier.ts`; `isNarrowWidth` is
 `tier === 'minimal'`. Each band drops what the band above dropped.
 
-| Tier      | Columns | Drops                                                                                                          |
-| --------- | ------- | -------------------------------------------------------------------------------------------------------------- |
-| `full`    | ≥ 120   | nothing                                                                                                        |
-| `medium`  | 100–119 | context bar; `ctrl+c quit` hint                                                                                |
-| `compact` | 80–99   | footer git zone; active skill; memory bar; `@ files` hint; `reasoning high` becomes `high`; approval options stack vertically |
+| Tier      | Columns | Drops                                                                                                                                                  |
+| --------- | ------- | ------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `full`    | ≥ 120   | nothing                                                                                                                                                |
+| `medium`  | 100–119 | context bar; `ctrl+c quit` hint                                                                                                                        |
+| `compact` | 80–99   | footer git zone; active skill; memory bar; `@ files` hint; `reasoning high` becomes `high`; approval options stack vertically                          |
 | `minimal` | < 80    | logo becomes the wordmark; hints; memory row; reasoning; tokens; inactive chip labels; `online`/`failed`/`no provider` text (dot stays); side margin 1 |
 
 Side margin is 2 columns, 1 under 80. Under 80 the header is three rows: wordmark and version,
@@ -321,6 +324,14 @@ never leaves; it only shortens from the start.
 
 ## Dialogs and selection
 
+- **Provider model catalog** (`auth/ProviderSetupSteps.tsx`): the list uses the
+  actual dialog budget after the frame, title, inputs, notices and controls.
+  Short terminals reduce gaps and secondary help; model rows stay on one line.
+  The visible range, total and continuation arrows show that more models are
+  available. Once the list has focus, arrows scroll, PgUp/PgDn move by a page,
+  Home/End reach the first/last model, Space toggles and Enter confirms.
+  Search remains optional; shrinking the terminal keeps the focused model in
+  view and retains checked models.
 - **One selection style everywhere** (`shared/BaseSelectionList.tsx`, `SuggestionsDisplay.tsx`,
   model and login lists): the selected item gets `❯` in brand and its text in bold primary; the rest
   are secondary with two spaces in place of the arrow. Numbers stay. The selected colour is
@@ -387,6 +398,32 @@ never leaves; it only shortens from the start.
   enum option, as well as tab hints, inherited-scope notices, and boolean display
   values. Canonical keys, commands, persisted values, and modification markers
   remain unchanged. `settings-translations.test.ts` guards this coverage.
+- **Plugin configuration** (`extensions/ExtensionsManagerDialog.tsx`):
+  `/extensions`, `/plugins` and `/plugin` open the same manager, capped at its
+  existing 100-column frame. In full-screen mode the conversation frame is hidden
+  while the manager is open and returns when it closes. Tabs stay on one row;
+  narrow layouts omit the switch hint and extra margins before truncating labels.
+  The parent uses the layout's
+  actual dialog-height reservation and subtracts borders, tabs, footer, status
+  and gaps before passing an inner budget to the editors. Short panels reduce
+  gaps and keep footer/status text on one row.
+  Declared plugin parameters use an embedded selection panel, with `Tab` switching
+  User/Project scope outside the input. Project values inherit User settings
+  unless overridden; parameter and activation scopes remain independent. Saved secrets
+  become configured metadata before entering view state. Replacement starts empty,
+  stays masked and blocks the external editor. Empty secret submission preserves
+  the saved value; cancellation never writes. Successful edits require a restart.
+  Marketplace **Edit source** stays separate from **Update marketplace**. Private
+  URLs are redacted and must be re-entered; credential/query/fragment input stays
+  masked. Both editors reserve prefix/cursor space and show up to three visible
+  input lines with continuation. Secondary help/header rows shrink to preserve
+  save/cancel controls. Source details limit installed previews to retain actions,
+  including Edit/Remove after a failed fetch; unconstrained details retain their
+  existing five-entry preview. Pending edits retain keyboard ownership through
+  persistence and detail refresh, and obsolete responses cannot replace a newer
+  selection.
+  Real application captures: [plugin settings](../images/tui-plugin-settings.png)
+  and [private marketplace editing](../images/tui-marketplace-source-edit.png).
 - **Slash/@ suggestions:** name in a 28-column column, detail in muted, footer
   `↑↓ navigate · tab complete · enter select · esc close`. Lists filter on every key.
 - **Question custom answers** (`messages/AskUserQuestionDialog.tsx`): the input
@@ -429,17 +466,17 @@ never leaves; it only shortens from the start.
 All chrome glyphs come from `glyphs()` in `glyphs.ts`. The Windows console host with Consolas or
 Lucida Console lacks many of them, so a compat set replaces them with glyphs from WGL4:
 
-| Full                | Compat                             |
-| ------------------- | ---------------------------------- |
-| `❯`                 | `>`                                |
-| `⎇ ` (with space)   | removed; the purple marks the branch |
-| `▰` `▱`             | `█` `░`                            |
-| `↳`                 | `→`                                |
-| `✗`                 | `x`                                |
-| `✓`                 | `√`                                |
-| `◆` (assistant)     | `*`                                |
-| braille spinner     | `\|` `/` `-` `\`                   |
-| round border        | single border                      |
+| Full              | Compat                               |
+| ----------------- | ------------------------------------ |
+| `❯`               | `>`                                  |
+| `⎇ ` (with space) | removed; the purple marks the branch |
+| `▰` `▱`           | `█` `░`                              |
+| `↳`               | `→`                                  |
+| `✗`               | `x`                                  |
+| `✓`               | `√`                                  |
+| `◆` (assistant)   | `*`                                  |
+| braille spinner   | `\|` `/` `-` `\`                     |
+| round border      | single border                        |
 
 `●`, `○`, `↑` are the same in both. A glyph goes into the set only when a component reads it.
 

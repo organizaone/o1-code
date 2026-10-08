@@ -42,6 +42,9 @@ import { SignInStep } from './SignInStep.js';
 import { ConnectionCodeStep } from './ConnectionCodeStep.js';
 import { normalizeModelIds } from './useAuth.js';
 import { AppContext } from '../contexts/AppContext.js';
+import { UIStateContext } from '../contexts/UIStateContext.js';
+import { getDialogMaxHeight } from '../utils/layoutUtils.js';
+import { getFixedHeaderHeight } from '../components/Header.js';
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -392,6 +395,7 @@ function ModelIdsStep({
   keyVerified = false,
   draftModelIds,
   onDraftChange,
+  additionalChromeRows = 0,
 }: {
   config: ProviderConfig;
   flow: ProviderSetupFlow;
@@ -409,7 +413,60 @@ function ModelIdsStep({
   preselect?: string[];
   /** The provider accepted the key while listing its models. */
   keyVerified?: boolean;
+  additionalChromeRows?: number;
 }): React.JSX.Element {
+  const uiState = useContext(UIStateContext);
+  const constrained = Boolean(
+    uiState && (uiState.useTerminalBuffer || uiState.constrainHeight),
+  );
+  const width = uiState
+    ? Math.max(
+        1,
+        Math.min(uiState.mainAreaWidth, uiState.terminalWidth - 4) - 4,
+      )
+    : undefined;
+  const budget =
+    constrained && uiState
+      ? Math.max(
+          1,
+          getDialogMaxHeight(
+            uiState.terminalHeight,
+            uiState.staticExtraHeight,
+            uiState.useTerminalBuffer
+              ? getFixedHeaderHeight(uiState.terminalWidth)
+              : 0,
+          ) -
+            5 -
+            additionalChromeRows -
+            (uiState.auth.authError ? 2 : 0),
+        )
+      : undefined;
+  const compact = budget !== undefined && budget < 26;
+  const gap = compact ? 0 : 1;
+  const inputHeight = compact ? 1 : 3;
+  const showVerified =
+    keyVerified &&
+    (!compact ||
+      (budget ?? 0) >= 10 + Number(Boolean(flow.state.modelIdsError)));
+  const statusRows =
+    Number(showVerified) + Number(Boolean(flow.state.modelIdsError));
+  const showModelHeading = budget === undefined || budget >= 8 + statusRows;
+  const headingRows = Number(showModelHeading);
+  const showSearchLabel = budget === undefined || budget >= 8;
+  const searchRows = showSearchLabel ? 2 : 1;
+  const navigationRows = 3;
+  const chromeRows =
+    gap * (6 + statusRows) +
+    inputHeight +
+    (compact ? 0 : 2) +
+    statusRows +
+    headingRows +
+    searchRows +
+    navigationRows;
+  const modelRows =
+    budget === undefined
+      ? MAX_MODELS_TO_SHOW
+      : Math.max(1, budget - chromeRows);
   const defaultIds = config.models?.map((m) => m.id).join(', ') ?? '';
   const hasSelectableModels = models.length > 0;
   const selectedModelIds = useMemo(
@@ -478,13 +535,13 @@ function ModelIdsStep({
       : Math.max(
           0,
           Math.min(
-            focusedModelIndex - MAX_MODELS_TO_SHOW + 1,
-            filteredModelOptions.length - MAX_MODELS_TO_SHOW,
+            focusedModelIndex - modelRows + 1,
+            filteredModelOptions.length - modelRows,
           ),
         );
   const visibleModelOptions = filteredModelOptions.slice(
     recommendedScrollOffset,
-    recommendedScrollOffset + MAX_MODELS_TO_SHOW,
+    recommendedScrollOffset + modelRows,
   );
 
   const syncModelIds = useCallback(
@@ -573,6 +630,23 @@ function ModelIdsStep({
         return;
       }
 
+      if (key.name === 'pageup' || key.name === 'pagedown') {
+        const delta = key.name === 'pageup' ? -modelRows : modelRows;
+        setFocusedModelIndex((index) =>
+          Math.max(0, Math.min(index + delta, filteredModelOptions.length - 1)),
+        );
+        return;
+      }
+
+      if (key.name === 'home' || key.name === 'end') {
+        setFocusedModelIndex(
+          key.name === 'home'
+            ? 0
+            : Math.max(0, filteredModelOptions.length - 1),
+        );
+        return;
+      }
+
       if (key.name === 'space' || key.sequence === ' ') {
         toggleRecommendationAtIndex(focusedModelIndex);
         return;
@@ -588,22 +662,27 @@ function ModelIdsStep({
 
   if (hasSelectableModels) {
     return (
-      <Box marginTop={1} flexDirection="column">
-        {keyVerified && (
-          <Box marginTop={1}>
-            <Text color={theme.status.success}>
+      <Box marginTop={gap} flexDirection="column" width={width}>
+        {showVerified && (
+          <Box marginTop={gap}>
+            <Text color={theme.status.success} wrap="truncate-end">
               {`${glyphs().done} ${t('key valid')}`}
             </Text>
           </Box>
         )}
-        <Box marginTop={1}>
-          <Text color={theme.text.secondary}>
-            {t(
-              'Enter model IDs directly. Use commas to configure multiple models.',
-            )}
-          </Text>
-        </Box>
-        <Box marginTop={1}>
+        {!compact && (
+          <Box marginTop={gap}>
+            <Text
+              color={theme.text.secondary}
+              wrap={constrained ? 'truncate-end' : undefined}
+            >
+              {t(
+                'Enter model IDs directly. Use commas to configure multiple models.',
+              )}
+            </Text>
+          </Box>
+        )}
+        <Box marginTop={gap}>
           <TextInput
             key="model-ids-input"
             value={customModelIdsText}
@@ -616,32 +695,44 @@ function ModelIdsStep({
               setFocusedModelIndex(MODEL_SEARCH_INPUT_FOCUS_INDEX);
             }}
             placeholder="model-id"
-            height={3}
+            height={inputHeight}
+            inputWidth={
+              width === undefined ? undefined : Math.max(1, width - 3)
+            }
             isActive={focusedModelIndex === MODEL_CUSTOM_INPUT_FOCUS_INDEX}
           />
         </Box>
-        <Box marginTop={0}>
-          <Text color={theme.text.secondary}>
-            {t(
-              recommendationSource === 'provider'
-                ? 'Checked models are applied on submit but not copied into the input.'
-                : 'Checked recommended models are applied on submit but not copied into the input.',
-            )}
-          </Text>
-        </Box>
-        <Box marginTop={1}>
-          <Text color={theme.text.secondary}>
-            {recommendationSource === 'provider'
-              ? t('Models · from the provider · {{count}} checked', {
-                  count: String(selectedRecommendationKeys.length),
-                })
-              : t('Recommended models')}
-            {recommendationSource === 'fallback' &&
-              t(' · provider list unavailable, showing built-ins')}
-          </Text>
-        </Box>
+        {!compact && (
+          <Box marginTop={0}>
+            <Text
+              color={theme.text.secondary}
+              wrap={constrained ? 'truncate-end' : undefined}
+            >
+              {t(
+                recommendationSource === 'provider'
+                  ? 'Checked models are applied on submit but not copied into the input.'
+                  : 'Checked recommended models are applied on submit but not copied into the input.',
+              )}
+            </Text>
+          </Box>
+        )}
+        {showModelHeading && (
+          <Box marginTop={gap}>
+            <Text color={theme.text.secondary} wrap="truncate-end">
+              {recommendationSource === 'provider'
+                ? t('Models · from the provider · {{count}} checked', {
+                    count: String(selectedRecommendationKeys.length),
+                  })
+                : t('Recommended models')}
+              {recommendationSource === 'fallback' &&
+                t(' · provider list unavailable, showing built-ins')}
+            </Text>
+          </Box>
+        )}
         <Box marginTop={0} flexDirection="column">
-          <Text color={theme.text.secondary}>{t('Search')}</Text>
+          {showSearchLabel && (
+            <Text color={theme.text.secondary}>{t('Search')}</Text>
+          )}
           <TextInput
             key="model-search-input"
             value={modelSearchQuery}
@@ -659,10 +750,13 @@ function ModelIdsStep({
               }
             }}
             placeholder="search"
+            inputWidth={
+              width === undefined ? undefined : Math.max(1, width - 3)
+            }
             isActive={focusedModelIndex === MODEL_SEARCH_INPUT_FOCUS_INDEX}
           />
         </Box>
-        <Box marginTop={1} flexDirection="column">
+        <Box marginTop={gap} flexDirection="column">
           {visibleModelOptions.length > 0 ? (
             visibleModelOptions.map((item, visibleIndex) => {
               const modelIndex = recommendedScrollOffset + visibleIndex;
@@ -688,12 +782,13 @@ function ModelIdsStep({
                       {isSelected ? glyphs().dot : glyphs().hollow}
                     </Text>
                   </Box>
-                  <Box flexGrow={1}>
+                  <Box flexGrow={1} minWidth={0}>
                     <Text
                       color={
                         isFocused ? theme.text.primary : theme.text.secondary
                       }
                       bold={isFocused}
+                      wrap="truncate-end"
                     >
                       {item.label}
                     </Text>
@@ -711,19 +806,43 @@ function ModelIdsStep({
             </Text>
           )}
         </Box>
+        <Text color={extendedTheme.text.muted} wrap="truncate-end">
+          {recommendedScrollOffset > 0 ? '↑ ' : ''}
+          {filteredModelOptions.length > 0 ? recommendedScrollOffset + 1 : 0}–
+          {recommendedScrollOffset + visibleModelOptions.length}/
+          {filteredModelOptions.length}
+          {recommendedScrollOffset + visibleModelOptions.length <
+          filteredModelOptions.length
+            ? ' ↓'
+            : ''}
+          {' · PgUp/PgDn · Home/End'}
+        </Text>
         {flow.state.modelIdsError && (
-          <Box marginTop={1}>
-            <Text color={theme.status.error}>{flow.state.modelIdsError}</Text>
+          <Box marginTop={gap}>
+            <Text color={theme.status.error} wrap="truncate-end">
+              {flow.state.modelIdsError}
+            </Text>
           </Box>
         )}
-        <Box marginTop={1}>
-          <Text color={theme.text.secondary}>
-            {t(
-              recommendationSource === 'provider'
-                ? 'Enter to submit, ↑↓/Tab to switch input, search, and models, Space to toggle models, Esc to go back'
-                : 'Enter to submit, ↑↓/Tab to switch input, search, and recommendations, Space to toggle recommendations, Esc to go back',
-            )}
-          </Text>
+        <Box marginTop={gap} flexDirection="column">
+          {constrained ? (
+            <>
+              <Text color={theme.text.secondary} wrap="truncate-end">
+                {t('↑↓/Tab navigate · Space toggle')}
+              </Text>
+              <Text color={theme.text.secondary} wrap="truncate-end">
+                {t('Enter confirm · Esc back')}
+              </Text>
+            </>
+          ) : (
+            <Text color={theme.text.secondary}>
+              {t(
+                recommendationSource === 'provider'
+                  ? 'Enter to submit, ↑↓/Tab to switch input, search, and models, Space to toggle models, Esc to go back'
+                  : 'Enter to submit, ↑↓/Tab to switch input, search, and recommendations, Space to toggle recommendations, Esc to go back',
+              )}
+            </Text>
+          )}
         </Box>
       </Box>
     );
@@ -821,6 +940,25 @@ function DiscoveringModelIdsStep({
   config: ProviderConfig;
   flow: ProviderSetupFlow;
 }): React.JSX.Element {
+  const uiState = useContext(UIStateContext);
+  const constrained = Boolean(
+    uiState && (uiState.useTerminalBuffer || uiState.constrainHeight),
+  );
+  const compactNotices = Boolean(
+    constrained &&
+      uiState &&
+      getDialogMaxHeight(
+        uiState.terminalHeight,
+        uiState.staticExtraHeight,
+        uiState.useTerminalBuffer
+          ? getFixedHeaderHeight(uiState.terminalWidth)
+          : 0,
+      ) -
+        5 -
+        (uiState.auth.authError ? 2 : 0) <
+        12,
+  );
+  const noticeGap = compactNotices ? 0 : 1;
   const keyCheck = flow.state.keyCheck;
   // Only a list the key step actually got is reused. A check that timed out
   // or failed on the network says nothing about the provider, so the first
@@ -949,8 +1087,11 @@ function DiscoveringModelIdsStep({
   return (
     <Box flexDirection="column">
       {listFailed && (
-        <Box marginTop={1}>
-          <Text color={theme.status.warning}>
+        <Box marginTop={noticeGap}>
+          <Text
+            color={theme.status.warning}
+            wrap={constrained ? 'truncate-end' : undefined}
+          >
             {t(
               'The provider list could not be read · ctrl+r fetches the models again',
             )}
@@ -969,6 +1110,9 @@ function DiscoveringModelIdsStep({
           draftRef.current = ids;
         }}
         keyVerified={snapshot.verified && requiresApiKey(config)}
+        additionalChromeRows={
+          (compactNotices ? 0 : 2) + (listFailed ? noticeGap + 1 : 0)
+        }
         preselect={
           snapshot.verified
             ? preselectedModels(
@@ -979,11 +1123,16 @@ function DiscoveringModelIdsStep({
             : undefined
         }
       />
-      <Box marginTop={1}>
-        <Text color={extendedTheme.text.muted}>
-          {t('ctrl+r fetches the models again')}
-        </Text>
-      </Box>
+      {!compactNotices && (
+        <Box marginTop={1}>
+          <Text
+            color={extendedTheme.text.muted}
+            wrap={constrained ? 'truncate-end' : undefined}
+          >
+            {t('ctrl+r fetches the models again')}
+          </Text>
+        </Box>
+      )}
     </Box>
   );
 }

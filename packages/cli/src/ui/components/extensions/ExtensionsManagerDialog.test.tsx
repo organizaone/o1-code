@@ -227,6 +227,38 @@ describe('ExtensionsManagerDialog (tabbed)', () => {
     expect(frame).toContain('Sources');
   });
 
+  it('keeps all three tab labels on one row in a 40-column terminal', async () => {
+    const original = Object.getOwnPropertyDescriptor(process.stdout, 'columns');
+    Object.defineProperty(process.stdout, 'columns', {
+      value: 40,
+      configurable: true,
+    });
+    process.stdout.emit('resize');
+    const view = renderWide(createConfig(createManager()), 40);
+    try {
+      await waitFor(() => {
+        const lines = stripAnsi(view.lastFrame()).split('\n');
+        expect(
+          lines.some(
+            (line) =>
+              line.includes('Installed') &&
+              line.includes('Discover') &&
+              line.includes('Sources'),
+          ),
+        ).toBe(true);
+      });
+      expect(stripAnsi(view.lastFrame())).not.toContain('(Tab / ←→ to switch)');
+    } finally {
+      view.unmount();
+      if (original) Object.defineProperty(process.stdout, 'columns', original);
+      else
+        delete (process.stdout as unknown as Record<string, unknown>)[
+          'columns'
+        ];
+      process.stdout.emit('resize');
+    }
+  });
+
   it('caps its width on a wide terminal so the status column is not clipped', async () => {
     // Regression: the dialog computed boxWidth = columns - 4 with no cap, while
     // the app's main content area is capped at 100 cols (AppContainer). On a

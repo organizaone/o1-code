@@ -7,6 +7,9 @@
 // Portuguese translations for O1-Code CLI (pt-BR)
 
 export default {
+  '↑↓/Tab navigate · Space toggle': '↑↓/Tab navegar · Espaço marcar',
+  'Enter confirm · Esc back': 'Enter confirmar · Esc voltar',
+  'Model IDs cannot be empty.': 'Os IDs de modelo não podem estar vazios.',
   'Connection type:': 'Tipo de conexão:',
   'Account login (browser)': 'Login por conta (navegador)',
   'Application Default Credentials': 'Credenciais padrão do aplicativo',
@@ -3560,4 +3563,51 @@ export default {
   'Cycle prompt history': 'Percorrer o histórico de prompts',
   'history {{position}}/{{total}}': 'histórico {{position}}/{{total}}',
   'Scroll when the input is empty': 'Rolar com o campo vazio',
+  'Plugin settings': 'Configurações do plugin',
+  'Settings for {{name}}': 'Configurações de {{name}}',
+  'Scope: {{scope}}': 'Escopo: {{scope}}',
+  'Inherited from user settings': 'Herdado das configurações do usuário',
+  Configured: 'Configurado',
+  'Not configured': 'Não configurado',
+  'Could not load plugin settings.':
+    'Não foi possível carregar as configurações do plugin.',
+  'Loading plugin settings...': 'Carregando configurações do plugin...',
+  'This plugin has no settings.': 'Este plugin não tem configurações.',
+  'Enter a replacement; the saved secret is never displayed.':
+    'Digite um novo valor; o segredo salvo nunca é exibido.',
+  'Sensitive value hidden': 'Valor sensível oculto',
+  'Saving plugin setting...': 'Salvando configuração do plugin...',
+  'Enter save · Esc cancel': 'Enter salvar · Esc cancelar',
+  '↑↓ select · Enter edit · Tab user/project · Esc back':
+    '↑↓ selecionar · Enter editar · Tab usuário/projeto · Esc voltar',
+  'Could not save plugin setting. Check secure storage and try again.':
+    'Não foi possível salvar a configuração do plugin. Verifique o armazenamento seguro e tente novamente.',
+  'Plugin setting saved. Restart the application to apply it.':
+    'Configuração do plugin salva. Reinicie a aplicação para aplicá-la.',
+  'Enter a replacement value.': 'Digite um novo valor.',
+  'Edit source': 'Editar fonte',
+  'Edit marketplace source': 'Editar fonte da loja',
+  'Enter save source · Esc cancel': 'Enter salvar fonte · Esc cancelar',
+  'Saving source...': 'Salvando fonte...',
+  'Enter a marketplace source.': 'Informe uma fonte para a loja.',
+  'Enter a source on a single line without control characters.':
+    'Informe a fonte em uma única linha, sem caracteres de controle.',
+  'Marketplace source saved.': 'Fonte da loja salva.',
+  'URL, repository or local path': 'URL, repositório ou caminho local',
+  'Changes affect marketplace discovery. Installed extensions keep their sources.':
+    'As alterações afetam a descoberta na loja. As extensões instaladas mantêm suas fontes.',
+  'The saved source contains hidden values. Enter a replacement; cancel keeps the original source.':
+    'A fonte salva contém valores ocultos. Informe uma substituição; cancelar mantém a fonte original.',
+  'The selected marketplace source no longer exists.':
+    'A fonte da loja selecionada não existe mais.',
+  'Marketplace source must be a single line without control characters.':
+    'A fonte da loja deve estar em uma única linha, sem caracteres de controle.',
+  'Marketplace source cannot be empty.':
+    'A fonte da loja não pode estar vazia.',
+  'No valid marketplace found. Expected a marketplace manifest with a plugin list.':
+    'Nenhuma loja válida foi encontrada. É necessário um manifesto de loja com uma lista de plugins.',
+  'The selected marketplace source changed while it was being validated. Refresh the source list and try again.':
+    'A fonte da loja selecionada mudou durante a validação. Atualize a lista de fontes e tente novamente.',
+  'Another marketplace already uses that name or source.':
+    'Outra loja já usa esse nome ou essa fonte.',
 };

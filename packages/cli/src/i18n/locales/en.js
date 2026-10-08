@@ -8,6 +8,9 @@
 // The key serves as both the translation key and the default English text
 
 export default {
+  '↑↓/Tab navigate · Space toggle': '↑↓/Tab navigate · Space toggle',
+  'Enter confirm · Esc back': 'Enter confirm · Esc back',
+  'Model IDs cannot be empty.': 'Model IDs cannot be empty.',
   'Connection type:': 'Connection type:',
   'Account login (browser)': 'Account login (browser)',
   'Application Default Credentials': 'Application Default Credentials',
@@ -3254,4 +3257,49 @@ export default {
   'Cycle prompt history': 'Cycle prompt history',
   'history {{position}}/{{total}}': 'history {{position}}/{{total}}',
   'Scroll when the input is empty': 'Scroll when the input is empty',
+  'Plugin settings': 'Plugin settings',
+  'Settings for {{name}}': 'Settings for {{name}}',
+  'Scope: {{scope}}': 'Scope: {{scope}}',
+  'Inherited from user settings': 'Inherited from user settings',
+  Configured: 'Configured',
+  'Not configured': 'Not configured',
+  'Could not load plugin settings.': 'Could not load plugin settings.',
+  'Loading plugin settings...': 'Loading plugin settings...',
+  'This plugin has no settings.': 'This plugin has no settings.',
+  'Enter a replacement; the saved secret is never displayed.':
+    'Enter a replacement; the saved secret is never displayed.',
+  'Sensitive value hidden': 'Sensitive value hidden',
+  'Saving plugin setting...': 'Saving plugin setting...',
+  'Enter save · Esc cancel': 'Enter save · Esc cancel',
+  '↑↓ select · Enter edit · Tab user/project · Esc back':
+    '↑↓ select · Enter edit · Tab user/project · Esc back',
+  'Could not save plugin setting. Check secure storage and try again.':
+    'Could not save plugin setting. Check secure storage and try again.',
+  'Plugin setting saved. Restart the application to apply it.':
+    'Plugin setting saved. Restart the application to apply it.',
+  'Enter a replacement value.': 'Enter a replacement value.',
+  'Edit source': 'Edit source',
+  'Edit marketplace source': 'Edit marketplace source',
+  'Enter save source · Esc cancel': 'Enter save source · Esc cancel',
+  'Saving source...': 'Saving source...',
+  'Enter a marketplace source.': 'Enter a marketplace source.',
+  'Enter a source on a single line without control characters.':
+    'Enter a source on a single line without control characters.',
+  'Marketplace source saved.': 'Marketplace source saved.',
+  'URL, repository or local path': 'URL, repository or local path',
+  'Changes affect marketplace discovery. Installed extensions keep their sources.':
+    'Changes affect marketplace discovery. Installed extensions keep their sources.',
+  'The saved source contains hidden values. Enter a replacement; cancel keeps the original source.':
+    'The saved source contains hidden values. Enter a replacement; cancel keeps the original source.',
+  'The selected marketplace source no longer exists.':
+    'The selected marketplace source no longer exists.',
+  'Marketplace source must be a single line without control characters.':
+    'Marketplace source must be a single line without control characters.',
+  'Marketplace source cannot be empty.': 'Marketplace source cannot be empty.',
+  'No valid marketplace found. Expected a marketplace manifest with a plugin list.':
+    'No valid marketplace found. Expected a marketplace manifest with a plugin list.',
+  'The selected marketplace source changed while it was being validated. Refresh the source list and try again.':
+    'The selected marketplace source changed while it was being validated. Refresh the source list and try again.',
+  'Another marketplace already uses that name or source.':
+    'Another marketplace already uses that name or source.',
 };

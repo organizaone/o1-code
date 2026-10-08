@@ -6,27 +6,41 @@ Extensions and plugins in other formats — Claude Code plugins ([Claude Code Ma
 
 ## Extension management
 
-Extensions are managed with both `o1-code extensions` CLI commands and `/extensions` slash commands within the interactive CLI.
+Extensions are managed with both `o1-code extensions` CLI commands and the `/extensions`, `/plugins` or `/plugin` slash commands within the interactive CLI.
 
 ### Runtime Extension Management (Slash Commands)
 
-You can manage extensions at runtime within the interactive CLI using `/extensions` slash commands. These commands support hot-reloading, meaning changes take effect immediately without restarting the application.
+You can manage extensions at runtime within the interactive CLI. The manager refreshes its lists after changes. Plugin parameter edits are saved for the next startup; restart the application to apply them.
 
-| Command                               | Description                                                                                          |
-| ------------------------------------- | ---------------------------------------------------------------------------------------------------- |
-| `/extensions` or `/extensions manage` | Manage all installed extensions                                                                      |
-| `/extensions install <source>`        | Install an extension from a git URL, local path or archive, archive URL, npm package, or marketplace |
-| `/extensions explore [source]`        | Open an extensions marketplace page (`Gemini`, `ClaudeCode`, `Codex`, or `Grok`) in your browser     |
+| Command                                                      | Description                                                                                          |
+| ------------------------------------------------------------ | ---------------------------------------------------------------------------------------------------- |
+| `/extensions`, `/extensions manage`, `/plugins` or `/plugin` | Manage installed extensions and marketplace sources                                                  |
+| `/extensions install <source>`                               | Install an extension from a git URL, local path or archive, archive URL, npm package, or marketplace |
+| `/extensions explore [source]`                               | Open an extensions marketplace page (`Gemini`, `ClaudeCode`, `Codex`, or `Grok`) in your browser     |
 
 #### The interactive extension manager
 
-Running `/extensions` (or `/extensions manage`) opens an interactive manager with three tabs. Press `Tab` or the `←`/`→` arrows to switch between them.
+Running `/extensions` (or its aliases `/plugins` and `/plugin`) opens an interactive manager with three tabs. Press `Tab` or the `←`/`→` arrows to switch between them when a child editor is not active.
 
 - **Discover** — browse plugins from your configured marketplace sources. Type to search, `Enter` to view a plugin's details, and install it (you'll be asked to choose an install scope). Press `Ctrl+R` to re-fetch the listings, and `Esc` to go back.
 - **Installed** — your installed extensions, grouped by scope (**User level**, **Project level**, and favorites). Use `↑`/`↓` to navigate, `Space` to enable/disable an extension, `f` to favorite it, and `Enter` to open its details. MCP servers bundled by an extension appear nested under their parent extension with live connection status; you can enable or disable each server individually from there.
 - **Sources** — manage the marketplace sources that feed the Discover tab. Use `↑`/`↓` to navigate, `Enter` to select a source, and `d` to remove one. These are the same sources managed by the `o1-code extensions sources` CLI commands described below.
 
-Changes made here hot-reload immediately, without restarting O1-Code.
+#### Plugin parameters
+
+Open an installed plugin's details and select **Plugin settings**. This action appears for plugins that declare settings in their manifest; field names and descriptions come from that manifest. Disabled plugins can be configured without enabling them.
+
+Use `↑`/`↓` to select a field, `Enter` to edit, and `Tab` outside the editor to switch between **User** and **Project** values. Project settings inherit User values when there is no project override. An explicitly empty non-sensitive Project value overrides the User value. Parameter scope is separate from the plugin's activation scope.
+
+Sensitive fields show only whether a value is configured. Their replacement input starts empty and stays masked; empty `Enter` never clears a saved secret. `Esc` cancels without writing. `Enter` saves an explicit replacement in the selected scope. Restart the application to apply parameter changes.
+
+#### Editing marketplace sources
+
+On **Sources**, open a store and choose **Edit source** to replace its URL, repository or local path. **Update marketplace** refreshes the current source and remains a separate action. Editing is also available when a store fails to load.
+
+The replacement is validated before the registry changes. Validation or persistence failure keeps the original entry; a successful replacement preserves its added date and does not retarget installed plugins. Other stores remain unchanged.
+
+Private source URLs are redacted, and their replacement input starts empty. Re-enter the full replacement; sensitive input stays masked. `Esc` keeps the original source, and `Enter` saves. While saving and reopening the store, navigation stays locked and a progress message remains visible. Long input shows its visible line range instead of hiding the controls.
 
 ### CLI Extension Management
 

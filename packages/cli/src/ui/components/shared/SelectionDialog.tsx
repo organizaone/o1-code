@@ -31,6 +31,9 @@ interface SelectionDialogProps<T> {
   footer: string;
   warning?: string;
   availableTerminalHeight?: number;
+  availableWidth?: number;
+  embedded?: boolean;
+  isActive?: boolean;
   filter?: { value: string; onChange: (value: string) => void };
   textNavigation?: boolean;
   onHeightChange?: (height: number) => void;
@@ -47,13 +50,16 @@ export function SelectionDialog<T>({
   footer,
   warning,
   availableTerminalHeight,
+  availableWidth,
+  embedded = false,
+  isActive = true,
   filter,
   textNavigation = false,
   onHeightChange,
 }: SelectionDialogProps<T>) {
   const { columns, rows } = useTerminalSize();
-  const width = Math.max(1, Math.min(columns - 4, 140));
-  const contentWidth = Math.max(1, width - 4);
+  const width = Math.max(1, Math.min(columns - 4, 140, availableWidth ?? 140));
+  const contentWidth = Math.max(1, width - (embedded ? 0 : 4));
   const budget = Math.max(1, Math.floor(availableTerminalHeight ?? rows - 2));
   const initialIndex = Math.max(
     0,
@@ -82,7 +88,12 @@ export function SelectionDialog<T>({
   const spacerRows = budget >= 8 + warningRows ? 1 : 0;
   const filterRows = filter ? 1 : 0;
   const chromeRows =
-    3 + warningRows + footerRows + subtitleRows + spacerRows + filterRows;
+    (embedded ? 1 : 3) +
+    warningRows +
+    footerRows +
+    subtitleRows +
+    spacerRows +
+    filterRows;
   const bodyBudget = Math.max(1, budget - chromeRows);
   const sideHelp = width >= 116 && bodyBudget >= 4;
   const descriptionRows = sideHelp
@@ -107,9 +118,9 @@ export function SelectionDialog<T>({
     <Box
       width={width}
       height={height}
-      borderStyle={glyphs().borderStyle}
+      borderStyle={embedded ? undefined : glyphs().borderStyle}
       borderColor={extendedTheme.ui.rule}
-      paddingX={1}
+      paddingX={embedded ? 0 : 1}
       flexDirection="column"
       overflow="hidden"
     >
@@ -126,6 +137,7 @@ export function SelectionDialog<T>({
         <Box height={1} flexShrink={0}>
           <Text color={theme.text.secondary}>{t('Search:')} </Text>
           <TextInput
+            isActive={isActive}
             value={filter.value}
             onChange={filter.onChange}
             placeholder={t('type to filter…')}
@@ -150,6 +162,7 @@ export function SelectionDialog<T>({
           flexDirection="column"
         >
           <BaseSelectionList
+            isFocused={isActive}
             items={items}
             initialIndex={initialIndex}
             onSelect={onSelect}

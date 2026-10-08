@@ -350,8 +350,36 @@ async function applyOrDeferKeychainMutations(
 function formatEnvContent(settings: Record<string, string>): string {
   let envContent = '';
   for (const [key, value] of Object.entries(settings)) {
-    const formattedValue = value.includes(' ') ? `"${value}"` : value;
+    const doubleQuoted = !value.includes('"') ? [`"${value}"`] : [];
+    const candidates = [
+      ...(value.includes(' ') ? doubleQuoted : []),
+      ...(!/^[\s]*['"`]/.test(value) ? [value] : []),
+      ...doubleQuoted,
+      ...(!value.includes("'") ? [`'${value}'`] : []),
+      ...(!value.includes('`') ? [`\`${value}\``] : []),
+      ...(!value.includes('"')
+        ? [`"${value.replace(/\r/g, '\\r').replace(/\n/g, '\\n')}"`]
+        : []),
+    ];
+    const formattedValue = candidates.find((candidate) => {
+      const parsed = dotenv.parse(`${key}=${candidate}\n`);
+      return Object.keys(parsed).length === 1 && parsed[key] === value;
+    });
+    if (formattedValue === undefined) {
+      throw new Error(
+        `Extension setting "${key}" cannot be stored without changing its value.`,
+      );
+    }
     envContent += `${key}=${formattedValue}\n`;
+  }
+  const parsed = dotenv.parse(envContent);
+  if (
+    Object.keys(parsed).length !== Object.keys(settings).length ||
+    Object.entries(settings).some(([key, value]) => parsed[key] !== value)
+  ) {
+    throw new Error(
+      'Extension settings cannot be stored without changing their values.',
+    );
   }
   return envContent;
 }

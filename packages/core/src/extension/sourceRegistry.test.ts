@@ -16,6 +16,7 @@ import {
 } from './sourceRegistry.js';
 import { loadMarketplaceConfigFromSource } from './marketplace.js';
 import type { ClaudeMarketplaceConfig } from './claude-converter.js';
+import * as atomicFileWrite from '../utils/atomicFileWrite.js';
 
 vi.mock('./marketplace.js', async (importOriginal) => {
   const actual = await importOriginal<typeof import('./marketplace.js')>();
@@ -60,6 +61,7 @@ describe('SourceRegistryStore', () => {
   });
 
   afterEach(() => {
+    vi.restoreAllMocks();
     fs.rmSync(tmpDir, { recursive: true, force: true });
   });
 
@@ -91,6 +93,90 @@ describe('SourceRegistryStore', () => {
     expect(store.remove('A')).toBe(true);
     expect(store.read().map((s) => s.name)).toEqual(['B']);
     expect(store.remove('missing')).toBe(false);
+  });
+
+  it('replaces only the selected entry and preserves registry order', () => {
+    const first = make('First', 'team/first');
+    const original = make('Selected', 'team/selected');
+    const last = make('Last', 'team/last');
+    store.add(first);
+    store.add(original);
+    store.add(last);
+    const replacement = {
+      ...original,
+      name: 'Updated',
+      source: 'team/updated',
+    };
+
+    store.replace(original, replacement);
+
+    expect(new SourceRegistryStore(filePath).read()).toEqual([
+      first,
+      replacement,
+      last,
+    ]);
+  });
+
+  it('does not recreate a source removed before replacement', () => {
+    const original = make('Selected', 'team/selected');
+    store.add(original);
+    store.add(make('Other', 'team/other'));
+    store.remove(original.name);
+    const persisted = fs.readFileSync(filePath, 'utf-8');
+
+    expect(() => store.replace(original, make('Updated', 'team/new'))).toThrow(
+      'changed while it was being validated',
+    );
+    expect(fs.readFileSync(filePath, 'utf-8')).toBe(persisted);
+  });
+
+  it.each([
+    { name: 'Renamed' },
+    { source: 'team/newer' },
+    { type: 'http' as const },
+    { addedAt: '2026-10-08T12:00:00.000Z' },
+    { lastUpdatedAt: '2026-10-08T12:00:01.000Z' },
+  ])('rejects replacement after the selected entry changes: %j', (change) => {
+    const original = make('Selected', 'team/selected');
+    store.add(original);
+    store.add({ ...original, ...change });
+    const persisted = fs.readFileSync(filePath, 'utf-8');
+
+    expect(() => store.replace(original, make('Updated', 'team/new'))).toThrow(
+      'changed while it was being validated',
+    );
+    expect(fs.readFileSync(filePath, 'utf-8')).toBe(persisted);
+  });
+
+  it.each([make('Other', 'team/new'), make('Updated', 'team/other')])(
+    'rejects another entry with the replacement name or source: %j',
+    (next) => {
+      const original = make('Selected', 'team/selected');
+      store.add(original);
+      store.add(make('Other', 'team/other'));
+      const persisted = fs.readFileSync(filePath, 'utf-8');
+
+      expect(() => store.replace(original, next)).toThrow(
+        'Another marketplace already uses that name or source.',
+      );
+      expect(fs.readFileSync(filePath, 'utf-8')).toBe(persisted);
+    },
+  );
+
+  it('preserves the old registry when the atomic write fails', () => {
+    const original = make('Selected', 'team/selected');
+    store.add(original);
+    store.add(make('Other', 'team/other'));
+    const persisted = fs.readFileSync(filePath, 'utf-8');
+    vi.spyOn(atomicFileWrite, 'atomicWriteFileSync').mockImplementation(() => {
+      throw new Error('Registry write failed');
+    });
+
+    expect(() => store.replace(original, make('Updated', 'team/new'))).toThrow(
+      'Registry write failed',
+    );
+    expect(fs.readFileSync(filePath, 'utf-8')).toBe(persisted);
+    expect(store.read()).toEqual([original, make('Other', 'team/other')]);
   });
 
   it('quarantines a corrupt registry (parse error) to a .corrupted sibling', () => {

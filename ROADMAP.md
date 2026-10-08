@@ -77,10 +77,15 @@ Decisions so far.
 ### Plugin and marketplace configuration
 
 - The contextual slash menu and responsive selection panels are implemented.
-  [Issue #53](https://github.com/organizaone/o1-code/issues/53) remains open for
-  individual plugin settings with user/project scope and masked secret replacement,
-  plus editing individual marketplace sources. The existing plugin management
-  actions do not yet provide those editors.
+  [Issue #53](https://github.com/organizaone/o1-code/issues/53) also covers the
+  implemented individual plugin settings with user/project scope, inherited values
+  and masked secret replacement, plus validated editing of marketplace sources.
+  `/plugins` and `/plugin` open the existing extension manager.
+  Evidence: `PluginSettingsView.test.tsx` checks scoped editing and secret privacy;
+  `SourcesTab.test.tsx` checks bounded editors, pending/stale requests and retained
+  actions; core extension settings/manager/registry tests check exact persistence
+  and failed replacements. Real application captures are in
+  `docs/images/tui-plugin-settings.png` and `docs/images/tui-marketplace-source-edit.png`.
 
 ### Unscheduled
 

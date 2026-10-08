@@ -10,6 +10,8 @@ import { theme } from '../../semantic-colors.js';
 import { useKeypress } from '../../hooks/useKeypress.js';
 import { useUIState } from '../../contexts/UIStateContext.js';
 import { useTerminalSize } from '../../hooks/useTerminalSize.js';
+import { getDialogMaxHeight } from '../../utils/layoutUtils.js';
+import { getFixedHeaderHeight } from '../Header.js';
 import { t } from '../../../i18n/index.js';
 import { stripUnsafeCharacters } from '../../utils/textUtils.js';
 import type { ExtensionUpdateState } from '../../state/extensions.js';
@@ -61,18 +63,16 @@ export function ExtensionsManagerDialog({
   config,
   initialTab,
 }: ExtensionsManagerDialogProps) {
+  const uiState = useUIState();
   const {
     extensionsUpdateState,
     confirmUpdateExtensionRequests,
     settingInputRequests,
     pluginChoiceRequests,
     commandContext,
-  } = useUIState();
-  const { columns } = useTerminalSize();
-  // Cap the width to the app's main content area (AppContainer caps it at 100).
-  // Without this the dialog grows to the full terminal width on wide terminals
-  // and overflows its container, clipping the right-aligned status column.
-  const boxWidth = Math.min(columns - 4, 100);
+  } = uiState;
+  const { columns, rows } = useTerminalSize();
+  const boxWidth = Math.max(1, Math.min(columns - 4, 100));
 
   // Install flows raise interactive requests (consent, setting input, plugin
   // choice). They are rendered here, inside the dialog, so the dialog stays
@@ -90,6 +90,19 @@ export function ExtensionsManagerDialog({
   );
   const [tabLocked, setTabLocked] = useState(false);
   const [status, setStatus] = useState<StatusMessage | null>(null);
+  const dialogHeight = uiState.constrainHeight
+    ? getDialogMaxHeight(
+        rows,
+        uiState.staticExtraHeight,
+        uiState.useTerminalBuffer ? getFixedHeaderHeight(columns) : 0,
+      )
+    : undefined;
+  const compactHeight = dialogHeight !== undefined && dialogHeight < 20;
+  const gap = compactHeight ? 0 : 1;
+  const contentHeight =
+    dialogHeight === undefined
+      ? undefined
+      : Math.max(1, dialogHeight - 4 - gap * 2 - Number(!!status) * (1 + gap));
   // Bumped to force tabs to re-load when a cross-tab change happens
   // (e.g. installing from Discover should refresh Installed).
   const [reloadSignal, setReloadSignal] = useState(0);
@@ -220,9 +233,14 @@ export function ExtensionsManagerDialog({
         paddingLeft={1}
         paddingRight={1}
         width={boxWidth}
-        gap={1}
+        gap={gap}
       >
-        <TabBar tabs={TABS} activeTab={activeTab} canSwitch={!tabLocked} />
+        <TabBar
+          tabs={TABS}
+          activeTab={activeTab}
+          canSwitch={!tabLocked}
+          availableWidth={Math.max(1, boxWidth - 4)}
+        />
 
         <Box flexDirection="column">
           {activeTab === EXTENSIONS_TABS.DISCOVER && (
@@ -249,6 +267,7 @@ export function ExtensionsManagerDialog({
               extensionsUpdateState={extensionsUpdateState}
               reloadSignal={reloadSignal}
               onUpdateStateChange={handleUpdateStateChange}
+              availableTerminalHeight={contentHeight}
             />
           )}
           {activeTab === EXTENSIONS_TABS.SOURCES && (
@@ -261,6 +280,8 @@ export function ExtensionsManagerDialog({
               onStatus={setStatus}
               onChanged={bumpReload}
               onBrowse={handleBrowseSource}
+              terminalWidth={Math.max(1, boxWidth - 4)}
+              availableTerminalHeight={contentHeight}
               onFooter={setTabFooter}
               reloadSignal={reloadSignal}
             />
@@ -269,6 +290,7 @@ export function ExtensionsManagerDialog({
 
         {status && (
           <Text
+            wrap="truncate-end"
             color={
               status.type === 'error'
                 ? theme.status.error
@@ -283,7 +305,7 @@ export function ExtensionsManagerDialog({
           </Text>
         )}
 
-        <Text color={theme.text.secondary}>
+        <Text color={theme.text.secondary} wrap="truncate-end">
           {/* A tab-provided hint wins even while a sub-view is locked, so a
               locked view (e.g. a failed marketplace load offering R to retry)
               can surface its own footer instead of the generic locked text. */}

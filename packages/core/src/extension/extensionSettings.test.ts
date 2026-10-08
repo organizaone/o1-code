@@ -1024,6 +1024,65 @@ describe('extensionSettings', () => {
       expect(actualContent).toContain('VAR1=new-workspace-value');
     });
 
+    it.each([
+      ' leading and trailing ',
+      'a "quoted" value',
+      'value#with-comment-marker',
+      'C:\\new\\report',
+      '\tvalue\t',
+      'first line\nUNRELATED=injected',
+      'first\r\nsecond',
+      'mixed"quotes\'and`value',
+    ])('preserves a stored parameter exactly: %j', async (value) => {
+      const envPath = path.join(extensionDir, '.env');
+      await fsPromises.writeFile(envPath, 'VAR1=old\nUNRELATED=keep\n');
+
+      await updateSetting(
+        config,
+        '12345',
+        'VAR1',
+        async () => value,
+        ExtensionSettingScope.USER,
+      );
+
+      expect(
+        await getScopedEnvContents(config, '12345', ExtensionSettingScope.USER),
+      ).toEqual({ VAR1: value, UNRELATED: 'keep', VAR2: 'value2' });
+    });
+
+    it('leaves the existing file intact when a value cannot round-trip through dotenv', async () => {
+      const envPath = path.join(extensionDir, '.env');
+      const before = await fsPromises.readFile(envPath, 'utf-8');
+      const unrepresentable = '"\'`#\n"\'`';
+
+      await expect(
+        updateSetting(
+          config,
+          '12345',
+          'VAR1',
+          async () => unrepresentable,
+          ExtensionSettingScope.USER,
+        ),
+      ).rejects.toThrow('cannot be stored without changing its value');
+
+      expect(await fsPromises.readFile(envPath, 'utf-8')).toBe(before);
+    });
+
+    it('keeps quote-prefixed values from consuming the following assignment', async () => {
+      const envPath = path.join(extensionDir, '.env');
+      await fsPromises.writeFile(envPath, 'VAR1=old\nUNRELATED="x\'"\n');
+      await updateSetting(
+        config,
+        '12345',
+        'VAR1',
+        async () => "'foo",
+        ExtensionSettingScope.USER,
+      );
+      expect(
+        await getScopedEnvContents(config, '12345', ExtensionSettingScope.USER),
+      ).toEqual({ VAR1: "'foo", UNRELATED: "x'", VAR2: 'value2' });
+    });
+
     it('should update a sensitive setting in USER scope', async () => {
       mockRequestSetting.mockResolvedValue('new-value2');
 
