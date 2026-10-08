@@ -8,6 +8,9 @@
 // The key serves as both the translation key and the default English text
 
 export default {
+  '↑↓/Tab navigate · Space toggle': '↑↓/Tab navigate · Space toggle',
+  'Enter confirm · Esc back': 'Enter confirm · Esc back',
+  'Model IDs cannot be empty.': 'Model IDs cannot be empty.',
   'Connection type:': 'Connection type:',
   'Account login (browser)': 'Account login (browser)',
   'Application Default Credentials': 'Application Default Credentials',

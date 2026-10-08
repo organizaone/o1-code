@@ -324,6 +324,14 @@ never leaves; it only shortens from the start.
 
 ## Dialogs and selection
 
+- **Provider model catalog** (`auth/ProviderSetupSteps.tsx`): the list uses the
+  actual dialog budget after the frame, title, inputs, notices and controls.
+  Short terminals reduce gaps and secondary help; model rows stay on one line.
+  The visible range, total and continuation arrows show that more models are
+  available. Once the list has focus, arrows scroll, PgUp/PgDn move by a page,
+  Home/End reach the first/last model, Space toggles and Enter confirms.
+  Search remains optional; shrinking the terminal keeps the focused model in
+  view and retains checked models.
 - **One selection style everywhere** (`shared/BaseSelectionList.tsx`, `SuggestionsDisplay.tsx`,
   model and login lists): the selected item gets `❯` in brand and its text in bold primary; the rest
   are secondary with two spaces in place of the arrow. Numbers stay. The selected colour is

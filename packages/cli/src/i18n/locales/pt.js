@@ -7,6 +7,9 @@
 // Portuguese translations for O1-Code CLI (pt-BR)
 
 export default {
+  '↑↓/Tab navigate · Space toggle': '↑↓/Tab navegar · Espaço marcar',
+  'Enter confirm · Esc back': 'Enter confirmar · Esc voltar',
+  'Model IDs cannot be empty.': 'Os IDs de modelo não podem estar vazios.',
   'Connection type:': 'Tipo de conexão:',
   'Account login (browser)': 'Login por conta (navegador)',
   'Application Default Credentials': 'Credenciais padrão do aplicativo',

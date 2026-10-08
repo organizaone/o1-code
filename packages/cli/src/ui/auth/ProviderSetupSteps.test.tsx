@@ -7,6 +7,10 @@
 import { renderWithProviders } from '../../test-utils/render.js';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { act } from 'react';
+import { Box, Text } from 'ink';
+import { UIStateContext, type UIState } from '../contexts/UIStateContext.js';
+import { getDialogMaxHeight } from '../utils/layoutUtils.js';
+import { getFixedHeaderHeight } from '../components/Header.js';
 import {
   AuthType,
   customProvider,
@@ -1474,6 +1478,99 @@ describe('ProviderSetupSteps', () => {
     expect(frame).not.toContain('MiniMax-M2.7');
     unmount();
   });
+
+  it.each([
+    [80, 24],
+    [40, 24],
+    [80, 30],
+    [80, 45],
+  ])(
+    'reaches the last provider model without searching in a %ix%i terminal',
+    async (terminalWidth, terminalHeight) => {
+      const models = Array.from({ length: 41 }, (_, index) => ({
+        id: `served-model-${String(index).padStart(3, '0')}`,
+      }));
+      discoverProviderModelsMock.mockResolvedValue(models);
+      const submitModelIds = vi.fn();
+      const flow = createModelIdsFlow({ modelIds: '', submitModelIds });
+      enableDiscovery(flow);
+      if (terminalHeight === 24) {
+        flow.state.modelIdsError = 'Select at least one model.';
+      }
+      const state = {
+        terminalWidth,
+        mainAreaWidth: terminalWidth - 4,
+        terminalHeight,
+        staticExtraHeight: 3,
+        constrainHeight: true,
+        useTerminalBuffer: true,
+        auth: { authError: null },
+      } as UIState;
+      const height = getDialogMaxHeight(
+        terminalHeight,
+        3,
+        getFixedHeaderHeight(terminalWidth),
+      );
+      const { lastFrame, unmount } = renderWithProviders(
+        <UIStateContext.Provider value={state}>
+          <Box
+            width={terminalWidth - 4}
+            height={height}
+            borderStyle="round"
+            padding={1}
+            flexDirection="column"
+          >
+            <Text>Connect a provider</Text>
+            <ProviderSetupSteps flow={flow} />
+          </Box>
+        </UIStateContext.Provider>,
+      );
+      await act(async () => {});
+      if (terminalHeight === 24) {
+        checkProviderKeyMock.mockResolvedValueOnce({ status: 'unavailable' });
+        await act(async () => {
+          for (const handler of [...activeKeypressHandlers]) {
+            handler({
+              name: 'r',
+              sequence: '\u0012',
+              ctrl: true,
+              meta: false,
+              shift: false,
+              paste: false,
+            });
+          }
+        });
+        await act(async () => {});
+        expect(lastFrame()).toContain('The provider list');
+        expect(lastFrame()).toContain('Select at least one model.');
+      }
+      expect(lastFrame()).toContain('/41 ↓');
+      await act(async () => pressLatestKey('tab', '\t'));
+      await act(async () => pressLatestKey('tab', '\t'));
+      await act(async () => pressLatestKey('end', '\x1b[F'));
+      const endFrame = lastFrame() ?? '';
+      expect(endFrame).toContain('served-model-040');
+      expect(endFrame).toContain('41/41');
+      expect(endFrame).toContain('↑');
+      expect(endFrame).toContain('Space toggle');
+      expect(endFrame).toContain('Enter confirm · Esc back');
+      expect(endFrame).toContain('╰');
+      expect(endFrame.split('\n').length).toBeLessThanOrEqual(height);
+      await act(async () => pressLatestKey('home', '\x1b[H'));
+      expect(lastFrame()).toContain('served-model-000');
+      await act(async () => pressLatestKey('pagedown', '\x1b[6~'));
+      expect(lastFrame()).toContain('↑');
+      await act(async () => pressLatestKey('pageup', '\x1b[5~'));
+      expect(lastFrame()).toContain('served-model-000');
+      await act(async () => pressLatestKey('end', '\x1b[F'));
+      await act(async () => pressLatestKey('space', ' '));
+      await act(async () => pressLatestKey('return', '\r'));
+      expect(submitModelIds).toHaveBeenCalledWith({
+        modelIds: ['served-model-040'],
+      });
+      unmount();
+    },
+  );
 
   it('shows the provider empty state when no discovered model matches', async () => {
     discoverProviderModelsMock.mockResolvedValue([{ id: 'served-model' }]);
