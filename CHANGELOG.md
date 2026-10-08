@@ -21,6 +21,8 @@ follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 - Opening the plugin manager in full-screen mode hides the conversation frame
   above it; closing the manager restores the conversation.
+- Provider connection, authentication progress and connection errors also hide
+  the full-screen conversation frame until authentication closes.
 - Plugin settings preserve whitespace, quotes, comment markers, backslashes,
   tabs and multiline values when saved. Values that cannot round-trip through
   the settings file fail before replacing its contents.

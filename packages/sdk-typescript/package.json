@@ -1,6 +1,6 @@
 {
   "name": "@organizaone/o1-code-sdk",
-  "version": "0.11.1",
+  "version": "0.11.2",
   "description": "TypeScript SDK for programmatic access to o1-code CLI",
   "main": "./dist/index.cjs",
   "module": "./dist/index.mjs",

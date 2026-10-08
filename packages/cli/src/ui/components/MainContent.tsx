@@ -559,7 +559,13 @@ export const MainContent = ({
     ],
   );
 
-  if (useVirtualScroll && uiState.isExtensionsManagerDialogOpen) {
+  if (
+    useVirtualScroll &&
+    (uiState.isExtensionsManagerDialogOpen ||
+      uiState.auth.isAuthDialogOpen ||
+      uiState.auth.isAuthenticating ||
+      uiState.auth.authError)
+  ) {
     return null;
   }
 

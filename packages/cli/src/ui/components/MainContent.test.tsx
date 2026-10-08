@@ -865,6 +865,50 @@ describe('<MainContent />', () => {
   });
 
   describe('virtual viewport path (ui.useTerminalBuffer)', () => {
+    it.each([
+      { name: 'provider selection', auth: { isAuthDialogOpen: true } },
+      { name: 'authentication progress', auth: { isAuthenticating: true } },
+      {
+        name: 'authentication error',
+        auth: { authError: 'Connection failed' },
+      },
+    ])(
+      'hides the conversation during $name and restores it afterward',
+      async ({ auth }) => {
+        const state = createUIState({
+          useTerminalBuffer: true,
+          availableTerminalHeight: 10,
+          history: [{ id: 1, type: 'user', text: 'previous conversation' }],
+          messageQueue: ['run the tests'],
+        });
+        const { lastFrame, rerender } = renderMainContent(state);
+        expect(lastFrame()).toContain('HISTORY:1');
+        rerender(
+          mainContentTree({ ...state, auth: { ...state.auth, ...auth } }),
+        );
+        await new Promise((resolve) => setImmediate(resolve));
+        expect(lastFrame()).toBe('');
+
+        rerender(mainContentTree(state));
+        await new Promise((resolve) => setImmediate(resolve));
+        expect(lastFrame()).toContain('HISTORY:1');
+        expect(lastFrame()).toContain('run the tests');
+        expect(lastFrame()).toContain('╭');
+      },
+    );
+
+    it('keeps inline transcript output while provider selection is open', () => {
+      const state = createUIState({
+        history: [{ id: 1, type: 'user', text: 'previous conversation' }],
+      });
+      const { lastFrame } = renderMainContent({
+        ...state,
+        auth: { ...state.auth, isAuthDialogOpen: true },
+      });
+      expect(lastFrame()).toContain('HISTORY:1');
+      expect(lastFrame()).toContain('APP_HEADER');
+    });
+
     it.each([40, 160])(
       'hides the conversation frame while plugins are open at %i columns and restores it on close',
       async (terminalWidth) => {
