@@ -7,28 +7,7 @@ follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
-### Changed
-
-- Update development test and frontend build tooling to patched versions, keeping
-  the existing worker limits, SDK coverage thresholds, and generated report styles.
-
-### Fixed
-
-- Run explicitly requested full CI suites after the fast gates pass, including
-  when an optional documentation job is skipped.
-- Reject account-login and connection-code providers in the Web Shell's API-key
-  installation route, which cannot perform their dedicated connection flows.
-- Keep terminal exit-summary and incremental-rendering controls out of the Web
-  Shell's settings panel.
-- Update the dependencies used for Git operations, shell quoting, MCP connections,
-  HTTP transport, proxy address parsing, image decoding, and telemetry to address
-  critical and high security advisories. Transitive overrides also cover affected
-  brace expansion, YAML parsing, source maps, and browser compatibility data.
-- Preserve the isolated Git environment used to download authenticated extensions
-  with the updated Git library, while rejecting inherited Git configuration and
-  executable configuration arguments before starting Git.
-
-## [0.10.2] - 2026-10-07
+## [0.10.4] - 2026-10-08
 
 ### Added
 
@@ -53,6 +32,8 @@ follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - The exit summary identifies the active connection's API protocol and recognized
   provider, including local servers, authentication by API key or browser account
   login, and the OrganizaOne connection-code tunnel.
+- Update development test and frontend build tooling to patched versions, keeping
+  the existing worker limits, SDK coverage thresholds, and generated report styles.
 
 ### Fixed
 
@@ -65,6 +46,19 @@ follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   queries in a burst preserves spaces without changing a setting.
 - Custom answers to questions use the available width, retain up to three visible
   lines, and show the visible line range when scrolling through longer text.
+- Run explicitly requested full CI suites after the fast gates pass, including
+  when an optional documentation job is skipped.
+- Reject account-login and connection-code providers in the Web Shell's API-key
+  installation route, which cannot perform their dedicated connection flows.
+- Keep terminal exit-summary and incremental-rendering controls out of the Web
+  Shell's settings panel.
+- Update the dependencies used for Git operations, shell quoting, MCP connections,
+  HTTP transport, proxy address parsing, image decoding, and telemetry to address
+  critical and high security advisories. Transitive overrides also cover affected
+  brace expansion, YAML parsing, source maps, and browser compatibility data.
+- Preserve the isolated Git environment used to download authenticated extensions
+  with the updated Git library, while rejecting inherited Git configuration and
+  executable configuration arguments before starting Git.
 
 ## [0.9.0] - 2026-10-06
 
@@ -432,6 +426,7 @@ The first release of o1-code, a coding agent for the terminal.
 - `o1-code serve` runs a local daemon with a REST API and the Web Shell, a browser interface.
 - Editor companions for VS Code and Zed.
 
-[Unreleased]: https://github.com/organizaone/o1-code/compare/v0.10.2...HEAD
-[0.10.2]: https://github.com/organizaone/o1-code/releases/tag/v0.10.2
+[Unreleased]: https://github.com/organizaone/o1-code/compare/v0.10.4...HEAD
+[0.10.4]: https://github.com/organizaone/o1-code/compare/v0.9.0...v0.10.4
+[0.9.0]: https://github.com/organizaone/o1-code/releases/tag/v0.9.0
 [0.1.0]: https://github.com/organizaone/o1-code/releases/tag/v0.1.0
