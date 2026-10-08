@@ -14,8 +14,8 @@
   <a href="https://github.com/organizaone/o1-code/releases"><img alt="Release" src="https://img.shields.io/github/v/release/organizaone/o1-code"></a>
 </p>
 
-o1-code reads your project, edits files, runs commands and works through multi-step tasks, asking
-before it changes anything. It talks to the model provider you choose: a built-in preset, a model
+o1-code reads your project, edits files, runs commands and works through multi-step tasks according
+to your selected approval mode. It talks to the model provider you choose: a built-in preset, a model
 running on your machine, or any OpenAI-compatible or Anthropic endpoint by its base URL.
 
 <p align="center">
@@ -131,8 +131,8 @@ add input validation to POST /todos: reject an empty title with a 400, and add a
   second-class path.
 - **Runs as a user.** No administrator rights, no Rust or Go toolchain; native modules are prebuilt
   or optional. Windows is a first-class platform.
-- **No telemetry.** Nothing is collected; your prompts and code go to the provider you configure, and
-  to an OpenTelemetry collector only if you set one up. See
+- **Telemetry is opt-in.** Your prompts and code go to the provider you configure.
+  OpenTelemetry exports are disabled by default and use the collector you configure. See
   [Terms of service and privacy](./docs/users/support/tos-privacy.md).
 - **Extension mechanisms first.** Skills, hooks, MCP, rules, output styles, themes and
   `modelProviders` before changes to the core.

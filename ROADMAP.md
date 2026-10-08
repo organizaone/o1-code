@@ -74,6 +74,14 @@ Decisions so far.
 - Still open: a prebuild pipeline for `audio-capture`, which then returns to the published
   package.
 
+### Plugin and marketplace configuration
+
+- The contextual slash menu and responsive selection panels are implemented.
+  [Issue #53](https://github.com/organizaone/o1-code/issues/53) remains open for
+  individual plugin settings with user/project scope and masked secret replacement,
+  plus editing individual marketplace sources. The existing plugin management
+  actions do not yet provide those editors.
+
 ### Unscheduled
 
 - A `/smoke` skill (container smoke gate), user-invoked only.
@@ -105,7 +113,7 @@ Decisions so far.
 | Windows: long paths, CRLF, shell scripts                          | high        | low    | `core.longpaths`, `.gitattributes`, scripts in Node                                             |
 | npm supply chain attacks                                          | medium      | high   | `minimumReleaseAge` cooldown, frozen lockfile, hash-pinned actions                              |
 | A third-party name appears as product identity                    | low         | high   | `node scripts/o1/brand-lint.mjs` as a gate; docs and README review before publishing            |
-| Telemetry to a third party appears in some path                   | low         | high   | no collection module in the tree; review every new network endpoint                             |
+| Telemetry to a third party appears in some path                   | low         | high   | OpenTelemetry is opt-in and uses the configured collector; review every new network endpoint    |
 | Single maintainer                                                 | medium      | high   | small, scoped changes; CI gates on every pull request; this file and the changelog kept current |
 
 ## Repository governance
