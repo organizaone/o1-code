@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, type Mock } from 'vitest';
 import { SubAgentTracker } from './SubAgentTracker.js';
 import type { SessionContext } from './types.js';
 import type {
@@ -24,7 +24,10 @@ import {
   ToolConfirmationOutcome,
   ToolNames,
 } from '@organizaone/o1-code-core';
-import type { AgentSideConnection } from '@agentclientprotocol/sdk';
+import type {
+  AgentSideConnection,
+  RequestPermissionResponse,
+} from '@agentclientprotocol/sdk';
 import { EventEmitter } from 'node:events';
 
 // Helper to create a mock AgentToolCallEvent with required fields
@@ -119,11 +122,34 @@ function createStreamTextEvent(
 describe('SubAgentTracker', () => {
   let mockContext: SessionContext;
   let mockClient: AgentSideConnection;
-  let sendUpdateSpy: ReturnType<typeof vi.fn>;
-  let requestPermissionSpy: ReturnType<typeof vi.fn>;
+  let sendUpdateSpy: Mock<SessionContext['sendUpdate']>;
+  let requestPermissionSpy: Mock<
+    (
+      ...args: Parameters<
+        NonNullable<ConstructorParameters<typeof SubAgentTracker>[5]>
+      >
+    ) => Promise<
+      RequestPermissionResponse & { answers?: Record<string, string> }
+    >
+  >;
   let tracker: SubAgentTracker;
   let eventEmitter: AgentEventEmitter;
   let abortController: AbortController;
+
+  function capturedToolCallText(): string {
+    const update = sendUpdateSpy.mock.calls[0][0];
+    if (
+      update.sessionUpdate !== 'tool_call' &&
+      update.sessionUpdate !== 'tool_call_update'
+    ) {
+      throw new Error('Expected a tool call update');
+    }
+    const content = update.content?.[0];
+    if (content?.type !== 'content' || content.content.type !== 'text') {
+      throw new Error('Expected text content in the tool call');
+    }
+    return content.content.text;
+  }
 
   beforeEach(() => {
     sendUpdateSpy = vi.fn().mockResolvedValue(undefined);
@@ -345,7 +371,7 @@ describe('SubAgentTracker', () => {
       await vi.waitFor(() => {
         expect(sendUpdateSpy).toHaveBeenCalled();
       });
-      const text = sendUpdateSpy.mock.calls[0][0].content[0].content.text;
+      const text = capturedToolCallText();
       expect(text).toBe('ReadFile: Reading file');
     });
 
@@ -373,7 +399,7 @@ describe('SubAgentTracker', () => {
       await vi.waitFor(() => {
         expect(sendUpdateSpy).toHaveBeenCalled();
       });
-      const text = sendUpdateSpy.mock.calls[0][0].content[0].content.text;
+      const text = capturedToolCallText();
       expect(text).toBe('Running tool: ReadFile');
     });
   });
@@ -669,7 +695,7 @@ describe('SubAgentTracker', () => {
       });
 
       const progressCalls = sendUpdateSpy.mock.calls.filter(
-        (call) => call[0]?._meta?.subagentProgress === true,
+        (call) => call[0]?._meta?.['subagentProgress'] === true,
       );
       expect(progressCalls).toHaveLength(1);
     });

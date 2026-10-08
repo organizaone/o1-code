@@ -66,7 +66,7 @@ const mockStartChat = vi.fn();
 const mockRunVisionBridge = vi.hoisted(() => vi.fn());
 
 const MockedLlmClientClass = vi.hoisted(() =>
-  vi.fn().mockImplementation(function (this: any, _config: any) {
+  vi.fn().mockImplementation(function MockLlmClient(this: any, _config: any) {
     // _config
     this.startChat = mockStartChat;
     this.sendMessageStream = mockSendMessageStream;
@@ -101,10 +101,10 @@ const MockedLlmClientClass = vi.hoisted(() =>
 );
 
 const MockedUserPromptEvent = vi.hoisted(() =>
-  vi.fn().mockImplementation(() => {}),
+  vi.fn().mockImplementation(function MockUserPromptEvent() {}),
 );
 const MockedApiCancelEvent = vi.hoisted(() =>
-  vi.fn().mockImplementation(() => {}),
+  vi.fn().mockImplementation(function MockApiCancelEvent() {}),
 );
 const mockParseAndFormatApiError = vi.hoisted(() =>
   vi.fn(
@@ -348,11 +348,11 @@ describe('useLlmStream', () => {
 
     // Reset mocks for LlmClient instance methods (startChat and sendMessageStream)
     // The LlmClient constructor itself is mocked at the module level.
-    mockStartChat.mockClear().mockResolvedValue({
+    mockStartChat.mockReset().mockResolvedValue({
       sendMessageStream: mockSendMessageStream,
     } as unknown as any); // LlmChat -> any
     mockSendMessageStream
-      .mockClear()
+      .mockReset()
       .mockReturnValue((async function* () {})());
     handleAtCommandSpy = vi.spyOn(atCommandProcessor, 'handleAtCommand');
     mockRunVisionBridge.mockReset();

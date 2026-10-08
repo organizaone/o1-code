@@ -120,6 +120,11 @@ const SUB_DIALOG_KEYS = new Set([
 const HIDDEN_SETTING_KEYS = new Set([
   'ui.hideTips',
   'ui.enableUserFeedback',
+  // These controls affect the terminal process, not the Web Shell.
+  'ui.showSessionSummary',
+  'ui.keepSessionSummaryOpen',
+  'ui.sessionSummaryTimeoutSeconds',
+  'ui.incrementalRendering',
   // Compact behavior is fixed on in the web shell; the daemon schema still
   // carries the retired setting, so keep it hidden from the panel.
   'ui.compactMode',

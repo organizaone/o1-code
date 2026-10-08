@@ -8,6 +8,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import express from 'express';
 import request from 'supertest';
 import type { RequestHandler } from 'express';
+import { AuthType } from '@organizaone/o1-code-core/utils/auth-type.js';
 import { registerWorkspaceAuthRoutes } from './workspace-auth.js';
 
 const probeLocalServersMock = vi.hoisted(() => vi.fn());
@@ -80,8 +81,15 @@ describe('GET /workspace/auth/local-servers', () => {
 });
 
 describe('POST /workspace/auth/provider', () => {
-  it('refuses a coming-soon entry of the catalog', async () => {
-    const installAuthProvider = vi.fn();
+  it('allows the OrganizaOne API-key provider', async () => {
+    const result = {
+      v: 1 as const,
+      providerId: 'organizaone',
+      providerLabel: 'OrganizaOne',
+      authType: AuthType.USE_OPENAI,
+      message: 'Provider saved.',
+    };
+    const installAuthProvider = vi.fn(async () => result);
     const app = express();
     app.use(express.json());
     const passThrough: RequestHandler = (_req, _res, next) => next();
@@ -95,9 +103,38 @@ describe('POST /workspace/auth/provider', () => {
 
     const res = await request(app)
       .post('/workspace/auth/provider')
-      .send({ providerId: 'organizaone-login', apiKey: 'token' });
+      .send({ providerId: 'organizaone', apiKey: 'token' });
 
-    expect(res.status).toBe(400);
-    expect(installAuthProvider).not.toHaveBeenCalled();
+    expect(res.status).toBe(200);
+    expect(res.body).toEqual(result);
+    expect(installAuthProvider).toHaveBeenCalledExactlyOnceWith({
+      providerId: 'organizaone',
+      apiKey: 'token',
+    });
   });
+
+  it.each(['organizaone-login', 'organizaone-o1gw'])(
+    'refuses a catalog entry requiring a dedicated connection flow: %s',
+    async (providerId) => {
+      const installAuthProvider = vi.fn();
+      const app = express();
+      app.use(express.json());
+      const passThrough: RequestHandler = (_req, _res, next) => next();
+      registerWorkspaceAuthRoutes(app, {
+        mutate: () => passThrough,
+        sendBridgeError: vi.fn(),
+        boundWorkspace: '/work/bound',
+        allowPrivateAuthBaseUrl: false,
+        installAuthProvider,
+      });
+
+      const res = await request(app)
+        .post('/workspace/auth/provider')
+        .send({ providerId, apiKey: 'token' });
+
+      expect(res.status).toBe(400);
+      expect(res.body.code).toBe('unsupported_provider');
+      expect(installAuthProvider).not.toHaveBeenCalled();
+    },
+  );
 });

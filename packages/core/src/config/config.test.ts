@@ -370,11 +370,13 @@ vi.mock('../providers/o1-connect/session.js', async (importOriginal) => ({
 }));
 
 vi.mock('../core/client.js', () => ({
-  LlmClient: vi.fn().mockImplementation(() => ({
-    initialize: vi.fn().mockResolvedValue(undefined),
-    isInitialized: vi.fn().mockReturnValue(true),
-    setTools: vi.fn(),
-  })),
+  LlmClient: vi.fn().mockImplementation(function MockConstructor() {
+    return {
+      initialize: vi.fn().mockResolvedValue(undefined),
+      isInitialized: vi.fn().mockReturnValue(true),
+      setTools: vi.fn(),
+    };
+  }),
 }));
 
 vi.mock('../telemetry/index.js', async (importOriginal) => {
@@ -7347,6 +7349,7 @@ describe('Server Config (config.ts)', () => {
       const refreshTools = vi
         .spyOn(config.getLlmClient(), 'setTools')
         .mockResolvedValue(undefined);
+      refreshTools.mockClear();
       await config.setImageModel(`openai:qwen-image-2.0\0${baseUrl}`);
 
       expect(ToolRegistry.prototype.registerFactory).toHaveBeenCalledWith(
@@ -7533,6 +7536,7 @@ describe('Server Config (config.ts)', () => {
           ]);
           const getRegistry = vi.spyOn(config, 'getToolRegistry');
           const refresh = vi.spyOn(config.getLlmClient(), 'setTools');
+          refresh.mockClear();
           await config.enableReviewWorkflow();
           expect(config.isWorkflowsEnabled()).toBe(workflowsEnabled !== false);
           expect(getRegistry).toHaveBeenCalledTimes(

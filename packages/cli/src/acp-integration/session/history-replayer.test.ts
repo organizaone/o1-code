@@ -7,7 +7,7 @@
 import { mkdtempSync, readFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, type Mock } from 'vitest';
 
 // Deliberately NOT mocked: `writeStderrLineSafe` is the thing under test in
 // "survives a broken stderr" below, and a mocked stand-in would re-implement the
@@ -35,8 +35,10 @@ import type {
 
 describe('HistoryReplayer', () => {
   let mockContext: SessionContext;
-  let sendUpdateSpy: ReturnType<typeof vi.fn>;
-  let setActiveRecordIdSpy: ReturnType<typeof vi.fn>;
+  let sendUpdateSpy: Mock<SessionContext['sendUpdate']>;
+  let setActiveRecordIdSpy: Mock<
+    NonNullable<SessionContext['setActiveRecordId']>
+  >;
   let sentUpdateContexts: Array<{
     activeRecordId: string | null;
     activeRecordTimestamp: string | undefined;

@@ -5,6 +5,7 @@
  */
 
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { act } from 'react';
 import { ApprovalMode } from '@organizaone/o1-code-core/config/approval-mode.js';
 import { LoadedSettings, SettingScope } from '../../config/settings.js';
 import { renderWithProviders } from '../../test-utils/render.js';
@@ -35,6 +36,15 @@ function createSettings(
 
 function frameHeight(frame: string): number {
   return frame.length === 0 ? 0 : frame.split('\n').length;
+}
+
+async function pressKey(
+  stdin: ReturnType<typeof renderWithProviders>['stdin'],
+  key: string,
+) {
+  await act(async () => {
+    stdin.write(key);
+  });
 }
 
 describe('ApprovalModeDialog', () => {
@@ -103,7 +113,7 @@ describe('ApprovalModeDialog', () => {
     await vi.waitFor(() =>
       expect(lastFrame() ?? '').toContain('Require approval for file edits'),
     );
-    stdin.write('\x1b[B');
+    await pressKey(stdin, '\x1b[B');
     await vi.waitFor(() =>
       expect(lastFrame() ?? '').toContain('Automatically approve file edits'),
     );
@@ -113,7 +123,7 @@ describe('ApprovalModeDialog', () => {
     expect(currentLine).toContain(glyphs().done);
     expect(currentLine).not.toContain(glyphs().prompt);
     expect(onSelect).not.toHaveBeenCalled();
-    stdin.write('\r');
+    await pressKey(stdin, '\r');
     await vi.waitFor(() =>
       expect(onSelect).toHaveBeenCalledWith(
         ApprovalMode.AUTO_EDIT,
@@ -171,13 +181,13 @@ describe('ApprovalModeDialog', () => {
     await vi.waitFor(() =>
       expect(lastFrame() ?? '').toContain('Ask permissions'),
     );
-    stdin.write('\x1b[B');
+    await pressKey(stdin, '\x1b[B');
     await vi.waitFor(() => expect(lastFrame() ?? '').toContain('3/5'));
-    stdin.write('\t');
+    await pressKey(stdin, '\t');
     await vi.waitFor(() => expect(lastFrame() ?? '').toContain('Apply To'));
-    stdin.write('\x1b[B');
+    await pressKey(stdin, '\x1b[B');
     await vi.waitFor(() => expect(lastFrame() ?? '').toContain('2/2'));
-    stdin.write('\r');
+    await pressKey(stdin, '\r');
     await vi.waitFor(() => {
       const frame = lastFrame() ?? '';
       expect(frame).toContain('Workspace Settings');
@@ -185,7 +195,7 @@ describe('ApprovalModeDialog', () => {
       expect(frame).not.toContain('Apply To');
     });
     expect(onSelect).not.toHaveBeenCalled();
-    stdin.write('\r');
+    await pressKey(stdin, '\r');
     await vi.waitFor(() =>
       expect(onSelect).toHaveBeenCalledWith(
         ApprovalMode.AUTO_EDIT,
@@ -228,7 +238,7 @@ describe('ApprovalModeDialog', () => {
     await vi.waitFor(() =>
       expect(lastFrame() ?? '').toContain('Ask permissions'),
     );
-    stdin.write('\x1b');
+    await pressKey(stdin, '\x1b');
     await vi.waitFor(() =>
       expect(onSelect).toHaveBeenCalledWith(undefined, SettingScope.User),
     );

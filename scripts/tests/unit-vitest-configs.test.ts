@@ -23,10 +23,8 @@ import webShellConfig from '../../packages/web-shell/vitest.config.js';
 import scriptsTestsConfig from './vitest.config.js';
 
 // Every vitest project that `npm run test:ci` runs on the Windows/macOS
-// platform lanes carries the off-Linux unhandled-error exemption: vitest's
-// worker->main `onTaskUpdate` RPC has a fixed 60s budget, and under runner
-// resource pressure a stall longer than that exits an all-green run red
-// (a recurring nightly failure class). This
+// platform lanes carries the off-Linux unhandled-error exemption for historical
+// worker RPC timeouts under runner resource pressure. This
 // witness pins the flag in every guarded config so removing it from any
 // one of them fails the scripts suite on every platform.
 type ExemptionConfig = {
@@ -34,7 +32,7 @@ type ExemptionConfig = {
     dangerouslyIgnoreUnhandledErrors?: boolean;
     testTimeout?: number;
     pool?: 'threads' | 'forks' | 'vmThreads';
-    poolOptions?: { threads?: { maxThreads?: number } };
+    maxWorkers?: number;
   };
 };
 

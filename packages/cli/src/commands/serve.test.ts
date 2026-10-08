@@ -327,7 +327,7 @@ describe('serve rate limit env parsing', () => {
   const originalEnv = process.env;
 
   beforeEach(() => {
-    vi.clearAllMocks();
+    vi.resetAllMocks();
     process.env = { ...originalEnv, O1CODE_SUPPRESS_YOLO_WARNING: '1' };
   });
 

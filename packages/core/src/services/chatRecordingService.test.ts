@@ -111,6 +111,7 @@ describe('ChatRecordingService', () => {
   let uuidCounter = 0;
 
   beforeEach(() => {
+    vi.resetAllMocks();
     uuidCounter = 0;
     boundaryObserveMock.mockClear();
 

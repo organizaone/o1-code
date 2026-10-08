@@ -94,7 +94,9 @@ export function createAgentCoreMock(): Record<string, unknown> {
  */
 export function agentCoreMockModule(): { AgentCore: unknown } {
   return {
-    AgentCore: vi.fn().mockImplementation(() => createAgentCoreMock()),
+    AgentCore: vi.fn().mockImplementation(function MockConstructor() {
+      return createAgentCoreMock();
+    }),
   };
 }
 

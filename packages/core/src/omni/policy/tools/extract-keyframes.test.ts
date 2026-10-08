@@ -399,6 +399,7 @@ describe('OmniExtractKeyframesTool', () => {
     });
 
     it('threads policyTools.<tool>.runtime.timeoutMs into runFfmpeg', async () => {
+      vi.spyOn(Date, 'now').mockReturnValue(1_755_000_000_000);
       probe({ durationMs: 63_000 });
       mocks.runFfmpeg.mockImplementation(framesRun(1, [0]));
       const configured = new OmniExtractKeyframesTool({

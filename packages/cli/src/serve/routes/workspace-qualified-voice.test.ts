@@ -8,13 +8,16 @@ import { promises as fsp } from 'node:fs';
 import * as os from 'node:os';
 import * as path from 'node:path';
 import express from 'express';
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, vi, type Mock } from 'vitest';
 import request from 'supertest';
 import {
   SettingScope,
   resetHomeEnvBootstrapForTesting,
 } from '../../config/settings.js';
-import { registerWorkspaceQualifiedVoiceRoutes } from './workspace-voice.js';
+import {
+  registerWorkspaceQualifiedVoiceRoutes,
+  type WorkspaceQualifiedVoiceRouteDeps,
+} from './workspace-voice.js';
 import {
   createWorkspaceRegistry,
   type WorkspaceRuntime,
@@ -58,7 +61,9 @@ function runtime(
 async function createApp(
   opts: {
     acquireVoiceLease?: (runtime: WorkspaceRuntime) => VoiceAdmissionResult;
-    transcribe?: ReturnType<typeof vi.fn>;
+    transcribe?: Mock<
+      NonNullable<WorkspaceQualifiedVoiceRouteDeps['transcribe']>
+    >;
     secondaryEnvMode?: 'parent-process' | 'runtime-overlay';
   } = {},
 ): Promise<{
@@ -66,10 +71,16 @@ async function createApp(
   secondary: WorkspaceRuntime;
   untrusted: WorkspaceRuntime;
   registry: ReturnType<typeof createWorkspaceRegistry>;
-  persistSetting: ReturnType<typeof vi.fn>;
-  acquireVoiceLease: ReturnType<typeof vi.fn>;
-  transcribe: ReturnType<typeof vi.fn>;
-  invalidateServeFeaturesCache: ReturnType<typeof vi.fn>;
+  persistSetting: Mock<
+    NonNullable<WorkspaceQualifiedVoiceRouteDeps['persistSetting']>
+  >;
+  acquireVoiceLease: Mock<
+    WorkspaceQualifiedVoiceRouteDeps['acquireVoiceLease']
+  >;
+  transcribe: Mock<NonNullable<WorkspaceQualifiedVoiceRouteDeps['transcribe']>>;
+  invalidateServeFeaturesCache: Mock<
+    WorkspaceQualifiedVoiceRouteDeps['invalidateServeFeaturesCache']
+  >;
 }> {
   const home = await fsp.mkdtemp(path.join(os.tmpdir(), 'o1-code-voice-home-'));
   homes.push(home);
@@ -91,8 +102,12 @@ async function createApp(
   });
   const untrusted = runtime('untrusted-id', untrustedCwd, { trusted: false });
   const registry = createWorkspaceRegistry([primary, secondary, untrusted]);
-  const persistSetting = vi.fn(async () => undefined);
-  const acquireVoiceLease = vi.fn(
+  const persistSetting = vi.fn<
+    NonNullable<WorkspaceQualifiedVoiceRouteDeps['persistSetting']>
+  >(async () => undefined);
+  const acquireVoiceLease = vi.fn<
+    WorkspaceQualifiedVoiceRouteDeps['acquireVoiceLease']
+  >(
     opts.acquireVoiceLease ??
       (() => ({
         kind: 'admitted' as const,
@@ -101,12 +116,15 @@ async function createApp(
   );
   const transcribe =
     opts.transcribe ??
-    vi.fn(async () => ({
-      text: 'secondary transcript',
-      model: 'secondary-asr',
-      transport: 'dashscope-asr-chat' as const,
-    }));
-  const invalidateServeFeaturesCache = vi.fn();
+    vi.fn<NonNullable<WorkspaceQualifiedVoiceRouteDeps['transcribe']>>(
+      async () => ({
+        text: 'secondary transcript',
+        model: 'secondary-asr',
+        transport: 'dashscope-asr-chat' as const,
+      }),
+    );
+  const invalidateServeFeaturesCache =
+    vi.fn<WorkspaceQualifiedVoiceRouteDeps['invalidateServeFeaturesCache']>();
   const app = express();
   app.use(express.json());
   registerWorkspaceQualifiedVoiceRoutes(app, {

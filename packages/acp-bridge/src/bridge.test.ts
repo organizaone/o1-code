@@ -12041,14 +12041,6 @@ describe('createAcpSessionBridge', () => {
         attributes: Record<string, string | number | boolean>;
       }> = [];
       const timeline: string[] = [];
-      const injectPromptContext = vi.fn(<T extends object>(request: T): T => {
-        const meta =
-          (request as { _meta?: Record<string, unknown> })._meta ?? {};
-        return {
-          ...request,
-          _meta: { ...meta, 'o1code.telemetry.traceparent': 'restore-parent' },
-        };
-      });
       const telemetry: BridgeTelemetry = {
         captureContext: () => undefined,
         runWithContext: async (_captured, fn) => await fn(),
@@ -12063,8 +12055,19 @@ describe('createAcpSessionBridge', () => {
             );
           }
         },
-        injectPromptContext,
+        injectPromptContext: <T extends object>(request: T): T => {
+          const meta =
+            (request as { _meta?: Record<string, unknown> })._meta ?? {};
+          return {
+            ...request,
+            _meta: {
+              ...meta,
+              'o1code.telemetry.traceparent': 'restore-parent',
+            },
+          };
+        },
       };
+      const injectPromptContext = vi.spyOn(telemetry, 'injectPromptContext');
       const bridge = makeBridge({
         channelFactory: async () => handle.channel,
         telemetry,

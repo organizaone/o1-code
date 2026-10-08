@@ -4,7 +4,15 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import {
+  afterEach,
+  beforeEach,
+  describe,
+  expect,
+  it,
+  vi,
+  type Mock,
+} from 'vitest';
 import express from 'express';
 import { promises as fsp } from 'node:fs';
 import type { Server } from 'node:http';
@@ -14,7 +22,11 @@ import * as path from 'node:path';
 import WebSocket from 'ws';
 import type { HttpAcpBridge } from '@organizaone/o1-code-acp-bridge/bridgeTypes';
 import { Storage } from '@organizaone/o1-code-core';
-import { type AcpHttpHandle, mountAcpHttp } from './index.js';
+import {
+  type AcpHttpHandle,
+  type MountAcpHttpOptions,
+  mountAcpHttp,
+} from './index.js';
 import {
   createWorkspaceRegistry,
   type WorkspaceRuntime,
@@ -175,13 +187,19 @@ describe('workspace-qualified ACP (/workspaces/:workspace/acp)', () => {
   let base: string;
   let port: number;
   let handle: AcpHttpHandle | undefined;
-  let checkRate: ReturnType<typeof vi.fn>;
+  let checkRate: Mock<NonNullable<MountAcpHttpOptions['checkRate']>>;
   let primaryBridge: HttpAcpBridge;
   let secondaryBridge: HttpAcpBridge;
   let workspaceRegistry: ReturnType<typeof createWorkspaceRegistry>;
   let secondaryRuntime: WorkspaceRuntime;
-  let workspaceVoiceConnection: ReturnType<typeof vi.fn>;
-  let materializeLiveConversationDirectory: ReturnType<typeof vi.fn>;
+  let workspaceVoiceConnection: Mock<
+    NonNullable<MountAcpHttpOptions['workspaceVoiceConnection']>
+  >;
+  let materializeLiveConversationDirectory: Mock<
+    NonNullable<
+      MountAcpHttpOptions['liveSessionIsolation']
+    >['materializeConversationDirectory']
+  >;
   let runtimeDir: string;
   let previousRuntimeDir: string | undefined;
 
@@ -228,16 +246,20 @@ describe('workspace-qualified ACP (/workspaces/:workspace/acp)', () => {
       }),
     ]);
 
-    checkRate = vi.fn().mockReturnValue(true);
-    workspaceVoiceConnection = vi.fn(
-      (runtime: WorkspaceRuntime, ws: WebSocket) => {
-        ws.send(JSON.stringify({ workspaceCwd: runtime.workspaceCwd }));
-        ws.close(1000, 'done');
-      },
-    );
-    materializeLiveConversationDirectory = vi.fn(
-      async (sessionId: string) => `/live-root/conversation-${sessionId}`,
-    );
+    checkRate = vi
+      .fn<NonNullable<MountAcpHttpOptions['checkRate']>>()
+      .mockReturnValue(true);
+    workspaceVoiceConnection = vi.fn<
+      NonNullable<MountAcpHttpOptions['workspaceVoiceConnection']>
+    >((runtime: WorkspaceRuntime, ws: WebSocket) => {
+      ws.send(JSON.stringify({ workspaceCwd: runtime.workspaceCwd }));
+      ws.close(1000, 'done');
+    });
+    materializeLiveConversationDirectory = vi.fn<
+      NonNullable<
+        MountAcpHttpOptions['liveSessionIsolation']
+      >['materializeConversationDirectory']
+    >(async (sessionId: string) => `/live-root/conversation-${sessionId}`);
 
     const app = express();
     app.use(express.json());

@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { vi, describe, it, expect, beforeEach } from 'vitest';
+import { vi, describe, it, expect, beforeEach, type Mock } from 'vitest';
 import { hooksCommand } from './hooksCommand.js';
 import { createMockCommandContext } from '../../test-utils/mockCommandContext.js';
 
@@ -13,7 +13,7 @@ import { SettingScope } from '../../config/settings.js';
 describe('hooksCommand', () => {
   let mockContext: ReturnType<typeof createMockCommandContext>;
   let mockConfig: {
-    getHookSystem: ReturnType<typeof vi.fn>;
+    getHookSystem: Mock<() => { reload: () => Promise<void> }>;
     setHooksFromSettings: ReturnType<typeof vi.fn>;
     getBareMode: ReturnType<typeof vi.fn>;
     isSafeMode: ReturnType<typeof vi.fn>;

@@ -4,7 +4,15 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import {
+  describe,
+  it,
+  expect,
+  vi,
+  beforeEach,
+  afterEach,
+  type Mock,
+} from 'vitest';
 import { Buffer } from 'node:buffer';
 import { EventEmitter } from 'node:events';
 import * as fsSync from 'node:fs';
@@ -561,14 +569,14 @@ describe('Session', () => {
     hasUnfinalizedTasks: ReturnType<typeof vi.fn>;
     hasRunningTasks: ReturnType<typeof vi.fn>;
     listUnfinalizedBackgroundAgentIds: ReturnType<typeof vi.fn>;
-    getAll: ReturnType<typeof vi.fn>;
+    getAll: Mock<() => readonly unknown[]>;
     get: ReturnType<typeof vi.fn>;
   };
   let mockMonitorRegistry: {
     setStatusChangeCallback: ReturnType<typeof vi.fn>;
     clearStatusChangeCallback: ReturnType<typeof vi.fn>;
     setNotificationCallback: ReturnType<typeof vi.fn>;
-    getAll: ReturnType<typeof vi.fn>;
+    getAll: Mock<() => readonly unknown[]>;
     get: ReturnType<typeof vi.fn>;
   };
   let mockBackgroundShellRegistry: {
@@ -576,11 +584,11 @@ describe('Session', () => {
     setStatusChangeCallback: ReturnType<typeof vi.fn>;
     clearStatusChangeCallback: ReturnType<typeof vi.fn>;
     hasRunningEntries: ReturnType<typeof vi.fn>;
-    getAll: ReturnType<typeof vi.fn>;
+    getAll: Mock<() => readonly unknown[]>;
     get: ReturnType<typeof vi.fn>;
   };
   let mockToolRegistry: {
-    getTool: ReturnType<typeof vi.fn>;
+    getTool: Mock<(name: string) => unknown>;
     ensureTool: ReturnType<typeof vi.fn>;
     isDeferredAndHidden: ReturnType<typeof vi.fn>;
     registerTool: ReturnType<typeof vi.fn>;

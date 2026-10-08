@@ -7,7 +7,15 @@
 import * as fs from 'node:fs';
 import * as os from 'node:os';
 import * as path from 'node:path';
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import {
+  afterEach,
+  beforeEach,
+  describe,
+  expect,
+  it,
+  vi,
+  type Mock,
+} from 'vitest';
 import { AuthType } from '../../core/contentGenerator.js';
 import type { ModelConfig, ModelProvidersConfig } from '../../models/types.js';
 import {
@@ -50,11 +58,11 @@ function createAdapter(
 ) {
   let snapshot = modelProviders;
   const adapter: ProviderSettingsAdapter & {
-    setValue: ReturnType<typeof vi.fn>;
-    persist: ReturnType<typeof vi.fn>;
-    backup: ReturnType<typeof vi.fn>;
-    restore: ReturnType<typeof vi.fn>;
-    cleanupBackup: ReturnType<typeof vi.fn>;
+    setValue: Mock<ProviderSettingsAdapter['setValue']>;
+    persist: Mock<ProviderSettingsAdapter['persist']>;
+    backup: Mock<NonNullable<ProviderSettingsAdapter['backup']>>;
+    restore: Mock<NonNullable<ProviderSettingsAdapter['restore']>>;
+    cleanupBackup: Mock<NonNullable<ProviderSettingsAdapter['cleanupBackup']>>;
     credentials: ReturnType<typeof createCredentialStore>;
   } = {
     credentials,
@@ -68,14 +76,15 @@ function createAdapter(
         };
     }),
     getModelProviders: vi.fn(() => modelProviders),
-    persist: vi.fn(),
+    persist: vi.fn<ProviderSettingsAdapter['persist']>(),
     backup: vi.fn(() => {
       snapshot = modelProviders;
     }),
     restore: vi.fn(() => {
       modelProviders = snapshot;
     }),
-    cleanupBackup: vi.fn(),
+    cleanupBackup:
+      vi.fn<NonNullable<ProviderSettingsAdapter['cleanupBackup']>>(),
   };
   return adapter;
 }

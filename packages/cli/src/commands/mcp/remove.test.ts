@@ -41,9 +41,9 @@ vi.mock('@organizaone/o1-code-core', async (importOriginal) => {
     await importOriginal<typeof import('@organizaone/o1-code-core')>();
   return {
     ...actual,
-    MCPOAuthTokenStorage: vi.fn(() => ({
-      deleteCredentials: mockDeleteCredentials,
-    })),
+    MCPOAuthTokenStorage: vi.fn(function MockConstructor() {
+      return { deleteCredentials: mockDeleteCredentials };
+    }),
   };
 });
 

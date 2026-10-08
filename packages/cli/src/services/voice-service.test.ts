@@ -242,7 +242,11 @@ describe('voice service', () => {
       },
     });
 
-    expect(hasConfiguredBatchVoiceTranscriptionModel(settings)).toBe(true);
+    expect(
+      hasConfiguredBatchVoiceTranscriptionModel(settings, {
+        env: { DASHSCOPE_API_KEY: 'sk-secret' },
+      }),
+    ).toBe(true);
   });
 
   it('resolves voice models in providerProtocol-mapped custom provider groups', () => {
@@ -265,7 +269,11 @@ describe('voice service', () => {
       },
     });
 
-    expect(hasConfiguredBatchVoiceTranscriptionModel(settings)).toBe(true);
+    expect(
+      hasConfiguredBatchVoiceTranscriptionModel(settings, {
+        env: { DASHSCOPE_API_KEY: 'sk-secret' },
+      }),
+    ).toBe(true);
     expect(
       listAvailableVoiceModels(settings).map((model) => model.id),
     ).toContain('qwen3-asr-flash');

@@ -43,9 +43,11 @@ vi.mock('@organizaone/o1-code-core', async () => {
   const actual = await vi.importActual('@organizaone/o1-code-core');
   return {
     ...actual,
-    FileDiscoveryService: vi.fn().mockImplementation(() => ({
-      initialize: vi.fn(),
-    })),
+    FileDiscoveryService: vi
+      .fn()
+      .mockImplementation(function MockConstructor() {
+        return { initialize: vi.fn() };
+      }),
     createToolRegistry: vi.fn().mockResolvedValue({}),
   };
 });

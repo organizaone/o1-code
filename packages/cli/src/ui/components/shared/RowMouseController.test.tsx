@@ -8,8 +8,11 @@
 import { useEffect, type MutableRefObject } from 'react';
 import { type DOMElement } from 'ink';
 import { act, render } from '@testing-library/react';
-import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { RowMouseController } from './RowMouseController.js';
+import { describe, it, expect, vi, beforeEach, type Mock } from 'vitest';
+import {
+  RowMouseController,
+  type RowMouseControllerProps,
+} from './RowMouseController.js';
 import { useMouseEvents } from '../../hooks/useMouseEvents.js';
 import { useTerminalSize } from '../../hooks/useTerminalSize.js';
 import {
@@ -63,15 +66,15 @@ describe('RowMouseController', () => {
     { tag: 'i2' },
   ] as unknown as DOMElement[];
 
-  let onHoverIndex: ReturnType<typeof vi.fn>;
-  let onSelectIndex: ReturnType<typeof vi.fn>;
+  let onHoverIndex: Mock<RowMouseControllerProps['onHoverIndex']>;
+  let onSelectIndex: Mock<RowMouseControllerProps['onSelectIndex']>;
 
   // Frame exactly fills the terminal here → anchor 0 → layoutRow = event.row - 1.
   // Each item is one row tall, stacked from the top, so item i sits at row i.
   beforeEach(() => {
     vi.clearAllMocks();
-    onHoverIndex = vi.fn();
-    onSelectIndex = vi.fn();
+    onHoverIndex = vi.fn<RowMouseControllerProps['onHoverIndex']>();
+    onSelectIndex = vi.fn<RowMouseControllerProps['onSelectIndex']>();
 
     vi.mocked(useTerminalSize).mockReturnValue({ rows: 40, columns: 80 });
     mockLayoutRowForEvent(40); // frame fills the terminal → anchor 0

@@ -26,13 +26,25 @@ vi.mock('node:fs', () => ({
   },
 }));
 
-vi.mock('node:http', () => ({
-  get: vi.fn(),
-}));
+vi.mock('node:http', async (importOriginal) => {
+  const actual = await importOriginal<typeof http>();
+  const get = vi.fn();
+  return {
+    ...actual,
+    get,
+    default: { ...actual, get },
+  };
+});
 
-vi.mock('node:https', () => ({
-  get: vi.fn(),
-}));
+vi.mock('node:https', async (importOriginal) => {
+  const actual = await importOriginal<typeof https>();
+  const get = vi.fn();
+  return {
+    ...actual,
+    get,
+    default: { ...actual, get },
+  };
+});
 
 vi.mock('./github.js', () => ({
   isSupportedArchiveUrl: vi.fn((url: string) => {

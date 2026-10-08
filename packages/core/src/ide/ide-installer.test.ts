@@ -30,6 +30,7 @@ describe('ide-installer', () => {
   const HOME_DIR = '/home/user';
 
   beforeEach(() => {
+    vi.clearAllMocks();
     vi.spyOn(os, 'homedir').mockReturnValue(HOME_DIR);
   });
 

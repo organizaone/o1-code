@@ -1,6 +1,6 @@
 {
   "name": "@organizaone/o1-code-audio-capture",
-  "version": "0.10.3",
+  "version": "0.10.4",
   "description": "Native microphone capture backend for O1-Code voice input",
   "repository": {
     "type": "git",
@@ -43,7 +43,7 @@
     "node-gyp": "^11.2.0",
     "prebuildify": "^6.0.1",
     "typescript": "^5.3.3",
-    "vitest": "^3.1.1"
+    "vitest": "^4.1.11"
   },
   "engines": {
     "node": ">=22"

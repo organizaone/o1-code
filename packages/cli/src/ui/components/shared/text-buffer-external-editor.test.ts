@@ -66,6 +66,7 @@ const expectedTmpFile = pathMod.join('/tmp/o1-code-edit-mock', 'buffer.txt');
 describe('openInExternalEditor', () => {
   beforeEach(() => {
     vi.restoreAllMocks();
+    vi.resetAllMocks();
     (fs.mkdtempSync as Mock).mockReturnValue('/tmp/o1-code-edit-mock');
     (fs.writeFileSync as Mock).mockImplementation(() => {});
     (fs.readFileSync as Mock).mockReturnValue('edited text');

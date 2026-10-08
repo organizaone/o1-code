@@ -19,7 +19,7 @@
 
 import { act, useReducer, useRef } from 'react';
 import { render } from 'ink-testing-library';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi, type Mock } from 'vitest';
 import { waitFor } from '@testing-library/react';
 import {
   ExtensionUpdateState,
@@ -78,7 +78,7 @@ interface HarnessControls {
   /** Simulates the app's own background update check landing a new state. */
   setState: (state: ExtensionUpdateState) => void;
   /** The view's request to leave the detail view (InstalledTab's goToList). */
-  onExit: ReturnType<typeof vi.fn>;
+  onExit: Mock<() => void>;
 }
 
 /**
@@ -144,7 +144,7 @@ function renderDetail(
   const controls: HarnessControls = {
     remount: () => {},
     setState: () => {},
-    onExit: vi.fn(),
+    onExit: vi.fn<() => void>(),
   };
   const { lastFrame, stdin } = render(
     <Harness

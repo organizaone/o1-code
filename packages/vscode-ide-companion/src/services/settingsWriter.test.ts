@@ -120,16 +120,16 @@ describe('settingsWriter', () => {
         // had and the selected entry names the saved credential.
         expect(saved.env[envKey]).toBe('test-only-old');
         expect(readCredential(plan.credential!.id)?.apiKey).toBe(apiKey);
-        expect(saved.modelProviders[protocol]).toEqual(
-          raw.modelProviders[protocol].map((model) =>
-            model.id === 'selected'
-              ? { ...model, credential: plan.credential!.id }
-              : model,
-          ),
-        );
+        // Conversation installs retain only the selected provider's models.
+        expect(saved.modelProviders[protocol]).toEqual([
+          {
+            ...raw.modelProviders[protocol][0],
+            credential: plan.credential!.id,
+          },
+        ]);
         const result = await vi.mocked(applyProviderInstallPlan).mock
           .results[0]!.value;
-        expect(result.updatedModelProviders[protocol]).toHaveLength(2);
+        expect(result.updatedModelProviders[protocol]).toHaveLength(1);
         // Header placeholders read the environment: a variable the user set
         // wins; an unset one receives the new key for this process.
         for (const model of result.updatedModelProviders[protocol]!) {
@@ -200,7 +200,7 @@ describe('settingsWriter', () => {
         });
         await applyProviderInstallPlanToFile(plan);
         const saved = JSON.parse(fs.readFileSync(settingsPath, 'utf8'));
-        expect(saved.modelProviders['openai-responses']).toEqual([sibling]);
+        expect(saved.modelProviders['openai-responses']).toEqual([]);
         expect(saved.modelProviders.openai[0]).toMatchObject({
           ...rawModel,
           wireApi: 'responses',
@@ -217,8 +217,8 @@ describe('settingsWriter', () => {
         const headerKey =
           source === 'shell' ? 'test-only-old' : 'test-only-new';
         expect(
-          result.updatedModelProviders['openai-responses']?.[0]
-            ?.generationConfig?.customHeaders?.['X-Key'],
+          result.updatedModelProviders.openai?.[0]?.generationConfig
+            ?.customHeaders?.['X-Key'],
         ).toBe(headerKey);
         const registry = new ModelRegistry(result.updatedModelProviders);
         expect(

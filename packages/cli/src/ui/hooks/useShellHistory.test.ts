@@ -12,18 +12,32 @@ import * as path from 'node:path';
 import * as os from 'node:os';
 import * as crypto from 'node:crypto';
 
-vi.mock('fs/promises', () => ({
-  readFile: vi.fn(),
-  writeFile: vi.fn(),
-  mkdir: vi.fn(),
-}));
-vi.mock('os');
-vi.mock('crypto');
-vi.mock('fs', async (importOriginal) => {
-  const actualFs = await importOriginal<typeof import('fs')>();
+vi.mock('node:fs/promises', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('node:fs/promises')>();
+  const mocks = {
+    readFile: vi.fn<typeof actual.readFile>(),
+    writeFile: vi.fn<typeof actual.writeFile>(),
+    mkdir: vi.fn<typeof actual.mkdir>(),
+  };
+  return { ...actual, ...mocks, default: { ...actual, ...mocks } };
+});
+vi.mock('node:os', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('node:os')>();
+  const homedir = vi.fn<typeof actual.homedir>();
+  return { ...actual, homedir, default: { ...actual, homedir } };
+});
+vi.mock('node:crypto', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('node:crypto')>();
+  const createHash = vi.fn<typeof actual.createHash>();
+  return { ...actual, createHash, default: { ...actual, createHash } };
+});
+vi.mock('node:fs', async (importOriginal) => {
+  const actualFs = await importOriginal<typeof import('node:fs')>();
+  const mkdirSync = vi.fn<typeof actualFs.mkdirSync>();
   return {
     ...actualFs,
-    mkdirSync: vi.fn(),
+    mkdirSync,
+    default: { ...actualFs, mkdirSync },
   };
 });
 vi.mock('@organizaone/o1-code-core', () => {

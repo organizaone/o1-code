@@ -6,6 +6,7 @@
 
 import { goalTurnContext } from '../../goals/goal-turn-context.js';
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
+import type { Mock } from 'vitest';
 import {
   AgentTool,
   type AgentParams,
@@ -142,6 +143,7 @@ describe('AgentTool', () => {
   ];
 
   beforeEach(async () => {
+    vi.clearAllMocks();
     // Setup fake timers
     vi.useFakeTimers();
 
@@ -293,6 +295,7 @@ describe('AgentTool', () => {
 
   afterEach(() => {
     vi.useRealTimers();
+    vi.restoreAllMocks();
   });
 
   describe('container execution', () => {
@@ -322,9 +325,9 @@ describe('AgentTool', () => {
       ] as const) {
         vi.mocked(config[getter]).mockReturnValue(os.tmpdir());
       }
-      MockedContextState.mockImplementation(
-        () => ({ set: vi.fn() }) as unknown as ContextState,
-      );
+      MockedContextState.mockImplementation(function MockConstructor() {
+        return { set: vi.fn() } as unknown as ContextState;
+      });
       mockAgent = {
         execute: vi.fn().mockResolvedValue(undefined),
         getFinalText: vi.fn().mockReturnValue('Contained result'),
@@ -2899,7 +2902,9 @@ describe('AgentTool', () => {
         set: vi.fn(),
       } as unknown as ContextState;
 
-      MockedContextState.mockImplementation(() => mockContextState);
+      MockedContextState.mockImplementation(function MockConstructor() {
+        return mockContextState;
+      });
 
       vi.mocked(mockSubagentManager.loadSubagent).mockResolvedValue(
         mockSubagents[0],
@@ -4485,7 +4490,9 @@ describe('AgentTool', () => {
         set: vi.fn(),
       } as unknown as ContextState;
 
-      MockedContextState.mockImplementation(() => mockContextState);
+      MockedContextState.mockImplementation(function MockConstructor() {
+        return mockContextState;
+      });
 
       // Parent conversation history: empty (first-turn fork — falls back to
       // the fork agent's own systemPrompt + wildcard tools because no
@@ -6085,7 +6092,9 @@ describe('AgentTool', () => {
         set: vi.fn(),
       } as unknown as ContextState;
 
-      MockedContextState.mockImplementation(() => mockContextState);
+      MockedContextState.mockImplementation(function MockConstructor() {
+        return mockContextState;
+      });
 
       vi.mocked(mockSubagentManager.loadSubagent).mockResolvedValue(
         mockSubagents[0],
@@ -6281,7 +6290,9 @@ describe('AgentTool', () => {
         set: vi.fn(),
       } as unknown as ContextState;
 
-      MockedContextState.mockImplementation(() => mockContextState);
+      MockedContextState.mockImplementation(function MockConstructor() {
+        return mockContextState;
+      });
 
       vi.mocked(mockSubagentManager.loadSubagent).mockResolvedValue(
         mockSubagents[0],
@@ -6609,7 +6620,9 @@ describe('AgentTool', () => {
         set: vi.fn(),
       } as unknown as ContextState;
 
-      MockedContextState.mockImplementation(() => mockContextState);
+      MockedContextState.mockImplementation(function MockConstructor() {
+        return mockContextState;
+      });
 
       vi.mocked(mockSubagentManager.loadSubagent).mockResolvedValue(
         mockSubagents[0],
@@ -7026,7 +7039,7 @@ describe('AgentTool', () => {
   describe('Agent-level background: true', () => {
     let mockAgent: AgentHeadless;
     let mockContextState: ContextState;
-    let mockSubagentDispose: ReturnType<typeof vi.fn>;
+    let mockSubagentDispose: Mock<() => Promise<void>>;
     let mockRegistry: {
       assertCanStartBackgroundAgent: ReturnType<typeof vi.fn>;
       canStartBackgroundAgent: ReturnType<typeof vi.fn>;
@@ -7078,7 +7091,9 @@ describe('AgentTool', () => {
       } as unknown as AgentHeadless;
 
       mockContextState = { set: vi.fn() } as unknown as ContextState;
-      MockedContextState.mockImplementation(() => mockContextState);
+      MockedContextState.mockImplementation(function MockConstructor() {
+        return mockContextState;
+      });
 
       const restartedEntry = { status: 'running' };
       mockRegistry = {
@@ -7130,7 +7145,9 @@ describe('AgentTool', () => {
       ] = vi.fn();
 
       vi.mocked(mockSubagentManager.loadSubagent).mockResolvedValue(bgSubagent);
-      mockSubagentDispose = vi.fn().mockResolvedValue(undefined);
+      mockSubagentDispose = vi
+        .fn<() => Promise<void>>()
+        .mockResolvedValue(undefined);
       vi.mocked(mockSubagentManager.createAgentHeadless).mockResolvedValue({
         subagent: mockAgent,
         dispose: mockSubagentDispose,

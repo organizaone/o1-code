@@ -4,10 +4,13 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { beforeEach, describe, it, expect, vi } from 'vitest';
+import { beforeEach, describe, it, expect, vi, type Mock } from 'vitest';
 import express from 'express';
 import request from 'supertest';
-import { registerUserLanguageRoutes } from './user-language.js';
+import {
+  registerUserLanguageRoutes,
+  type UserLanguageRouteDeps,
+} from './user-language.js';
 import { SettingScope } from '../../config/settings.js';
 import { SessionNotFoundError } from '../acp-session-bridge.js';
 import { setLanguageAsync, getCurrentLanguage } from '../../i18n/index.js';
@@ -64,7 +67,7 @@ function makeRuntime(overrides: {
 function makeApp(
   overrides: {
     runtimes?: Array<ReturnType<typeof makeRuntime>>;
-    persistSetting?: ReturnType<typeof vi.fn>;
+    persistSetting?: Mock<UserLanguageRouteDeps['persistSetting']>;
     parseAndValidateClientId?: (
       req: express.Request,
       res: express.Response,
@@ -75,7 +78,8 @@ function makeApp(
   app.use(express.json());
 
   const persistSetting =
-    overrides.persistSetting ?? vi.fn(async () => undefined);
+    overrides.persistSetting ??
+    vi.fn<UserLanguageRouteDeps['persistSetting']>(async () => undefined);
   const runtimes = overrides.runtimes ?? [];
 
   registerUserLanguageRoutes(app, {

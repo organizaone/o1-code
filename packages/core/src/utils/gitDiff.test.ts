@@ -2540,10 +2540,13 @@ describe('getWorkingTreeLineStats', () => {
       const index = path.join(dir, '.git', 'index');
       const past = new Date(Date.now() - 60_000);
       await fs.utimes(index, past, past);
+      const indexTimestamp = (await fs.stat(index, { bigint: true })).mtimeNs;
       const future = new Date(Date.now() + 60_000);
       await fs.utimes(path.join(dir, 'a.txt'), future, future);
       await getWorkingTreeLineStats(dir);
-      expect((await fs.stat(index)).mtimeMs).toBe(past.getTime());
+      expect((await fs.stat(index, { bigint: true })).mtimeNs).toBe(
+        indexTimestamp,
+      );
     } finally {
       await fs.rm(dir, { recursive: true, force: true });
     }

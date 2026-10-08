@@ -49,9 +49,11 @@ import { ExitPlanModeTool } from '../tools/exitPlanMode.js';
 import { createMemoryScopedAgentConfig } from '../memory/memory-scoped-agent-config.js';
 import type { PermissionManager } from '../permissions/permission-manager.js';
 import type {
+  AllToolCallsCompleteHandler,
   CompletedToolCall,
   ExecutingToolCall,
   ToolCall,
+  ToolCallsUpdateHandler,
   WaitingToolCall,
 } from './coreToolScheduler.js';
 import {
@@ -632,7 +634,7 @@ class StructuredErrorOnConfirmationTool extends BaseDeclarativeTool<
 }
 
 async function waitForStatus(
-  onToolCallsUpdate: Mock,
+  onToolCallsUpdate: Mock<ToolCallsUpdateHandler>,
   status: 'awaiting_approval' | 'executing' | 'success' | 'error' | 'cancelled',
   timeout = 5000,
 ): Promise<ToolCall> {
@@ -1013,11 +1015,11 @@ describe('CoreToolScheduler', () => {
       totalUnavailable: number;
       pendingManualRetryFingerprint?: string;
     };
-    setAutoModeDenialState?: ReturnType<typeof vi.fn>;
+    setAutoModeDenialState?: Mock<Config['setAutoModeDenialState']>;
     setApprovalMode?: ReturnType<typeof vi.fn>;
-    onAllToolCallsComplete?: ReturnType<typeof vi.fn>;
+    onAllToolCallsComplete?: Mock<AllToolCallsCompleteHandler>;
     disableCompletionCallback?: boolean;
-    onToolCallsUpdate?: ReturnType<typeof vi.fn>;
+    onToolCallsUpdate?: Mock<ToolCallsUpdateHandler>;
     memoryMonitor?: { scheduleCheck: () => void };
     toolOutputBatchBudget?: number;
     getLlmClient?: () => unknown;
@@ -3590,7 +3592,7 @@ describe('CoreToolScheduler', () => {
   });
 
   function outputOfFirstCall(
-    onAllToolCallsComplete: ReturnType<typeof vi.fn>,
+    onAllToolCallsComplete: Mock<AllToolCallsCompleteHandler>,
     key: 'output' | 'error' = 'output',
   ): string {
     const completionCalls = onAllToolCallsComplete.mock
@@ -4626,7 +4628,7 @@ describe('CoreToolScheduler', () => {
     }
 
     function persistedFilesOfFirstCall(
-      onAllToolCallsComplete: ReturnType<typeof vi.fn>,
+      onAllToolCallsComplete: Mock<AllToolCallsCompleteHandler>,
     ): string[] | undefined {
       const completionCalls = onAllToolCallsComplete.mock
         .calls as unknown as Array<[ToolCall[]]>;
@@ -6424,7 +6426,7 @@ describe('CoreToolScheduler', () => {
           },
         ),
     };
-    const onAllToolCallsComplete = vi.fn(() => {
+    const onAllToolCallsComplete = vi.fn(async () => {
       callOrder.push('complete');
     });
     const { scheduler } = createSchedulerForLegacyToolTests({
@@ -11746,8 +11748,8 @@ describe('CoreToolScheduler plan mode with ask_user_question', () => {
 
   function createPlanModeScheduler(
     tool: MockTool,
-    onAllToolCallsComplete: ReturnType<typeof vi.fn>,
-    onToolCallsUpdate: ReturnType<typeof vi.fn>,
+    onAllToolCallsComplete: Mock<AllToolCallsCompleteHandler>,
+    onToolCallsUpdate: Mock<ToolCallsUpdateHandler>,
     options: {
       sdkMode?: boolean;
       avoidPermissionPrompts?: boolean;
@@ -12678,7 +12680,7 @@ describe('CoreToolScheduler Plan shell routing', () => {
       name?: string;
       permission?: PermissionDecision;
       confirmation?: () => Promise<ToolCallConfirmationDetails>;
-      execute?: ReturnType<typeof vi.fn>;
+      execute?: Mock<MockTool['execute']>;
     } = {},
   ) {
     return new MockTool({
@@ -13413,12 +13415,12 @@ describe('CoreToolScheduler telemetry spans', () => {
     ideMode?: boolean;
     includeSensitiveSpanAttributes?: boolean;
     sensitiveSpanAttributeMaxLength?: number;
-    onToolCallsUpdate?: ReturnType<typeof vi.fn>;
+    onToolCallsUpdate?: Mock<ToolCallsUpdateHandler>;
     shouldObserveProducer?: (callId: string) => boolean;
   }): {
     scheduler: CoreToolScheduler;
-    onAllToolCallsComplete: ReturnType<typeof vi.fn>;
-    onToolCallsUpdate: ReturnType<typeof vi.fn>;
+    onAllToolCallsComplete: Mock<AllToolCallsCompleteHandler>;
+    onToolCallsUpdate: Mock<ToolCallsUpdateHandler>;
     ensureTool: ReturnType<typeof vi.fn>;
   } {
     const tools = options.tools ?? [
@@ -15187,8 +15189,8 @@ describe('CoreToolScheduler telemetry spans', () => {
     executionOrigin?: ToolExecutionOrigin;
   }): Promise<{
     scheduler: CoreToolScheduler;
-    onAllToolCallsComplete: ReturnType<typeof vi.fn>;
-    onToolCallsUpdate: ReturnType<typeof vi.fn>;
+    onAllToolCallsComplete: Mock<AllToolCallsCompleteHandler>;
+    onToolCallsUpdate: Mock<ToolCallsUpdateHandler>;
     abortController: AbortController;
   }> {
     toolSpanRecords.length = 0;
@@ -16747,8 +16749,8 @@ describe('CoreToolScheduler telemetry spans', () => {
     tool: AnyDeclarativeTool = new MockEditTool(),
   ): {
     scheduler: CoreToolScheduler;
-    onToolCallsUpdate: ReturnType<typeof vi.fn>;
-    onAllToolCallsComplete: ReturnType<typeof vi.fn>;
+    onToolCallsUpdate: Mock<ToolCallsUpdateHandler>;
+    onAllToolCallsComplete: Mock<AllToolCallsCompleteHandler>;
   } {
     const mockToolRegistry = {
       getTool: () => tool,
@@ -18648,8 +18650,8 @@ describe('Fire hook functions integration', () => {
 
     function createScheduler(
       tools: Map<string, MockTool>,
-      onAllToolCallsComplete: Mock,
-      onToolCallsUpdate: Mock,
+      onAllToolCallsComplete: Mock<AllToolCallsCompleteHandler>,
+      onToolCallsUpdate: Mock<ToolCallsUpdateHandler>,
     ) {
       const mockToolRegistry = {
         getTool: (name: string) => tools.get(name),
@@ -19840,7 +19842,9 @@ describe('CoreToolScheduler validation retry loop detection', () => {
     return wasOutputTruncated ? { ...request, wasOutputTruncated } : request;
   }
 
-  function getLastErrorMessage(onToolCallsUpdate: Mock): string | undefined {
+  function getLastErrorMessage(
+    onToolCallsUpdate: Mock<ToolCallsUpdateHandler>,
+  ): string | undefined {
     const calls = onToolCallsUpdate.mock.calls;
     for (let i = calls.length - 1; i >= 0; i--) {
       const toolCalls = calls[i][0] as ToolCall[];
@@ -20504,7 +20508,7 @@ describe('CoreToolScheduler activation wiring', () => {
     containerExecution?: boolean;
   }): {
     scheduler: CoreToolScheduler;
-    onAllToolCallsComplete: ReturnType<typeof vi.fn>;
+    onAllToolCallsComplete: Mock<AllToolCallsCompleteHandler>;
     addInlineAnnouncedSkillKeys: ReturnType<typeof vi.fn>;
   } {
     // Exposed so the gate's SECOND effect is assertable. Consuming the

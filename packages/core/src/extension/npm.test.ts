@@ -164,13 +164,25 @@ describe('resolveNpmRegistry', () => {
 });
 
 // Mock https/http for checkNpmUpdate tests
-vi.mock('node:https', () => ({
-  get: vi.fn(),
-}));
+vi.mock('node:https', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('node:https')>();
+  const get = vi.fn();
+  return {
+    ...actual,
+    get,
+    default: { ...actual, get },
+  };
+});
 
-vi.mock('node:http', () => ({
-  get: vi.fn(),
-}));
+vi.mock('node:http', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('node:http')>();
+  const get = vi.fn();
+  return {
+    ...actual,
+    get,
+    default: { ...actual, get },
+  };
+});
 
 vi.mock('tar', () => ({
   t: vi.fn(),

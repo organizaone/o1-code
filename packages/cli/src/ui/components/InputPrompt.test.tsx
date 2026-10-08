@@ -6339,6 +6339,7 @@ describe('InputPrompt', () => {
       } as unknown as ReturnType<typeof useUIActions>);
       props.buffer.setText('');
       const setTextSpy = vi.spyOn(props.buffer, 'setText');
+      setTextSpy.mockClear();
 
       const { stdin, unmount } = renderWithProviders(
         <InputPrompt {...props} />,

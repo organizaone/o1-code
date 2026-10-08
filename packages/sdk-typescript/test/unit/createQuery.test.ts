@@ -26,19 +26,23 @@ describe('query()', () => {
     vi.clearAllMocks();
 
     mockPrepareSpawnInfo.mockReturnValue(undefined);
-    mockProcessTransport.mockImplementation(() => ({
-      write: vi.fn(),
-      readMessages: vi.fn(),
-      close: vi.fn(),
-      waitForExit: vi.fn(),
-      endInput: vi.fn(),
-      exitError: null,
-    }));
-    mockQuery.mockImplementation(() => ({
-      initialized: Promise.resolve(),
-      getSessionId: () => 'test-session-id',
-      streamInput: vi.fn(),
-    }));
+    mockProcessTransport.mockImplementation(function () {
+      return {
+        write: vi.fn(),
+        readMessages: vi.fn(),
+        close: vi.fn(),
+        waitForExit: vi.fn(),
+        endInput: vi.fn(),
+        exitError: null,
+      };
+    });
+    mockQuery.mockImplementation(function () {
+      return {
+        initialized: Promise.resolve(),
+        getSessionId: () => 'test-session-id',
+        streamInput: vi.fn(),
+      };
+    });
   });
 
   it('maps string systemPrompt to TransportOptions.systemPrompt', async () => {

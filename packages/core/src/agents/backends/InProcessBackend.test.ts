@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, type Mock } from 'vitest';
 import { InProcessBackend } from './InProcessBackend.js';
 import { DISPLAY_MODE } from './types.js';
 import type { AgentSpawnConfig } from './types.js';
@@ -564,7 +564,7 @@ describe('InProcessBackend', () => {
     const stripDangerousRulesForAutoMode = vi.fn();
     let parentMode = DEFAULT_MODE;
     const parentConfig = createMockConfig() as unknown as {
-      getApprovalMode: ReturnType<typeof vi.fn>;
+      getApprovalMode: Mock<Config['getApprovalMode']>;
       getPermissionManager: ReturnType<typeof vi.fn>;
     };
     parentConfig.getApprovalMode.mockImplementation(() => parentMode);
@@ -670,8 +670,8 @@ describe('InProcessBackend', () => {
 
   it('uses a per-agent approval mode without mutating the parent config', async () => {
     const parentConfig = createMockConfig() as unknown as {
-      getApprovalMode: ReturnType<typeof vi.fn>;
-      setApprovalMode: ReturnType<typeof vi.fn>;
+      getApprovalMode: Mock<Config['getApprovalMode']>;
+      setApprovalMode: Mock<Config['setApprovalMode']>;
     };
     const backendWithParentMode = new InProcessBackend(parentConfig as never);
     await backendWithParentMode.init();
@@ -748,8 +748,8 @@ describe('InProcessBackend', () => {
 
   it('restores a plan-mode per-agent config to default without mutating the parent config', async () => {
     const parentConfig = createMockConfig() as unknown as {
-      getApprovalMode: ReturnType<typeof vi.fn>;
-      setApprovalMode: ReturnType<typeof vi.fn>;
+      getApprovalMode: Mock<Config['getApprovalMode']>;
+      setApprovalMode: Mock<Config['setApprovalMode']>;
     };
     const backendWithParentMode = new InProcessBackend(parentConfig as never);
     await backendWithParentMode.init();
@@ -779,8 +779,8 @@ describe('InProcessBackend', () => {
     // (AUTO_EDIT) and Shift+Tab mode switches must transition child-local
     // state instead of hitting the bare-derived-Config guard.
     const parentConfig = createMockConfig() as unknown as {
-      getApprovalMode: ReturnType<typeof vi.fn>;
-      setApprovalMode: ReturnType<typeof vi.fn>;
+      getApprovalMode: Mock<Config['getApprovalMode']>;
+      setApprovalMode: Mock<Config['setApprovalMode']>;
     };
     const backendWithParentMode = new InProcessBackend(parentConfig as never);
     await backendWithParentMode.init();
@@ -810,7 +810,7 @@ describe('InProcessBackend', () => {
 
   it('uses a teammate-scoped plan file path in per-agent config', async () => {
     const parentConfig = createMockConfig() as unknown as {
-      getPlanFilePath: ReturnType<typeof vi.fn>;
+      getPlanFilePath: Mock<Config['getPlanFilePath']>;
     };
     parentConfig.getPlanFilePath = vi
       .fn()
@@ -990,27 +990,29 @@ describe('InProcessBackend', () => {
     const failingBackend = new InProcessBackend(parentConfig as never);
     // Make createChat throw for this test
     const MockAgentCore = AgentCore as unknown as ReturnType<typeof vi.fn>;
-    MockAgentCore.mockImplementationOnce(() => ({
-      subagentId: 'mock-id',
-      name: 'mock-agent',
-      eventEmitter: {
-        on: vi.fn(),
-        off: vi.fn(),
-        emit: vi.fn(),
-      },
-      stats: {
-        start: vi.fn(),
-        getSummary: vi.fn().mockReturnValue({}),
-      },
-      createChat: vi.fn().mockRejectedValue(new Error('Auth failed')),
-      prepareTools: vi.fn().mockReturnValue([]),
-      getEventEmitter: vi.fn().mockReturnValue({
-        on: vi.fn(),
-        off: vi.fn(),
-        emit: vi.fn(),
-      }),
-      getExecutionSummary: vi.fn().mockReturnValue({}),
-    }));
+    MockAgentCore.mockImplementationOnce(function MockConstructor() {
+      return {
+        subagentId: 'mock-id',
+        name: 'mock-agent',
+        eventEmitter: {
+          on: vi.fn(),
+          off: vi.fn(),
+          emit: vi.fn(),
+        },
+        stats: {
+          start: vi.fn(),
+          getSummary: vi.fn().mockReturnValue({}),
+        },
+        createChat: vi.fn().mockRejectedValue(new Error('Auth failed')),
+        prepareTools: vi.fn().mockReturnValue([]),
+        getEventEmitter: vi.fn().mockReturnValue({
+          on: vi.fn(),
+          off: vi.fn(),
+          emit: vi.fn(),
+        }),
+        getExecutionSummary: vi.fn().mockReturnValue({}),
+      };
+    });
 
     await failingBackend.init();
 

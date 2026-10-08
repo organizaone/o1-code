@@ -15,7 +15,15 @@ import express, {
   type Request,
   type Response,
 } from 'express';
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import {
+  afterEach,
+  beforeEach,
+  describe,
+  expect,
+  it,
+  vi,
+  type Mock,
+} from 'vitest';
 import request from 'supertest';
 import {
   SettingScope,
@@ -28,7 +36,10 @@ import {
 } from '../../config/trustedFolders.js';
 import { createServeApp } from '../server.js';
 import type { ServeOptions } from '../types.js';
-import { registerWorkspaceVoiceRoutes } from './workspace-voice.js';
+import {
+  registerWorkspaceVoiceRoutes,
+  type WorkspaceVoiceRouteDeps,
+} from './workspace-voice.js';
 import { WorkspaceSettingsPartialPersistError } from '../workspace-service/types.js';
 import { WorkspaceGenerationClosedError } from '../workspace-registry.js';
 
@@ -53,8 +64,9 @@ interface Harness {
   scratch: string;
   home: string;
   workspace: string;
-  persistSetting: ReturnType<typeof vi.fn>;
-  transcribe: ReturnType<typeof vi.fn>;
+  runtimeEnv: Record<string, string | undefined>;
+  persistSetting: Mock<NonNullable<WorkspaceVoiceRouteDeps['persistSetting']>>;
+  transcribe: Mock<NonNullable<WorkspaceVoiceRouteDeps['transcribe']>>;
   app: ReturnType<typeof createServeApp>;
 }
 
@@ -104,24 +116,40 @@ async function makeHarness(
       _value: unknown,
     ) => {},
   );
-  const transcribe = vi.fn(async () => ({
-    text: 'hello from audio',
-    model: 'qwen3-asr-flash',
-    transport: 'dashscope-asr-chat',
-  }));
+  const transcribe = vi.fn<NonNullable<WorkspaceVoiceRouteDeps['transcribe']>>(
+    async () => ({
+      text: 'hello from audio',
+      model: 'qwen3-asr-flash',
+      transport: 'dashscope-asr-chat',
+    }),
+  );
   const serveOpts: ServeOptions = { ...baseOpts };
   serveOpts.hostname = opts.hostname ?? baseOpts.hostname;
   if ('token' in opts) {
     serveOpts.token = opts.token;
   }
+  const runtimeEnv: Record<string, string | undefined> = {};
   const deps = {
     boundWorkspace: workspace,
     voiceTranscriber: transcribe,
+    primaryRuntimeEnv: {
+      mode: 'runtime-overlay',
+      overlayKeys: [],
+      effectiveEnv: runtimeEnv,
+    },
     ...(opts.persistSetting === false ? {} : { persistSetting }),
   };
   const app = createServeApp(serveOpts, undefined, deps as never);
 
-  return { scratch, home, workspace, persistSetting, transcribe, app };
+  return {
+    scratch,
+    home,
+    workspace,
+    runtimeEnv,
+    persistSetting,
+    transcribe,
+    app,
+  };
 }
 
 async function teardown(h: Harness): Promise<void> {
@@ -144,6 +172,7 @@ async function writeVoiceModelSettings(
   h: Harness,
   baseUrl = 'https://dashscope.example/compatible-mode/v1',
 ): Promise<void> {
+  h.runtimeEnv['DASHSCOPE_API_KEY'] = 'sk-secret';
   await writeJson(path.join(h.home, 'settings.json'), {
     modelProviders: {
       openai: [
@@ -172,6 +201,7 @@ async function writeVoiceProviderSettings(
   h: Harness,
   opts: { folderTrustEnabled?: boolean } = {},
 ): Promise<void> {
+  h.runtimeEnv['DASHSCOPE_API_KEY'] = 'sk-secret';
   await writeJson(path.join(h.home, 'settings.json'), {
     modelProviders: {
       openai: [
@@ -780,6 +810,7 @@ describe('workspace voice routes', () => {
 
   it('POST accepts an exactly allowlisted private voice provider', async () => {
     const baseUrl = 'http://voice.region-a.internal.example/v1';
+    h.runtimeEnv['PRIVATE_ASR_KEY'] = 'sk-secret';
     await writeJson(path.join(h.home, 'settings.json'), {
       modelProviders: {
         openai: [

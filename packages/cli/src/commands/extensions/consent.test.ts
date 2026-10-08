@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, type Mock } from 'vitest';
 import stripAnsi from 'strip-ansi';
 import {
   extensionConsentString,
@@ -293,10 +293,10 @@ describe('extensionConsentString', () => {
 });
 
 describe('requestConsentOrFail', () => {
-  let mockRequestConsent: ReturnType<typeof vi.fn>;
+  let mockRequestConsent: Mock<Parameters<typeof requestConsentOrFail>[0]>;
 
   beforeEach(() => {
-    mockRequestConsent = vi.fn();
+    mockRequestConsent = vi.fn<Parameters<typeof requestConsentOrFail>[0]>();
     vi.clearAllMocks();
   });
 

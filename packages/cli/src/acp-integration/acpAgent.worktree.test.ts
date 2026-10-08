@@ -53,11 +53,13 @@ const { mockConnectionState } = vi.hoisted(() => {
 
 vi.mock('@agentclientprotocol/sdk', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@agentclientprotocol/sdk')>()),
-  AgentSideConnection: vi.fn().mockImplementation(() => ({
-    get closed() {
-      return mockConnectionState.promise;
-    },
-  })),
+  AgentSideConnection: vi.fn().mockImplementation(function MockConstructor() {
+    return {
+      get closed() {
+        return mockConnectionState.promise;
+      },
+    };
+  }),
   RequestError: class RequestError extends Error {
     static authRequired = vi
       .fn()
@@ -211,9 +213,13 @@ vi.mock('@organizaone/o1-code-core', async (importOriginal) => ({
   AuthType: {},
   DEFAULT_O1CODE_CUSTOM_IGNORE_FILE_NAMES: ['.agentignore', '.aiignore'],
   MCP_BUDGET_WARN_FRACTION: 0.75,
-  MCPServerConfig: vi.fn().mockImplementation((...args: unknown[]) => ({
-    _args: args,
-  })),
+  MCPServerConfig: vi.fn().mockImplementation(function MockConstructor(
+    ...args: unknown[]
+  ) {
+    return {
+      _args: args,
+    };
+  }),
   SessionService: vi.fn(),
   SessionIdCaseConflictError: class SessionIdCaseConflictError extends Error {
     override readonly name = 'SessionIdCaseConflictError';
@@ -236,21 +242,25 @@ vi.mock('@organizaone/o1-code-core', async (importOriginal) => ({
     CONNECTING: 'connecting',
     CONNECTED: 'connected',
   },
-  McpTransportPool: vi.fn().mockImplementation(() => ({
-    acquire: vi.fn(),
-    release: vi.fn(),
-    shutdown: vi.fn().mockResolvedValue(undefined),
-    on: vi.fn(),
-    off: vi.fn(),
-  })),
+  McpTransportPool: vi.fn().mockImplementation(function MockConstructor() {
+    return {
+      acquire: vi.fn(),
+      release: vi.fn(),
+      shutdown: vi.fn().mockResolvedValue(undefined),
+      on: vi.fn(),
+      off: vi.fn(),
+    };
+  }),
   POOLED_TRANSPORTS_DEFAULT: new Set<string>(),
   SessionStartSource: { Startup: 'startup', Resume: 'resume' },
   SessionEndReason: { PromptInputExit: 'prompt_input_exit', Other: 'other' },
-  WorkspaceMcpBudget: vi.fn().mockImplementation(() => ({
-    register: vi.fn(),
-    unregister: vi.fn(),
-    snapshot: vi.fn(() => ({})),
-  })),
+  WorkspaceMcpBudget: vi.fn().mockImplementation(function MockConstructor() {
+    return {
+      register: vi.fn(),
+      unregister: vi.fn(),
+      snapshot: vi.fn(() => ({})),
+    };
+  }),
   restoreWorktreeContext: mockRestoreWorktreeContext,
   listWorkflowSnapshots: vi.fn().mockResolvedValue([]),
   claimInterruptedWorkflowRuns: vi.fn().mockResolvedValue([]),
@@ -388,10 +398,11 @@ describe('O1CodeAgent loadSession — Phase C worktree context restore', () => {
       findSessionIdIgnoringCase: vi.fn().mockResolvedValue(SESSION_ID),
       getWorktreeSessionPath: vi.fn().mockReturnValue(SIDECAR_PATH),
     };
-    vi.mocked(SessionService).mockImplementation(
-      () =>
-        mockSessionService as unknown as InstanceType<typeof SessionService>,
-    );
+    vi.mocked(SessionService).mockImplementation(function MockConstructor() {
+      return mockSessionService as unknown as InstanceType<
+        typeof SessionService
+      >;
+    });
 
     return {
       setArtifactSnapshotsEnabled: vi.fn(),
@@ -451,7 +462,9 @@ describe('O1CodeAgent loadSession — Phase C worktree context restore', () => {
     capturedAgentFactory = undefined;
     lastSessionMock = undefined;
 
-    vi.mocked(AgentSideConnection).mockImplementation((factory: unknown) => {
+    vi.mocked(AgentSideConnection).mockImplementation(function MockConstructor(
+      factory: unknown,
+    ) {
       capturedAgentFactory = factory as typeof capturedAgentFactory;
       return {
         get closed() {
@@ -510,7 +523,7 @@ describe('O1CodeAgent loadSession — Phase C worktree context restore', () => {
       innerConfig as unknown as Config,
     );
 
-    vi.mocked(Session).mockImplementation(() => {
+    vi.mocked(Session).mockImplementation(function MockConstructor() {
       const mock = {
         getId: vi.fn().mockReturnValue(SESSION_ID),
         shouldHintAskUserQuestionRestore: vi.fn().mockReturnValue(false),

@@ -389,7 +389,10 @@ describe('TranscriptViewport scroll restoration and fallback', () => {
       list().scrollTop = 0;
       const targetKey = `msg:${observed.props!.messages[0]!.id}`;
       const before = row(targetKey).getBoundingClientRect().top;
-      const getRect = HTMLElement.prototype.getBoundingClientRect;
+      const getRect = vi
+        .mocked(HTMLElement.prototype.getBoundingClientRect)
+        .getMockImplementation();
+      if (!getRect) throw new Error('Geometry mock is not installed');
       let rowsMounted = false;
       vi.spyOn(
         HTMLElement.prototype,

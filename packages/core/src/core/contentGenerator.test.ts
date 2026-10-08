@@ -122,7 +122,9 @@ describe('createContentGenerator', () => {
         embedContent: vi.fn().mockResolvedValue({ embeddings: [] }),
       },
     } as unknown as GoogleGenAI;
-    vi.mocked(GoogleGenAI).mockImplementation(() => mockGenerator as never);
+    vi.mocked(GoogleGenAI).mockImplementation(function MockConstructor() {
+      return mockGenerator as never;
+    });
     const generator = await createContentGenerator(
       {
         model: 'test-model',
@@ -163,7 +165,9 @@ describe('createContentGenerator', () => {
         embedContent: vi.fn().mockResolvedValue({ embeddings: [] }),
       },
     } as unknown as GoogleGenAI;
-    vi.mocked(GoogleGenAI).mockImplementation(() => mockGenerator as never);
+    vi.mocked(GoogleGenAI).mockImplementation(function MockConstructor() {
+      return mockGenerator as never;
+    });
     const generator = await createContentGenerator(
       {
         model: 'test-model',
@@ -666,14 +670,13 @@ describe('validateModelConfig - Vertex AI Application Default Credentials', () =
     // only the CLI pre-flight check writes.
     vi.stubEnv('GOOGLE_GENAI_USE_VERTEXAI', '');
     vi.mocked(GoogleGenAI).mockClear();
-    vi.mocked(GoogleGenAI).mockImplementation(
-      () =>
-        ({
-          models: {
-            embedContent: vi.fn().mockResolvedValue({ embeddings: [] }),
-          },
-        }) as unknown as GoogleGenAI,
-    );
+    vi.mocked(GoogleGenAI).mockImplementation(function MockConstructor() {
+      return {
+        models: {
+          embedContent: vi.fn().mockResolvedValue({ embeddings: [] }),
+        },
+      } as unknown as GoogleGenAI;
+    });
 
     const generator = await createContentGenerator(
       { model: 'gemini-2.5-pro', authType: AuthType.USE_VERTEX_AI },

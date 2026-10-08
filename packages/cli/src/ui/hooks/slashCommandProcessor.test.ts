@@ -86,23 +86,23 @@ vi.mock('node:process', () => {
 
 const mockBuiltinLoadCommands = vi.fn();
 vi.mock('../../services/BuiltinCommandLoader.js', () => ({
-  BuiltinCommandLoader: vi.fn().mockImplementation(() => ({
-    loadCommands: mockBuiltinLoadCommands,
-  })),
+  BuiltinCommandLoader: vi.fn().mockImplementation(function MockConstructor() {
+    return { loadCommands: mockBuiltinLoadCommands };
+  }),
 }));
 
 const mockFileLoadCommands = vi.fn();
 vi.mock('../../services/FileCommandLoader.js', () => ({
-  FileCommandLoader: vi.fn().mockImplementation(() => ({
-    loadCommands: mockFileLoadCommands,
-  })),
+  FileCommandLoader: vi.fn().mockImplementation(function MockConstructor() {
+    return { loadCommands: mockFileLoadCommands };
+  }),
 }));
 
 const mockMcpLoadCommands = vi.fn();
 vi.mock('../../services/McpPromptLoader.js', () => ({
-  McpPromptLoader: vi.fn().mockImplementation(() => ({
-    loadCommands: mockMcpLoadCommands,
-  })),
+  McpPromptLoader: vi.fn().mockImplementation(function MockConstructor() {
+    return { loadCommands: mockMcpLoadCommands };
+  }),
 }));
 
 vi.mock('../contexts/SessionContext.js', () => ({

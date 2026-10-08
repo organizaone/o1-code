@@ -5,9 +5,12 @@
  */
 // @vitest-environment jsdom
 
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, type Mock } from 'vitest';
 import { renderHook, act } from '@testing-library/react';
-import { useBranchCommand } from './useBranchCommand.js';
+import {
+  useBranchCommand,
+  type UseBranchCommandOptions,
+} from './useBranchCommand.js';
 import { makeSwapSlotClient } from '../../test-utils/mock-swap-slot-client.js';
 import type { LoadedSettings } from '../../config/settings.js';
 
@@ -26,14 +29,20 @@ describe('useBranchCommand', () => {
   let getSessionDisplayName: ReturnType<typeof vi.fn>;
   let startNewSessionConfig: ReturnType<typeof vi.fn>;
   let getGoalRuntimeReady: ReturnType<typeof vi.fn>;
-  let startNewSessionUI: ReturnType<typeof vi.fn>;
-  let clearPendingState: ReturnType<typeof vi.fn>;
+  let startNewSessionUI: Mock<UseBranchCommandOptions['startNewSession']>;
+  let clearPendingState: Mock<
+    NonNullable<UseBranchCommandOptions['clearPendingState']>
+  >;
   let findSessionTitlesByPrefix: ReturnType<typeof vi.fn>;
-  let clearItems: ReturnType<typeof vi.fn>;
-  let loadHistory: ReturnType<typeof vi.fn>;
-  let setSessionName: ReturnType<typeof vi.fn>;
-  let remount: ReturnType<typeof vi.fn>;
-  let addItem: ReturnType<typeof vi.fn>;
+  let clearItems: Mock<UseBranchCommandOptions['historyManager']['clearItems']>;
+  let loadHistory: Mock<
+    UseBranchCommandOptions['historyManager']['loadHistory']
+  >;
+  let setSessionName: Mock<
+    NonNullable<UseBranchCommandOptions['setSessionName']>
+  >;
+  let remount: Mock<NonNullable<UseBranchCommandOptions['remount']>>;
+  let addItem: Mock<UseBranchCommandOptions['historyManager']['addItem']>;
   let backgroundTaskRegistry: {
     hasRunningTasks: ReturnType<typeof vi.fn>;
     getAll: ReturnType<typeof vi.fn>;

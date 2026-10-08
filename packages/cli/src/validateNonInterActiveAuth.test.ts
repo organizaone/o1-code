@@ -293,10 +293,11 @@ describe('validateNonInterActiveAuth', () => {
       emitResultMock = vi.fn();
       runExitCleanupMock = vi.fn().mockResolvedValue(undefined);
       vi.spyOn(JsonOutputAdapterModule, 'JsonOutputAdapter').mockImplementation(
-        () =>
-          ({
+        function MockConstructor() {
+          return {
             emitResult: emitResultMock,
-          }) as unknown as JsonOutputAdapterModule.JsonOutputAdapter,
+          } as unknown as JsonOutputAdapterModule.JsonOutputAdapter;
+        },
       );
       vi.spyOn(cleanupModule, 'runExitCleanup').mockImplementation(
         runExitCleanupMock,
@@ -427,12 +428,11 @@ describe('validateNonInterActiveAuth', () => {
       vi.spyOn(
         StreamJsonOutputAdapterModule,
         'StreamJsonOutputAdapter',
-      ).mockImplementation(
-        () =>
-          ({
-            emitResult: emitResultMock,
-          }) as unknown as StreamJsonOutputAdapterModule.StreamJsonOutputAdapter,
-      );
+      ).mockImplementation(function MockConstructor() {
+        return {
+          emitResult: emitResultMock,
+        } as unknown as StreamJsonOutputAdapterModule.StreamJsonOutputAdapter;
+      });
       vi.spyOn(cleanupModule, 'runExitCleanup').mockImplementation(
         runExitCleanupMock,
       );

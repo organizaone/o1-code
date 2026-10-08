@@ -88,6 +88,7 @@ describe('SessionService', () => {
   let rmSyncSpy: MockInstance<typeof fs.rmSync>;
 
   beforeEach(() => {
+    vi.clearAllMocks();
     vi.mocked(getProjectHash).mockReturnValue('test-project-hash');
     vi.mocked(path.join).mockImplementation((...args) => args.join('/'));
     vi.mocked(path.dirname).mockImplementation((p) => {

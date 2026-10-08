@@ -40,7 +40,7 @@ const originalPlatform = process.platform;
 
 describe('editor utils', () => {
   beforeEach(() => {
-    vi.clearAllMocks();
+    vi.resetAllMocks();
     vi.unstubAllEnvs();
     Object.defineProperty(process, 'platform', {
       value: originalPlatform,

@@ -20,6 +20,7 @@ import {
 } from './mcp-transport-pool.js';
 import { SessionMcpView } from './session-mcp-view.js';
 import type { ToolRegistry } from './tool-registry.js';
+import { mockConstructorReturning } from '../test-utils/mock-constructor.js';
 
 vi.mock('@modelcontextprotocol/client', async (importOriginal) => {
   const actual =
@@ -130,15 +131,15 @@ function mockMcpSuccess(
     listTools: vi.fn().mockResolvedValue({ tools: [] }),
     getInstructions: vi.fn(),
   };
-  vi.mocked(ClientLib.Client).mockReturnValue(
-    mockedClient as unknown as ClientLib.Client,
+  vi.mocked(ClientLib.Client).mockImplementation(
+    mockConstructorReturning(mockedClient as unknown as ClientLib.Client),
   );
-  vi.spyOn(SdkClientStdioLib, 'StdioClientTransport').mockReturnValue(
+  vi.spyOn(SdkClientStdioLib, 'StdioClientTransport').mockImplementation(
     // Provide `close` so McpClient.disconnect()'s `await this.transport.close()`
     // doesn't throw, allowing the test to assert on the SDK Client's close.
-    {
+    mockConstructorReturning({
       close: vi.fn().mockResolvedValue(undefined),
-    } as unknown as SdkClientStdioLib.StdioClientTransport,
+    } as unknown as SdkClientStdioLib.StdioClientTransport),
   );
   vi.mocked(GenAiLib.mcpToTool).mockReturnValue({
     tool: () =>
@@ -1305,10 +1306,12 @@ describe('McpTransportPool', () => {
       // listDescendantPids (the default transport mock has no `pid`).
       // Inject a numeric pid via the transport mock so the helper's
       // `t.pid > 0` guard passes.
-      vi.mocked(SdkClientStdioLib.StdioClientTransport).mockReturnValue({
-        close: vi.fn().mockResolvedValue(undefined),
-        pid: 99999,
-      } as unknown as SdkClientStdioLib.StdioClientTransport);
+      vi.mocked(SdkClientStdioLib.StdioClientTransport).mockImplementation(
+        mockConstructorReturning({
+          close: vi.fn().mockResolvedValue(undefined),
+          pid: 99999,
+        } as unknown as SdkClientStdioLib.StdioClientTransport),
+      );
 
       const pool = new McpTransportPool(cliConfig, mkPoolOptions());
       const cfg = new MCPServerConfig('node');
@@ -1373,10 +1376,12 @@ describe('McpTransportPool', () => {
       // numeric `pid` so sweepAndDisconnect actually invokes
       // listDescendantPids.
       const mocked = mockMcpSuccess({ toolNames: ['t1'] });
-      vi.mocked(SdkClientStdioLib.StdioClientTransport).mockReturnValue({
-        close: vi.fn().mockResolvedValue(undefined),
-        pid: 99999,
-      } as unknown as SdkClientStdioLib.StdioClientTransport);
+      vi.mocked(SdkClientStdioLib.StdioClientTransport).mockImplementation(
+        mockConstructorReturning({
+          close: vi.fn().mockResolvedValue(undefined),
+          pid: 99999,
+        } as unknown as SdkClientStdioLib.StdioClientTransport),
+      );
       // Discovered 3 descendants; only signaled 1.
       vi.mocked(listDescendantPids).mockResolvedValueOnce([1001, 1002, 1003]);
       vi.mocked(sigtermPids).mockReturnValueOnce(1);
@@ -1845,12 +1850,14 @@ describe('McpTransportPool', () => {
         registerCapabilities: vi.fn(),
         setRequestHandler: vi.fn(),
       };
-      vi.mocked(ClientLib.Client).mockReturnValue(
-        failingClient as unknown as ClientLib.Client,
+      vi.mocked(ClientLib.Client).mockImplementation(
+        mockConstructorReturning(failingClient as unknown as ClientLib.Client),
       );
-      vi.spyOn(SdkClientStdioLib, 'StdioClientTransport').mockReturnValue({
-        close: vi.fn().mockResolvedValue(undefined),
-      } as unknown as SdkClientStdioLib.StdioClientTransport);
+      vi.spyOn(SdkClientStdioLib, 'StdioClientTransport').mockImplementation(
+        mockConstructorReturning({
+          close: vi.fn().mockResolvedValue(undefined),
+        } as unknown as SdkClientStdioLib.StdioClientTransport),
+      );
       const { WorkspaceMcpBudget } = await import('./mcp-workspace-budget.js');
       const budget = new WorkspaceMcpBudget({
         clientBudget: 1,

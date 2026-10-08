@@ -162,8 +162,10 @@ For an exception commit:
 ## Deviations in this project
 
 - **Step 3, test reach.** The full suite is expensive (3 GB heap, thousands of files).
-  "Full suite" here means `npm run test:ci` for `packages/cli` and `packages/core` in continuous
-  integration, never locally. Locally, the reach of the change is what counts, with
+  The CI's explicitly requested `full` matrix runs `npm run test:ci` for core, CLI,
+  SDK, ACP bridge, Node REPL, VS Code companion and audio capture. Web Shell tests
+  run separately among the fast gates. Full core and CLI suites
+  never run locally. Locally, the reach of the change is what counts, with
   `cd packages/<cli|core> && npx vitest run <file>`.
 - **Step 7, through a pull request.** Since 0.1.0, `main` is protected: no direct push, linear
   history, and the CI's fast gates must pass on the pull request before it merges. The project

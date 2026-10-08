@@ -77,6 +77,7 @@ describe('ITermBackend', () => {
   let savedItermSessionId: string | undefined;
 
   beforeEach(() => {
+    vi.resetAllMocks();
     vi.useFakeTimers();
     savedItermSessionId = process.env['ITERM_SESSION_ID'];
     delete process.env['ITERM_SESSION_ID'];

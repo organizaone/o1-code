@@ -7,7 +7,15 @@
 import { render as inkRender } from 'ink-testing-library';
 import { Box } from 'ink';
 import stripAnsi from 'strip-ansi';
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import {
+  describe,
+  it,
+  expect,
+  vi,
+  beforeEach,
+  afterEach,
+  type Mock,
+} from 'vitest';
 import { promises as fs } from 'node:fs';
 import * as os from 'node:os';
 import * as path from 'node:path';
@@ -88,7 +96,7 @@ describe('SkillReviewDialog', () => {
   let tempDir: string;
   let setValue: ReturnType<typeof vi.fn>;
   let setAutoSkillEnabled: ReturnType<typeof vi.fn>;
-  let launchEditor: ReturnType<typeof vi.fn>;
+  let launchEditor: Mock<ReturnType<typeof useLaunchEditor>>;
   let skills: Array<{
     name: string;
     description: string;
@@ -129,7 +137,9 @@ describe('SkillReviewDialog', () => {
     } as never);
     setAutoSkillEnabled = vi.fn();
     mockedUseConfig.mockReturnValue({ setAutoSkillEnabled } as never);
-    launchEditor = vi.fn().mockResolvedValue(undefined);
+    launchEditor = vi
+      .fn<ReturnType<typeof useLaunchEditor>>()
+      .mockResolvedValue(undefined);
     mockedUseLaunchEditor.mockReturnValue(launchEditor);
   });
 

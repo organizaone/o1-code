@@ -35,6 +35,7 @@ describe('startupProfiler', () => {
   beforeEach(() => {
     resetStartupProfiler();
     vi.restoreAllMocks();
+    vi.resetAllMocks();
     saveEnv(
       'O1CODE_PROFILE_STARTUP',
       'O1CODE_PROFILE_STARTUP_OUTER',

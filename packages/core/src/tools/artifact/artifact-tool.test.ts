@@ -5,6 +5,7 @@
  */
 
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
+import type { Mock } from 'vitest';
 import { promises as fs } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
@@ -21,7 +22,7 @@ const signal = new AbortController().signal;
 describe('ArtifactTool', () => {
   let workdir: string;
   let outDir: string;
-  let openSpy: ReturnType<typeof vi.fn>;
+  let openSpy: Mock<UrlOpener>;
   let tool: ArtifactTool;
 
   const makeConfig = (snapshots = true): Config =>
@@ -47,12 +48,8 @@ describe('ArtifactTool', () => {
     workdir = await fs.mkdtemp(path.join(os.tmpdir(), 'o1-code-art-src-'));
     outDir = await fs.mkdtemp(path.join(os.tmpdir(), 'o1-code-art-out-'));
     vi.stubEnv('O1CODE_RUNTIME_DIR', path.join(outDir, 'runtime'));
-    openSpy = vi.fn(async () => {});
-    tool = new ArtifactTool(
-      makeConfig(),
-      new LocalPublisher(outDir),
-      openSpy as unknown as UrlOpener,
-    );
+    openSpy = vi.fn<UrlOpener>(async () => {});
+    tool = new ArtifactTool(makeConfig(), new LocalPublisher(outDir), openSpy);
   });
 
   afterEach(async () => {

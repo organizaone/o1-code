@@ -10,7 +10,7 @@ import { OpenFilesManager } from './open-files-manager.js';
 import { MAX_FILES } from './services/open-files-manager/constants.js';
 
 vi.mock('vscode', () => ({
-  EventEmitter: vi.fn(() => {
+  EventEmitter: vi.fn(function MockConstructor() {
     const listeners: Array<(e: void) => unknown> = [];
     return {
       event: vi.fn((listener) => {

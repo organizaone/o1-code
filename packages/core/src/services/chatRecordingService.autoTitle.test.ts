@@ -114,6 +114,7 @@ describe('ChatRecordingService - auto-title trigger', () => {
   let uuidCounter = 0;
 
   beforeEach(() => {
+    vi.resetAllMocks();
     uuidCounter = 0;
     fastModelValue = 'qwen-turbo';
     tryGenerateSessionTitleMock.mockReset();

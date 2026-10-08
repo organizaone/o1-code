@@ -396,7 +396,7 @@ describe('artifactUtils', () => {
       <link id="transcript-stylesheet" rel="stylesheet" integrity="${integrity}" href="${base}export-transcript-document.css">
       <script src="${base}export-transcript-document.js?probe=blocked"></script>`;
     const fetchMock = vi
-      .fn()
+      .fn<typeof fetch>()
       .mockImplementation(async () => new Response('verified bytes'));
     vi.stubGlobal('fetch', fetchMock);
     const signal = new AbortController().signal;
@@ -409,12 +409,19 @@ describe('artifactUtils', () => {
       'text/html',
     );
     expect(fetchMock).toHaveBeenCalledTimes(2);
+    const linkedSignal = fetchMock.mock.calls[0]?.[1]?.signal;
+    expect(linkedSignal).toBeInstanceOf(AbortSignal);
+    if (!linkedSignal) throw new Error('Export request signal is missing');
+    expect(linkedSignal).not.toBe(signal);
+    expect(fetchMock.mock.calls[1]?.[1]?.signal).toBe(linkedSignal);
+    expect(linkedSignal.aborted).toBe(true);
+    expect(signal.aborted).toBe(false);
     for (const extension of ['js', 'css']) {
       expect(fetchMock).toHaveBeenCalledWith(
         `${base}export-transcript-document.${extension}`,
         {
           integrity,
-          signal,
+          signal: linkedSignal,
           credentials: 'omit',
           referrerPolicy: 'no-referrer',
           redirect: 'error',
@@ -472,6 +479,46 @@ describe('artifactUtils', () => {
         ),
       ).toBe(false);
     }
+  });
+
+  it('forwards caller cancellation to both export resource requests', async () => {
+    vi.stubGlobal('__WEB_SHELL_VERSION__', '0.23.4');
+    const base = 'https://unpkg.com/@organizaone/o1-code@0.23.4/';
+    const integrity = `sha384-${'a'.repeat(64)}`;
+    const html = `<script id="transcript-document" type="application/json">{}</script>
+      <script id="transcript-renderer" integrity="${integrity}" src="${base}export-transcript-document.js"></script>
+      <link id="transcript-stylesheet" rel="stylesheet" integrity="${integrity}" href="${base}export-transcript-document.css">`;
+    const fetchMock = vi.fn<typeof fetch>((_url, init) => {
+      const signal = init?.signal;
+      if (!signal) throw new Error('Export request signal is missing');
+      return new Promise<Response>((_resolve, reject) => {
+        signal.addEventListener('abort', () => reject(signal.reason), {
+          once: true,
+        });
+      });
+    });
+    vi.stubGlobal('fetch', fetchMock);
+    const controller = new AbortController();
+    const preview = loadArtifactPreviewDocument(
+      html,
+      'Cancelled export',
+      controller.signal,
+    );
+    const rejected = (async () => {
+      await expect(preview).rejects.toMatchObject({ name: 'AbortError' });
+    })();
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    const linkedSignal = fetchMock.mock.calls[0]?.[1]?.signal;
+    expect(linkedSignal).toBeInstanceOf(AbortSignal);
+    if (!linkedSignal) throw new Error('Export request signal is missing');
+    expect(linkedSignal).not.toBe(controller.signal);
+    expect(fetchMock.mock.calls[1]?.[1]?.signal).toBe(linkedSignal);
+    expect(linkedSignal.aborted).toBe(false);
+
+    controller.abort();
+
+    expect(linkedSignal.aborted).toBe(true);
+    await rejected;
   });
 
   it('aborts the sibling asset fetch when one arm rejects', async () => {

@@ -33,9 +33,29 @@ vi.mock('@organizaone/o1-code-core', async (importOriginal) => {
     isBinary: mockIsBinary,
   };
 });
-vi.mock('fs');
-vi.mock('os');
-vi.mock('crypto');
+vi.mock('node:fs', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('node:fs')>();
+  const mocks = {
+    existsSync: vi.fn<typeof actual.existsSync>(),
+    writeFileSync: vi.fn<typeof actual.writeFileSync>(),
+    readFileSync: vi.fn<typeof actual.readFileSync>(),
+    unlinkSync: vi.fn<typeof actual.unlinkSync>(),
+  };
+  return { ...actual, ...mocks, default: { ...actual, ...mocks } };
+});
+vi.mock('node:os', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('node:os')>();
+  const mocks = {
+    platform: vi.fn<typeof actual.platform>(),
+    tmpdir: vi.fn<typeof actual.tmpdir>(),
+  };
+  return { ...actual, ...mocks, default: { ...actual, ...mocks } };
+});
+vi.mock('node:crypto', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('node:crypto')>();
+  const randomBytes = vi.fn<typeof actual.randomBytes>();
+  return { ...actual, randomBytes, default: { ...actual, randomBytes } };
+});
 vi.mock('../utils/textUtils.js');
 
 import {

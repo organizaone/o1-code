@@ -5,7 +5,7 @@
  */
 // @vitest-environment jsdom
 
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, type Mock } from 'vitest';
 import { renderHook, act } from '@testing-library/react';
 import { ApprovalMode } from '@organizaone/o1-code-core/config/approval-mode.js';
 import type { Config } from '@organizaone/o1-code-core/config/config.js';
@@ -17,10 +17,10 @@ const TRUST_GATE_MESSAGE =
   'Cannot enable privileged approval modes in an untrusted folder.';
 
 describe('useApprovalModeCommand', () => {
-  let setApprovalMode: ReturnType<typeof vi.fn>;
-  let isTrustedFolder: ReturnType<typeof vi.fn>;
-  let setValue: ReturnType<typeof vi.fn>;
-  let addItem: ReturnType<typeof vi.fn>;
+  let setApprovalMode: Mock<Config['setApprovalMode']>;
+  let isTrustedFolder: Mock<Config['isTrustedFolder']>;
+  let setValue: Mock<LoadedSettings['setValue']>;
+  let addItem: Mock<NonNullable<Parameters<typeof useApprovalModeCommand>[2]>>;
   let config: Config;
   let settings: LoadedSettings;
 

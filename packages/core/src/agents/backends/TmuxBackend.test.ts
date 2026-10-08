@@ -120,6 +120,7 @@ describe('TmuxBackend', () => {
   let savedTmuxEnv: string | undefined;
 
   beforeEach(() => {
+    vi.resetAllMocks();
     vi.useFakeTimers();
     savedTmuxEnv = process.env['TMUX'];
     // Default: running outside tmux

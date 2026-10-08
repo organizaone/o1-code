@@ -7,17 +7,27 @@ cross-cutting rules of that guide that apply are reproduced below with the reaso
 ## Toolchain
 
 Node >= 22 (`.nvmrc` pins 22; the maintainer's machine defaults to 26.9 through fnm), pnpm 11.24.0
-through Corepack, strict TypeScript in ESM, Vitest, ESLint 9 in flat config, Prettier, esbuild for the
+through Corepack, strict TypeScript in ESM, Vitest 4.1.11, Vite 6.4.4, ESLint 9 in flat config, Prettier, esbuild for the
 bundle. Corepack no longer ships with Node 26; install it with `npm i -g corepack`.
+
+Vitest and its V8 coverage provider use matching versions across workspaces. Worker
+limits use top-level `maxWorkers` and the CLI `--maxWorkers` flag; `poolOptions`
+and its per-pool worker flags are no longer supported. Core and ACP tests explicitly
+exclude built `dist/` copies. SDK coverage includes all eligible uncovered files and keeps
+its existing thresholds; V8 now remaps coverage through source ASTs. Constructor
+mocks use regular functions; test lint rules permit named constructor functions.
+Factory mock cleanup is explicit where tests
+previously relied on `restoreAllMocks()` to reset them. Insight assets preserve the
+stylesheet filename expected by their template generator under Vite 6.
 
 ## Cycle commands
 
-| Step | Command | Notes |
-|---|---|---|
-| 1 Build | `corepack pnpm install --frozen-lockfile && npm run build -- --cli-only` | A plain install: `prepare` only generates sources, and `postinstall` applies `patches/ink+7.0.3.patch`, without which `packages/cli` does not compile. Add `npm run bundle` when the change affects the publishable artifact |
-| 2 Lint | `npm run lint && npm run typecheck` | Both. Typecheck after the build: the CLI checks against core's built types. The pre-commit hook runs Prettier and ESLint on staged files |
-| 3 Test | `cd packages/<cli\|core> && npx vitest run <files in reach>`, and `node --test scripts/o1/*.test.mjs` for the project's scripts | Never `npx vitest` from the root: the configs are per package. Local runs cover the areas in reach; full CLI and core suites run only in CI, on demand, per `TASK-COMPLETION.md` |
-| 5 Version | `npm run release:version -- <major\|minor\|patch>` | At the root. The root `package.json` version is the only one; the script aligns every workspace package to it |
+| Step      | Command                                                                                                                         | Notes                                                                                                                                                                                                                        |
+| --------- | ------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 1 Build   | `corepack pnpm install --frozen-lockfile && npm run build -- --cli-only`                                                        | A plain install: `prepare` only generates sources, and `postinstall` applies `patches/ink+7.0.3.patch`, without which `packages/cli` does not compile. Add `npm run bundle` when the change affects the publishable artifact |
+| 2 Lint    | `npm run lint && npm run typecheck`                                                                                             | Both. Typecheck after the build: the CLI checks against core's built types. The pre-commit hook runs Prettier and ESLint on staged files                                                                                     |
+| 3 Test    | `cd packages/<cli\|core> && npx vitest run <files in reach>`, and `node --test scripts/o1/*.test.mjs` for the project's scripts | Never `npx vitest` from the root: the configs are per package. Local runs cover the areas in reach; full CLI and core suites run only in CI, on demand, per `TASK-COMPLETION.md`                                             |
+| 5 Version | `npm run release:version -- <major\|minor\|patch>`                                                                              | At the root. The root `package.json` version is the only one; the script aligns every workspace package to it                                                                                                                |
 
 Outside the cycle: `node scripts/o1/smoke.mjs` proves the bundle starts,
 `node scripts/o1/provider-smoke.mjs` proves a provider configured by URL answers in both protocols,

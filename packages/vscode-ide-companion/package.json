@@ -3,7 +3,7 @@
   "private": true,
   "displayName": "O1-Code Companion",
   "description": "Enable O1-Code with direct access to your VS Code workspace.",
-  "version": "0.10.3",
+  "version": "0.10.4",
   "publisher": "organizaone",
   "icon": "assets/icon.png",
   "repository": {
@@ -282,7 +282,7 @@
     "eslint-plugin-react-hooks": "^5.2.0",
     "npm-run-all2": "^8.0.2",
     "typescript": "^5.8.3",
-    "vitest": "^3.2.4"
+    "vitest": "^4.1.11"
   },
   "dependencies": {
     "@agentclientprotocol/sdk": "^0.14.1",

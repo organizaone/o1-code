@@ -41,6 +41,7 @@ describe('redactExtensionDisplaySource', () => {
 
 describe('createExtensionsController', () => {
   beforeEach(() => {
+    vi.resetAllMocks();
     vi.mocked(resolveLanguageSetting).mockReturnValue('en');
   });
 

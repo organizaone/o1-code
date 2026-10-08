@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { defineConfig } from 'vitest/config';
+import { configDefaults, defineConfig } from 'vitest/config';
 import path from 'node:path';
 
 // Tests assert UTC dates; the workers inherit this environment, so a machine
@@ -14,6 +14,7 @@ process.env['TZ'] = 'UTC';
 
 export default defineConfig({
   test: {
+    exclude: [...configDefaults.exclude, '**/dist/**'],
     // Raise the per-test ceiling above vitest's 5s default: I/O- or
     // WASM-load-bound tests (e.g. the web-tree-sitter lazy runtime, tar
     // extraction) blow 5s purely under contention, not from any logic fault.

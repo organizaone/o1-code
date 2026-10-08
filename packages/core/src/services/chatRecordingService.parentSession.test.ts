@@ -37,6 +37,7 @@ describe('ChatRecordingService - recordParentSession', () => {
   let uuidCounter = 0;
 
   beforeEach(() => {
+    vi.resetAllMocks();
     uuidCounter = 0;
 
     mockConfig = {

@@ -67,11 +67,13 @@ vi.mock('vscode', () => ({
     Development: 1,
     Production: 2,
   },
-  EventEmitter: vi.fn(() => ({
-    event: vi.fn(),
-    fire: vi.fn(),
-    dispose: vi.fn(),
-  })),
+  EventEmitter: vi.fn(function MockConstructor() {
+    return {
+      event: vi.fn(),
+      fire: vi.fn(),
+      dispose: vi.fn(),
+    };
+  }),
   extensions: {
     getExtension: vi.fn(),
   },
@@ -81,6 +83,7 @@ describe('activate', () => {
   let context: vscode.ExtensionContext;
 
   beforeEach(() => {
+    vi.resetAllMocks();
     vi.mocked(vscode.window.showInformationMessage).mockResolvedValue(
       undefined,
     );
@@ -577,7 +580,7 @@ describe('activate', () => {
         .spyOn(ChatProviderRegistry.prototype, 'getPermissionAwareProviders')
         .mockReturnValue([provider] as never);
 
-      // `vscode.EventEmitter` is mocked as `vi.fn(() => ({ event: vi.fn(), … }))`,
+      // `vscode.EventEmitter` returns an object with an `event` spy,
       // so the handler registered on `diffManager.onDidClosePermissionDiff` lands
       // in that emitter's `event.mock.calls`. Clear prior activations, then drive
       // every listener captured by this one.

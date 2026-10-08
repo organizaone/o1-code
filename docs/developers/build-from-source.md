@@ -8,8 +8,8 @@ when you want to run an unreleased change, work on the code, or package it yours
 - Node.js 22 or later ([nodejs.org](https://nodejs.org/en/download)).
 - Corepack, which selects the pnpm version the repository pins. Node 26 no longer ships it:
   `npm i -g corepack`.
-- Git. On Windows, run `git config core.longpaths true` before cloning, or the checkout fails on
-  long paths.
+- Git. On Windows, pass `-c core.longpaths=true` to `git clone` as below, or the
+  checkout fails on long paths. After cloning, persist it in the local repository configuration.
 
 No compiler, Rust or Go toolchain and no administrator rights are needed. Native modules are
 prebuilt or optional.
@@ -17,7 +17,7 @@ prebuilt or optional.
 ## Build
 
 ```bash
-git clone https://github.com/organizaone/o1-code.git
+git -c core.longpaths=true clone https://github.com/organizaone/o1-code.git
 cd o1-code
 git config core.longpaths true         # Windows only
 corepack pnpm install --frozen-lockfile

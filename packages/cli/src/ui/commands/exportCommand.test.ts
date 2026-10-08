@@ -92,7 +92,7 @@ describe('exportCommand', () => {
   let mockContext: ReturnType<typeof createMockCommandContext>;
 
   beforeEach(() => {
-    vi.clearAllMocks();
+    vi.resetAllMocks();
 
     mockSessionServiceMocks.loadSession.mockResolvedValue(mockSessionData);
 
