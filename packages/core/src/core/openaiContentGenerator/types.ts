@@ -42,6 +42,11 @@ export interface StreamingTextDeltaState {
 export interface RequestContext {
   model: string;
   modalities: InputModalities;
+  /**
+   * The endpoint fetches nothing, so an attachment given as a link becomes
+   * a text notice; a `data:` link is sent as is.
+   */
+  inlineMediaOnly?: boolean;
   startTime: number;
   toolCallParser?: StreamingToolCallParser;
   responseParsingOptions?: OpenAIResponseParsingOptions;

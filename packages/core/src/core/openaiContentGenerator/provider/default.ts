@@ -26,6 +26,7 @@ import { buildOutboundFetch } from '../../outbound-fetch.js';
 import {
   isOrganizaOneBaseUrl,
   ORGANIZAONE_CLIENT_HEADERS,
+  reachesOrganizaOne,
 } from '../../../providers/presets/organizaone.js';
 import { o1CodeUserAgent } from '../../../providers/client-identity.js';
 
@@ -136,6 +137,9 @@ export class DefaultOpenAICompatibleProvider
         runtimeOptions?.fetch,
         this.cliConfig,
         this.contentGeneratorConfig.customHeaders,
+        {
+          recordRateLimits: reachesOrganizaOne(this.contentGeneratorConfig),
+        },
       ),
     });
   }

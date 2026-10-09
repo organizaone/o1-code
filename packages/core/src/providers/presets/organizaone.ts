@@ -34,6 +34,19 @@ export function isOrganizaOneBaseUrl(baseUrl: string | undefined): boolean {
 }
 
 /**
+ * Whether requests through this configuration reach the OrganizaOne proxy:
+ * at its URL, or through its pinned tunnel, whose URL is a loopback address.
+ */
+export function reachesOrganizaOne(config: {
+  baseUrl?: string;
+  connection?: string;
+}): boolean {
+  return (
+    config.connection === 'o1-connect' || isOrganizaOneBaseUrl(config.baseUrl)
+  );
+}
+
+/**
  * The proxy records the calling agent from `X-Title` before `User-Agent`
  * (o1-gateway, request-origin.ts).
  */

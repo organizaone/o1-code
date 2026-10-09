@@ -2983,6 +2983,61 @@ describe('OpenAIContentConverter', () => {
       expect(contentArray[1].text).toContain('archive.zip');
     });
 
+    it('sends no linked attachment to an inline-only endpoint, and keeps a data: link', () => {
+      const userContent = (fileUri: string, inlineMediaOnly: boolean) => {
+        const messages = converter.convertLlmRequestToOpenAI(
+          {
+            model: 'models/test',
+            contents: [
+              {
+                role: 'user',
+                parts: [
+                  { text: 'Look' },
+                  {
+                    fileData: {
+                      mimeType: 'application/pdf',
+                      fileUri,
+                      displayName: 'spec.pdf',
+                    },
+                  },
+                ],
+              },
+            ],
+          },
+          { ...requestContext, inlineMediaOnly },
+        );
+        return messages.find((message) => message.role === 'user')?.content;
+      };
+
+      expect(userContent('https://example.com/spec.pdf', true)).toEqual([
+        { type: 'text', text: 'Look' },
+        {
+          type: 'text',
+          text: '[Attachment not sent: "spec.pdf" (application/pdf) is a link, and this provider takes attachments only inline.]',
+        },
+      ]);
+      expect(userContent('data:application/pdf;base64,JVBERi0', true)).toEqual([
+        { type: 'text', text: 'Look' },
+        {
+          type: 'file',
+          file: {
+            filename: 'spec.pdf',
+            file_data: 'data:application/pdf;base64,JVBERi0',
+          },
+        },
+      ]);
+      expect(userContent('https://example.com/spec.pdf', false)).toEqual([
+        { type: 'text', text: 'Look' },
+        {
+          type: 'file',
+          file: {
+            filename: 'spec.pdf',
+            file_data: 'https://example.com/spec.pdf',
+          },
+        },
+      ]);
+    });
+
     it('should create tool message with text-only content when no media parts', () => {
       const request = createRequestWithFunctionResponse({
         output: 'Plain text output',

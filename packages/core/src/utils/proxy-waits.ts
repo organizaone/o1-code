@@ -20,6 +20,8 @@ export const PROXY_LONG_WAIT_MS = 5 * 60_000;
 /** OpenAI-protocol codes the OrganizaOne proxy uses for its own refusals. */
 const PROXY_WAIT_CODES = new Set([
   'account_limit_exceeded',
+  // The cap the person set on their own credentials (contract §3.5).
+  'own_limit',
   'upstream_rate_limited',
   'provider_unavailable',
   'limits_unavailable',

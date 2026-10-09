@@ -1609,6 +1609,41 @@ describe('convertGeminiContentsToResponsesInput', () => {
     ]);
   });
 
+  it('sends an inline PDF as input_file with file_data when the model takes PDFs', () => {
+    const { input } = convertGeminiContentsToResponsesInput(
+      request([
+        {
+          role: 'user',
+          parts: [
+            { text: 'Summarize my PDF' },
+            {
+              inlineData: {
+                mimeType: 'application/pdf',
+                data: 'JVBERi0',
+                displayName: 'report.pdf',
+              },
+            },
+          ],
+        },
+      ]),
+      { modalities: { pdf: true } },
+    );
+    expect(input).toEqual([
+      {
+        type: 'message',
+        role: 'user',
+        content: [
+          { type: 'input_text', text: 'Summarize my PDF' },
+          {
+            type: 'input_file',
+            filename: 'report.pdf',
+            file_data: 'data:application/pdf;base64,JVBERi0',
+          },
+        ],
+      } satisfies ResponsesApiMessageItem,
+    ]);
+  });
+
   it('replaces non-image inlineData with a text placeholder instead of silently dropping it', () => {
     const { input } = convertGeminiContentsToResponsesInput(
       request([

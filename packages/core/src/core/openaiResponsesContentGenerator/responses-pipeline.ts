@@ -51,6 +51,7 @@ import {
 } from '../openaiContentGenerator/constants.js';
 import { reconcileMaxTokens } from '../tokenLimits.js';
 import { buildOutboundFetch } from '../outbound-fetch.js';
+import { reachesOrganizaOne } from '../../providers/presets/organizaone.js';
 import { createHash } from 'node:crypto';
 import { createDebugLogger } from '../../utils/debugLogger.js';
 import { ResponsesHttpError } from '../../utils/responses-http-error.js';
@@ -405,8 +406,12 @@ export class ResponsesPipeline {
     request: GenerateContentParameters,
     userPromptId: string,
   ): ResponsesApiRequest {
-    const { instructions, input } =
-      convertGeminiContentsToResponsesInput(request);
+    const { instructions, input } = convertGeminiContentsToResponsesInput(
+      request,
+      {
+        modalities: this.config.modalities ?? {},
+      },
+    );
     const tools = convertGeminiToolsToResponsesTools(request);
 
     // History is always re-derived in full from this app's own Content[]
@@ -674,6 +679,7 @@ export class ResponsesPipeline {
       pinnedFetch,
       this.cliConfig,
       this.config.customHeaders,
+      { recordRateLimits: reachesOrganizaOne(this.config) },
     );
 
     // Connect-phase timeout: fetch() resolves once response headers arrive, so

@@ -10,6 +10,10 @@ import {
   buildOutboundFetch,
   wrapFetchWithDynamicHeaders,
 } from './outbound-fetch.js';
+import {
+  getLatestRateLimits,
+  resetRateLimitTracking,
+} from '../providers/organizaone-limits.js';
 
 function config(sessionId = 'session-1'): Config {
   return {
@@ -135,6 +139,43 @@ describe('outbound fetch', () => {
 
     const headers = new Headers(runtimeFetch.mock.calls[0][1]?.headers);
     expect(headers.get('x-session')).toBe('session-1');
+  });
+
+  it('records the proxy’s rate-limit windows only when asked to', async () => {
+    resetRateLimitTracking();
+    const limited = () =>
+      new Response(null, {
+        headers: {
+          'x-ratelimit-limit-requests': '60',
+          'x-ratelimit-remaining-requests': '42',
+          'x-ratelimit-reset-requests': '6m0s',
+        },
+      });
+    const runtimeFetch = vi.fn(
+      async (_input: string | URL | Request, _init?: RequestInit) => limited(),
+    );
+
+    await buildOutboundFetch(
+      runtimeFetch,
+      config(),
+    )('https://api.example.test/v1');
+    expect(getLatestRateLimits()).toBeUndefined();
+
+    const response = await buildOutboundFetch(
+      runtimeFetch,
+      config(),
+      {},
+      {
+        recordRateLimits: true,
+      },
+    )('https://api.organizago.com/v1');
+    expect(response.headers.get('x-ratelimit-limit-requests')).toBe('60');
+    expect(getLatestRateLimits()?.requests).toEqual({
+      limit: 60,
+      remaining: 42,
+      resetMs: 360_000,
+    });
+    resetRateLimitTracking();
   });
 
   it('falls back to globalThis.fetch when no runtime fetch exists', async () => {

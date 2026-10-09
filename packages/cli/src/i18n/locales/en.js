@@ -2256,6 +2256,46 @@ export default {
     'The old file stays beside it as a .bak, still readable on the machine that saved it. Type replace to set it aside and save the connection:',
   'Nothing was moved: the secret store was left as it was.':
     'Nothing was moved: the secret store was left as it was.',
+  '{{used}}/{{limit}} requests per minute':
+    '{{used}}/{{limit}} requests per minute',
+  '{{used}}/{{limit}} tokens per minute':
+    '{{used}}/{{limit}} tokens per minute',
+  '{{used}}/{{limit}} requests today': '{{used}}/{{limit}} requests today',
+  '{{used}}/{{limit}} tokens today': '{{used}}/{{limit}} tokens today',
+  '{{used}}/{{limit}} at once': '{{used}}/{{limit}} at once',
+  '{{used}}/{{limit}} spent today': '{{used}}/{{limit}} spent today',
+  '{{used}}/{{limit}} spent this month': '{{used}}/{{limit}} spent this month',
+  'Daily limits reset at {{time}} (in {{wait}}).':
+    'Daily limits reset at {{time}} (in {{wait}}).',
+  '{{remaining}} of {{limit}} requests left':
+    '{{remaining}} of {{limit}} requests left',
+  '{{remaining}} of {{limit}} tokens left':
+    '{{remaining}} of {{limit}} tokens left',
+  'Last request: {{windows}}': 'Last request: {{windows}}',
+  'plan {{name}}': 'plan {{name}}',
+  'Spent this period: {{used}}': 'Spent this period: {{used}}',
+  'Spent this period: {{used}} of {{included}}':
+    'Spent this period: {{used}} of {{included}}',
+  'Output per request: up to {{tokens}} tokens':
+    'Output per request: up to {{tokens}} tokens',
+  'Limits ({{scope}})': 'Limits ({{scope}})',
+  'No request or token limits on this key.':
+    'No request or token limits on this key.',
+  'Own credentials': 'Own credentials',
+  'OrganizaOne: {{remaining}} of {{limit}} requests left.':
+    'OrganizaOne: {{remaining}} of {{limit}} requests left.',
+  'OrganizaOne: {{remaining}} of {{limit}} requests left; the window refills in {{wait}}.':
+    'OrganizaOne: {{remaining}} of {{limit}} requests left; the window refills in {{wait}}.',
+  'OrganizaOne: {{remaining}} of {{limit}} tokens left.':
+    'OrganizaOne: {{remaining}} of {{limit}} tokens left.',
+  'OrganizaOne: {{remaining}} of {{limit}} tokens left; the window refills in {{wait}}.':
+    'OrganizaOne: {{remaining}} of {{limit}} tokens left; the window refills in {{wait}}.',
+  'Show what your OrganizaOne key may still use.':
+    'Show what your OrganizaOne key may still use.',
+  'Limits are shown for models reached through OrganizaOne.':
+    'Limits are shown for models reached through OrganizaOne.',
+  'OrganizaOne did not answer with the key’s limits.':
+    'OrganizaOne did not answer with the key’s limits.',
   'checking the key…': 'checking the key…',
   'key valid': 'key valid',
   'The provider refused this key ({{status}}). Check it, or press enter again to use it anyway.':

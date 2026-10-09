@@ -174,6 +174,33 @@ function buildAdvancedGenerationConfig(
   return hasAny ? cfg : undefined;
 }
 
+/**
+ * What the provider's model list stated for this model: its window, what it
+ * takes and its output cap. The list's word wins over the wizard's advanced
+ * values; a text-only answer is kept as such, so the model's name cannot
+ * suggest image or PDF support the provider refuses.
+ */
+function withDiscoveredLimits(
+  generationConfig: ProviderModelConfig['generationConfig'] | undefined,
+  spec: ModelSpec | undefined,
+): ProviderModelConfig['generationConfig'] | undefined {
+  if (!spec?.contextWindowSize && !spec?.modalities && !spec?.maxOutputTokens) {
+    return generationConfig;
+  }
+  const merged: NonNullable<ProviderModelConfig['generationConfig']> = {
+    ...generationConfig,
+  };
+  if (spec.contextWindowSize) merged.contextWindowSize = spec.contextWindowSize;
+  if (spec.modalities) merged.modalities = spec.modalities;
+  if (spec.maxOutputTokens) {
+    merged.samplingParams = {
+      ...merged.samplingParams,
+      max_tokens: spec.maxOutputTokens,
+    };
+  }
+  return merged;
+}
+
 function specToModelConfig(
   spec: ModelSpec,
   prefix: string,
@@ -279,8 +306,12 @@ function buildModelConfigs(
       (inputs.discoveredModels ?? []).map((spec) => [spec.id, spec]),
     );
     models = inputs.modelIds.map((id) => {
-      const genConfig = buildAdvancedGenerationConfig(advCfg, protocol);
-      const capabilities = discovered.get(id)?.capabilities;
+      const spec = discovered.get(id);
+      const genConfig = withDiscoveredLimits(
+        buildAdvancedGenerationConfig(advCfg, protocol),
+        spec,
+      );
+      const capabilities = spec?.capabilities;
       return {
         id,
         name: displayName(id),
@@ -529,7 +560,11 @@ export function buildInstallPlan(
                   }
                 : {}),
               ...(preservedGeneration.contextWindowSize !== undefined &&
-              inputs.advancedConfig?.contextWindowSize === undefined
+              inputs.advancedConfig?.contextWindowSize === undefined &&
+              // A window the provider's list states now replaces the saved one.
+              !inputs.discoveredModels?.some(
+                (spec) => spec.id === model.id && spec.contextWindowSize,
+              )
                 ? {
                     contextWindowSize: preservedGeneration.contextWindowSize,
                   }

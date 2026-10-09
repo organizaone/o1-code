@@ -26,6 +26,8 @@ export interface ModelSpec {
   id: string;
   capabilities?: ModelCapabilities;
   contextWindowSize?: number;
+  /** The most output a request may ask for; the request's `max_tokens` ceiling. */
+  maxOutputTokens?: number;
   enableThinking?: boolean;
   thinkingMandatory?: boolean;
   modalities?: InputModalities;

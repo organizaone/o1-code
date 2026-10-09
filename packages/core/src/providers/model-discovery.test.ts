@@ -179,6 +179,118 @@ describe('checkProviderKey', () => {
     });
   });
 
+  it('reads what each model takes and its limits from the list', async () => {
+    respond(200, {
+      data: [
+        {
+          id: 'glm-5v',
+          context_length: 128000,
+          architecture: {
+            input_modalities: ['text', 'image'],
+            output_modalities: ['text'],
+          },
+          top_provider: { max_completion_tokens: 8192, context_length: 128000 },
+        },
+        {
+          id: 'claude-sonnet-4-5',
+          architecture: { input_modalities: ['text', 'image', 'file'] },
+        },
+        {
+          id: 'omni',
+          architecture: { input_modalities: ['text', 'audio', 'video'] },
+        },
+        { id: 'text-only', architecture: { input_modalities: ['text'] } },
+      ],
+    });
+    const result = await checkProviderKey({
+      protocol: 'openai',
+      baseUrl: 'https://api.organizago.com/v1',
+      apiKey: 'device-token',
+      staticModels: [],
+    });
+    const none = { image: false, pdf: false, audio: false, video: false };
+    expect(result).toEqual({
+      status: 'ok',
+      models: [
+        {
+          id: 'glm-5v',
+          contextWindowSize: 128000,
+          modalities: { ...none, image: true },
+          maxOutputTokens: 8192,
+        },
+        {
+          id: 'claude-sonnet-4-5',
+          modalities: { ...none, image: true, pdf: true },
+        },
+        { id: 'omni', modalities: { ...none, audio: true, video: true } },
+        { id: 'text-only', modalities: none },
+      ],
+    });
+  });
+
+  it('leaves unknown what the list does not state, or states badly', async () => {
+    respond(200, {
+      data: [
+        { id: 'bare' },
+        {
+          id: 'odd',
+          context_length: -1,
+          architecture: { input_modalities: 'image' },
+          top_provider: { max_completion_tokens: null },
+        },
+      ],
+    });
+    const result = await checkProviderKey({
+      protocol: 'openai',
+      baseUrl: 'https://api.organizago.com/v1',
+      apiKey: 'device-token',
+      staticModels: [],
+    });
+    expect(result).toEqual({
+      status: 'ok',
+      models: [{ id: 'bare' }, { id: 'odd' }],
+    });
+  });
+
+  it('lets the list override the preset for what it states, and keeps the rest', async () => {
+    respond(200, {
+      data: [
+        {
+          id: 'model-a',
+          context_length: 64000,
+          architecture: { input_modalities: ['text'] },
+        },
+        { id: 'model-b' },
+      ],
+    });
+    const result = await checkProviderKey({
+      protocol: 'openai',
+      baseUrl: 'https://api.example.test/v1',
+      apiKey: 'sk-good',
+      staticModels: [
+        {
+          id: 'model-a',
+          description: 'Preset',
+          contextWindowSize: 200000,
+          modalities: { image: true },
+        },
+        { id: 'model-b', contextWindowSize: 32000 },
+      ],
+    });
+    expect(result).toEqual({
+      status: 'ok',
+      models: [
+        {
+          id: 'model-a',
+          description: 'Preset',
+          contextWindowSize: 64000,
+          modalities: { image: false, pdf: false, audio: false, video: false },
+        },
+        { id: 'model-b', contextWindowSize: 32000 },
+      ],
+    });
+  });
+
   it('reports a key the provider refuses', async () => {
     respond(401);
     await expect(

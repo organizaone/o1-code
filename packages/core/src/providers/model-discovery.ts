@@ -36,10 +36,52 @@ interface DiscoverProviderModelsOptions {
   clientVersion?: string;
 }
 
-interface DiscoveredModel {
+/** What a model list states about a model, in OpenRouter's field names. */
+type DiscoveredLimits = Pick<
+  ModelSpec,
+  'contextWindowSize' | 'modalities' | 'maxOutputTokens'
+>;
+
+interface DiscoveredModel extends DiscoveredLimits {
   id: string;
   created?: number;
   reasoning?: ModelReasoningCapabilities;
+}
+
+function positiveInteger(value: unknown): number | undefined {
+  return typeof value === 'number' && Number.isInteger(value) && value > 0
+    ? value
+    : undefined;
+}
+
+/**
+ * The context window, what the model takes and its output cap, from
+ * `context_length`, `architecture.input_modalities` (`image`, `file` for a
+ * PDF, `audio`, `video`) and `top_provider.max_completion_tokens`. A field
+ * that is absent or malformed is left out: unknown, never zero or "none".
+ */
+function readLimits(item: object): DiscoveredLimits {
+  const { context_length, architecture, top_provider } = item as {
+    context_length?: unknown;
+    architecture?: { input_modalities?: unknown } | null;
+    top_provider?: { max_completion_tokens?: unknown } | null;
+  };
+  const contextWindowSize = positiveInteger(context_length);
+  const maxOutputTokens = positiveInteger(top_provider?.max_completion_tokens);
+  const inputs = architecture?.input_modalities;
+  const modalities = Array.isArray(inputs)
+    ? {
+        image: inputs.includes('image'),
+        pdf: inputs.includes('file'),
+        audio: inputs.includes('audio'),
+        video: inputs.includes('video'),
+      }
+    : undefined;
+  return {
+    ...(contextWindowSize ? { contextWindowSize } : {}),
+    ...(modalities ? { modalities } : {}),
+    ...(maxOutputTokens ? { maxOutputTokens } : {}),
+  };
 }
 
 /**
@@ -123,6 +165,7 @@ function readModels(value: unknown): DiscoveredModel[] | null {
         id: trimmedId,
         ...(creationTime === undefined ? {} : { created: creationTime }),
         ...(reasoning ? { reasoning } : {}),
+        ...readLimits(item),
       });
     }
   }
@@ -174,10 +217,15 @@ function mergeModelSpecs(
       (left, right) => (right.created ?? 0) - (left.created ?? 0),
     );
   }
+  // What the list states about the window, the inputs and the output cap wins
+  // over the preset: the provider answers for this key, so for the OrganizaOne
+  // proxy it is the person's plan. Everything else stays the preset's.
   return orderedModels.map(
-    ({ id, reasoning }) =>
-      staticModelsById.get(id) ??
-      (reasoning ? { id, capabilities: { reasoning } } : { id }),
+    ({ id, reasoning, created: _created, ...limits }) => ({
+      ...(staticModelsById.get(id) ??
+        (reasoning ? { id, capabilities: { reasoning } } : { id })),
+      ...limits,
+    }),
   );
 }
 

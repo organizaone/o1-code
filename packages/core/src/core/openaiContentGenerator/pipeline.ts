@@ -26,6 +26,7 @@ import { StreamingToolCallParser } from './streamingToolCallParser.js';
 import { TaggedThinkingParser } from './taggedThinkingParser.js';
 import type { PipelineConfig, RequestContext } from './types.js';
 import { redactProxyError } from '../../utils/runtimeFetchOptions.js';
+import { reachesOrganizaOne } from '../../providers/presets/organizaone.js';
 import { runtimeDiagnostics } from '../../utils/runtimeDiagnostics.js';
 import { createChildAbortController } from '../../utils/abortController.js';
 import { reconcileMaxTokens } from '../tokenLimits.js';
@@ -1780,6 +1781,7 @@ export class ContentGenerationPipeline {
     return {
       model: effectiveModel,
       modalities: this.contentGeneratorConfig.modalities ?? {},
+      inlineMediaOnly: reachesOrganizaOne(this.contentGeneratorConfig),
       startTime: Date.now(),
       splitToolMedia:
         providerOverrides.splitToolMedia ??

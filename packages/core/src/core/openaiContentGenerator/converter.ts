@@ -1052,6 +1052,16 @@ function createMediaContentPart(
     const mimeType = part.fileData.mimeType;
     const mediaType = getMediaType(mimeType);
 
+    if (requestContext.inlineMediaOnly && !fileUri.startsWith('data:')) {
+      debugLogger.warn(
+        `Not sending a linked ${mimeType} attachment: this endpoint takes attachments only inline.`,
+      );
+      return {
+        type: 'text' as const,
+        text: `[Attachment not sent: "${filename}" (${mimeType}) is a link, and this provider takes attachments only inline.]`,
+      };
+    }
+
     if (mediaType === 'image') {
       if (!modalities.image) {
         return unsupportedModalityPlaceholder(
