@@ -203,6 +203,31 @@ describe('statsCommand', () => {
     );
   });
 
+  it('says limits are OrganizaOne’s for a model reached elsewhere', async () => {
+    const limitsSubCommand = statsCommand.subCommands?.find(
+      (sc) => sc.name === 'limits',
+    );
+    if (!limitsSubCommand?.action) throw new Error('Subcommand has no action');
+    const context = createMockCommandContext({
+      executionMode: 'non_interactive',
+      services: {
+        config: {
+          getContentGeneratorConfig: () => ({
+            baseUrl: 'https://api.openai.com/v1',
+            apiKey: 'sk',
+          }),
+          getCliVersion: () => '1.2.3',
+        },
+      },
+    } as unknown as Parameters<typeof createMockCommandContext>[0]);
+
+    await expect(limitsSubCommand.action(context, '')).resolves.toEqual({
+      type: 'message',
+      messageType: 'info',
+      content: 'Limits are shown for models reached through OrganizaOne.',
+    });
+  });
+
   describe('non-interactive mode', () => {
     let nonInteractiveContext: ReturnType<typeof createMockCommandContext>;
 

@@ -18,6 +18,7 @@ import {
 } from './types.js';
 import { getCurrentLanguage, t } from '../../i18n/index.js';
 import { calculateCost } from '../../utils/costCalculator.js';
+import { loadOrganizaOneKeySummary } from '../auth/organizaone-limits-summary.js';
 import {
   formatTokenUsageSummaryAsCsv,
   formatTokenUsageSummaryAsJson,
@@ -711,7 +712,7 @@ export const statsCommand: SlashCommand = {
   get description() {
     return t('Show usage statistics dashboard.');
   },
-  argumentHint: '[model|tools|skills|daily|monthly|export]',
+  argumentHint: '[model|tools|skills|limits|daily|monthly|export]',
   kind: CommandKind.BUILT_IN,
   supportedModes: ['interactive', 'non_interactive', 'acp'] as const,
   action: (
@@ -863,6 +864,42 @@ export const statsCommand: SlashCommand = {
             type: MessageType.SKILL_STATS,
           },
           Date.now(),
+        );
+      },
+    },
+    {
+      name: 'limits',
+      get description() {
+        return t('Show what your OrganizaOne key may still use.');
+      },
+      kind: CommandKind.BUILT_IN,
+      supportedModes: ['interactive', 'non_interactive', 'acp'] as const,
+      action: async (
+        context: CommandContext,
+      ): Promise<MessageActionReturn | void> => {
+        const config = context.services.config;
+        const result = config
+          ? await loadOrganizaOneKeySummary(config)
+          : ({ status: 'not-organizaone' } as const);
+        const [content, type] =
+          result.status === 'ok'
+            ? [result.text, 'info' as const]
+            : result.status === 'not-organizaone'
+              ? [
+                  t('Limits are shown for models reached through OrganizaOne.'),
+                  'info' as const,
+                ]
+              : [
+                  t('OrganizaOne did not answer with the key’s limits.'),
+                  'error' as const,
+                ];
+        if (context.executionMode !== 'interactive') {
+          return asMessage(content, type);
+        }
+        addInteractiveMessage(
+          context,
+          content,
+          type === 'error' ? MessageType.ERROR : MessageType.INFO,
         );
       },
     },

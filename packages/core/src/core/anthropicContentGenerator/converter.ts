@@ -28,6 +28,9 @@ import {
 import { createDebugLogger } from '../../utils/debugLogger.js';
 import { normalizeMcpToolName } from '../../utils/tool-name-utils.js';
 import { isResponsesReasoningSignature } from '../../utils/thoughtUtils.js';
+import type { InputModalities } from '../contentGenerator.js';
+
+const DATA_URL = /^data:([^;,]+);base64,(.*)$/s;
 
 type AnthropicMessageParam = Anthropic.MessageParam;
 // `scope: 'global'` is sent under the `prompt-caching-scope-2026-01-05` beta
@@ -182,6 +185,17 @@ export interface ConvertLlmRequestToAnthropicOptions {
    */
   stripTrailingAssistantPrefill?: boolean;
   /**
+   * What the model takes. An image or PDF it does not take becomes a text
+   * notice instead of a block the endpoint would refuse. Unset sends every
+   * image and PDF, as before.
+   */
+  modalities?: InputModalities;
+  /**
+   * The endpoint fetches nothing, so an attachment given as a link becomes
+   * a text notice; a `data:` link is sent inline.
+   */
+  inlineMediaOnly?: boolean;
+  /**
    * Per-call override for `enableCacheControl`. Falls back to the value
    * captured at construction. The generator passes the live
    * `contentGeneratorConfig.enableCacheControl` here so a hot
@@ -241,6 +255,11 @@ export class AnthropicContentConverter {
   private readonly toolIdMap = new Map<string, string>();
   private readonly usedToolIds = new Set<string>();
   private generatedToolIdCounter = 0;
+  /** Set at the top of every `convertLlmRequestToAnthropic` call. */
+  private mediaPolicy: Pick<
+    ConvertLlmRequestToAnthropicOptions,
+    'modalities' | 'inlineMediaOnly'
+  > = {};
 
   constructor(
     _model: string,
@@ -261,6 +280,10 @@ export class AnthropicContentConverter {
     this.resetToolIdState();
     let messages: AnthropicMessageParam[] = [];
 
+    this.mediaPolicy = {
+      modalities: options.modalities,
+      inlineMediaOnly: options.inlineMediaOnly,
+    };
     const systemText = this.extractTextFromContentUnion(
       request.config?.systemInstruction,
     );
@@ -820,30 +843,16 @@ export class AnthropicContentConverter {
     part: Part,
   ): AnthropicContentBlockParam | null {
     if (part.inlineData?.mimeType && part.inlineData?.data) {
-      if (this.isSupportedAnthropicImageMimeType(part.inlineData.mimeType)) {
-        return {
-          type: 'image',
-          source: {
-            type: 'base64',
-            media_type: part.inlineData.mimeType as
-              | 'image/jpeg'
-              | 'image/png'
-              | 'image/gif'
-              | 'image/webp',
-            data: part.inlineData.data,
-          },
-        };
-      }
-
-      if (part.inlineData.mimeType === 'application/pdf') {
-        return {
-          type: 'document',
-          source: {
-            type: 'base64',
-            media_type: 'application/pdf',
-            data: part.inlineData.data,
-          },
-        };
+      const { mimeType, data } = part.inlineData;
+      const name = part.inlineData.displayName || mimeType;
+      if (
+        this.isSupportedAnthropicImageMimeType(mimeType) ||
+        mimeType === 'application/pdf'
+      ) {
+        return (
+          this.unsupportedMediumNotice(mimeType, name) ??
+          this.base64MediaBlock(mimeType, data)
+        );
       }
 
       const displayName = part.inlineData.displayName
@@ -851,7 +860,7 @@ export class AnthropicContentConverter {
         : '';
       return {
         type: 'text',
-        text: `Unsupported inline media type: ${part.inlineData.mimeType}${displayName}.`,
+        text: `Unsupported inline media type: ${mimeType}${displayName}.`,
       };
     }
 
@@ -860,20 +869,28 @@ export class AnthropicContentConverter {
         ? ` (${part.fileData.displayName})`
         : '';
       const fileUri = part.fileData.fileUri;
+      const mimeType = part.fileData.mimeType;
+      const name = part.fileData.displayName || mimeType;
+      const isImage = this.isSupportedAnthropicImageMimeType(mimeType);
 
-      if (this.isSupportedAnthropicImageMimeType(part.fileData.mimeType)) {
+      if (isImage || mimeType === 'application/pdf') {
+        const notice = this.unsupportedMediumNotice(mimeType, name);
+        if (notice) return notice;
+        const inline = DATA_URL.exec(fileUri);
+        if (inline && inline[1] === mimeType) {
+          return this.base64MediaBlock(mimeType, inline[2]!);
+        }
+        if (this.mediaPolicy.inlineMediaOnly) {
+          debugLogger.warn(
+            `Not sending a linked ${mimeType} attachment: this endpoint takes attachments only inline.`,
+          );
+          return {
+            type: 'text',
+            text: `[Attachment not sent: "${name}" (${mimeType}) is a link, and this provider takes attachments only inline.]`,
+          };
+        }
         return {
-          type: 'image',
-          source: {
-            type: 'url',
-            url: fileUri,
-          },
-        } as unknown as AnthropicContentBlockParam;
-      }
-
-      if (part.fileData.mimeType === 'application/pdf') {
-        return {
-          type: 'document',
+          type: isImage ? 'image' : 'document',
           source: {
             type: 'url',
             url: fileUri,
@@ -883,11 +900,58 @@ export class AnthropicContentConverter {
 
       return {
         type: 'text',
-        text: `Unsupported file media type: ${part.fileData.mimeType}${displayName}.`,
+        text: `Unsupported file media type: ${mimeType}${displayName}.`,
       };
     }
 
     return null;
+  }
+
+  /** An image or PDF block carrying its bytes. */
+  private base64MediaBlock(
+    mimeType: string,
+    data: string,
+  ): AnthropicContentBlockParam {
+    if (mimeType === 'application/pdf') {
+      return {
+        type: 'document',
+        source: { type: 'base64', media_type: 'application/pdf', data },
+      };
+    }
+    return {
+      type: 'image',
+      source: {
+        type: 'base64',
+        media_type: mimeType as
+          | 'image/jpeg'
+          | 'image/png'
+          | 'image/gif'
+          | 'image/webp',
+        data,
+      },
+    };
+  }
+
+  /**
+   * A text notice in place of an image or PDF the model does not take, or
+   * null when it takes it (or what it takes is not known).
+   */
+  private unsupportedMediumNotice(
+    mimeType: string,
+    name: string,
+  ): AnthropicContentBlockParam | null {
+    const { modalities } = this.mediaPolicy;
+    if (!modalities) return null;
+    const isPdf = mimeType === 'application/pdf';
+    if (isPdf ? modalities.pdf : modalities.image) return null;
+    const medium = isPdf ? 'PDF' : 'image';
+    debugLogger.warn(
+      `The model does not take ${medium} input; replacing ${mimeType} with a notice.`,
+    );
+    return {
+      type: 'text',
+      text: `[Unsupported ${medium} file: "${name}". This model does not take ${medium} input. Tell the user it cannot be read with this model.]`,
+    };
   }
 
   private isSupportedAnthropicImageMimeType(

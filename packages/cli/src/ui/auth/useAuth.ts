@@ -22,6 +22,11 @@ import { createLoadedSettingsAdapter } from '../../config/loadedSettingsAdapter.
 import { AuthState, MessageType } from '../types.js';
 import type { HistoryItemWithoutId } from '../types.js';
 import { t } from '../../i18n/index.js';
+import { onLowRateLimit } from '@organizaone/o1-code-core/providers/organizaone-limits.js';
+import {
+  formatLowRateLimit,
+  loadOrganizaOneKeySummary,
+} from './organizaone-limits-summary.js';
 
 /**
  * Normalize model IDs: split by comma, trim, deduplicate, remove empty.
@@ -102,6 +107,19 @@ export const useAuthCommand = (
   // The dialog also auto-opens at startup when unauthenticated; only a
   // command-opened dialog has an /auth invocation record to pair with.
   const openedViaCommandRef = useRef(false);
+
+  // The OrganizaOne proxy names the account's windows on every answer; one
+  // warning when a window runs low, again only after it has refilled.
+  useEffect(
+    () =>
+      onLowRateLimit((low) =>
+        addItem(
+          { type: MessageType.WARNING, text: formatLowRateLimit(low) },
+          Date.now(),
+        ),
+      ),
+    [addItem],
+  );
 
   // -- Shared helpers -------------------------------------------------------
 
@@ -211,6 +229,19 @@ export const useAuthCommand = (
               ),
         };
         addItem(feedbackItem, Date.now());
+        if (plan.modelSelection) {
+          // Silent when the model is not OrganizaOne's or the proxy predates /v1/key.
+          void loadOrganizaOneKeySummary(config)
+            .then((summary) => {
+              if (summary.status === 'ok') {
+                addItem(
+                  { type: MessageType.INFO, text: summary.text },
+                  Date.now(),
+                );
+              }
+            })
+            .catch(() => undefined);
+        }
         if (openedViaCommandRef.current) {
           openedViaCommandRef.current = false;
           config.getChatRecordingService?.()?.recordSlashCommand({

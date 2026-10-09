@@ -25,6 +25,7 @@ import type {
   ResponsesApiTool,
   ResponsesApiContentPart,
 } from './types.js';
+import type { InputModalities } from '../contentGenerator.js';
 import { sanitizeMimeForPlaceholder } from '../../services/compactionInputSlimming.js';
 import { createDebugLogger } from '../../utils/debugLogger.js';
 import { safeJsonParse } from '../../utils/safeJsonParse.js';
@@ -520,6 +521,7 @@ function mapFinishReason(reason: string): FinishReason {
 
 export function convertGeminiContentsToResponsesInput(
   request: GenerateContentParameters,
+  options: { modalities?: InputModalities } = {},
 ): { instructions: string | undefined; input: ResponsesApiInputItem[] } {
   let instructions: string | undefined;
   const items: ResponsesApiInputItem[] = [];
@@ -744,13 +746,22 @@ export function convertGeminiContentsToResponsesInput(
             type: 'input_image',
             image_url: `data:${mimeType};base64,${part.inlineData.data}`,
           });
+        } else if (
+          mimeType === 'application/pdf' &&
+          options.modalities?.pdf === true
+        ) {
+          // Inline only: a stored file (`file_id`) or a URL is refused by
+          // proxies that keep no files, such as OrganizaOne.
+          pendingContentParts.push({
+            type: 'input_file',
+            filename: part.inlineData.displayName || 'document.pdf',
+            file_data: `data:application/pdf;base64,${part.inlineData.data}`,
+          });
         } else {
-          // No input_file part type is wired up for this generator yet
-          // (unlike the sibling Chat Completions converter, which sends
-          // PDFs as a file part) -- rather than silently dropping the
-          // attachment with zero diagnostic, tell the model it was there
-          // but isn't supported so a "summarize my PDF" prompt gets an
-          // explanation instead of "I don't see a document".
+          // Rather than silently dropping an attachment the model does not
+          // take, tell it the attachment was there but isn't supported, so a
+          // "summarize my PDF" prompt gets an explanation instead of "I don't
+          // see a document".
           pendingContentParts.push({
             type: 'input_text',
             text: `[Unsupported inline media type: ${placeholderMimeType(mimeType)}]`,

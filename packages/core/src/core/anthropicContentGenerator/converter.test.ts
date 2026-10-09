@@ -5,7 +5,8 @@
  */
 
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import type { CallableTool, Content, Tool } from '@google/genai';
+import type { CallableTool, Content, Part, Tool } from '@google/genai';
+import type { InputModalities } from '../contentGenerator.js';
 import { FinishReason } from '@google/genai';
 import type Anthropic from '@anthropic-ai/sdk';
 
@@ -753,6 +754,117 @@ describe('AnthropicContentConverter', () => {
             cache_control: { type: 'ephemeral' },
           },
         ],
+      });
+    });
+
+    describe('what the model takes and where the attachment lives', () => {
+      const sendPart = (
+        part: Part,
+        options: { modalities?: InputModalities; inlineMediaOnly?: boolean },
+      ) =>
+        converter.convertLlmRequestToAnthropic(
+          {
+            model: 'models/test',
+            contents: [{ role: 'user', parts: [{ text: 'Look' }, part] }],
+          },
+          { ...options, enableCacheControl: false },
+        ).messages[0]?.content;
+
+      const pdf: Part = {
+        inlineData: {
+          mimeType: 'application/pdf',
+          data: 'JVBERi0',
+          displayName: 'report.pdf',
+        },
+      };
+      const png: Part = {
+        inlineData: {
+          mimeType: 'image/png',
+          data: 'iVBOR',
+          displayName: 'a.png',
+        },
+      };
+
+      it('replaces an image or PDF the model does not take with a notice', () => {
+        const textOnly = { image: false, pdf: false };
+        expect(sendPart(pdf, { modalities: textOnly })).toEqual([
+          { type: 'text', text: 'Look' },
+          {
+            type: 'text',
+            text: expect.stringContaining(
+              '[Unsupported PDF file: "report.pdf". This model does not take PDF input.',
+            ),
+          },
+        ]);
+        expect(sendPart(png, { modalities: { pdf: true } })).toEqual([
+          { type: 'text', text: 'Look' },
+          {
+            type: 'text',
+            text: expect.stringContaining('[Unsupported image file: "a.png".'),
+          },
+        ]);
+      });
+
+      it('sends what the model takes, and everything when that is unknown', () => {
+        const document = {
+          type: 'document',
+          source: {
+            type: 'base64',
+            media_type: 'application/pdf',
+            data: 'JVBERi0',
+          },
+        };
+        expect(sendPart(pdf, { modalities: { pdf: true } })).toEqual([
+          { type: 'text', text: 'Look' },
+          document,
+        ]);
+        expect(sendPart(pdf, {})).toEqual([
+          { type: 'text', text: 'Look' },
+          document,
+        ]);
+      });
+
+      it('sends a data: link inline and refuses any other link for an inline-only endpoint', () => {
+        const linked = (fileUri: string): Part => ({
+          fileData: {
+            mimeType: 'application/pdf',
+            fileUri,
+            displayName: 'spec.pdf',
+          },
+        });
+        expect(
+          sendPart(linked('data:application/pdf;base64,JVBERi0'), {
+            inlineMediaOnly: true,
+          }),
+        ).toEqual([
+          { type: 'text', text: 'Look' },
+          {
+            type: 'document',
+            source: {
+              type: 'base64',
+              media_type: 'application/pdf',
+              data: 'JVBERi0',
+            },
+          },
+        ]);
+        expect(
+          sendPart(linked('https://example.com/spec.pdf'), {
+            inlineMediaOnly: true,
+          }),
+        ).toEqual([
+          { type: 'text', text: 'Look' },
+          {
+            type: 'text',
+            text: '[Attachment not sent: "spec.pdf" (application/pdf) is a link, and this provider takes attachments only inline.]',
+          },
+        ]);
+        expect(sendPart(linked('https://example.com/spec.pdf'), {})).toEqual([
+          { type: 'text', text: 'Look' },
+          {
+            type: 'document',
+            source: { type: 'url', url: 'https://example.com/spec.pdf' },
+          },
+        ]);
       });
     });
 

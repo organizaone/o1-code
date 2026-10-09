@@ -7,6 +7,32 @@ follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Added
+
+- OrganizaOne models take what the proxy says they take. Connecting reads each
+  model's context window, whether it accepts images and PDFs, and its output
+  cap from the proxy's model list (o1-gateway 9.6.0), instead of treating every
+  model as text only. A model the list states as text only is not offered
+  attachments, and requests never ask for more output than the plan allows.
+  What the list states overrides a provider preset and a saved window. Any
+  provider whose model list uses the same OpenRouter fields gets the same,
+  including audio and video inputs when the list names them.
+- Models on the Anthropic protocol receive only the images and PDFs they take;
+  any other becomes a notice to the model, as on Chat Completions, instead of
+  a request the endpoint refuses.
+- Attachments given as a link are not sent to OrganizaOne, which fetches no
+  files: a `data:` link goes inline, any other link becomes a notice to the
+  model.
+- `/stats limits` shows what an OrganizaOne key may still use: the plan and
+  its spend, each request and token limit with its use, the caps on your own
+  credentials, and when the daily limits reset. The same summary appears after
+  connecting.
+- A warning appears once when an OrganizaOne request or token window runs low,
+  with when it refills, read from the headers of each answer.
+- PDFs are sent to models that take them over the OpenAI Responses API as an
+  inline `input_file`, as the Chat Completions and Anthropic protocols already
+  did.
+
 ### Changed
 
 - The exit summary's choices read "Keep open" and "Always show the summary on

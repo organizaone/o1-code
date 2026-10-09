@@ -494,6 +494,63 @@ describe('buildInstallPlan', () => {
     expect(models[1]?.capabilities).toBeUndefined();
   });
 
+  it('saves the window, the inputs and the output cap the provider listed', () => {
+    const config = makeConfig({ models: undefined, modelNamePrefix: '' });
+    const plan = buildInstallPlanSrc(config, {
+      baseUrl: 'https://custom.com/v1',
+      apiKey: 'sk-custom',
+      modelIds: ['vision', 'text', 'unknown'],
+      advancedConfig: { contextWindowSize: 4096 },
+      discoveredModels: [
+        {
+          id: 'vision',
+          contextWindowSize: 128000,
+          modalities: { image: true, pdf: true },
+          maxOutputTokens: 8192,
+        },
+        { id: 'text', modalities: { image: false, pdf: false } },
+        { id: 'unknown' },
+      ],
+    });
+
+    const models = plan.modelProviders?.[0]?.models ?? [];
+    expect(models[0]?.generationConfig).toEqual({
+      contextWindowSize: 128000,
+      modalities: { image: true, pdf: true },
+      samplingParams: { max_tokens: 8192 },
+    });
+    expect(models[1]?.generationConfig).toEqual({
+      contextWindowSize: 4096,
+      modalities: { image: false, pdf: false },
+    });
+    expect(models[2]?.generationConfig).toEqual({ contextWindowSize: 4096 });
+  });
+
+  it('replaces a saved window with the one the provider lists now', () => {
+    const config = makeConfig({ models: undefined, modelNamePrefix: '' });
+    const inputs = {
+      baseUrl: 'https://custom.com/v1',
+      apiKey: 'sk-custom',
+      modelIds: ['m1'],
+    };
+    const first = buildInstallPlanSrc(config, {
+      ...inputs,
+      discoveredModels: [{ id: 'm1', contextWindowSize: 64000 }],
+    });
+    const second = buildInstallPlanSrc(
+      config,
+      {
+        ...inputs,
+        discoveredModels: [{ id: 'm1', contextWindowSize: 128000 }],
+      },
+      first.modelProviders?.[0]?.models ?? [],
+    );
+    expect(
+      second.modelProviders?.[0]?.models[0]?.generationConfig
+        ?.contextWindowSize,
+    ).toBe(128000);
+  });
+
   it('builds custom model configs with advancedConfig', () => {
     const config = makeConfig({ models: undefined, modelNamePrefix: 'C' });
     const plan = buildInstallPlan(config, {

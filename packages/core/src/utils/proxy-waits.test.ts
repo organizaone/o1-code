@@ -13,6 +13,10 @@ import {
   PROXY_LONG_WAIT_MS,
   readProxyWait,
 } from './proxy-waits.js';
+import {
+  classifyRetryError,
+  isRetryableUpstreamError,
+} from './retryErrorClassification.js';
 
 const now = Date.parse('2026-09-30T20:00:00Z');
 
@@ -106,6 +110,24 @@ describe('readProxyWait', () => {
     expect(isLongProxyWait(error, now)).toBe(false);
   });
 
+  it('reads a limit of the person’s own credentials by its code', () => {
+    const error = openaiError(
+      429,
+      {
+        error: {
+          message: 'Your own credentials reached their daily request cap.',
+          type: 'rate_limit_error',
+          code: 'own_limit',
+        },
+      },
+      { 'retry-after': '30' },
+    );
+    expect(readProxyWait(error, now)).toMatchObject({
+      waitMs: 30_000,
+      message: 'Your own credentials reached their daily request cap.',
+    });
+  });
+
   it('ignores a rate limit that is not the proxy', () => {
     const error = openaiError(
       429,
@@ -115,6 +137,32 @@ describe('readProxyWait', () => {
     expect(readProxyWait(error, now)).toBeNull();
     expect(isLongProxyWait(error, now)).toBe(false);
   });
+});
+
+describe('a refusal only a person can lift', () => {
+  it.each([
+    [402, 'billing_allowance', 'The plan’s spend allowance is used up.'],
+    [402, 'billing_ceiling', 'The spend ceiling is reached.'],
+    [403, 'plan_model', 'Your plan does not include this model.'],
+    [400, 'plan_max_tokens', 'max_tokens is above your plan’s cap of 8192.'],
+    [400, 'unsupported_input', 'This model does not take PDF input.'],
+  ])(
+    '%i %s is not retried and keeps the proxy’s words',
+    (status, code, message) => {
+      const error = openaiError(
+        status,
+        { error: { message, type: 'invalid_request_error', code } },
+        {},
+      );
+      expect(readProxyWait(error, now)).toBeNull();
+      expect(isRetryableUpstreamError(error)).toBe(false);
+      expect(classifyRetryError(error)).toMatchObject({
+        diagnosis: 'fail-fast',
+        providerCode: code,
+      });
+      expect(error.message).toContain(message);
+    },
+  );
 });
 
 describe('isLongProxyWait', () => {

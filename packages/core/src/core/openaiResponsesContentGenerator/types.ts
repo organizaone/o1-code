@@ -95,7 +95,15 @@ export interface ResponsesApiMessageItem {
 
 export type ResponsesApiContentPart =
   | ResponsesApiTextPart
-  | ResponsesApiImagePart;
+  | ResponsesApiImagePart
+  | ResponsesApiFilePart;
+
+/** A PDF sent inline as a `data:` URL. */
+export interface ResponsesApiFilePart {
+  type: 'input_file';
+  filename: string;
+  file_data: string;
+}
 
 export interface ResponsesApiTextPart {
   type: 'input_text';

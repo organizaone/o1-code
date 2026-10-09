@@ -822,6 +822,8 @@ export default {
   'Show model-specific usage statistics.': '显示模型相关的使用统计信息',
   'Show tool-specific usage statistics.': '显示工具相关的使用统计信息',
   'Show skill-specific usage statistics.': '显示技能相关的使用统计信息',
+  'Show what your OrganizaOne key may still use.':
+    '显示您的 OrganizaOne 密钥还能使用的额度',
   'Show daily token usage statistics.': '显示每日 token 使用统计信息',
   'Show monthly token usage statistics.': '显示每月 token 使用统计信息',
   'Export token usage statistics to CSV or JSON.':

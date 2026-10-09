@@ -56,6 +56,7 @@ import { createChildAbortController } from '../../utils/abortController.js';
 import {
   isOrganizaOneBaseUrl,
   ORGANIZAONE_CLIENT_HEADERS,
+  reachesOrganizaOne,
 } from '../../providers/presets/organizaone.js';
 import { o1CodeUserAgent } from '../../providers/client-identity.js';
 import {
@@ -308,6 +309,12 @@ export class AnthropicContentGenerator implements ContentGenerator {
         runtimeOptions.fetch,
         this.cliConfig,
         this.contentGeneratorConfig.customHeaders,
+        {
+          recordRateLimits: reachesOrganizaOne({
+            baseUrl: resolveEffectiveBaseUrl(contentGeneratorConfig),
+            connection: contentGeneratorConfig.connection,
+          }),
+        },
       ) as unknown as AnthropicFetch,
     });
 
@@ -785,6 +792,11 @@ export class AnthropicContentGenerator implements ContentGenerator {
         // in history, not just the latest -- see
         // ensureLeadingAssistantThinking's doc in the converter.
         ensureLeadingAssistantThinking: thinking?.type === 'enabled',
+        modalities: this.contentGeneratorConfig.modalities,
+        inlineMediaOnly: reachesOrganizaOne({
+          baseUrl: resolveEffectiveBaseUrl(this.contentGeneratorConfig),
+          connection: this.contentGeneratorConfig.connection,
+        }),
         enableCacheControl,
         useGlobalCacheScope,
         cacheRetention,
