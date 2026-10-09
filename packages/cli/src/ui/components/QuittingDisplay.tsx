@@ -28,9 +28,10 @@ export const QuittingDisplay = ({ onExit }: { onExit?: () => void }) => {
     configuredTimeout >= 1
       ? configuredTimeout
       : 5;
-  const [preference, setPreference] = useState<'keep' | 'hide' | null>(
-    keepOpen ? 'keep' : null,
-  );
+  const [keep, setKeep] = useState(keepOpen);
+  // The summary is on screen, so showing it at exit is the current setting.
+  const [show, setShow] = useState(true);
+  const changed = keep !== keepOpen || !show;
   const [selectedIndex, setSelectedIndex] = useState(0);
   const [paused, setPaused] = useState(keepOpen);
   const pausedRef = useRef(keepOpen);
@@ -70,8 +71,8 @@ export const QuittingDisplay = ({ onExit }: { onExit?: () => void }) => {
   const togglePreference = (index: number) => {
     pauseCountdown();
     setSaveError(false);
-    const next = index === 0 ? 'keep' : 'hide';
-    setPreference((previous) => (previous === next ? null : next));
+    if (index === 0) setKeep((value) => !value);
+    else setShow((value) => !value);
   };
 
   useKeypress(
@@ -92,23 +93,24 @@ export const QuittingDisplay = ({ onExit }: { onExit?: () => void }) => {
         return;
       }
       if (!wasPaused || key.name !== 'return') return;
-      if (!saveError && (preference !== null || keepOpen)) {
+      if (!saveError && (changed || keepOpen)) {
         try {
           settings.setValues([
             {
               scope: SettingScope.User,
               key: 'ui.showSessionSummary',
-              value: preference !== 'hide',
+              value: show,
             },
             {
               scope: SettingScope.User,
               key: 'ui.keepSessionSummaryOpen',
-              value: preference === 'keep',
+              value: show && keep,
             },
           ]);
         } catch {
           setSaveError(true);
-          setPreference(null);
+          setKeep(keepOpen);
+          setShow(true);
           return;
         }
       }
@@ -157,7 +159,7 @@ export const QuittingDisplay = ({ onExit }: { onExit?: () => void }) => {
         />
       ))}
       <Box flexDirection="column" marginTop={1}>
-        {(['keep', 'hide'] as const).map((value, index) => (
+        {(['keep', 'show'] as const).map((value, index) => (
           <Box
             key={value}
             ref={(element) => {
@@ -170,10 +172,10 @@ export const QuittingDisplay = ({ onExit }: { onExit?: () => void }) => {
               }
             >
               {selectedIndex === index ? '❯ ' : '  '}
-              {preference === value ? '[x]' : '[ ]'}{' '}
+              {(value === 'keep' ? keep : show) ? '[x]' : '[ ]'}{' '}
               {value === 'keep'
-                ? t('Always keep the exit summary open')
-                : t('Do not show again')}
+                ? t('Keep open')
+                : t('Always show the summary on exit')}
             </Text>
           </Box>
         ))}

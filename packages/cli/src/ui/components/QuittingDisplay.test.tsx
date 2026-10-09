@@ -141,13 +141,26 @@ describe('QuittingDisplay', () => {
     expect(onExit).toHaveBeenCalledTimes(1);
   });
 
-  it('makes the preferences exclusive and saves only after confirmation', async () => {
+  it('starts with showing the summary checked and keeping it open unchecked', () => {
+    const { lastFrame } = render(<QuittingDisplay onExit={onExit} />);
+    expect(lastFrame()).toContain('[ ] Keep open');
+    expect(lastFrame()).toContain('[x] Always show the summary on exit');
+  });
+
+  it('toggles each preference on its own', async () => {
+    const { lastFrame } = render(<QuittingDisplay onExit={onExit} />);
+    await press(' ');
+    expect(lastFrame()).toContain('[x] Keep open');
+    expect(lastFrame()).toContain('[x] Always show the summary on exit');
+  });
+
+  it('stops showing the summary once unchecked and confirmed', async () => {
     const { lastFrame } = render(<QuittingDisplay onExit={onExit} />);
     await press(' ');
     await press('\x1b[B');
     await press(' ');
-    expect(lastFrame()).toContain('[ ] Always keep the exit summary open');
-    expect(lastFrame()).toContain('[x] Do not show again');
+    expect(lastFrame()).toContain('[x] Keep open');
+    expect(lastFrame()).toContain('[ ] Always show the summary on exit');
     expect(setValues).not.toHaveBeenCalled();
     expect(onExit).not.toHaveBeenCalled();
     await press('\r');
@@ -247,7 +260,7 @@ describe('QuittingDisplay', () => {
         ctrl: false,
       });
     });
-    expect(lastFrame()).toContain('[x] Always keep the exit summary open');
+    expect(lastFrame()).toContain('[x] Keep open');
     await advance(30000);
     expect(onExit).not.toHaveBeenCalled();
     await press('\r');
