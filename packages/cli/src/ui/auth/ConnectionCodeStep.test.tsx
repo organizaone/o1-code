@@ -14,12 +14,14 @@ import { renderWithProviders } from '../../test-utils/render.js';
 import type { KeypressHandler, Key } from '../contexts/KeypressContext.js';
 import { useKeypress } from '../hooks/useKeypress.js';
 import { O1ConnectError } from '@organizaone/o1-code-core/providers/o1-connect/session.js';
+import { UnreadableSecretFileError } from '@organizaone/o1-code-core/mcp/token-storage/file-token-storage.js';
 import { ConnectionCodeStep } from './ConnectionCodeStep.js';
 import type { ProviderSetupFlow } from './useProviderSetupFlow.js';
 
 const setupMock = vi.hoisted(() => vi.fn());
 const openMock = vi.hoisted(() => vi.fn());
 const forgetMock = vi.hoisted(() => vi.fn());
+const setAsideMock = vi.hoisted(() => vi.fn());
 const checkMock = vi.hoisted(() => vi.fn());
 
 vi.mock(
@@ -31,6 +33,7 @@ vi.mock(
     setupO1Connect: setupMock,
     openO1Connect: openMock,
     forgetO1Connect: forgetMock,
+    setAsideUnreadableSecretStore: setAsideMock,
   }),
 );
 vi.mock(
@@ -98,6 +101,8 @@ describe('ConnectionCodeStep', () => {
     setupMock.mockReset();
     openMock.mockReset();
     forgetMock.mockReset();
+    setAsideMock.mockReset();
+    setAsideMock.mockResolvedValue('/home/u/.o1-code/secrets.json.bak');
     checkMock.mockReset();
     session.close.mockClear();
     vi.mocked(useKeypress).mockImplementation((handler, options) => {
@@ -219,6 +224,80 @@ describe('ConnectionCodeStep', () => {
     expect(existsSync(kit)).toBe(false);
     expect(flow.submitConnection).toHaveBeenCalled();
     unmount();
+  });
+
+  describe('when the secret store cannot be decrypted on this machine', () => {
+    const filePath = '/home/u/.o1-code/secrets.json';
+    const failOnceAfterConfirm = () =>
+      setupMock.mockImplementationOnce(
+        async (
+          _code: string,
+          options: {
+            onFingerprint: (fps: string[], i: typeof info) => unknown;
+          },
+        ) => {
+          await options.onFingerprint(fingerprints, info);
+          throw new O1ConnectError('store_failed', 'store', {
+            cause: new UnreadableSecretFileError(filePath),
+          });
+        },
+      );
+
+    async function reachUnreadable(flow: ProviderSetupFlow) {
+      const rendered = renderWithProviders(
+        <ConnectionCodeStep config={organizaoneO1gwProvider} flow={flow} />,
+      );
+      await settle();
+      act(() => {
+        type('o1gw1.abc');
+        press('return', '\r');
+      });
+      await settle();
+      act(() => {
+        type('yes');
+        press('return', '\r');
+      });
+      await settle();
+      return rendered;
+    }
+
+    it('names the file and, on replace, sets it aside and saves without asking for the fingerprints again', async () => {
+      failOnceAfterConfirm();
+      const flow = makeFlow();
+      const { lastFrame, unmount } = await reachUnreadable(flow);
+      expect(lastFrame()).toContain('secrets.json');
+      expect(lastFrame()).toContain('Type replace');
+      expect(setAsideMock).not.toHaveBeenCalled();
+
+      act(() => {
+        type('replace');
+        press('return', '\r');
+      });
+      await settle();
+      await settle();
+      await settle();
+
+      expect(setAsideMock).toHaveBeenCalledWith(filePath);
+      expect(setupMock).toHaveBeenCalledTimes(2);
+      expect(lastFrame()).not.toContain('Type yes');
+      expect(flow.submitConnection).toHaveBeenCalled();
+      unmount();
+    });
+
+    it('moves nothing unless the answer is replace', async () => {
+      failOnceAfterConfirm();
+      const flow = makeFlow();
+      const { lastFrame, unmount } = await reachUnreadable(flow);
+      act(() => {
+        type('no');
+        press('return', '\r');
+      });
+      await settle();
+      expect(lastFrame()).toContain('Nothing was moved');
+      expect(setAsideMock).not.toHaveBeenCalled();
+      expect(setupMock).toHaveBeenCalledTimes(1);
+      unmount();
+    });
   });
 
   it('explains a library error and lets the user paste the code again', async () => {

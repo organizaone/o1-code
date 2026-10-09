@@ -15,6 +15,10 @@ import {
   type Transport,
 } from '../../../vendor/o1-connect/lib.mjs';
 import { AuthType } from '../../core/contentGenerator.js';
+import {
+  isUnreadableSecretFileError,
+  setAsideUnreadableSecretFile,
+} from '../../mcp/token-storage/file-token-storage.js';
 import { createO1ConnectStore } from './store.js';
 
 export { O1ConnectError };
@@ -67,10 +71,28 @@ export async function setupO1Connect(
 export async function openO1Connect(
   options: { store?: SecretStore; log?(line: string): void } = {},
 ): Promise<O1ConnectSession> {
-  const connection = await open({
-    store: options.store ?? createO1ConnectStore(),
-    ...(options.log ? { log: options.log } : {}),
-  });
+  let connection: Awaited<ReturnType<typeof open>>;
+  try {
+    connection = await open({
+      store: options.store ?? createO1ConnectStore(),
+      ...(options.log ? { log: options.log } : {}),
+    });
+  } catch (error) {
+    // The library's own text ("failed to read the configuration") hides why;
+    // outside the setup screen this message is all the user sees.
+    if (
+      isO1ConnectError(error) &&
+      error.code === 'store_failed' &&
+      isUnreadableSecretFileError(error.cause)
+    ) {
+      throw new O1ConnectError(
+        'store_failed',
+        describeO1ConnectError(error).message,
+        { cause: error.cause },
+      );
+    }
+    throw error;
+  }
   return {
     baseUrl: connection.baseUrl,
     openaiBaseUrl: connection.openaiBaseUrl,
@@ -85,6 +107,17 @@ export async function forgetO1Connect(
   options: { store?: SecretStore } = {},
 ): Promise<void> {
   await forget({ store: options.store ?? createO1ConnectStore() });
+}
+
+/**
+ * Moves a secret file this machine cannot decrypt to a `.bak` beside it, so
+ * the next save starts a new one. Only on the user's explicit request: the
+ * file may still hold other secrets readable on the machine that sealed it.
+ */
+export async function setAsideUnreadableSecretStore(
+  filePath: string,
+): Promise<string> {
+  return setAsideUnreadableSecretFile(filePath);
 }
 
 /** The endpoint of the session for the protocol the session speaks. */
@@ -109,7 +142,20 @@ export function isO1ConnectError(error: unknown): error is O1ConnectError {
 export function describeO1ConnectError(error: unknown): {
   message: string;
   forgetAndSetUpAgain: boolean;
+  /** Set when the secret file cannot be decrypted here; the user may set it aside. */
+  unreadableSecretFile?: string;
 } {
+  if (
+    isO1ConnectError(error) &&
+    error.code === 'store_failed' &&
+    isUnreadableSecretFileError(error.cause)
+  ) {
+    return {
+      message: `The secret store at ${error.cause.filePath} cannot be decrypted on this machine: it was saved under another host name or user, or it is damaged. Setting up the connection code again offers to keep it as a .bak and start a new one.`,
+      forgetAndSetUpAgain: false,
+      unreadableSecretFile: error.cause.filePath,
+    };
+  }
   if (!isO1ConnectError(error)) {
     return {
       message: error instanceof Error ? error.message : String(error),

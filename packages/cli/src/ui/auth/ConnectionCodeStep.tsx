@@ -20,6 +20,7 @@ import {
   forgetO1Connect,
   o1ConnectBaseUrlFor,
   openO1Connect,
+  setAsideUnreadableSecretStore,
   setupO1Connect,
   type SetupInfo,
 } from '@organizaone/o1-code-core/providers/o1-connect/session.js';
@@ -41,6 +42,12 @@ type Phase =
       answer: (confirmed: boolean) => void;
     }
   | { kind: 'opening' }
+  | {
+      kind: 'unreadable';
+      message: string;
+      filePath: string;
+      retry: () => void;
+    }
   | { kind: 'error'; message: string };
 
 const CODE_PREFIX = 'o1gw1.';
@@ -87,23 +94,33 @@ export function ConnectionCodeStep({
   const [code, setCode] = useState('');
   const [answer, setAnswer] = useState('');
   const controllerRef = useRef<AbortController | null>(null);
+  // The fingerprints already confirmed for this code, so a retry after the
+  // secret store was set aside does not ask for them a second time.
+  const confirmedRef = useRef<string | null>(null);
   const flowRef = useRef(flow);
   flowRef.current = flow;
 
   useEffect(() => () => controllerRef.current?.abort(), []);
 
-  const fail = (error: unknown) => {
+  const fail = (error: unknown, retry: () => void) => {
     const described = describeO1ConnectError(error);
     if (described.forgetAndSetUpAgain) {
       void forgetO1Connect().catch(() => undefined);
     }
+    if (described.unreadableSecretFile) {
+      setAnswer('');
+      setPhase({
+        kind: 'unreadable',
+        message: described.message,
+        filePath: described.unreadableSecretFile,
+        retry,
+      });
+      return;
+    }
     setPhase({ kind: 'error', message: described.message });
   };
 
-  const submitCode = (value: string) => {
-    if (phase.kind !== 'input') return;
-    const { code: connectionCode, kitFile } = readCode(value);
-    if (!connectionCode) return;
+  const start = (connectionCode: string, kitFile: string | undefined) => {
     const controller = new AbortController();
     controllerRef.current = controller;
     const { signal } = controller;
@@ -111,10 +128,21 @@ export function ConnectionCodeStep({
     const authType = flowRef.current.state.protocol;
     const run = async () => {
       await setupO1Connect(connectionCode, {
-        onFingerprint: (fingerprints, info) =>
-          new Promise<boolean>((resolve) => {
-            setPhase({ kind: 'confirm', fingerprints, info, answer: resolve });
-          }),
+        onFingerprint: (fingerprints, info) => {
+          const key = fingerprints.join('\n');
+          if (confirmedRef.current === key) return true;
+          return new Promise<boolean>((resolve) => {
+            setPhase({
+              kind: 'confirm',
+              fingerprints,
+              info,
+              answer: (confirmed) => {
+                if (confirmed) confirmedRef.current = key;
+                resolve(confirmed);
+              },
+            });
+          });
+        },
       });
       if (signal.aborted) return;
       if (kitFile) {
@@ -148,8 +176,16 @@ export function ConnectionCodeStep({
       );
     };
     void run().catch((error: unknown) => {
-      if (!signal.aborted) fail(error);
+      if (!signal.aborted) fail(error, () => start(connectionCode, kitFile));
     });
+  };
+
+  const submitCode = (value: string) => {
+    if (phase.kind !== 'input') return;
+    const { code: connectionCode, kitFile } = readCode(value);
+    if (!connectionCode) return;
+    confirmedRef.current = null;
+    start(connectionCode, kitFile);
   };
 
   const submitAnswer = (value: string) => {
@@ -157,6 +193,25 @@ export function ConnectionCodeStep({
     // Anything but yes saves nothing: the library then fails the setup with
     // `fingerprint_rejected`, which the error phase explains.
     phase.answer(value.trim().toLowerCase() === 'yes');
+  };
+
+  const submitReplace = (value: string) => {
+    if (phase.kind !== 'unreadable') return;
+    if (value.trim().toLowerCase() !== 'replace') {
+      setPhase({
+        kind: 'error',
+        message: t('Nothing was moved: the secret store was left as it was.'),
+      });
+      return;
+    }
+    const { filePath, retry } = phase;
+    setPhase({ kind: 'opening' });
+    void setAsideUnreadableSecretStore(filePath).then(retry, (error: unknown) =>
+      setPhase({
+        kind: 'error',
+        message: error instanceof Error ? error.message : String(error),
+      }),
+    );
   };
 
   useKeypress(
@@ -247,6 +302,31 @@ export function ConnectionCodeStep({
             {t('Saved. Opening the tunnel and listing your models…')}
           </Text>
         </Box>
+      )}
+      {phase.kind === 'unreadable' && (
+        <>
+          <Text color={theme.status.error}>{phase.message}</Text>
+          <Box marginTop={1}>
+            <Text color={extendedTheme.text.muted}>
+              {t(
+                'The old file stays beside it as a .bak, still readable on the machine that saved it. Type replace to set it aside and save the connection:',
+              )}
+            </Text>
+          </Box>
+          <Box marginTop={1}>
+            <TextInput
+              key="unreadable-answer"
+              value={answer}
+              onChange={setAnswer}
+              onSubmit={submitReplace}
+              placeholder="replace"
+              isActive
+            />
+          </Box>
+          <Box marginTop={1}>
+            <Text color={extendedTheme.text.muted}>{t('esc cancel')}</Text>
+          </Box>
+        </>
       )}
       {phase.kind === 'error' && (
         <Box flexDirection="column">
