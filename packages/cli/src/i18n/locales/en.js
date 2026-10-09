@@ -2252,6 +2252,10 @@ export default {
     'Saved. Opening the tunnel and listing your models…',
   'Nothing was saved: the fingerprints were not confirmed.':
     'Nothing was saved: the fingerprints were not confirmed.',
+  'The old file stays beside it as a .bak, still readable on the machine that saved it. Type replace to set it aside and save the connection:':
+    'The old file stays beside it as a .bak, still readable on the machine that saved it. Type replace to set it aside and save the connection:',
+  'Nothing was moved: the secret store was left as it was.':
+    'Nothing was moved: the secret store was left as it was.',
   'checking the key…': 'checking the key…',
   'key valid': 'key valid',
   'The provider refused this key ({{status}}). Check it, or press enter again to use it anyway.':

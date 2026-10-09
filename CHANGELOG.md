@@ -7,6 +7,16 @@ follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Fixed
+
+- The o1-gateway device code no longer stops with a raw cipher error when the
+  encrypted secret file was saved under another host name or user (a renamed
+  machine, or an o1-code home copied from elsewhere). The setup names the file
+  and, after the user types `replace`, keeps it as
+  `extension-secrets-v1.json.unreadable-<date>.bak` and saves the connection in
+  a new one without asking for the fingerprints again. Opening a saved
+  connection reports the same unreadable file instead of the cipher's message.
+
 ## [0.11.3] - 2026-10-08
 
 ### Added

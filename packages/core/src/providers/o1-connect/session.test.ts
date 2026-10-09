@@ -6,6 +6,7 @@
 
 import { describe, expect, it, vi } from 'vitest';
 import { MemorySecretStore } from '../../../vendor/o1-connect/lib.mjs';
+import { UnreadableSecretFileError } from '../../mcp/token-storage/file-token-storage.js';
 import {
   O1ConnectError,
   describeO1ConnectError,
@@ -33,6 +34,24 @@ describe('openO1Connect', () => {
     await expect(openO1Connect({ store })).rejects.toMatchObject({
       code: 'not_set_up',
     });
+  });
+
+  it('says which secret file it could not decrypt instead of the cipher’s error', async () => {
+    const store = {
+      get: async () => {
+        throw new UnreadableSecretFileError('/home/u/.o1-code/secrets.json');
+      },
+      set: async () => undefined,
+      delete: async () => undefined,
+    };
+    const opened = openO1Connect({ store });
+    await expect(opened).rejects.toMatchObject({ code: 'store_failed' });
+    await expect(opened).rejects.toThrow('/home/u/.o1-code/secrets.json');
+    await expect(opened).rejects.toSatisfy(
+      (error: unknown) =>
+        describeO1ConnectError(error).unreadableSecretFile ===
+        '/home/u/.o1-code/secrets.json',
+    );
   });
 
   it('forgets an entry the library cannot read, on request', async () => {
@@ -68,6 +87,23 @@ describe('describeO1ConnectError', () => {
     }
     expect(isO1ConnectError(new Error('x'))).toBe(false);
     expect(describeO1ConnectError(new Error('plain')).message).toBe('plain');
+  });
+
+  it('names a secret file this machine cannot decrypt and offers to set it aside', () => {
+    const described = describeO1ConnectError(
+      new O1ConnectError('store_failed', 'store', {
+        cause: new UnreadableSecretFileError('/home/u/.o1-code/secrets.json', {
+          cause: new Error('Unsupported state or unable to authenticate data'),
+        }),
+      }),
+    );
+    expect(described.unreadableSecretFile).toBe(
+      '/home/u/.o1-code/secrets.json',
+    );
+    expect(described.message).toContain('/home/u/.o1-code/secrets.json');
+    expect(described.message).toContain('another host name or user');
+    expect(described.message).not.toContain('Unsupported state');
+    expect(described.forgetAndSetUpAgain).toBe(false);
   });
 
   it('carries the store’s own reason', () => {

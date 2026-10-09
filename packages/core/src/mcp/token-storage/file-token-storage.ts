@@ -17,6 +17,53 @@ import { atomicWriteFile } from '../../utils/atomicFileWrite.js';
 // for many callers, mirroring how the keychain backend namespaces by service.
 type SecretFileContents = Record<string, Record<string, string>>;
 
+/**
+ * The secret file exists but cannot be opened with this machine's key: it
+ * was sealed under another host name or user (a renamed machine, a copied or
+ * synced o1-code home), or it is damaged. Nothing in it is readable here, so
+ * no secret is overwritten until the user chooses to set the file aside.
+ */
+export class UnreadableSecretFileError extends Error {
+  readonly filePath: string;
+
+  constructor(filePath: string, options?: { cause?: unknown }) {
+    super(
+      `${filePath} cannot be decrypted on this machine: it was saved under another host name or user, or it is damaged`,
+      options,
+    );
+    this.name = 'UnreadableSecretFileError';
+    this.filePath = filePath;
+  }
+}
+
+export function isUnreadableSecretFileError(
+  error: unknown,
+): error is UnreadableSecretFileError {
+  return error instanceof UnreadableSecretFileError;
+}
+
+function backupStamp(date: Date): string {
+  const pad = (n: number) => String(n).padStart(2, '0');
+  return (
+    `${date.getFullYear()}${pad(date.getMonth() + 1)}${pad(date.getDate())}-` +
+    `${pad(date.getHours())}${pad(date.getMinutes())}${pad(date.getSeconds())}`
+  );
+}
+
+/**
+ * Renames an unreadable secret file to `<file>.unreadable-<stamp>.bak`, so a
+ * new one can be written while the old one stays openable on the machine
+ * that sealed it. Returns the backup's path.
+ */
+export async function setAsideUnreadableSecretFile(
+  filePath: string,
+  now: Date = new Date(),
+): Promise<string> {
+  const backupPath = `${filePath}.unreadable-${backupStamp(now)}.bak`;
+  await fs.rename(filePath, backupPath);
+  return backupPath;
+}
+
 export class FileTokenStorage
   extends BaseTokenStorage
   implements SecretStorage
@@ -203,15 +250,22 @@ export class FileTokenStorage
   }
 
   private async loadSecrets(): Promise<SecretFileContents> {
+    let data: string;
     try {
-      const data = await fs.readFile(this.secretFilePath, 'utf-8');
-      return JSON.parse(this.decrypt(data)) as SecretFileContents;
+      data = await fs.readFile(this.secretFilePath, 'utf-8');
     } catch (error: unknown) {
       const err = error as NodeJS.ErrnoException;
       if (err.code === 'ENOENT') {
         return {};
       }
       throw error;
+    }
+    try {
+      return JSON.parse(this.decrypt(data)) as SecretFileContents;
+    } catch (error: unknown) {
+      throw new UnreadableSecretFileError(this.secretFilePath, {
+        cause: error,
+      });
     }
   }
 

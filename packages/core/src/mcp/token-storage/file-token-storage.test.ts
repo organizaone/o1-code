@@ -7,7 +7,12 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { promises as fs } from 'node:fs';
 import * as path from 'node:path';
-import { FileTokenStorage } from './file-token-storage.js';
+import * as crypto from 'node:crypto';
+import {
+  FileTokenStorage,
+  UnreadableSecretFileError,
+  setAsideUnreadableSecretFile,
+} from './file-token-storage.js';
 import type { OAuthCredentials } from './types.js';
 import { atomicWriteFile } from '../../utils/atomicFileWrite.js';
 
@@ -17,6 +22,7 @@ vi.mock('node:fs', () => ({
     writeFile: vi.fn(),
     unlink: vi.fn(),
     mkdir: vi.fn(),
+    rename: vi.fn(),
   },
 }));
 
@@ -42,6 +48,7 @@ describe('FileTokenStorage', () => {
     writeFile: ReturnType<typeof vi.fn>;
     unlink: ReturnType<typeof vi.fn>;
     mkdir: ReturnType<typeof vi.fn>;
+    rename: ReturnType<typeof vi.fn>;
   };
   const existingCredentials: OAuthCredentials = {
     serverName: 'existing-server',
@@ -490,6 +497,47 @@ describe('FileTokenStorage', () => {
 
       await expect(storage.deleteSecret('API_KEY')).resolves.toBeUndefined();
       expect(atomicWriteFile).not.toHaveBeenCalled();
+    });
+
+    it('refuses a file sealed under another host with a typed error and writes nothing', async () => {
+      const otherKey = crypto.scryptSync(
+        'o1-code-oauth',
+        'other-host-test-user-o1-code',
+        32,
+      );
+      const iv = crypto.randomBytes(16);
+      const cipher = crypto.createCipheriv('aes-256-gcm', otherKey, iv);
+      const sealed =
+        cipher.update('{"svc":{"K":"sk-secret"}}', 'utf8', 'hex') +
+        cipher.final('hex');
+      mockFs.readFile.mockResolvedValue(
+        `${iv.toString('hex')}:${cipher.getAuthTag().toString('hex')}:${sealed}`,
+      );
+
+      const read = storage.getSecret('API_KEY');
+      await expect(read).rejects.toBeInstanceOf(UnreadableSecretFileError);
+      await expect(read).rejects.toMatchObject({ filePath: secretFilePath });
+      await expect(storage.setSecret('API_KEY', 'sk-new')).rejects.toThrow(
+        'cannot be decrypted on this machine',
+      );
+      expect(atomicWriteFile).not.toHaveBeenCalled();
+    });
+
+    it('treats a file that is not in the sealed format as unreadable too', async () => {
+      mockFs.readFile.mockResolvedValue('not-sealed');
+      await expect(storage.getSecret('API_KEY')).rejects.toBeInstanceOf(
+        UnreadableSecretFileError,
+      );
+    });
+
+    it('sets an unreadable file aside under a dated .bak name', async () => {
+      mockFs.rename.mockResolvedValue(undefined);
+      const backup = await setAsideUnreadableSecretFile(
+        secretFilePath,
+        new Date(2026, 9, 8, 15, 56, 4),
+      );
+      expect(backup).toBe(`${secretFilePath}.unreadable-20261008-155604.bak`);
+      expect(mockFs.rename).toHaveBeenCalledWith(secretFilePath, backup);
     });
   });
 });
