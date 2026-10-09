@@ -21,12 +21,15 @@ import type {
   ProviderProtocolConfig,
 } from '../models/types.js';
 import {
+  credentialIdForProvider,
   exportCredentialToEnv,
+  isValidCredentialId,
   readCredential,
   removeCredential,
   withdrawExportedCredential,
   writeCredential,
 } from './credential-store.js';
+import { createDebugLogger } from '../utils/debugLogger.js';
 import type {
   ProviderCredentialStore,
   ProviderInstallPlan,
@@ -39,6 +42,75 @@ const fileCredentialStore: ProviderCredentialStore = {
   write: writeCredential,
   remove: removeCredential,
 };
+
+const debugLogger = createDebugLogger('PROVIDER_INSTALL');
+
+function modelsOf(providers: ModelProvidersConfig): ModelConfig[] {
+  return Object.values(providers).flatMap((models) =>
+    Array.isArray(models) ? models : [],
+  );
+}
+
+/**
+ * After an install moved the conversation to another provider or sign-in
+ * method, forgets what only the replaced entries used: their saved keys, the
+ * copies of those keys exported to this process, and the o1-connect
+ * configuration. Anything a remaining entry still reads (a service route, an
+ * entry in another scope) stays. Best effort: the install already succeeded.
+ */
+async function retireReplacedLogins(
+  before: ModelProvidersConfig,
+  after: ModelProvidersConfig,
+  keptCredentialId: string | undefined,
+  credentials: ProviderCredentialStore,
+  forgetO1Connect: () => Promise<void>,
+): Promise<void> {
+  try {
+    // Loaded here: all-providers imports provider-config, which imports this module.
+    const { findProviderByCredentials } = await import('./all-providers.js');
+    // The keys an entry reads, as model-api-key resolves them: the one it
+    // names, then the one saved under its preset's id.
+    const credentialIds = (model: ModelConfig): string[] => {
+      const preset = findProviderByCredentials(model.baseUrl, model.envKey);
+      return [
+        ...(model.credential ? [model.credential] : []),
+        ...(preset ? [credentialIdForProvider(preset.id)] : []),
+      ];
+    };
+    const previous = modelsOf(before);
+    const remaining = modelsOf(after);
+    const usedIds = new Set(remaining.flatMap(credentialIds));
+    if (keptCredentialId) usedIds.add(keptCredentialId);
+    const usedEnvKeys = new Set(remaining.map((model) => model.envKey));
+
+    for (const id of new Set(previous.flatMap(credentialIds))) {
+      if (usedIds.has(id) || !isValidCredentialId(id)) continue;
+      try {
+        credentials.remove(id);
+      } catch (error) {
+        debugLogger.warn(`Could not remove the replaced key "${id}": ${error}`);
+      }
+    }
+    for (const model of previous) {
+      if (model.envKey && !usedEnvKeys.has(model.envKey)) {
+        withdrawExportedCredential(model.envKey);
+      }
+    }
+    if (
+      previous.some((model) => model.connection === 'o1-connect') &&
+      !remaining.some((model) => model.connection === 'o1-connect')
+    ) {
+      await forgetO1Connect();
+    }
+  } catch (error) {
+    debugLogger.warn(`Could not forget the replaced login: ${error}`);
+  }
+}
+
+async function forgetSavedO1Connect(): Promise<void> {
+  const { forgetO1Connect } = await import('./o1-connect/session.js');
+  await forgetO1Connect();
+}
 
 // ---------------------------------------------------------------------------
 // Model providers merge logic
@@ -130,6 +202,8 @@ export interface ApplyProviderInstallPlanOptions {
   refreshAuth?: (authType: AuthType) => Promise<void>;
   /** Whether to call refreshAuth after install. Defaults to true. */
   doRefreshAuth?: boolean;
+  /** Deletes the saved o1-connect configuration; the library's store by default. */
+  forgetO1Connect?: () => Promise<void>;
 }
 
 export interface ApplyProviderInstallPlanResult {
@@ -174,6 +248,7 @@ export async function applyProviderInstallPlan(
     syncAuthState,
     refreshAuth,
     doRefreshAuth = true,
+    forgetO1Connect = forgetSavedO1Connect,
   } = options;
 
   const selectedAuthType = settings.getValue('security.auth.selectedType');
@@ -477,10 +552,14 @@ export async function applyProviderInstallPlan(
       (patch) => patch.models,
     );
     if (!preserveSelection && installedModels.some(isConversationModel)) {
+      // The same model and endpoint reached through the tunnel instead of a
+      // key, or the reverse, belongs to the replaced login, not this one.
       const keeps = (model: ModelConfig) =>
         !isConversationModel(model) ||
-        installedModels.some((installed) =>
-          isSameModelIdentity(model, installed),
+        installedModels.some(
+          (installed) =>
+            isSameModelIdentity(model, installed) &&
+            model.connection === installed.connection,
         );
       const ownProviders =
         settings.getModelProvidersForWrite?.().modelProviders ??
@@ -690,6 +769,17 @@ export async function applyProviderInstallPlan(
 
     currentStep = 'cleanupBackup';
     settings.cleanupBackup?.();
+
+    // Only once nothing can roll back: a failed install keeps the old login.
+    if (!preserveSelection && installedModels.some(isConversationModel)) {
+      await retireReplacedLogins(
+        previousRuntimeProviders,
+        updatedModelProviders,
+        plan.credential?.id,
+        credentials,
+        forgetO1Connect,
+      );
+    }
 
     return { updatedModelProviders };
   } catch (error) {

@@ -19,9 +19,18 @@ import {
 import { AuthType } from '../../core/contentGenerator.js';
 import type { ModelConfig, ModelProvidersConfig } from '../../models/types.js';
 import {
+  exportCredentialToEnv,
   forgetExportedCredentials,
   isExportedCredentialEnv,
 } from '../credential-store.js';
+import {
+  ORGANIZAONE_ANTHROPIC_BASE_URL,
+  ORGANIZAONE_ENV_KEY,
+  ORGANIZAONE_OPENAI_BASE_URL,
+  organizaoneLoginProvider,
+  organizaoneO1gwProvider,
+  organizaoneProvider,
+} from '../presets/organizaone.js';
 import {
   applyProviderInstallPlan,
   buildInstallPlan,
@@ -1992,5 +2001,160 @@ describe('applyProviderInstallPlan', () => {
     // anything.
     expect(reloadModelProviders).toHaveBeenCalledTimes(2);
     expect(adapter.credentials.saved.get('test-provider')).toBe('before');
+  });
+});
+
+describe('applyProviderInstallPlan: the replaced login', () => {
+  const baseUrl = ORGANIZAONE_ANTHROPIC_BASE_URL;
+
+  function organizaonePlan(
+    provider: ProviderConfig,
+    apiKey: string,
+    existing: ModelConfig[] = [],
+  ): ProviderInstallPlan {
+    return buildInstallPlan(
+      provider,
+      {
+        protocol: AuthType.USE_ANTHROPIC,
+        baseUrl,
+        apiKey,
+        modelIds: ['claude-sonnet-4-5'],
+      },
+      existing,
+    );
+  }
+
+  function installed(plan: ProviderInstallPlan): ModelProvidersConfig {
+    return Object.fromEntries(
+      (plan.modelProviders ?? []).map((patch) => [
+        patch.authType,
+        patch.models,
+      ]),
+    );
+  }
+
+  beforeEach(() => {
+    forgetExportedCredentials();
+    delete process.env[ORGANIZAONE_ENV_KEY];
+  });
+
+  afterEach(() => {
+    forgetExportedCredentials();
+    delete process.env[ORGANIZAONE_ENV_KEY];
+  });
+
+  it('forgets the saved key and its exported copy when the connection code replaces it', async () => {
+    const before = installed(organizaonePlan(organizaoneProvider, 'old-key'));
+    const adapter = createAdapter(
+      before,
+      createCredentialStore({ organizaone: 'old-key' }),
+    );
+    exportCredentialToEnv(ORGANIZAONE_ENV_KEY, 'old-key');
+    const forgetO1Connect = vi.fn(async () => undefined);
+
+    await applyProviderInstallPlan(
+      organizaonePlan(
+        organizaoneO1gwProvider,
+        '',
+        before[AuthType.USE_ANTHROPIC],
+      ),
+      { settings: adapter, forgetO1Connect },
+    );
+
+    expect(adapter.credentials.saved.has('organizaone')).toBe(false);
+    expect(process.env[ORGANIZAONE_ENV_KEY]).toBeUndefined();
+    expect(forgetO1Connect).not.toHaveBeenCalled();
+  });
+
+  it('forgets the o1-connect configuration when a sign-in replaces the connection code', async () => {
+    const before = installed(organizaonePlan(organizaoneO1gwProvider, ''));
+    const adapter = createAdapter(before, createCredentialStore());
+    const forgetO1Connect = vi.fn(async () => undefined);
+
+    await applyProviderInstallPlan(
+      organizaonePlan(
+        organizaoneLoginProvider,
+        'device-token',
+        before[AuthType.USE_ANTHROPIC],
+      ),
+      { settings: adapter, forgetO1Connect },
+    );
+
+    expect(forgetO1Connect).toHaveBeenCalledOnce();
+    expect(adapter.credentials.saved.get('organizaone')).toBe('device-token');
+  });
+
+  it('keeps the o1-connect configuration when the connection code is set up again', async () => {
+    const before = installed(organizaonePlan(organizaoneO1gwProvider, ''));
+    const adapter = createAdapter(before, createCredentialStore());
+    const forgetO1Connect = vi.fn(async () => undefined);
+
+    await applyProviderInstallPlan(
+      organizaonePlan(
+        organizaoneO1gwProvider,
+        '',
+        before[AuthType.USE_ANTHROPIC],
+      ),
+      { settings: adapter, forgetO1Connect },
+    );
+
+    expect(forgetO1Connect).not.toHaveBeenCalled();
+  });
+
+  it('keeps a key a remaining service route still reads', async () => {
+    const before = installed(organizaonePlan(organizaoneProvider, 'old-key'));
+    before[AuthType.USE_OPENAI] = [
+      {
+        id: 'voice',
+        baseUrl: ORGANIZAONE_OPENAI_BASE_URL,
+        envKey: ORGANIZAONE_ENV_KEY,
+        credential: 'organizaone',
+        voiceOnly: true,
+      },
+    ];
+    const adapter = createAdapter(
+      before,
+      createCredentialStore({ organizaone: 'old-key' }),
+    );
+
+    await applyProviderInstallPlan(
+      organizaonePlan(
+        organizaoneO1gwProvider,
+        '',
+        before[AuthType.USE_ANTHROPIC],
+      ),
+      { settings: adapter, forgetO1Connect: vi.fn(async () => undefined) },
+    );
+
+    expect(adapter.credentials.saved.get('organizaone')).toBe('old-key');
+  });
+
+  it('keeps the old login when the install fails', async () => {
+    const before = installed(organizaonePlan(organizaoneO1gwProvider, ''));
+    const adapter = createAdapter(
+      before,
+      createCredentialStore({ organizaone: 'old-key' }),
+    );
+    const forgetO1Connect = vi.fn(async () => undefined);
+
+    await expect(
+      applyProviderInstallPlan(
+        organizaonePlan(
+          organizaoneProvider,
+          'new-key',
+          before[AuthType.USE_ANTHROPIC],
+        ),
+        {
+          settings: adapter,
+          forgetO1Connect,
+          refreshAuth: async () => {
+            throw new Error('refused');
+          },
+        },
+      ),
+    ).rejects.toThrow('refused');
+
+    expect(forgetO1Connect).not.toHaveBeenCalled();
+    expect(adapter.credentials.saved.get('organizaone')).toBe('old-key');
   });
 });

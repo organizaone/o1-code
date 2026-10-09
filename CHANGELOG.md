@@ -16,6 +16,12 @@ follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   `extension-secrets-v1.json.unreadable-<date>.bak` and saves the connection in
   a new one without asking for the fingerprints again. Opening a saved
   connection reports the same unreadable file instead of the cipher's message.
+- Switching to another provider or sign-in method now forgets the login it
+  replaced once the new one is saved: the saved key no remaining model uses,
+  the copy of it exported to the session, and the o1-gateway connection when no
+  remaining model goes through the tunnel. Moving between the OrganizaOne key
+  and the o1-gateway device code no longer leaves a second entry for the same
+  model reached the old way. A failed switch keeps the previous login.
 
 ## [0.11.3] - 2026-10-08
 
