@@ -29,7 +29,8 @@ export default {
     'Keep the exit summary open until you confirm. When disabled, it closes after the configured timeout; pressing a key stops the countdown.',
   'Seconds before the exit summary closes automatically. Press any key to keep it visible for the current exit.':
     'Seconds before the exit summary closes automatically. Press any key to keep it visible for the current exit.',
-  'Always keep the exit summary open': 'Always keep the exit summary open',
+  'Keep open': 'Keep open',
+  'Always show the summary on exit': 'Always show the summary on exit',
   '↑/↓ select · Space toggle · Enter confirm and exit':
     '↑/↓ select · Space toggle · Enter confirm and exit',
   'Closing in {{seconds}}s · press any key to keep this summary open':
@@ -131,7 +132,6 @@ export default {
   'Show Session Summary': 'Show Session Summary',
   'Show session statistics when quitting and wait for a key before exiting.':
     'Show session statistics when quitting and wait for a key before exiting.',
-  'Do not show again': 'Do not show again',
   'Press Space to toggle; any other key to exit.':
     'Press Space to toggle; any other key to exit.',
   'Could not save your preference. Press any key to exit without saving.':

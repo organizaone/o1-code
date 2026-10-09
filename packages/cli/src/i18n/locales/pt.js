@@ -28,7 +28,8 @@ export default {
     'Mantém o resumo de saída aberto até você confirmar. Quando desativado, ele fecha após o tempo configurado; pressionar uma tecla interrompe a contagem.',
   'Seconds before the exit summary closes automatically. Press any key to keep it visible for the current exit.':
     'Tempo em segundos até o fechamento automático do resumo de saída. Pressione qualquer tecla para mantê-lo visível nesta saída.',
-  'Always keep the exit summary open': 'Sempre manter o resumo de saída aberto',
+  'Keep open': 'Manter aberto',
+  'Always show the summary on exit': 'Sempre exibir resumo ao encerrar',
   '↑/↓ select · Space toggle · Enter confirm and exit':
     '↑/↓ selecionar · Espaço marcar · Enter confirmar e sair',
   'Closing in {{seconds}}s · press any key to keep this summary open':
@@ -396,7 +397,6 @@ export default {
   'Show Session Summary': 'Mostrar resumo da sessão',
   'Show session statistics when quitting and wait for a key before exiting.':
     'Mostrar as estatísticas da sessão ao encerrar e aguardar uma tecla para sair.',
-  'Do not show again': 'Não mostrar novamente',
   'Press Space to toggle; any other key to exit.':
     'Espaço para marcar ou desmarcar; qualquer outra tecla para sair.',
   'Could not save your preference. Press any key to exit without saving.':

@@ -7,6 +7,13 @@ follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Changed
+
+- The exit summary's choices read "Keep open" and "Always show the summary on
+  exit". The second starts checked, since the summary is showing; unchecking it
+  and confirming stops showing the summary at exit. The two can now be checked
+  together.
+
 ### Fixed
 
 - The o1-gateway device code no longer stops with a raw cipher error when the
