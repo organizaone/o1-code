@@ -37,6 +37,8 @@ import { glyphs } from '../../glyphs.js';
 import { atLeast, getLayoutTier } from '../../utils/layout-tier.js';
 import { t } from '../../../i18n/index.js';
 import { AskUserQuestionDialog } from './AskUserQuestionDialog.js';
+import { useDisplayMode } from '../../hooks/use-display-mode.js';
+import { oneLine } from '../../utils/summary-label.js';
 
 // Cap the body height of inline subagent approval banners so a
 // multi-line command can't dominate the screen. MaxSizedBox renders
@@ -49,7 +51,26 @@ const COMPACT_BODY_MAX_LINES = 5;
  * flag, so the scheduler and every other host keep the outcomes they know.
  */
 const RUN_PLAN_AS_GOAL = 'run_plan_as_goal';
-type ConfirmationChoice = ToolConfirmationOutcome | typeof RUN_PLAN_AS_GOAL;
+/** Summary mode's "View changes": toggles the diff, never answers. */
+const TOGGLE_CHANGES = 'toggle_changes';
+type ConfirmationChoice =
+  | ToolConfirmationOutcome
+  | typeof RUN_PLAN_AS_GOAL
+  | typeof TOGGLE_CHANGES;
+
+/** Lines a unified diff adds and removes, headers excluded. */
+export function countDiffLines(diff: string): {
+  added: number;
+  removed: number;
+} {
+  let added = 0;
+  let removed = 0;
+  for (const line of diff.split('\n')) {
+    if (line.startsWith('+') && !line.startsWith('+++')) added++;
+    else if (line.startsWith('-') && !line.startsWith('---')) removed++;
+  }
+  return { added, removed };
+}
 
 export interface ToolConfirmationMessageProps {
   confirmationDetails: ToolCallConfirmationDetails;
@@ -58,6 +79,8 @@ export interface ToolConfirmationMessageProps {
   availableTerminalHeight?: number;
   contentWidth: number;
   compactMode?: boolean;
+  /** The step's purpose, shown by the Summary display mode. */
+  intent?: string;
 }
 
 export const ToolConfirmationMessage: React.FC<
@@ -69,8 +92,13 @@ export const ToolConfirmationMessage: React.FC<
   availableTerminalHeight,
   contentWidth,
   compactMode = false,
+  intent,
 }) => {
   const { onConfirm } = confirmationDetails;
+  // The inline subagent banner (compact mode) keeps its own fixed layout.
+  const summarize = useDisplayMode().summaryActive && !compactMode;
+  const intentSentence = intent ? oneLine(intent) : '';
+  const [showChanges, setShowChanges] = useState(false);
   const autoModeFallback = confirmationDetails.autoModeFallback;
   const offersSwitchToDefault =
     autoModeFallback?.reason === 'classifier_unavailable' ||
@@ -198,12 +226,17 @@ export const ToolConfirmationMessage: React.FC<
     { isActive: isFocused },
   );
 
-  const handleSelect = (item: ConfirmationChoice) =>
-    item === RUN_PLAN_AS_GOAL
+  const handleSelect = (item: ConfirmationChoice) => {
+    if (item === TOGGLE_CHANGES) {
+      setShowChanges((shown) => !shown);
+      return;
+    }
+    return item === RUN_PLAN_AS_GOAL
       ? handleConfirm(ToolConfirmationOutcome.ProceedOnce, {
           runPlanAsGoal: true,
         })
       : handleConfirm(item);
+  };
 
   let bodyContent: React.ReactNode | null = null; // Removed contextDisplay here
   let question: string;
@@ -317,6 +350,13 @@ export const ToolConfirmationMessage: React.FC<
         key: 'Modify with external editor',
       });
     }
+    if (summarize) {
+      options.push({
+        label: showChanges ? t('Hide changes') : t('View changes'),
+        value: TOGGLE_CHANGES,
+        key: 'toggle-changes',
+      });
+    }
 
     options.push({
       label: t('No, suggest changes (esc)'),
@@ -375,6 +415,30 @@ export const ToolConfirmationMessage: React.FC<
         </Text>
       ) : null;
 
+    const lineCounts = countDiffLines(confirmationDetails.fileDiff);
+    const changeBody =
+      summarize && !showChanges ? (
+        <Box flexDirection="column" paddingX={1} marginLeft={1}>
+          <Text wrap="truncate-end">
+            <Text bold color={theme.text.primary}>
+              {t('Change file')}
+            </Text>
+            {'  '}
+            <Text color={theme.text.code}>
+              {oneLine(confirmationDetails.fileName)}
+            </Text>
+            {'  '}
+            <Text color={theme.status.success}>+{lineCounts.added}</Text>{' '}
+            <Text color={theme.status.error}>−{lineCounts.removed}</Text>
+          </Text>
+          {intentSentence ? (
+            <Text color={theme.text.primary}>{intentSentence}</Text>
+          ) : null}
+        </Box>
+      ) : (
+        renderedDiff
+      );
+
     bodyContent = (
       <Box flexDirection="column">
         {warnings.length > 0 ? (
@@ -411,7 +475,7 @@ export const ToolConfirmationMessage: React.FC<
             )}
           </Box>
         ) : null}
-        {renderedDiff}
+        {changeBody}
       </Box>
     );
   } else if (confirmationDetails.type === 'exec') {
@@ -488,8 +552,19 @@ export const ToolConfirmationMessage: React.FC<
         1,
       );
     }
+    const showIntent = summarize && Boolean(intentSentence);
+    if (showIntent && bodyContentHeight !== undefined) {
+      bodyContentHeight = Math.max(bodyContentHeight - 1, 1);
+    }
     bodyContent = (
       <Box flexDirection="column">
+        {showIntent ? (
+          <Box paddingX={1} marginLeft={1}>
+            <Text color={theme.text.primary} wrap="truncate-end">
+              {intentSentence}
+            </Text>
+          </Box>
+        ) : null}
         <Box paddingX={1} marginLeft={1}>
           <MaxSizedBox
             maxHeight={bodyContentHeight}

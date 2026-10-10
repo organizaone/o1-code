@@ -1274,6 +1274,166 @@ describe('CoreToolScheduler', () => {
     }
   });
 
+  describe('intent argument', () => {
+    const allowAll = () => ({
+      isToolEnabled: vi.fn().mockResolvedValue(true),
+      findMatchingDenyRule: vi.fn(() => undefined),
+      hasRelevantRules: vi.fn(() => true),
+      evaluate: vi.fn().mockResolvedValue('default'),
+      hasMatchingAskRule: vi.fn(() => false),
+    });
+    const hookBus = () => ({
+      request: vi.fn().mockImplementation(
+        async (request: {
+          eventName: string;
+        }): Promise<HookExecutionResponse> => ({
+          type: MessageBusType.HOOK_EXECUTION_RESPONSE,
+          correlationId: `${request.eventName}-hook`,
+          success: true,
+          output: { decision: 'allow' },
+        }),
+      ),
+    });
+
+    it('strips intent before validation, hooks, permissions and execution', async () => {
+      const execute = vi.fn().mockResolvedValue({
+        llmContent: 'ok',
+        returnDisplay: 'ok',
+      });
+      const strict = new MockTool({
+        name: 'strict_tool',
+        execute,
+        params: {
+          type: 'object',
+          properties: { path: { type: 'string' } },
+          required: ['path'],
+          additionalProperties: false,
+        },
+      });
+      const permissionManager = allowAll();
+      const messageBus = hookBus();
+      const { scheduler, onAllToolCallsComplete } =
+        createSchedulerForLegacyToolTests({
+          toolsByName: new Map([[strict.name, strict]]),
+          permissionManager,
+          messageBus,
+          disableHooks: false,
+        });
+
+      await scheduler.schedule(
+        {
+          callId: 'intent-call',
+          name: strict.name,
+          args: { path: 'a.ts', intent: '  Read the login code  ' },
+          isClientInitiated: false,
+          prompt_id: 'prompt-intent',
+        },
+        new AbortController().signal,
+      );
+
+      await vi.waitFor(() => expect(onAllToolCallsComplete).toHaveBeenCalled());
+      const completed = onAllToolCallsComplete.mock.calls[0][0][0] as ToolCall;
+      expect(completed.status).toBe('success');
+      expect(completed.request.args).toEqual({ path: 'a.ts' });
+      expect(completed.request.intent).toBe('Read the login code');
+      expect(execute.mock.calls[0][0]).toEqual({ path: 'a.ts' });
+      const preToolUse = messageBus.request.mock.calls.find(
+        ([request]) => request.eventName === 'PreToolUse',
+      );
+      expect(preToolUse?.[0]).toEqual(
+        expect.objectContaining({
+          input: expect.objectContaining({ tool_input: { path: 'a.ts' } }),
+        }),
+      );
+      for (const spy of [
+        permissionManager.findMatchingDenyRule,
+        permissionManager.hasRelevantRules,
+        permissionManager.evaluate,
+        permissionManager.hasMatchingAskRule,
+      ]) {
+        expect(JSON.stringify(spy.mock.calls)).not.toContain('Read the login');
+      }
+    });
+
+    it('takes the intent of a tool_call wrapper', async () => {
+      const execute = vi.fn().mockResolvedValue({
+        llmContent: 'created',
+        returnDisplay: 'created',
+      });
+      const bridge = new MockTool({ name: ToolNames.TOOL_CALL });
+      const deferred = new MockTool({
+        name: 'mcp__github__create_issue',
+        shouldDefer: true,
+        execute,
+      });
+      const { scheduler, onAllToolCallsComplete } =
+        createSchedulerForLegacyToolTests({
+          toolsByName: new Map([
+            [bridge.name, bridge],
+            [deferred.name, deferred],
+          ]),
+          deferredHiddenNames: new Set([deferred.name]),
+          permissionManager: allowAll(),
+        });
+
+      await scheduler.schedule(
+        {
+          callId: 'bridge-intent',
+          name: ToolNames.TOOL_CALL,
+          args: {
+            name: deferred.name,
+            arguments: { title: 'Bug' },
+            intent: 'Open an issue for the bug',
+          },
+          isClientInitiated: false,
+          prompt_id: 'prompt-bridge-intent',
+        },
+        new AbortController().signal,
+      );
+
+      await vi.waitFor(() => expect(onAllToolCallsComplete).toHaveBeenCalled());
+      const completed = onAllToolCallsComplete.mock.calls[0][0][0] as ToolCall;
+      expect(completed.status).toBe('success');
+      expect(completed.request.args).toEqual({ title: 'Bug' });
+      expect(completed.request.intent).toBe('Open an issue for the bug');
+    });
+
+    it('leaves intent in the args of a tool that declares its own', async () => {
+      const execute = vi.fn().mockResolvedValue({
+        llmContent: 'ok',
+        returnDisplay: 'ok',
+      });
+      const own = new MockTool({
+        name: 'own_intent',
+        execute,
+        params: {
+          type: 'object',
+          properties: { intent: { type: 'string' } },
+        },
+      });
+      const { scheduler, onAllToolCallsComplete } =
+        createSchedulerForLegacyToolTests({
+          toolsByName: new Map([[own.name, own]]),
+        });
+
+      await scheduler.schedule(
+        {
+          callId: 'own-intent',
+          name: own.name,
+          args: { intent: 'classify' },
+          isClientInitiated: false,
+          prompt_id: 'prompt-own',
+        },
+        new AbortController().signal,
+      );
+
+      await vi.waitFor(() => expect(onAllToolCallsComplete).toHaveBeenCalled());
+      const completed = onAllToolCallsComplete.mock.calls[0][0][0] as ToolCall;
+      expect(execute.mock.calls[0][0]).toEqual({ intent: 'classify' });
+      expect(completed.request.intent).toBeUndefined();
+    });
+  });
+
   it('rejects tool_call targets that are not hidden deferred tools', async () => {
     const execute = vi.fn();
     const bridge = new MockTool({ name: ToolNames.TOOL_CALL });

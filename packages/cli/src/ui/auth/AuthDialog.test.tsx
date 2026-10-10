@@ -4,7 +4,15 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import {
+  describe,
+  it,
+  expect,
+  vi,
+  beforeEach,
+  afterEach,
+  onTestFinished,
+} from 'vitest';
 import { setTimeout as settleInput } from 'node:timers/promises';
 import {
   AuthDialog,
@@ -23,6 +31,7 @@ import type { Settings } from '../../config/settingsSchema.js';
 import type { Config } from '@organizaone/o1-code-core';
 import { AuthType } from '@organizaone/o1-code-core';
 import { renderWithProviders } from '../../test-utils/render.js';
+import { act } from 'react';
 import { UIStateContext } from '../contexts/UIStateContext.js';
 import { UIActionsContext } from '../contexts/UIActionsContext.js';
 import type { UIState } from '../contexts/UIStateContext.js';
@@ -32,10 +41,43 @@ const discoverProviderModelsMock = vi.hoisted(() =>
   vi.fn().mockResolvedValue(null),
 );
 
+// The key step asks the provider for its models. Without this the wizard
+// tests reach the real endpoint, and a 401 there stops them on the key step.
+const checkProviderKeyMock = vi.hoisted(() =>
+  vi.fn().mockResolvedValue({ status: 'unavailable' }),
+);
+
 vi.mock('@organizaone/o1-code-core', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@organizaone/o1-code-core')>()),
   discoverProviderModels: discoverProviderModelsMock,
+  checkProviderKey: checkProviderKeyMock,
 }));
+
+// No shipped provider is `comingSoon` today; a test adds an id here to cover
+// how the menu treats one.
+const comingSoonProviderIds = vi.hoisted(() => new Set<string>());
+
+vi.mock(
+  '@organizaone/o1-code-core/providers/all-providers.js',
+  async (importOriginal) => {
+    const actual =
+      await importOriginal<
+        typeof import('@organizaone/o1-code-core/providers/all-providers.js')
+      >();
+    return {
+      ...actual,
+      getMenuRows: (...args: Parameters<typeof actual.getMenuRows>) =>
+        actual.getMenuRows(...args).map((row) =>
+          row.kind === 'provider' && comingSoonProviderIds.has(row.provider.id)
+            ? {
+                ...row,
+                provider: { ...row.provider, comingSoon: true as const },
+              }
+            : row,
+        ),
+    };
+  },
+);
 
 const NOTHING_RUNNING: LocalServerProbe[] = [
   {
@@ -91,10 +133,16 @@ type UIActionsOverrides = Partial<UIActions> & Partial<UIActions['auth']>;
 
 const createMockUIState = (overrides: UIStateOverrides = {}): UIState => {
   const baseState = {
+    // The model IDs step sizes its inputs from these; without them the input
+    // width is NaN and the field draws empty.
+    terminalWidth: 120,
+    terminalHeight: 40,
+    mainAreaWidth: 116,
     auth: {
       authError: null,
       isAuthDialogOpen: false,
       isAuthenticating: false,
+      choosingDisplayMode: false,
       pendingAuthType: undefined,
       externalAuthState: null,
     },
@@ -122,6 +170,8 @@ const createMockUIActions = (overrides: UIActionsOverrides = {}): UIActions => {
     onAuthError: vi.fn(),
     openAuthDialog: vi.fn(),
     cancelAuthentication: vi.fn(),
+    chooseDisplayMode: vi.fn(),
+    skipDisplayModeChoice: vi.fn(),
     ...auth,
   } as UIActions['auth'];
 
@@ -1335,7 +1385,10 @@ describe('AuthDialog', { timeout: 15000 }, () => {
           expect(frame).toContain('DeepSeek');
           expect(frame).not.toContain('OpenRouter');
           expect(frame).not.toContain('Requesty');
-          expect(frame).not.toContain('Standard API Key');
+          // The Alibaba plans share the "Alibaba Cloud" row, whose
+          // description names them; none has a row of its own.
+          expect(frame).toContain('Alibaba Cloud');
+          expect(frame).not.toMatch(/^[│\s❯]*Standard API Key/m);
         },
         { timeout: WAIT_FOR_TIMEOUT },
       );
@@ -1706,6 +1759,8 @@ describe('AuthDialog', { timeout: 15000 }, () => {
   itWhenTuiInputReliable(
     'says a coming-soon OrganizaOne entry is not available yet',
     async () => {
+      comingSoonProviderIds.add('organizaone-login');
+      onTestFinished(() => comingSoonProviderIds.clear());
       const handleProviderSubmit = vi.fn();
       const { stdin, lastFrame, unmount } = renderAuthDialog(
         plainSettings(),
@@ -2240,4 +2295,68 @@ describe('AuthDialog Custom API Key Wizard', { timeout: 15000 }, () => {
       unmount();
     },
   );
+});
+
+describe('AuthDialog display-mode step', () => {
+  const settings = () => {
+    const scope = { ui: { customThemes: {} }, mcpServers: {} };
+    return new LoadedSettings(
+      { settings: scope, originalSettings: scope, path: '' },
+      { settings: {}, originalSettings: {}, path: '' },
+      { settings: scope, originalSettings: scope, path: '' },
+      { settings: scope, originalSettings: scope, path: '' },
+      true,
+      new Set(),
+    );
+  };
+
+  it('shows the step with its path and one step past the provider', () => {
+    const { lastFrame, unmount } = renderAuthDialog(
+      settings(),
+      { auth: { choosingDisplayMode: true } as UIState['auth'] },
+      {},
+      AuthType.USE_OPENAI,
+    );
+    const frame = lastFrame() ?? '';
+    expect(frame).toContain('Connect a provider › display');
+    expect(frame).toMatch(/step (\d+) of \1/);
+    expect(frame).toContain("How do you want to follow the agent's work?");
+    unmount();
+  });
+
+  it('skips the choice with esc', async () => {
+    const skipDisplayModeChoice = vi.fn();
+    const closeAuthDialog = vi.fn();
+    const { stdin, unmount } = renderAuthDialog(
+      settings(),
+      { auth: { choosingDisplayMode: true } as UIState['auth'] },
+      { skipDisplayModeChoice, closeAuthDialog },
+      AuthType.USE_OPENAI,
+    );
+    await act(async () => {
+      stdin.write('\u001b');
+      await new Promise((resolve) => setTimeout(resolve, 100));
+    });
+    await vi.waitFor(() => expect(skipDisplayModeChoice).toHaveBeenCalled());
+    expect(closeAuthDialog).not.toHaveBeenCalled();
+    unmount();
+  });
+
+  it('saves the highlighted mode with enter', async () => {
+    const chooseDisplayMode = vi.fn();
+    const { stdin, unmount } = renderAuthDialog(
+      settings(),
+      { auth: { choosingDisplayMode: true } as UIState['auth'] },
+      { chooseDisplayMode },
+      AuthType.USE_OPENAI,
+    );
+    await act(async () => {
+      stdin.write('\r');
+      await new Promise((resolve) => setTimeout(resolve, 50));
+    });
+    await vi.waitFor(() =>
+      expect(chooseDisplayMode).toHaveBeenCalledWith('detailed'),
+    );
+    unmount();
+  });
 });

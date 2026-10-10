@@ -90,6 +90,11 @@ export interface IndividualToolCallDisplay {
    * never carries args across the boundary; the args row is then skipped.
    */
   args?: Record<string, unknown>;
+  /**
+   * The step's purpose as the model stated it (`ToolCallRequestInfo.intent`).
+   * Raw model text: sanitize before drawing. Undefined on the daemon path.
+   */
+  intent?: string;
   resultDisplay: ToolResultDisplay | string | undefined;
   visionBridgeNotice?: string;
   /**

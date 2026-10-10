@@ -17,7 +17,8 @@ import {
   type ProviderSetupInputs,
 } from '@organizaone/o1-code-core';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import type { LoadedSettings } from '../../config/settings.js';
+import type { UiDisplayMode } from '@organizaone/o1-code-core/config/config.js';
+import { SettingScope, type LoadedSettings } from '../../config/settings.js';
 import { createLoadedSettingsAdapter } from '../../config/loadedSettingsAdapter.js';
 import { AuthState, MessageType } from '../types.js';
 import type { HistoryItemWithoutId } from '../types.js';
@@ -56,6 +57,8 @@ export type AuthUiState = {
   authError: string | null;
   isAuthDialogOpen: boolean;
   isAuthenticating: boolean;
+  /** Connected; the dialog stays open on the display-mode step. */
+  choosingDisplayMode: boolean;
   pendingAuthType: AuthType | undefined;
   externalAuthState: {
     title: string;
@@ -78,6 +81,10 @@ export type AuthController = {
     ) => Promise<void>;
     openAuthDialog: () => void;
     cancelAuthentication: () => void;
+    /** Save the display mode in the User scope and close the dialog. */
+    chooseDisplayMode: (mode: UiDisplayMode) => void;
+    /** Close the dialog without saving; the step returns next connection. */
+    skipDisplayModeChoice: () => void;
   };
 };
 
@@ -95,6 +102,7 @@ export const useAuthCommand = (
   const [authError, setAuthError] = useState<string | null>(null);
   const [isAuthenticating, setIsAuthenticating] = useState(false);
   const [isAuthDialogOpen, setIsAuthDialogOpen] = useState(unAuthenticated);
+  const [choosingDisplayMode, setChoosingDisplayMode] = useState(false);
   const [pendingAuthType, setPendingAuthType] = useState<AuthType | undefined>(
     undefined,
   );
@@ -163,10 +171,29 @@ export const useAuthCommand = (
     setAuthError(null);
     setAuthState(AuthState.Authenticated);
     setPendingAuthType(undefined);
-    setIsAuthDialogOpen(false);
+    // Until the person picks a display mode in the User scope (a workspace
+    // value does not count), a successful connection ends on that step.
+    const choose =
+      settings.forScope(SettingScope.User).settings.ui?.displayMode ===
+      undefined;
+    setChoosingDisplayMode(choose);
+    if (!choose) setIsAuthDialogOpen(false);
     setIsAuthenticating(false);
     onAuthChange?.();
-  }, [onAuthChange]);
+  }, [onAuthChange, settings]);
+
+  const finishDisplayModeStep = useCallback(() => {
+    setChoosingDisplayMode(false);
+    setIsAuthDialogOpen(false);
+  }, []);
+
+  const chooseDisplayMode = useCallback(
+    (mode: UiDisplayMode) => {
+      settings.setValue(SettingScope.User, 'ui.displayMode', mode);
+      finishDisplayModeStep();
+    },
+    [settings, finishDisplayModeStep],
+  );
 
   // -- Provider connect -----------------------------------------------------
 
@@ -279,6 +306,7 @@ export const useAuthCommand = (
   const closeAuthDialog = useCallback(() => {
     openedViaCommandRef.current = false;
     setIsAuthDialogOpen(false);
+    setChoosingDisplayMode(false);
     setAuthError(null);
   }, []);
 
@@ -320,6 +348,7 @@ export const useAuthCommand = (
       authError,
       isAuthDialogOpen,
       isAuthenticating,
+      choosingDisplayMode,
       pendingAuthType,
       externalAuthState,
     }),
@@ -327,6 +356,7 @@ export const useAuthCommand = (
       authError,
       isAuthDialogOpen,
       isAuthenticating,
+      choosingDisplayMode,
       pendingAuthType,
       externalAuthState,
     ],
@@ -340,6 +370,8 @@ export const useAuthCommand = (
       handleProviderSubmit,
       openAuthDialog,
       cancelAuthentication,
+      chooseDisplayMode,
+      skipDisplayModeChoice: finishDisplayModeStep,
     }),
     [
       setAuthState,
@@ -348,6 +380,8 @@ export const useAuthCommand = (
       handleProviderSubmit,
       openAuthDialog,
       cancelAuthentication,
+      chooseDisplayMode,
+      finishDisplayModeStep,
     ],
   );
 

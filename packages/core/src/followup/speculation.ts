@@ -26,6 +26,7 @@ import {
   convertToFunctionResponse,
 } from '../core/coreToolScheduler.js';
 import { canonicalToolName } from '../tools/tool-names.js';
+import { argsWithoutIntent } from '../tools/intent-param.js';
 import { evaluateToolInvocationGuard } from '../core/tool-invocation-guard.js';
 import { getInvocationContext } from '../utils/invocation-context.js';
 import { stripToolResultImages } from '../services/visionBridge/tool-result-vision-bridge.js';
@@ -405,7 +406,7 @@ async function runSpeculativeLoop(
             continue;
           }
 
-          const invocation = tool.build(args);
+          const invocation = tool.build(argsWithoutIntent(tool.schema, args));
           const toolInvocationGuard = config.getToolInvocationGuard?.();
           if (toolInvocationGuard) {
             const invocationContext = getInvocationContext();

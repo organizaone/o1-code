@@ -67,7 +67,9 @@ export const ModeZone: React.FC<{
   reasoning?: string | false;
   safeMode?: boolean;
   debugMode?: boolean;
-}> = ({ tier, mode, model, reasoning, safeMode, debugMode }) => {
+  /** The Summary display mode is set; Detailed adds nothing. */
+  summaryMode?: boolean;
+}> = ({ tier, mode, model, reasoning, safeMode, debugMode, summaryMode }) => {
   const reasoningText =
     reasoning === undefined || !atLeast(tier, 'compact')
       ? ''
@@ -89,6 +91,12 @@ export const ModeZone: React.FC<{
         <>
           <Sep />
           {reasoningText}
+        </>
+      )}
+      {summaryMode && atLeast(tier, 'compact') && (
+        <>
+          <Sep />
+          <Text color={extendedTheme.ui.brandSoft}>{t('summary')}</Text>
         </>
       )}
       {safeMode && (

@@ -1496,6 +1496,49 @@ describe('resumeHistoryUtils', () => {
       expect(tool?.description).toBe('a.ts');
       expect(tool?.args).toEqual({ file_path: 'a.ts', old_string: 'x' });
     });
+
+    it('splits the persisted intent off the args', () => {
+      const build = vi.fn().mockReturnValue({ getDescription: () => 'a.ts' });
+      const editTool = {
+        name: 'replace',
+        displayName: 'Edit',
+        description: 'Edit a file',
+        schema: { name: 'replace' },
+        build,
+      } as unknown as AnyDeclarativeTool;
+
+      const conversation = {
+        messages: [
+          {
+            type: 'assistant',
+            message: {
+              parts: [
+                {
+                  functionCall: {
+                    id: 'call-1',
+                    name: 'replace',
+                    args: { file_path: 'a.ts', intent: ' Fix the login ' },
+                  },
+                } as unknown as Part,
+              ],
+            },
+          },
+        ],
+      } as unknown as ConversationRecord;
+
+      const items = buildResumedHistoryItems(
+        { conversation } as ResumedSessionData,
+        makeConfig({ replace: editTool }),
+        10,
+      );
+      const tool = (
+        items.find((i) => i.type === 'tool_group') as ToolGroupItem | undefined
+      )?.tools[0];
+
+      expect(tool?.intent).toBe('Fix the login');
+      expect(tool?.args).toEqual({ file_path: 'a.ts' });
+      expect(build).toHaveBeenCalledWith({ file_path: 'a.ts' });
+    });
   });
 
   describe('detailedDisplay (§4.9 Ctrl+O full detail on resume)', () => {

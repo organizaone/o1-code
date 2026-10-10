@@ -27,6 +27,7 @@ import type { InlineImageData } from '../../types.js';
 import { TerminalImage } from '../TerminalImage.js';
 import { Spinner } from '../RespondingSpinner.js';
 import { formatInlineImageOverflow } from '../../utils/inline-image-parts.js';
+import { useDisplayMode } from '../../hooks/use-display-mode.js';
 
 const debugLogger = createDebugLogger('THINK_RENDER');
 
@@ -113,6 +114,7 @@ interface PrefixedMarkdownMessageProps {
   ariaLabel?: string;
   textColor?: string;
   sourceCopyIndexOffsets?: MarkdownSourceCopyIndexOffsets;
+  foldCodeBlocks?: boolean;
 }
 
 interface ContinuationMarkdownMessageProps {
@@ -125,6 +127,7 @@ interface ContinuationMarkdownMessageProps {
   basePrefix: string;
   textColor?: string;
   sourceCopyIndexOffsets?: MarkdownSourceCopyIndexOffsets;
+  foldCodeBlocks?: boolean;
 }
 
 function getPrefixWidth(prefix: string): number {
@@ -183,6 +186,7 @@ const PrefixedMarkdownMessage: React.FC<PrefixedMarkdownMessageProps> = ({
   ariaLabel,
   textColor,
   sourceCopyIndexOffsets,
+  foldCodeBlocks,
 }) => {
   const prefixWidth = getPrefixWidth(prefix);
   const imageHeightBudget =
@@ -212,6 +216,7 @@ const PrefixedMarkdownMessage: React.FC<PrefixedMarkdownMessageProps> = ({
             contentWidth={contentWidth - prefixWidth}
             textColor={textColor}
             sourceCopyIndexOffsets={sourceCopyIndexOffsets}
+            foldCodeBlocks={foldCodeBlocks}
           />
         )}
         {images?.map((image, index) => (
@@ -242,6 +247,7 @@ const ContinuationMarkdownMessage: React.FC<
   basePrefix,
   textColor,
   sourceCopyIndexOffsets,
+  foldCodeBlocks,
 }) => {
   const prefixWidth = getPrefixWidth(basePrefix);
   const imageHeightBudget =
@@ -265,6 +271,7 @@ const ContinuationMarkdownMessage: React.FC<
           contentWidth={contentWidth - prefixWidth}
           textColor={textColor}
           sourceCopyIndexOffsets={sourceCopyIndexOffsets}
+          foldCodeBlocks={foldCodeBlocks}
         />
       )}
       {images?.map((image, index) => (
@@ -355,20 +362,24 @@ export const AssistantMessage: React.FC<AssistantMessageProps> = ({
   availableTerminalHeight,
   contentWidth,
   sourceCopyIndexOffsets,
-}) => (
-  <PrefixedMarkdownMessage
-    text={text}
-    images={images}
-    omittedImageCount={omittedImageCount}
-    prefix={glyphs().agent}
-    prefixColor={theme.text.accent}
-    ariaLabel={SCREEN_READER_MODEL_PREFIX}
-    isPending={isPending}
-    availableTerminalHeight={availableTerminalHeight}
-    contentWidth={contentWidth}
-    sourceCopyIndexOffsets={sourceCopyIndexOffsets}
-  />
-);
+}) => {
+  const { summaryActive } = useDisplayMode();
+  return (
+    <PrefixedMarkdownMessage
+      text={text}
+      images={images}
+      omittedImageCount={omittedImageCount}
+      prefix={glyphs().agent}
+      prefixColor={theme.text.accent}
+      ariaLabel={SCREEN_READER_MODEL_PREFIX}
+      isPending={isPending}
+      availableTerminalHeight={availableTerminalHeight}
+      contentWidth={contentWidth}
+      sourceCopyIndexOffsets={sourceCopyIndexOffsets}
+      foldCodeBlocks={summaryActive}
+    />
+  );
+};
 
 export const AssistantMessageContent: React.FC<
   AssistantMessageContentProps
@@ -380,18 +391,22 @@ export const AssistantMessageContent: React.FC<
   availableTerminalHeight,
   contentWidth,
   sourceCopyIndexOffsets,
-}) => (
-  <ContinuationMarkdownMessage
-    text={text}
-    images={images}
-    omittedImageCount={omittedImageCount}
-    isPending={isPending}
-    availableTerminalHeight={availableTerminalHeight}
-    contentWidth={contentWidth}
-    basePrefix={glyphs().agent}
-    sourceCopyIndexOffsets={sourceCopyIndexOffsets}
-  />
-);
+}) => {
+  const { summaryActive } = useDisplayMode();
+  return (
+    <ContinuationMarkdownMessage
+      text={text}
+      images={images}
+      omittedImageCount={omittedImageCount}
+      isPending={isPending}
+      availableTerminalHeight={availableTerminalHeight}
+      contentWidth={contentWidth}
+      basePrefix={glyphs().agent}
+      sourceCopyIndexOffsets={sourceCopyIndexOffsets}
+      foldCodeBlocks={summaryActive}
+    />
+  );
+};
 
 const BRIEF_THOUGHT_THRESHOLD_MS = 1_000;
 

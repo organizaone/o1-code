@@ -75,6 +75,7 @@ import type {
 import { fileURLToPath } from 'node:url';
 import { isDeepStrictEqual } from 'node:util';
 import { ToolNames, canonicalToolName } from '../tools/tool-names.js';
+import { declaresOwnIntent, extractIntent } from '../tools/intent-param.js';
 import { AskUserQuestionTool } from '../tools/askUserQuestion.js';
 import { resolveToolName } from '../permissions/rule-parser.js';
 import { PLAN_EXIT_APPROVED_LLM_CONTENT_PREFIXES } from '../tools/exitPlanMode.js';
@@ -2623,6 +2624,16 @@ export class CoreToolScheduler {
     }
   }
 
+  // Runs before the tool_call bridge, validation, hooks and permission
+  // matching, so none of them ever sees the display-only argument.
+  private stripIntent(request: ToolCallRequestInfo): ToolCallRequestInfo {
+    const tool = this.toolRegistry.getTool(request.name);
+    if (tool && declaresOwnIntent(tool.schema)) return request;
+    const { intent, args } = extractIntent(request.args);
+    if (args === request.args) return request;
+    return intent ? { ...request, args, intent } : { ...request, args };
+  }
+
   private async resolveToolCallBridgeRequest(
     request: ToolCallRequestInfo,
     signal: AbortSignal,
@@ -2834,10 +2845,10 @@ export class CoreToolScheduler {
           Array.isArray(request) ? request : [request],
         ).map((item) =>
           this.resolveToolCallBridgeRequest(
-            {
+            this.stripIntent({
               ...item,
               args: structuredClone(item.args),
-            },
+            }),
             signal,
           ),
         ),

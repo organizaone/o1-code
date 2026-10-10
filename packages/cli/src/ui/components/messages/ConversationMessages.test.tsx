@@ -16,6 +16,8 @@ import {
   UserMessage,
 } from './ConversationMessages.js';
 import { glyphs, setGlyphMode } from '../../glyphs.js';
+import { SettingsContext } from '../../contexts/SettingsContext.js';
+import type { LoadedSettings } from '../../../config/settings.js';
 
 vi.mock('../TerminalImage.js', () => ({
   TerminalImage: ({
@@ -408,5 +410,23 @@ describe('<ThinkMessageContent />', () => {
     expect(output).toContain('Line 2');
     expect(output).toContain('Line 3');
     expect(output).toContain('Line 4');
+  });
+});
+
+describe('AssistantMessage in the Summary display mode', () => {
+  const reply = 'Done.\n\n```ts\nconst secret = 1;\n```';
+  const frame = (displayMode: string) =>
+    render(
+      <SettingsContext.Provider
+        value={{ merged: { ui: { displayMode } } } as unknown as LoadedSettings}
+      >
+        <AssistantMessage text={reply} isPending={false} contentWidth={80} />
+      </SettingsContext.Provider>,
+    ).lastFrame() ?? '';
+
+  it('folds code blocks only in the Summary mode', () => {
+    expect(frame('summary')).toContain('▸ code ts · 1 lines · ctrl+o');
+    expect(frame('summary')).not.toContain('secret');
+    expect(frame('detailed')).toContain('secret');
   });
 });

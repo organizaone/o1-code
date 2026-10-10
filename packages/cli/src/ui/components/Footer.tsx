@@ -32,6 +32,7 @@ import { getReasoningForDisplay } from '../../acp-integration/model-configuratio
 import { resolveReasoningForModel } from '@organizaone/o1-code-core/core/reasoning-overrides.js';
 import { t } from '../../i18n/index.js';
 import { StreamingState } from '../types.js';
+import { useDisplayMode } from '../hooks/use-display-mode.js';
 import type { Config } from '@organizaone/o1-code-core';
 
 /**
@@ -63,6 +64,7 @@ export const Footer: React.FC<FooterProps> = ({ containerRef }) => {
   const uiState = useUIState();
   const config = useConfig();
   const settings = useSettings();
+  const { displayMode } = useDisplayMode();
   const { vimEnabled, vimMode } = useVimModeState();
   const { columns: terminalWidth } = useTerminalSize();
   const isNarrow = isNarrowWidth(terminalWidth);
@@ -182,6 +184,7 @@ export const Footer: React.FC<FooterProps> = ({ containerRef }) => {
             reasoning={readReasoning(config)}
             safeMode={config.isSafeMode()}
             debugMode={config.getDebugMode()}
+            summaryMode={displayMode === 'summary'}
           />
         )}
       </Box>

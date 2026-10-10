@@ -768,6 +768,20 @@ describe('SettingsSchema', () => {
       ]);
     });
 
+    it('should define the display mode as a user-facing UI enum', () => {
+      const displayMode = getSettingsSchema().ui.properties.displayMode;
+
+      expect(displayMode.type).toBe('enum');
+      expect(displayMode.default).toBe('detailed');
+      expect(displayMode.requiresRestart).toBe(false);
+      expect(displayMode.showInDialog).toBe(true);
+      expect(displayMode.label).toBe('Display Mode');
+      expect(displayMode.options).toEqual([
+        { value: 'detailed', label: 'Detailed' },
+        { value: 'summary', label: 'Summary' },
+      ]);
+    });
+
     it('should have useTerminalBuffer in ui settings', () => {
       const useTerminalBuffer =
         getSettingsSchema().ui.properties.useTerminalBuffer;

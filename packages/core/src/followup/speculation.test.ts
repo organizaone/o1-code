@@ -148,6 +148,7 @@ describe('startSpeculation', () => {
     });
     const toolRegistry = {
       ensureTool: vi.fn().mockResolvedValue({
+        schema: { name: 'mock' },
         build: vi.fn().mockReturnValue({
           params: { path: '/normalized/a.ts' },
           execute,
@@ -219,6 +220,7 @@ describe('startSpeculation', () => {
     const guard = vi.fn().mockResolvedValue({ allowed: true });
     const toolRegistry = {
       ensureTool: vi.fn().mockResolvedValue({
+        schema: { name: 'mock' },
         build: vi.fn().mockReturnValue({
           params: { path: '/normalized/a.ts' },
           execute,
@@ -298,6 +300,7 @@ describe('startSpeculation', () => {
     const execute = vi.fn().mockRejectedValue(new Error('execution failed'));
     const toolRegistry = {
       ensureTool: vi.fn().mockResolvedValue({
+        schema: { name: 'mock' },
         build: vi.fn().mockReturnValue({ execute }),
       }),
     };
@@ -380,6 +383,7 @@ describe('startSpeculation', () => {
     });
     const toolRegistry = {
       ensureTool: vi.fn().mockResolvedValue({
+        schema: { name: 'mock' },
         build: vi.fn().mockReturnValue({
           execute: vi.fn().mockResolvedValue(result),
         }),
@@ -445,6 +449,7 @@ describe('startSpeculation', () => {
     });
     const toolRegistry = {
       ensureTool: vi.fn().mockResolvedValue({
+        schema: { name: 'mock' },
         build: vi.fn().mockReturnValue({ execute }),
       }),
     };
@@ -507,6 +512,7 @@ describe('startSpeculation', () => {
     });
     const toolRegistry = {
       ensureTool: vi.fn().mockResolvedValue({
+        schema: { name: 'mock' },
         build: vi.fn().mockReturnValue({ execute }),
       }),
     };
@@ -571,6 +577,7 @@ describe('startSpeculation', () => {
     }));
     const toolRegistry = {
       ensureTool: vi.fn().mockResolvedValue({
+        schema: { name: 'mock' },
         build: vi.fn().mockReturnValue({ execute }),
       }),
     };
@@ -635,6 +642,7 @@ describe('startSpeculation', () => {
     });
     const toolRegistry = {
       ensureTool: vi.fn().mockResolvedValue({
+        schema: { name: 'mock' },
         build: vi.fn().mockReturnValue({ execute }),
       }),
     };
@@ -744,6 +752,7 @@ describe.each([
         getSessionId: vi.fn().mockReturnValue('spec-session'),
         getToolRegistry: vi.fn().mockReturnValue({
           ensureTool: vi.fn().mockResolvedValue({
+            schema: { name: 'mock' },
             build: vi.fn().mockReturnValue({
               execute: vi.fn().mockResolvedValue({
                 llmContent: '',

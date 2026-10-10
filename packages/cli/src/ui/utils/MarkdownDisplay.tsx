@@ -7,8 +7,9 @@
 import React from 'react';
 import { Text, Box } from 'ink';
 import stringWidth from 'string-width';
-import { theme } from '../semantic-colors.js';
+import { extendedTheme, theme } from '../semantic-colors.js';
 import { ICON } from '../constants.js';
+import { t } from '../../i18n/index.js';
 import { colorizeCode } from './CodeColorizer.js';
 import { TableRenderer, type ColumnAlign } from './TableRenderer.js';
 import { RenderInline } from './InlineMarkdownRenderer.js';
@@ -37,6 +38,23 @@ const MIN_PENDING_CONTENT_LINES = 1;
 // so the two never diverge and let a table overflow the render cap.
 const TABLE_PENDING_RESERVED_ROWS = 3;
 
+const FoldedCodeBlock: React.FC<{ lang: string | null; lineCount: number }> = ({
+  lang,
+  lineCount,
+}) => (
+  <Box>
+    <Text color={extendedTheme.text.muted} wrap="truncate-end">
+      {'▸ '}
+      {lang
+        ? t('code {{lang}} · {{count}} lines · ctrl+o', {
+            lang,
+            count: String(lineCount),
+          })
+        : t('code · {{count}} lines · ctrl+o', { count: String(lineCount) })}
+    </Text>
+  </Box>
+);
+
 interface MarkdownDisplayProps {
   text: string;
   isPending: boolean;
@@ -58,6 +76,11 @@ interface MarkdownDisplayProps {
    * respects the same viewport budget the outer wrapper enforces.
    */
   enforceHeightBudget?: boolean;
+  /**
+   * Summary display mode: each fenced code block renders as one muted row
+   * with its language and line count; Ctrl+O shows the reply in full.
+   */
+  foldCodeBlocks?: boolean;
 }
 
 export interface MarkdownSourceCopyIndexOffsets {
@@ -139,6 +162,7 @@ const MarkdownDisplayInternal: React.FC<MarkdownDisplayProps> = ({
   textColor = theme.text.primary,
   sourceCopyIndexOffsets,
   enforceHeightBudget = false,
+  foldCodeBlocks = false,
 }) => {
   const { renderMode } = useRenderMode();
   if (!text) return <></>;
@@ -410,6 +434,31 @@ const MarkdownDisplayInternal: React.FC<MarkdownDisplayProps> = ({
     }
   }
 
+  function codeBlock(key: string): React.ReactNode {
+    if (foldCodeBlocks) {
+      return (
+        <FoldedCodeBlock
+          key={key}
+          lang={codeBlockLang}
+          lineCount={codeBlockContent.length}
+        />
+      );
+    }
+    return (
+      <RenderCodeBlock
+        key={key}
+        content={codeBlockContent}
+        lang={codeBlockLang}
+        codeBlockIndex={currentCodeBlockIndex}
+        codeBlockLangIndex={currentCodeBlockLangIndex}
+        isPending={isPending}
+        availableTerminalHeight={availableTerminalHeight}
+        contentWidth={contentWidth}
+        startLineNumber={currentCodeBlockStartLine}
+      />
+    );
+  }
+
   lines.forEach((line, index) => {
     const key = `line-${index}`;
 
@@ -420,19 +469,7 @@ const MarkdownDisplayInternal: React.FC<MarkdownDisplayProps> = ({
         fenceMatch[1].startsWith(codeBlockFence[0]) &&
         fenceMatch[1].length >= codeBlockFence.length
       ) {
-        addContentBlock(
-          <RenderCodeBlock
-            key={key}
-            content={codeBlockContent}
-            lang={codeBlockLang}
-            codeBlockIndex={currentCodeBlockIndex}
-            codeBlockLangIndex={currentCodeBlockLangIndex}
-            isPending={isPending}
-            availableTerminalHeight={availableTerminalHeight}
-            contentWidth={contentWidth}
-            startLineNumber={currentCodeBlockStartLine}
-          />,
-        );
+        addContentBlock(codeBlock(key));
         inCodeBlock = false;
         currentCodeBlockIndex = 0;
         currentCodeBlockLangIndex = 0;
@@ -734,19 +771,7 @@ const MarkdownDisplayInternal: React.FC<MarkdownDisplayProps> = ({
   });
 
   if (inCodeBlock) {
-    addContentBlock(
-      <RenderCodeBlock
-        key="line-eof"
-        content={codeBlockContent}
-        lang={codeBlockLang}
-        codeBlockIndex={currentCodeBlockIndex}
-        codeBlockLangIndex={currentCodeBlockLangIndex}
-        isPending={isPending}
-        availableTerminalHeight={availableTerminalHeight}
-        contentWidth={contentWidth}
-        startLineNumber={currentCodeBlockStartLine}
-      />,
-    );
+    addContentBlock(codeBlock('line-eof'));
   }
 
   if (inMathBlock) {

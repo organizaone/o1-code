@@ -909,6 +909,25 @@ describe('<MainContent />', () => {
       expect(lastFrame()).toContain('APP_HEADER');
     });
 
+    it('hides the conversation frame while /config is open and restores it on close', async () => {
+      const state = createUIState({
+        useTerminalBuffer: true,
+        availableTerminalHeight: 10,
+        history: [{ id: 1, type: 'user', text: '/config' }],
+      });
+      const { lastFrame, rerender } = renderMainContent(state);
+      expect(lastFrame()).toContain('╭');
+
+      rerender(mainContentTree({ ...state, isSettingsDialogOpen: true }));
+      await new Promise((resolve) => setImmediate(resolve));
+      expect(lastFrame()).toBe('');
+
+      rerender(mainContentTree(state));
+      await new Promise((resolve) => setImmediate(resolve));
+      expect(lastFrame()).toContain('HISTORY:1');
+      expect(lastFrame()).toContain('╭');
+    });
+
     it.each([40, 160])(
       'hides the conversation frame while plugins are open at %i columns and restores it on close',
       async (terminalWidth) => {

@@ -91,6 +91,33 @@ describe('mapToDisplay — raw args (ui.showToolCallArgs)', () => {
   });
 });
 
+describe('mapToDisplay — intent', () => {
+  it('copies the request intent onto the display object', () => {
+    const call = {
+      status: 'success',
+      request: {
+        callId: 'call-1',
+        name: 'edit',
+        args: { file_path: 'a.ts' },
+        intent: 'Fix the e-mail validation',
+      },
+      tool: { displayName: 'Edit', isOutputMarkdown: false },
+      invocation: { getDescription: () => 'a.ts' },
+      response: { resultDisplay: 'ok', responseParts: [] },
+    } as unknown as TrackedToolCall;
+
+    expect(mapToDisplay(call).tools[0].intent).toBe(
+      'Fix the e-mail validation',
+    );
+  });
+
+  it('leaves intent out when the request has none', () => {
+    expect(mapToDisplay(makeSuccess('Read File')).tools[0]).not.toHaveProperty(
+      'intent',
+    );
+  });
+});
+
 describe('mapToDisplay — detailedDisplay (§4.9 live path)', () => {
   it('extracts detailedDisplay for a collapsible (read/search/list) tool', () => {
     const group = mapToDisplay(makeSuccess('Read File'));

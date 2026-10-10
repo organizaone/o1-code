@@ -206,6 +206,26 @@ settings (`ui.customAsciiArt`, `ui.hideBanner`, …) are gone and ignored if pre
   `Retrying in Ns — esc to give up (attempt/max)`, then `Retrying…` with a spinner. The footer shows
   failed meanwhile.
 
+### Summary display mode
+
+`ui.displayMode` is `detailed` (the default, everything above) or `summary`. Ctrl+O always shows the
+Detailed view, so the transcript is the same in both modes (`hooks/use-display-mode.ts`).
+
+- **Step rows** (`messages/SummaryToolGroupDisplay.tsx`): the category marker and label of a tool row,
+  then one sentence on the step's purpose: the `intent` the model gave with the call, sanitized to one
+  line, or a fallback from `utils/summary-label.ts` (`Changing login.ts`, `Running npm test` — the
+  program and its subcommand, never the other arguments). A muted file name and `+N −M` follow when
+  the step changed a file. Consecutive reads and searches share one row with `· N files`. No diff,
+  file body, shell output or arguments. An error adds its first line in red.
+- **Kept as in Detailed:** approvals, the user's own `!` commands, a focused shell, the parallel-agent
+  roster, and results that already summarize (todo list, plan, findings, subagents, question answers).
+- **Approvals** keep the amber frame and every option and outcome. An edit shows `Change file`, the
+  file and `+N −M`, then the intent, and adds `View changes`, which opens and closes the diff inside
+  the box without answering. A shell approval shows the intent above the full command, which never
+  hides.
+- **Replies:** each fenced code block folds into one muted row, `▸ code ts · 12 lines · ctrl+o`; the
+  text around it stays.
+
 ### Queue
 
 During a turn, `enter` steers the running turn and `ctrl+q` queues the message. The queue
@@ -289,7 +309,8 @@ and [ready attachment](../images/tui-attachment-ready.png).
 Three zones spread across the width (`footer-zones.tsx`):
 
 1. **Mode:** `● AUTO` bold — brand soft for default and auto, amber for edits, red for YOLO, green
-   for plan — then `│`, the model name alone (no provider; `—` without one), `· reasoning high`, and
+   for plan — then `│`, the model name alone (no provider; `—` without one), `· reasoning high`,
+   `· summary` in brand soft when the Summary display mode is set (Detailed adds nothing), and
    `Safe Mode` / `Debug Mode` when on.
 2. **Git:** `⎇ main` in accent, `+31` green `-6` red: the working-tree diff. A worktree shows its
    own branch. The folder is not repeated here; it is in the header.
@@ -311,12 +332,12 @@ zones stay visible.
 and `sideMargin(tier)`. Components read it through `hooks/use-layout-tier.ts`; `isNarrowWidth` is
 `tier === 'minimal'`. Each band drops what the band above dropped.
 
-| Tier      | Columns | Drops                                                                                                                                                  |
-| --------- | ------- | ------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `full`    | ≥ 120   | nothing                                                                                                                                                |
-| `medium`  | 100–119 | context bar; `ctrl+c quit` hint                                                                                                                        |
-| `compact` | 80–99   | footer git zone; active skill; memory bar; `@ files` hint; `reasoning high` becomes `high`; approval options stack vertically                          |
-| `minimal` | < 80    | logo becomes the wordmark; hints; memory row; reasoning; tokens; inactive chip labels; `online`/`failed`/`no provider` text (dot stays); side margin 1 |
+| Tier      | Columns | Drops                                                                                                                                                             |
+| --------- | ------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `full`    | ≥ 120   | nothing                                                                                                                                                           |
+| `medium`  | 100–119 | context bar; `ctrl+c quit` hint                                                                                                                                   |
+| `compact` | 80–99   | footer git zone; active skill; memory bar; `@ files` hint; `reasoning high` becomes `high`; approval options stack vertically                                     |
+| `minimal` | < 80    | logo becomes the wordmark; hints; memory row; reasoning; `summary`; tokens; inactive chip labels; `online`/`failed`/`no provider` text (dot stays); side margin 1 |
 
 Side margin is 2 columns, 1 under 80. Under 80 the header is three rows: wordmark and version,
 notices (shortened to `↑ v… · /update` and `● MCP · /mcp`), and the path right-aligned. The path
@@ -382,10 +403,25 @@ never leaves; it only shortens from the start.
   When direct autocomplete has no results, natural-language queries search the
   same labels and descriptions across available commands and descendants.
 - **Settings** (`SettingsDialog.tsx`): interactive `/config` and `/settings` open
-  the same content-sized panel, using the terminal width with two-column outer
-  margins on each side.
-  The selected scope appears beside the search area and the footer shows the
-  selected position. At 120 columns and sufficient height, the selected setting's
+  the same panel, using the terminal width with two-column outer margins on each
+  side and the layout's whole dialog-height reservation, so Settings, Status and
+  Stats keep one size while switching tabs. The settings list fills the rows it
+  has and the footer stays at the bottom. In full-screen mode the conversation
+  frame is hidden while the panel is open and returns when it closes.
+  The tab bar shows where the focus is: while it has focus, a brand `❯` leads
+  it, the active tab is a filled brand chip and the other tabs and the hint turn
+  brighter; otherwise the active tab is only named in accent bold and the hint
+  dims. The `❯` column is always reserved, so the bar never shifts.
+  The search is an input like the composer's: a frame in `rule`, `brand` with a
+  cursor while it has focus, `⌕` and the placeholder colour while empty (panels
+  under 14 rows drop the frame). After one blank row, the scope reads
+  `Scope:  ● User  ○ Workspace` in its own colours, so it does not look like a
+  setting: brand soft for User, amber for Workspace (project settings override
+  the user's), with `· this project only` while Workspace is active. Tab switches it in place: the list stays, its values
+  follow the new scope, and the cursor stays on the same setting (or the nearest
+  row when the Workspace list leaves it out). There is no separate scope screen,
+  and Tab waits while a value is being edited. The footer shows the selected
+  position. At 120 columns and sufficient height, the selected setting's
   canonical key and description appear on the right; narrower terminals keep
   the description below the list. The help column takes its height from the
   visible list and search area; long descriptions end with an ellipsis instead
@@ -455,6 +491,12 @@ never leaves; it only shortens from the start.
   `the key is saved in ~/.o1-code/credentials/, for your user only`. The review is one line each for
   Provider, Endpoint, Key and Models plus one muted line on where they are saved, so it fits 40 rows;
   the settings JSON is not shown.
+- **Display-mode step** (`auth/DisplayModeStep.tsx`): after a successful connection, as long as
+  `ui.displayMode` is not saved in the User scope, the dialog ends on one more step (`› display`,
+  `step N of N`): `✓ Account connected.`, the question, Detailed (preselected, `as today`) and
+  Summary with one line each, and from 100 columns a preview of the highlighted mode built from the
+  same row components. Enter saves the mode for the user and applies it; Esc closes without saving,
+  so the step returns on the next connection.
 - **Start screen** (`components/WelcomeScreen.tsx`, hidden by `ui.hideTips`): welcome line, one
   sentence on what the agent does, `GETTING STARTED` and `RECENT SESSIONS` (up to three, then
   `/resume to continue a session`). Section titles use brand colour, bold, upper case;

@@ -29,6 +29,7 @@ import {
   updateMCPServerStatus,
 } from './mcp-client.js';
 import { ToolErrorType } from './tool-error.js';
+import { INTENT_DESCRIPTION, withIntentParam } from './intent-param.js';
 
 vi.mock('node:fs');
 
@@ -173,11 +174,13 @@ describe('ToolRegistry', () => {
     const tool = new MockTool({ name: 'image_gen', shouldDefer: true });
     toolRegistry.registerTool(tool);
     toolRegistry.revealDeferredTool('image_gen');
-    expect(toolRegistry.getFunctionDeclarations()).toContainEqual(tool.schema);
+    expect(toolRegistry.getFunctionDeclarations()).toContainEqual(
+      withIntentParam(tool.schema),
+    );
     enabled.mockReturnValue(false);
     expect(
       toolRegistry.getFunctionDeclarations({ includeDeferred: true }),
-    ).not.toContainEqual(tool.schema);
+    ).not.toContainEqual(withIntentParam(tool.schema));
     expect(toolRegistry.getFunctionDeclarationsFiltered(['image_gen'])).toEqual(
       [],
     );
@@ -192,7 +195,9 @@ describe('ToolRegistry', () => {
     expect(await toolRegistry.ensureTool('image_gen')).toBeUndefined();
     enabled.mockReturnValue(true);
     expect(await toolRegistry.ensureTool('image_gen')).toBe(tool);
-    expect(toolRegistry.getFunctionDeclarations()).toContainEqual(tool.schema);
+    expect(toolRegistry.getFunctionDeclarations()).toContainEqual(
+      withIntentParam(tool.schema),
+    );
   });
 
   it.each(['image_gen', 'propose_goal'] as const)(
@@ -253,6 +258,71 @@ describe('ToolRegistry', () => {
       }
     },
   );
+
+  describe('intent parameter', () => {
+    const intentOf = (declaration: FunctionDeclaration | undefined) =>
+      (
+        declaration?.parametersJsonSchema as
+          | { properties?: Record<string, unknown> }
+          | undefined
+      )?.properties?.['intent'];
+
+    it('declares an optional intent on every tool without touching required', () => {
+      const tool = new MockTool({
+        name: 'strict_tool',
+        params: {
+          type: 'object',
+          properties: { path: { type: 'string' } },
+          required: ['path'],
+          additionalProperties: false,
+        },
+      });
+      toolRegistry.registerTool(tool);
+      for (const declarations of [
+        toolRegistry.getFunctionDeclarations(),
+        toolRegistry.getFunctionDeclarationsFiltered(['strict_tool']),
+      ]) {
+        const declaration = declarations.find((d) => d.name === 'strict_tool');
+        expect(intentOf(declaration)).toEqual({
+          type: 'string',
+          description: INTENT_DESCRIPTION,
+        });
+        expect(
+          (declaration?.parametersJsonSchema as { required: string[] })
+            .required,
+        ).toEqual(['path']);
+      }
+      expect(intentOf(tool.schema)).toBeUndefined();
+    });
+
+    it('keeps a tool that declares its own intent as it is', () => {
+      const own = { type: 'number' };
+      toolRegistry.registerTool(
+        new MockTool({
+          name: 'own_intent',
+          params: { type: 'object', properties: { intent: own } },
+        }),
+      );
+      const declaration = toolRegistry
+        .getFunctionDeclarations()
+        .find((d) => d.name === 'own_intent');
+      expect(intentOf(declaration)).toEqual(own);
+    });
+
+    it('injects into direct code-mode tools but not into exec', () => {
+      const config = new Config({ ...baseConfigParams, codeModeOnly: true });
+      const registry = new ToolRegistry(config);
+      registry.registerTool(new MockTool({ name: 'exec' }));
+      registry.registerTool(new MockTool({ name: 'other_tool' }));
+      const declarations = registry.getFunctionDeclarations();
+      expect(
+        intentOf(declarations.find((d) => d.name === 'exec')),
+      ).toBeUndefined();
+      for (const declaration of declarations.filter((d) => d.name !== 'exec')) {
+        expect(intentOf(declaration)).toBeDefined();
+      }
+    });
+  });
 
   describe('registerTool', () => {
     it('should register a new tool', () => {

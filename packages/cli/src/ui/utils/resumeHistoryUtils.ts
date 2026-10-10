@@ -31,6 +31,10 @@ import type {
   IndividualToolCallDisplay,
   InlineImageData,
 } from '../types.js';
+import {
+  declaresOwnIntent,
+  extractIntent,
+} from '@organizaone/o1-code-core/tools/intent-param.js';
 import { ToolCallStatus, MessageType } from '../types.js';
 import { t } from '../../i18n/index.js';
 import { isCollapsibleTool } from '../components/messages/CompactToolGroupDisplay.js';
@@ -524,18 +528,25 @@ function convertToHistoryItems(
         // Track function calls for pairing with results
         for (const fc of functionCalls) {
           const tool = getTool(config, fc.name);
+          // The persisted call still carries the display-only `intent`; split
+          // it off the way the scheduler did when the call ran.
+          const { intent, args } =
+            tool && declaresOwnIntent(tool.schema)
+              ? { intent: undefined, args: fc.args }
+              : extractIntent(fc.args);
 
-          pendingToolCalls.set(fc.id, { name: fc.name, args: fc.args });
+          pendingToolCalls.set(fc.id, { name: fc.name, args });
 
           // Add placeholder tool call to current group
           currentToolGroup.push({
             callId: fc.id,
             name: tool?.displayName || fc.name,
-            description: tool ? formatToolDescription(tool, fc.args) : '',
+            description: tool ? formatToolDescription(tool, args) : '',
             kind: tool?.kind,
             // Rendered inline only when `ui.showToolCallArgs` is on, so a
             // resumed session shows the same args row as a live one.
-            args: fc.args,
+            args,
+            ...(intent ? { intent } : {}),
             resultDisplay: undefined,
             status: ToolCallStatus.Success, // Will be updated by tool_result
             confirmationDetails: undefined,

@@ -42,6 +42,13 @@ vi.mock('../hooks/useTerminalSize.js', () => ({
   useTerminalSize: () => terminal,
 }));
 
+// The Stats tab embeds the /stats dashboard, which needs the session and
+// config providers; these tests cover the panel around it.
+vi.mock('./StatsDialog.js', async () => {
+  const { Text } = await import('ink');
+  return { StatsDialog: () => <Text>STATS_DASHBOARD</Text> };
+});
+
 // Mock the VimModeContext
 const mockToggleVimEnabled = vi.fn();
 const mockSetVimMode = vi.fn();
@@ -225,6 +232,57 @@ describe('SettingsDialog', () => {
   });
 
   describe('Initial Rendering', () => {
+    it.each([80, 160])(
+      'keeps the panel at the available height on every tab at %i columns',
+      async (columns) => {
+        terminal.columns = columns;
+        const height = 30;
+        const { lastFrame, stdin } = render(
+          <KeypressProvider kittyProtocolEnabled={false}>
+            <SettingsDialog
+              settings={createMockSettings()}
+              onSelect={vi.fn()}
+              availableTerminalHeight={height}
+            />
+          </KeypressProvider>,
+        );
+        const rows = () => (lastFrame() ?? '').split('\n').length;
+        expect(rows()).toBe(height);
+        expect(lastFrame()).toContain('Use Enter to select');
+
+        // list -> search -> tab bar, then across Status and Stats.
+        act(() => stdin.write(TerminalKeys.UP_ARROW));
+        act(() => stdin.write(TerminalKeys.UP_ARROW));
+        for (const tab of ['Status', 'Stats']) {
+          act(() => stdin.write(TerminalKeys.RIGHT_ARROW));
+          await waitFor(() => {
+            expect(lastFrame()).not.toContain('Search settings');
+          });
+          await waitFor(() => expect(rows()).toBe(height));
+          expect(lastFrame()).toContain(tab);
+        }
+      },
+    );
+
+    it('uses the available height for more settings rows', () => {
+      terminal.columns = 160;
+      const { lastFrame } = render(
+        <KeypressProvider kittyProtocolEnabled={false}>
+          <SettingsDialog
+            settings={createMockSettings()}
+            onSelect={vi.fn()}
+            availableTerminalHeight={30}
+          />
+        </KeypressProvider>,
+      );
+      const keys = getDialogSettingKeys();
+      expect(keys.length).toBeGreaterThan(12);
+      // Rows beyond the former eight-item cap are on screen.
+      expect(lastFrame()).toContain(
+        getSettingDefinition(keys[9]!)?.label ?? keys[9]!,
+      );
+    });
+
     it.each([120, 160, 210])(
       'bounds long help without growing the panel at %i columns',
       async (columns) => {
@@ -305,9 +363,8 @@ describe('SettingsDialog', () => {
 
       const output = lastFrame();
       expect(output).toContain('Settings');
-      // Scope selector is now in a separate view (Tab to switch)
       expect(output).not.toContain('Apply To');
-      expect(output).toContain('(Use Enter to select, Tab to configure scope)');
+      expect(output).toContain('(Use Enter to select, Tab to switch scope)');
     });
 
     it('should accept availableTerminalHeight prop without errors', () => {
@@ -1486,13 +1543,10 @@ describe('SettingsDialog', () => {
       // Verify the complete UI is rendered (scope is in separate view)
       expect(lastFrame()).toContain('Settings'); // Title
       expect(lastFrame()).toContain('●\uFE0E Tool Approval Mode'); // Active setting
-      expect(lastFrame()).not.toContain('Apply To'); // Scope is in a separate view (Tab to access)
+      expect(lastFrame()).not.toContain('Apply To');
       expect(lastFrame()).toContain(
-        '(Use Enter to select, Tab to configure scope)',
+        '(Use Enter to select, Tab to switch scope)',
       ); // Help text
-
-      // This test validates the complete UI structure is available for user workflow
-      // Scope selection is now accessed via Tab key (view switching like ThemeDialog)
 
       unmount();
     });
@@ -1653,6 +1707,121 @@ describe('SettingsDialog', () => {
       // The search box is shown with its magnifier glyph and placeholder.
       expect(output).toContain('⌕');
       expect(output).toContain('Search settings…');
+
+      unmount();
+    });
+
+    it('marks the tab bar while it has focus, without changing its width', async () => {
+      terminal.columns = 120;
+      const { stdin, lastFrame, unmount } = render(
+        <KeypressProvider kittyProtocolEnabled={false}>
+          <SettingsDialog
+            settings={createMockSettings()}
+            onSelect={vi.fn()}
+            availableTerminalHeight={30}
+          />
+        </KeypressProvider>,
+      );
+      const tabRow = () =>
+        (lastFrame() ?? '').split('\n').find((row) => row.includes('Stats')) ??
+        '';
+      const tabsAt = () => tabRow().indexOf('Settings');
+      const unfocusedAt = tabsAt();
+      expect(tabRow()).not.toContain('❯');
+
+      // list -> search -> tab bar.
+      act(() => stdin.write(TerminalKeys.UP_ARROW));
+      act(() => stdin.write(TerminalKeys.UP_ARROW));
+      await waitFor(() => expect(tabRow()).toContain('❯'));
+      expect(tabRow()).toContain('↓ to return');
+      expect(tabsAt()).toBe(unfocusedAt);
+
+      // Moving across tabs keeps the marker.
+      act(() => stdin.write(TerminalKeys.RIGHT_ARROW));
+      await waitFor(() => expect(lastFrame()).not.toContain('Search settings'));
+      expect(tabRow()).toContain('❯');
+
+      // Back into the content, the marker goes.
+      act(() => stdin.write(TerminalKeys.DOWN_ARROW));
+      await waitFor(() => expect(tabRow()).not.toContain('❯'));
+
+      unmount();
+    });
+
+    it('switches the scope with Tab in place, keeping the list and the cursor', async () => {
+      terminal.columns = 120;
+      const userKeys = getDialogSettingKeys();
+      const workspaceKeys = new Set(
+        getDialogSettingKeys({ excludeWorkspaceRestricted: true }),
+      );
+      // A setting both scopes list, a few rows down.
+      const index = userKeys.findIndex(
+        (key, i) => i >= 2 && workspaceKeys.has(key),
+      );
+      const label = getSettingDefinition(userKeys[index]!)?.label ?? '';
+      expect(label).not.toBe('');
+
+      const { stdin, lastFrame, unmount } = render(
+        <KeypressProvider kittyProtocolEnabled={false}>
+          <SettingsDialog
+            settings={createMockSettings()}
+            onSelect={vi.fn()}
+            availableTerminalHeight={30}
+          />
+        </KeypressProvider>,
+      );
+      expect(lastFrame()).toContain('Scope:  ●︎ User  ○︎ Workspace');
+      expect(lastFrame()).not.toContain('this project only');
+      for (let step = 0; step < index; step++) {
+        act(() => stdin.write(TerminalKeys.DOWN_ARROW));
+        await waitFor(() => expect(lastFrame()).toContain(`${step + 2}/`));
+      }
+      expect(lastFrame()).toContain(`●\uFE0E ${label}`);
+
+      act(() => stdin.write(TerminalKeys.TAB));
+      await waitFor(() =>
+        expect(lastFrame()).toContain(`/${workspaceKeys.size}`),
+      );
+      const frame = lastFrame() ?? '';
+      expect(frame).toContain(`●\uFE0E ${label}`);
+      expect(frame).toContain('Search settings…');
+      expect(frame).not.toContain('Apply To');
+      expect(frame).toContain('Tab to switch scope');
+      expect(frame).toContain(
+        'Scope:  ○︎ User  ●︎ Workspace  · this project only',
+      );
+
+      act(() => stdin.write(TerminalKeys.TAB));
+      await waitFor(() => expect(lastFrame()).toContain(`/${userKeys.length}`));
+      expect(lastFrame()).toContain(`●\uFE0E ${label}`);
+
+      unmount();
+    });
+
+    it('frames the search as an input, with a blank row before the scope', async () => {
+      terminal.columns = 100;
+      const { stdin, lastFrame, unmount } = render(
+        <KeypressProvider kittyProtocolEnabled={false}>
+          <SettingsDialog
+            settings={createMockSettings()}
+            onSelect={vi.fn()}
+            availableTerminalHeight={30}
+          />
+        </KeypressProvider>,
+      );
+      const rowsOf = () => (lastFrame() ?? '').split('\n');
+      const searchRow = rowsOf().findIndex((row) =>
+        row.includes('Search settings…'),
+      );
+      // Frame above and below the search text, then a blank row, then scope.
+      expect(rowsOf()[searchRow - 1]).toContain('╭');
+      expect(rowsOf()[searchRow + 1]).toContain('╰');
+      expect(rowsOf()[searchRow + 2]?.replace(/[│\s]/g, '')).toBe('');
+      expect(rowsOf()[searchRow + 3]).toContain('Scope:');
+
+      // Focused, the empty field shows a cursor before the placeholder.
+      act(() => stdin.write(TerminalKeys.UP_ARROW));
+      await waitFor(() => expect(lastFrame()).toMatch(/⌕ .Search settings…/));
 
       unmount();
     });
@@ -1994,23 +2163,7 @@ describe('SettingsDialog', () => {
       expect(lastFrame()).toMatchSnapshot();
     });
 
-    it('should render focused on scope selector', () => {
-      const settings = createMockSettings();
-      const onSelect = vi.fn();
-
-      const { lastFrame, stdin } = render(
-        <KeypressProvider kittyProtocolEnabled={false}>
-          <SettingsDialog settings={settings} onSelect={onSelect} />
-        </KeypressProvider>,
-      );
-
-      // Switch focus to scope selector with Tab
-      stdin.write('\t');
-
-      expect(lastFrame()).toMatchSnapshot();
-    });
-
-    it('should render with different scope selected (System)', () => {
+    it('should render with system settings in the User scope', () => {
       const settings = createMockSettings(
         {}, // userSettings
         {
@@ -2024,22 +2177,16 @@ describe('SettingsDialog', () => {
       );
       const onSelect = vi.fn();
 
-      const { lastFrame, stdin } = render(
+      const { lastFrame } = render(
         <KeypressProvider kittyProtocolEnabled={false}>
           <SettingsDialog settings={settings} onSelect={onSelect} />
         </KeypressProvider>,
       );
 
-      // Switch to scope selector
-      stdin.write('\t');
-      // Navigate to System scope
-      stdin.write('ArrowDown');
-      stdin.write('\r'); // Enter to select
-
       expect(lastFrame()).toMatchSnapshot();
     });
 
-    it('should render with different scope selected (Workspace)', () => {
+    it('should render with the Workspace scope selected', async () => {
       const settings = createMockSettings(
         {}, // userSettings
         {}, // systemSettings
@@ -2063,12 +2210,9 @@ describe('SettingsDialog', () => {
         </KeypressProvider>,
       );
 
-      // Switch to scope selector
-      stdin.write('\t');
-      // Navigate to Workspace scope (down twice)
-      stdin.write('ArrowDown');
-      stdin.write('ArrowDown');
-      stdin.write('\r'); // Enter to select
+      const before = lastFrame();
+      act(() => stdin.write(TerminalKeys.TAB));
+      await waitFor(() => expect(lastFrame()).not.toBe(before));
 
       expect(lastFrame()).toMatchSnapshot();
     });

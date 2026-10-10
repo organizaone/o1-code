@@ -3654,4 +3654,53 @@ export default {
     'A fonte da loja selecionada mudou durante a validação. Atualize a lista de fontes e tente novamente.',
   'Another marketplace already uses that name or source.':
     'Outra loja já usa esse nome ou essa fonte.',
+  'Display Mode': 'Modo de exibição',
+  'How the agent shows its work. "Detailed" shows code, diffs, commands and outputs. "Summary" shows one plain-language sentence per step; approvals stay mandatory, shell approvals still show the full command, and Ctrl+O shows everything.':
+    'Como o agente mostra o trabalho. "Detalhado" mostra código, diffs, comandos e saídas. "Resumido" mostra uma frase simples por passo; as aprovações continuam obrigatórias, a aprovação de comandos shell mostra o comando completo e o Ctrl+O mostra tudo.',
+  Detailed: 'Detalhado',
+  Summary: 'Resumido',
+  'Using {{server}}/{{tool}}': 'Usando {{server}}/{{tool}}',
+  'Reading {{target}}': 'Lendo {{target}}',
+  'Reading files': 'Lendo arquivos',
+  'Changing {{target}}': 'Alterando {{target}}',
+  'Changing files': 'Alterando arquivos',
+  'Writing {{target}}': 'Escrevendo {{target}}',
+  'Writing files': 'Escrevendo arquivos',
+  'Listing {{target}}': 'Listando {{target}}',
+  'Listing files': 'Listando arquivos',
+  'Searching "{{query}}"': 'Buscando "{{query}}"',
+  'Searching the project': 'Buscando no projeto',
+  'Running {{program}}': 'Rodando {{program}}',
+  'Running a command': 'Rodando um comando',
+  'Delegating to an agent': 'Delegando a um agente',
+  '{{count}} files': '{{count}} arquivos',
+  '{{count}} steps': '{{count}} passos',
+  'Change file': 'Alterar arquivo',
+  'View changes': 'Ver as alterações',
+  'Hide changes': 'Ocultar as alterações',
+  'code {{lang}} · {{count}} lines · ctrl+o':
+    'código {{lang}} · {{count}} linhas · ctrl+o',
+  'code · {{count}} lines · ctrl+o': 'código · {{count}} linhas · ctrl+o',
+  summary: 'resumido',
+  display: 'exibição',
+  'Account connected.': 'Conta conectada.',
+  "How do you want to follow the agent's work?":
+    'Como você quer acompanhar o trabalho do agente?',
+  'as today': 'como hoje',
+  'Shows the code changed, the commands and their output, step by step.':
+    'Mostra o código alterado, os comandos e as saídas, passo a passo.',
+  'Shows only what is being done, in short sentences. Code and commands stay one ctrl+o away.':
+    'Mostra só o que está sendo feito, em frases curtas. Código e comandos ficam a um ctrl+o.',
+  PREVIEW: 'PRÉVIA',
+  'You can change it later in /settings › Display Mode. ctrl+o shows every detail at any time.':
+    'Dá para trocar depois em /settings › Modo de exibição. A qualquer momento, ctrl+o mostra todos os detalhes.',
+  '↑↓ navigate · enter confirm · esc skip':
+    '↑↓ navegar · enter confirmar · esc pular',
+  'Adjust the e-mail validation': 'Ajustar a validação do e-mail',
+  'Run the authentication tests': 'Rodar os testes de autenticação',
+  'Done. Login now ignores spaces around the e-mail.':
+    'Pronto. O login agora ignora espaços no começo e no fim do e-mail.',
+  '(Use Enter to select, Tab to switch scope)':
+    '(Enter seleciona, Tab troca o escopo)',
+  'this project only': 'só neste projeto',
 };

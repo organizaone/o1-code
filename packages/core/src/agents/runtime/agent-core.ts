@@ -112,6 +112,7 @@ import { AgentEventEmitter, AgentEventType } from './agent-events.js';
 import { AgentStatistics, type AgentStatsSummary } from './agent-statistics.js';
 import { matchesToolPattern } from '../../permissions/rule-parser.js';
 import { canonicalToolName, ToolNames } from '../../tools/tool-names.js';
+import { argsWithoutIntent } from '../../tools/intent-param.js';
 import { getToolExposure, ToolMode } from '../../tools/code-mode.js';
 import { DEFAULT_O1CODE_MODEL } from '../../config/models.js';
 import { type ContextState, templateString } from './agent-headless.js';
@@ -2680,7 +2681,7 @@ export class AgentCore {
         return '';
       }
 
-      const toolInstance = tool.build(args);
+      const toolInstance = tool.build(argsWithoutIntent(tool.schema, args));
       return toolInstance.getDescription() || '';
     } catch {
       return '';

@@ -3346,4 +3346,53 @@ export default {
     'The selected marketplace source changed while it was being validated. Refresh the source list and try again.',
   'Another marketplace already uses that name or source.':
     'Another marketplace already uses that name or source.',
+  'Display Mode': 'Display Mode',
+  'How the agent shows its work. "Detailed" shows code, diffs, commands and outputs. "Summary" shows one plain-language sentence per step; approvals stay mandatory, shell approvals still show the full command, and Ctrl+O shows everything.':
+    'How the agent shows its work. "Detailed" shows code, diffs, commands and outputs. "Summary" shows one plain-language sentence per step; approvals stay mandatory, shell approvals still show the full command, and Ctrl+O shows everything.',
+  Detailed: 'Detailed',
+  Summary: 'Summary',
+  'Using {{server}}/{{tool}}': 'Using {{server}}/{{tool}}',
+  'Reading {{target}}': 'Reading {{target}}',
+  'Reading files': 'Reading files',
+  'Changing {{target}}': 'Changing {{target}}',
+  'Changing files': 'Changing files',
+  'Writing {{target}}': 'Writing {{target}}',
+  'Writing files': 'Writing files',
+  'Listing {{target}}': 'Listing {{target}}',
+  'Listing files': 'Listing files',
+  'Searching "{{query}}"': 'Searching "{{query}}"',
+  'Searching the project': 'Searching the project',
+  'Running {{program}}': 'Running {{program}}',
+  'Running a command': 'Running a command',
+  'Delegating to an agent': 'Delegating to an agent',
+  '{{count}} files': '{{count}} files',
+  '{{count}} steps': '{{count}} steps',
+  'Change file': 'Change file',
+  'View changes': 'View changes',
+  'Hide changes': 'Hide changes',
+  'code {{lang}} · {{count}} lines · ctrl+o':
+    'code {{lang}} · {{count}} lines · ctrl+o',
+  'code · {{count}} lines · ctrl+o': 'code · {{count}} lines · ctrl+o',
+  summary: 'summary',
+  display: 'display',
+  'Account connected.': 'Account connected.',
+  "How do you want to follow the agent's work?":
+    "How do you want to follow the agent's work?",
+  'as today': 'as today',
+  'Shows the code changed, the commands and their output, step by step.':
+    'Shows the code changed, the commands and their output, step by step.',
+  'Shows only what is being done, in short sentences. Code and commands stay one ctrl+o away.':
+    'Shows only what is being done, in short sentences. Code and commands stay one ctrl+o away.',
+  PREVIEW: 'PREVIEW',
+  'You can change it later in /settings › Display Mode. ctrl+o shows every detail at any time.':
+    'You can change it later in /settings › Display Mode. ctrl+o shows every detail at any time.',
+  '↑↓ navigate · enter confirm · esc skip':
+    '↑↓ navigate · enter confirm · esc skip',
+  'Adjust the e-mail validation': 'Adjust the e-mail validation',
+  'Run the authentication tests': 'Run the authentication tests',
+  'Done. Login now ignores spaces around the e-mail.':
+    'Done. Login now ignores spaces around the e-mail.',
+  '(Use Enter to select, Tab to switch scope)':
+    '(Use Enter to select, Tab to switch scope)',
+  'this project only': 'this project only',
 };
