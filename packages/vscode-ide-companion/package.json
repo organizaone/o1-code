@@ -3,7 +3,7 @@
   "private": true,
   "displayName": "O1-Code Companion",
   "description": "Enable O1-Code with direct access to your VS Code workspace.",
-  "version": "0.12.1",
+  "version": "0.13.0",
   "publisher": "organizaone",
   "icon": "assets/icon.png",
   "repository": {

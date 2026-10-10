@@ -1,6 +1,6 @@
 {
   "name": "@organizaone/o1-code-external-context-mem0",
-  "version": "0.12.1",
+  "version": "0.13.0",
   "description": "Configurable Mem0-compatible External Context Extension",
   "repository": {
     "type": "git",
