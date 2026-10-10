@@ -10,7 +10,7 @@ import {
   organizaOneKeyExpiryWarning,
 } from '../organizaone-device-state.js';
 
-const BASE = 'https://api.organizago.com';
+const BASE = 'https://api.organizaone.com';
 
 function unauthorized(options: {
   state?: string;
@@ -88,7 +88,7 @@ describe('describeOrganizaOneUnauthorized', () => {
       { tunnel: true },
     );
     expect(expired?.kind).toBe('expired');
-    expect(expired?.message).toContain('https://api.organizago.com/account');
+    expect(expired?.message).toContain('https://api.organizaone.com/account');
   });
 
   it('treats a plain 401 as a removed device', () => {

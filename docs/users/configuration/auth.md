@@ -248,8 +248,8 @@ and Requesty no longer have presets: connect them through **Custom** with their 
 you already saved keeps working.
 
 - **OrganizaOne** → **API key**: enter the device token from the OrganizaOne console and choose
-  the protocol, Anthropic (`https://api.organizago.com`) or OpenAI-compatible
-  (`https://api.organizago.com/v1`). The models come from the account's `/v1/models`.
+  the protocol, Anthropic (`https://api.organizaone.com`) or OpenAI-compatible
+  (`https://api.organizaone.com/v1`). The models come from the account's `/v1/models`.
 - **Anthropic**, **OpenAI** and **Google Gemini**: enter the key from the provider's console; the
   models come from the provider's model list. OpenAI also asks for the API format (Chat Completions
   or Responses).

@@ -32,7 +32,7 @@ describe('reactToOrganizaOneUnauthorized', () => {
       {
         kind: 'expired',
         message: 'This key expired on 2026-10-01.',
-        accountUrl: 'https://api.organizago.com/account',
+        accountUrl: 'https://api.organizaone.com/account',
       },
       { forget, onAuthError },
     );

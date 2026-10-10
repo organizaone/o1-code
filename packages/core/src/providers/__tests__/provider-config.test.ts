@@ -1294,7 +1294,7 @@ describe('getAllProviderBaseUrls', () => {
     const urls = getAllProviderBaseUrlsSrc();
     expect(urls.length).toBeGreaterThan(0);
     expect(urls).toContain('https://api.deepseek.com');
-    expect(urls).toContain('https://api.organizago.com/v1');
+    expect(urls).toContain('https://api.organizaone.com/v1');
     expect(urls).not.toContain('http://127.0.0.1:11434/v1');
   });
 

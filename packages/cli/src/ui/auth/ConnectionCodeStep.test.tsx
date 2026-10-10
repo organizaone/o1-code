@@ -69,7 +69,7 @@ const press = (name: string, sequence = name) => {
 };
 
 const fingerprints = ['3F9A-12C7-0000-1111', 'AB12-CD34-5678-90EF'];
-const info = { device: 'my-laptop', url: 'https://api.organizago.com' };
+const info = { device: 'my-laptop', url: 'https://api.organizaone.com' };
 const session = {
   baseUrl: 'http://127.0.0.1:4242',
   openaiBaseUrl: 'http://127.0.0.1:4242/v1',
@@ -84,7 +84,7 @@ function makeFlow(): ProviderSetupFlow {
       provider: organizaoneO1gwProvider,
       step: 'connectionCode',
       protocol: AuthType.USE_ANTHROPIC,
-      baseUrl: 'https://api.organizago.com',
+      baseUrl: 'https://api.organizaone.com',
     },
     submitConnection: vi.fn(),
     goBack: vi.fn(),

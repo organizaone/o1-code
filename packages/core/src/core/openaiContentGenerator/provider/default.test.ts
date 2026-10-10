@@ -146,7 +146,7 @@ describe('DefaultOpenAICompatibleProvider', () => {
       const organizaOne = new DefaultOpenAICompatibleProvider(
         {
           ...mockContentGeneratorConfig,
-          baseUrl: 'https://api.organizago.com/v1',
+          baseUrl: 'https://api.organizaone.com/v1',
         } as ContentGeneratorConfig,
         mockCliConfig,
       );

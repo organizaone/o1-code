@@ -7,6 +7,12 @@ follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Changed
+
+- The OrganizaOne preset connects to `https://api.organizaone.com` (Anthropic at
+  the root, OpenAI-compatible under `/v1`), where the gateway moved. A provider
+  saved with the previous host must be connected again.
+
 ## [0.13.0] - 2026-10-10
 
 ### Added

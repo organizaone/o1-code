@@ -9,13 +9,14 @@ import { BRAND } from '../../generated/brand.js';
 import type { ProviderConfig } from '../types.js';
 
 /** The proxy host is a constant of the preset; another host is a Custom provider. */
-export const ORGANIZAONE_ANTHROPIC_BASE_URL = 'https://api.organizago.com';
-export const ORGANIZAONE_OPENAI_BASE_URL = 'https://api.organizago.com/v1';
+export const ORGANIZAONE_ANTHROPIC_BASE_URL = 'https://api.organizaone.com';
+export const ORGANIZAONE_OPENAI_BASE_URL = 'https://api.organizaone.com/v1';
 export const ORGANIZAONE_ENV_KEY = 'ORGANIZAONE_API_KEY';
 
 /**
- * The proxy's API host. `models.` is deprecated, and the hosts that serve the
- * console's pages are not the API: neither is the proxy for o1-code.
+ * The proxy's API host. The hosts that serve pages (sign-in approval on
+ * `id.`, the account on `account.`) are not the API: neither is the proxy for
+ * o1-code.
  */
 const ORGANIZAONE_HOST = new URL(ORGANIZAONE_ANTHROPIC_BASE_URL).hostname;
 

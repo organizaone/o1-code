@@ -44,7 +44,7 @@ describe('checkProviderKey', () => {
   });
 
   it('identifies o1-code to the OrganizaOne proxy', async () => {
-    for (const baseUrl of ['https://api.organizago.com/v1']) {
+    for (const baseUrl of ['https://api.organizaone.com/v1']) {
       fetchMock.mockReset();
       respond(200, models);
       await checkProviderKey({
@@ -204,7 +204,7 @@ describe('checkProviderKey', () => {
     });
     const result = await checkProviderKey({
       protocol: 'openai',
-      baseUrl: 'https://api.organizago.com/v1',
+      baseUrl: 'https://api.organizaone.com/v1',
       apiKey: 'device-token',
       staticModels: [],
     });
@@ -242,7 +242,7 @@ describe('checkProviderKey', () => {
     });
     const result = await checkProviderKey({
       protocol: 'openai',
-      baseUrl: 'https://api.organizago.com/v1',
+      baseUrl: 'https://api.organizaone.com/v1',
       apiKey: 'device-token',
       staticModels: [],
     });

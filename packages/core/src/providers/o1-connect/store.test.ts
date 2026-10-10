@@ -30,7 +30,7 @@ describe('createO1ConnectStore', () => {
     const store = createO1ConnectStore(storage);
     expect(await store.get('aipp-connect')).toBeNull();
     const entry = JSON.stringify({
-      url: 'https://api.organizago.com',
+      url: 'https://api.organizaone.com',
       token: 'x',
     });
     await store.set('aipp-connect', entry);

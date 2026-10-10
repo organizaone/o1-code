@@ -258,8 +258,8 @@ describe('fetchKeyInfo', () => {
   });
 
   it('asks /v1/key with the key, beside a base written with or without /v1', async () => {
-    expect(keyInfoUrl('https://api.organizago.com')).toBe(
-      'https://api.organizago.com/v1/key',
+    expect(keyInfoUrl('https://api.organizaone.com')).toBe(
+      'https://api.organizaone.com/v1/key',
     );
     expect(keyInfoUrl('http://127.0.0.1:4242/v1/')).toBe(
       'http://127.0.0.1:4242/v1/key',
@@ -271,13 +271,13 @@ describe('fetchKeyInfo', () => {
       body: Buffer.from(JSON.stringify(keyAnswer)),
     } as unknown as Awaited<ReturnType<typeof fetchWithPolicy>>);
     const info = await fetchKeyInfo({
-      baseUrl: 'https://api.organizago.com/v1',
+      baseUrl: 'https://api.organizaone.com/v1',
       apiKey: ' device-token ',
       clientVersion: '1.2.3',
     });
     expect(info?.plan?.name).toBe('Pro');
     const [url, init] = fetchMock.mock.calls[0]!;
-    expect(url).toBe('https://api.organizago.com/v1/key');
+    expect(url).toBe('https://api.organizaone.com/v1/key');
     expect(init?.headers).toMatchObject({
       Authorization: 'Bearer device-token',
       'X-Title': 'o1-code',
@@ -291,11 +291,11 @@ describe('fetchKeyInfo', () => {
       body: Buffer.from('{}'),
     } as unknown as Awaited<ReturnType<typeof fetchWithPolicy>>);
     await expect(
-      fetchKeyInfo({ baseUrl: 'https://api.organizago.com', apiKey: 'k' }),
+      fetchKeyInfo({ baseUrl: 'https://api.organizaone.com', apiKey: 'k' }),
     ).resolves.toBeNull();
     fetchMock.mockRejectedValue(new Error('offline'));
     await expect(
-      fetchKeyInfo({ baseUrl: 'https://api.organizago.com', apiKey: 'k' }),
+      fetchKeyInfo({ baseUrl: 'https://api.organizaone.com', apiKey: 'k' }),
     ).resolves.toBeNull();
   });
 });
@@ -303,7 +303,7 @@ describe('fetchKeyInfo', () => {
 describe('reachesOrganizaOne', () => {
   it('holds for the proxy and its tunnel only', () => {
     expect(
-      reachesOrganizaOne({ baseUrl: 'https://api.organizago.com/v1' }),
+      reachesOrganizaOne({ baseUrl: 'https://api.organizaone.com/v1' }),
     ).toBe(true);
     expect(
       reachesOrganizaOne({

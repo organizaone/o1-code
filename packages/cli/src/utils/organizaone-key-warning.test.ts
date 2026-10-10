@@ -12,7 +12,7 @@ const now = Date.parse('2026-10-04T12:00:00Z');
 describe('organizaOneStartupWarnings', () => {
   it('warns when the active OrganizaOne key expires within seven days', () => {
     const warnings = organizaOneStartupWarnings({
-      baseUrl: 'https://api.organizago.com',
+      baseUrl: 'https://api.organizaone.com',
       readCredential: () => ({
         apiKey: 'o1gw_x',
         savedAt: '',
@@ -22,7 +22,7 @@ describe('organizaOneStartupWarnings', () => {
     });
     expect(warnings).toHaveLength(1);
     expect(warnings[0]).toContain('expires on 2026-10-08');
-    expect(warnings[0]).toContain('https://api.organizago.com/account');
+    expect(warnings[0]).toContain('https://api.organizaone.com/account');
   });
 
   it('stays quiet for another provider, a key without expiry, or a far expiry', () => {
@@ -39,14 +39,14 @@ describe('organizaOneStartupWarnings', () => {
     ).toEqual([]);
     expect(
       organizaOneStartupWarnings({
-        baseUrl: 'https://api.organizago.com',
+        baseUrl: 'https://api.organizaone.com',
         readCredential: () => ({ apiKey: 'k', savedAt: '' }),
         now,
       }),
     ).toEqual([]);
     expect(
       organizaOneStartupWarnings({
-        baseUrl: 'https://api.organizago.com',
+        baseUrl: 'https://api.organizaone.com',
         readCredential: () => ({
           apiKey: 'k',
           savedAt: '',
@@ -57,7 +57,7 @@ describe('organizaOneStartupWarnings', () => {
     ).toEqual([]);
     expect(
       organizaOneStartupWarnings({
-        baseUrl: 'https://api.organizago.com',
+        baseUrl: 'https://api.organizaone.com',
         readCredential: () => undefined,
         now,
       }),
