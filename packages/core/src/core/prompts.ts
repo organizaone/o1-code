@@ -19,6 +19,7 @@ import {
   resolveEffectiveOutputStyle,
 } from './output-styles.js';
 import type { OutputStyleDefinition } from './output-styles.js';
+import type { UiDisplayMode } from '../config/config.js';
 
 const debugLogger = createDebugLogger('PROMPTS');
 
@@ -836,6 +837,31 @@ export function getCoreSystemPrompt(
 function buildSystemPromptSuffix(text?: string): string {
   const trimmed = text?.trim();
   return trimmed ? `\n\n---\n\n${trimmed}` : '';
+}
+
+export const SUMMARY_MODE_PROMPT = `# Display mode: Summary
+
+The user chose the Summary display mode: they follow your work through short sentences and do not read code.
+
+- Write in plain language. Say what you are doing and why, not how.
+- Do not include code blocks, diffs, file contents or full commands unless the user asks for them. Name a file only when it helps the user.
+- Always state the risks, caveats and failed checks, and anything the user must decide or do. Summary never means leaving those out.`;
+
+/**
+ * Adds the Summary display-mode block after the base prompt of an
+ * interactive main session. It applies on top of an output style and of a
+ * replaced base prompt alike: it is the reader's preference, not part of the
+ * prompt's content. Headless and ACP sessions have no such screen.
+ */
+export function withDisplayModePrompt(
+  prompt: string,
+  displayMode: UiDisplayMode | undefined,
+  interactionMode: SystemPromptInteractionMode,
+): string {
+  if (displayMode !== 'summary' || interactionMode !== 'interactive') {
+    return prompt;
+  }
+  return `${prompt}${buildSystemPromptSuffix(SUMMARY_MODE_PROMPT)}`;
 }
 
 /**

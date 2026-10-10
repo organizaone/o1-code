@@ -2142,6 +2142,26 @@ describe('Gemini Client (client.ts)', () => {
       );
     });
 
+    it('rebinds the Summary display-mode block when the mode changes', async () => {
+      vi.mocked(getCoreSystemPrompt).mockReturnValue('Base instruction');
+      let displayMode: 'detailed' | 'summary' = 'detailed';
+      Object.assign(mockConfig, { getDisplayMode: () => displayMode });
+      vi.mocked(mockConfig.isInteractive).mockReturnValue(true);
+
+      await client.startChat(undefined, SessionStartSource.Startup);
+      const instruction = () =>
+        String(client.getChat()['generationConfig'].systemInstruction);
+      expect(instruction()).not.toContain('# Display mode: Summary');
+
+      displayMode = 'summary';
+      await client.refreshSystemInstruction();
+      expect(instruction()).toContain('# Display mode: Summary');
+
+      displayMode = 'detailed';
+      await client.refreshSystemInstruction();
+      expect(instruction()).not.toContain('# Display mode: Summary');
+    });
+
     it('maps AUTO_EDIT approval mode to PermissionMode.AutoEdit for SessionStart hooks', async () => {
       const hookSystem = {
         fireSessionStartEvent: vi.fn().mockResolvedValue(undefined),

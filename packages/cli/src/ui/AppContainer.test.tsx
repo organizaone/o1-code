@@ -5219,6 +5219,39 @@ describe('AppContainer State Management', () => {
       expect(capturedRenderMode).toBe('render');
     });
 
+    it('applies a change of ui.displayMode to the session config', () => {
+      const setDisplayMode = vi.spyOn(mockConfig, 'setDisplayMode');
+      const withMode = (displayMode: string) =>
+        ({
+          ...mockSettings,
+          merged: {
+            ...mockSettings.merged,
+            ui: { ...mockSettings.merged.ui, displayMode },
+          },
+        }) as unknown as LoadedSettings;
+
+      const { rerender } = render(
+        <AppContainer
+          config={mockConfig}
+          settings={withMode('detailed')}
+          version="1.0.0"
+          initializationResult={mockInitResult}
+        />,
+      );
+      expect(setDisplayMode).not.toHaveBeenCalled();
+
+      rerender(
+        <AppContainer
+          config={mockConfig}
+          settings={withMode('summary')}
+          version="1.0.0"
+          initializationResult={mockInitResult}
+        />,
+      );
+      expect(setDisplayMode).toHaveBeenCalledTimes(1);
+      expect(setDisplayMode).toHaveBeenCalledWith('summary');
+    });
+
     it('computes render mode toggles from the global render shortcut', () => {
       const optionMKey: Key = {
         name: 'm',

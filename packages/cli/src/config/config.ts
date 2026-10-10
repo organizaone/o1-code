@@ -2605,6 +2605,8 @@ export async function loadCliConfig(
     omniStorageMaxTotalBytes: settings.omni?.storage?.maxTotalBytes,
     omniMemory: settings.omni?.memory as Record<string, unknown> | undefined,
     emitToolUseSummaries: settings.experimental?.emitToolUseSummaries ?? true,
+    displayMode:
+      settings.ui?.displayMode === 'summary' ? 'summary' : 'detailed',
     listExtensions: argv.listExtensions || false,
     locale: resolveLocaleForExtensions(settings),
     overrideExtensions: overrideExtensions || argv.extensions,

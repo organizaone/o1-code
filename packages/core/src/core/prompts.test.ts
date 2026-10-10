@@ -15,6 +15,8 @@ import {
   getCompressionPrompt,
   resolveInteractionMode,
   resolveMainSessionOutputStyle,
+  SUMMARY_MODE_PROMPT,
+  withDisplayModePrompt,
 } from './prompts.js';
 // The base-prompt builder lives with the client that calls it; these tests
 // pin it against the resolver here so the prompt and the per-turn reminder
@@ -2196,5 +2198,87 @@ describe('assembleSystemPrompt', () => {
     });
 
     expect(viaParams).toBe(viaAssembler);
+  });
+});
+
+describe('Summary display mode block', () => {
+  const makeConfig = (opts: {
+    displayMode?: 'detailed' | 'summary';
+    customPrompt?: string;
+    style?: OutputStyleDefinition;
+    interactive?: boolean;
+    acp?: boolean;
+  }) => ({
+    getSystemPrompt: () => opts.customPrompt,
+    getModel: () => 'test-model',
+    getOutputStyle: () => opts.style,
+    getCodeModeOnly: () => false,
+    getExperimentalZedIntegration: () => opts.acp ?? false,
+    getInputFormat: () => InputFormat.TEXT,
+    isInteractive: () => opts.interactive ?? true,
+    isTodoWriteEnabled: () => false,
+    getDisplayMode: () => opts.displayMode ?? 'detailed',
+  });
+
+  beforeEach(() => {
+    vi.resetAllMocks();
+    vi.stubEnv('O1CODE_SYSTEM_MD', undefined);
+    vi.stubEnv('O1CODE_SYSTEM_IDENTITY_MD', undefined);
+    vi.stubEnv('O1CODE_WRITE_SYSTEM_MD', undefined);
+  });
+
+  afterEach(() => {
+    vi.unstubAllEnvs();
+  });
+
+  it('is added only for Summary in an interactive session', () => {
+    expect(
+      getMainSessionBaseSystemPrompt(makeConfig({ displayMode: 'summary' })),
+    ).toContain(SUMMARY_MODE_PROMPT);
+    for (const config of [
+      makeConfig({}),
+      makeConfig({ displayMode: 'summary', interactive: false }),
+      makeConfig({ displayMode: 'summary', acp: true }),
+    ]) {
+      expect(getMainSessionBaseSystemPrompt(config)).not.toContain(
+        '# Display mode: Summary',
+      );
+    }
+  });
+
+  it('keeps the base prompt intact and comes after an output style', () => {
+    const style = getBuiltInOutputStyle('Concise')!;
+    const detailed = getMainSessionBaseSystemPrompt(makeConfig({ style }));
+    const summary = getMainSessionBaseSystemPrompt(
+      makeConfig({ style, displayMode: 'summary' }),
+    );
+    expect(summary.startsWith(detailed)).toBe(true);
+    expect(summary.indexOf('# Display mode: Summary')).toBeGreaterThan(
+      summary.indexOf('# Output Style:'),
+    );
+  });
+
+  it('applies over a replaced system prompt', () => {
+    expect(
+      getMainSessionBaseSystemPrompt(
+        makeConfig({ displayMode: 'summary', customPrompt: 'You are terse.' }),
+      ),
+    ).toContain('# Display mode: Summary');
+
+    vi.stubEnv('O1CODE_SYSTEM_MD', 'true');
+    vi.mocked(fs.existsSync).mockReturnValue(true);
+    vi.mocked(fs.readFileSync).mockReturnValue('custom system prompt');
+    const prompt = getMainSessionBaseSystemPrompt(
+      makeConfig({ displayMode: 'summary' }),
+    );
+    expect(prompt).toContain('custom system prompt');
+    expect(prompt).toContain('# Display mode: Summary');
+  });
+
+  it('asks for risks and caveats to be stated', () => {
+    expect(SUMMARY_MODE_PROMPT).toContain('Always state the risks');
+    expect(withDisplayModePrompt('base', 'detailed', 'interactive')).toBe(
+      'base',
+    );
   });
 });

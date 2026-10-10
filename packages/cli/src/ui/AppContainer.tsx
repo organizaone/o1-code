@@ -247,6 +247,7 @@ import {
   RenderModeProvider,
   type RenderMode,
 } from './contexts/RenderModeContext.js';
+import { resolveDisplayMode } from './hooks/use-display-mode.js';
 import { TerminalOutputProvider } from './contexts/TerminalOutputContext.js';
 import { useAgentViewState } from './contexts/AgentViewContext.js';
 import {
@@ -3957,6 +3958,21 @@ export const AppContainer = (props: AppContainerProps) => {
 
     refreshStatic();
   }, [renderMode, refreshStatic]);
+  // Config starts with the configured mode; a later change of the setting
+  // rebinds the system instruction for the next turn and redraws history.
+  const configuredDisplayMode = resolveDisplayMode(
+    settings.merged.ui?.displayMode,
+  );
+  const displayModeMountedRef = useRef(false);
+  useEffect(() => {
+    if (!displayModeMountedRef.current) {
+      displayModeMountedRef.current = true;
+      return;
+    }
+    config.setDisplayMode(configuredDisplayMode);
+    void config.getLlmClient()?.refreshSystemInstruction();
+    refreshStatic();
+  }, [config, configuredDisplayMode, refreshStatic]);
   const [ctrlCPressedOnce, setCtrlCPressedOnce] = useState(false);
   const ctrlCTimerRef = useRef<NodeJS.Timeout | null>(null);
   const [ctrlDPressedOnce, setCtrlDPressedOnce] = useState(false);

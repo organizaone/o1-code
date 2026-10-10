@@ -69,6 +69,7 @@ import {
   getPlanModeSystemReminder,
   resolveInteractionMode,
   resolveMainSessionOutputStyle,
+  withDisplayModePrompt,
 } from './prompts.js';
 import { buildOmniMediaGuidanceSection } from '../omni/media-guidance.js';
 import { getOutputStyleTurnReminder } from './output-styles.js';
@@ -374,13 +375,24 @@ type MainSessionPromptConfig = Pick<
   Partial<
     Pick<
       Config,
-      'isTrustedFolder' | 'getPromptToolSnapshot' | 'getShellExecutionSandbox'
+      | 'isTrustedFolder'
+      | 'getPromptToolSnapshot'
+      | 'getShellExecutionSandbox'
+      | 'getDisplayMode'
     >
   >;
 
 export function getMainSessionBaseSystemPrompt(
   config: MainSessionPromptConfig,
 ): string {
+  return withDisplayModePrompt(
+    getMainSessionPromptBody(config),
+    config.getDisplayMode?.(),
+    resolveInteractionMode(config),
+  );
+}
+
+function getMainSessionPromptBody(config: MainSessionPromptConfig): string {
   const overrideSystemPrompt = config.getSystemPrompt();
   return overrideSystemPrompt
     ? getCustomSystemPrompt(overrideSystemPrompt)

@@ -5,10 +5,11 @@
  */
 
 import { useContext } from 'react';
+import type { UiDisplayMode as DisplayMode } from '@organizaone/o1-code-core/config/config.js';
 import { SettingsContext } from '../contexts/SettingsContext.js';
 import { useThoughtExpanded } from '../contexts/ThoughtExpandedContext.js';
 
-export type DisplayMode = 'detailed' | 'summary';
+export type { DisplayMode };
 
 export const DEFAULT_DISPLAY_MODE: DisplayMode = 'detailed';
 

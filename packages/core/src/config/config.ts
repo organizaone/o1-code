@@ -964,6 +964,9 @@ export interface SessionWorkflowPlanRevision {
 /** `goals.modelProposed`: whether the model may propose a Goal for approval. */
 export type ModelProposedGoalsMode = 'alwaysAsk' | 'disabled';
 
+/** `ui.displayMode`: how the interactive interface shows the agent's work. */
+export type UiDisplayMode = 'detailed' | 'summary';
+
 export interface ConfigParameters {
   agentExecutionBackend?: 'container';
   executionEnvironmentFactory?: ExecutionEnvironmentFactory;
@@ -1289,6 +1292,8 @@ export interface ConfigParameters {
    */
   workflowNameOnly?: boolean;
   emitToolUseSummaries?: boolean;
+  /** How the interactive interface shows the agent's work (`ui.displayMode`). */
+  displayMode?: UiDisplayMode;
   listExtensions?: boolean;
   overrideExtensions?: string[];
   /** Locale code for resolving localizable extension fields (e.g., 'en', 'zh'). */
@@ -2945,6 +2950,7 @@ export class Config {
   private workflowSizeGuideline: WorkflowSizeGuideline | undefined;
   private readonly workflowNameOnly: boolean;
   private readonly emitToolUseSummaries: boolean = true;
+  private displayMode: UiDisplayMode = 'detailed';
   private readonly chatRecordingEnabled: boolean;
   private readonly loadMemoryFromIncludeDirectories: boolean = false;
   private readonly importFormat: 'tree' | 'flat';
@@ -3353,6 +3359,7 @@ export class Config {
       process.env['O1CODE_WORKFLOW_NAME_ONLY'] === '1';
     this.workflowRunRegistry.setNameOnly(this.workflowNameOnly);
     this.emitToolUseSummaries = params.emitToolUseSummaries ?? true;
+    this.displayMode = params.displayMode ?? 'detailed';
     this.listExtensions = params.listExtensions ?? false;
     this.overrideExtensions = params.overrideExtensions;
     this.noBrowser = params.noBrowser ?? false;
@@ -9536,6 +9543,18 @@ export class Config {
     if (env === '0' || env === 'false') return false;
     if (env === '1' || env === 'true') return true;
     return this.emitToolUseSummaries;
+  }
+
+  getDisplayMode(): UiDisplayMode {
+    return this.displayMode;
+  }
+
+  /**
+   * Takes effect on the next system-instruction build; callers that change
+   * it mid-session refresh the live chat (`LlmClient.refreshSystemInstruction`).
+   */
+  setDisplayMode(mode: UiDisplayMode): void {
+    this.displayMode = mode;
   }
 
   getEnableRecursiveFileSearch(): boolean {
