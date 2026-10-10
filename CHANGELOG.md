@@ -20,6 +20,15 @@ follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   step of connecting a provider and can be changed in `/settings`; Detailed
   stays the default.
 
+### Changed
+
+- `/config` keeps one size across Settings, Status and Stats, fills the rows it
+  has with settings, and hides the conversation frame while it is open. Tab
+  switches between the User and Workspace scopes in place, keeping the list and
+  the cursor, instead of opening a separate screen; the scope has its own
+  colours, amber for Workspace. The search is drawn as an input field, and the
+  tab bar shows when it has focus.
+
 ### Fixed
 
 - Plans and designs are saved where the project keeps them, or else in
