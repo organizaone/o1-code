@@ -363,9 +363,8 @@ describe('SettingsDialog', () => {
 
       const output = lastFrame();
       expect(output).toContain('Settings');
-      // Scope selector is now in a separate view (Tab to switch)
       expect(output).not.toContain('Apply To');
-      expect(output).toContain('(Use Enter to select, Tab to configure scope)');
+      expect(output).toContain('(Use Enter to select, Tab to switch scope)');
     });
 
     it('should accept availableTerminalHeight prop without errors', () => {
@@ -1544,13 +1543,10 @@ describe('SettingsDialog', () => {
       // Verify the complete UI is rendered (scope is in separate view)
       expect(lastFrame()).toContain('Settings'); // Title
       expect(lastFrame()).toContain('●\uFE0E Tool Approval Mode'); // Active setting
-      expect(lastFrame()).not.toContain('Apply To'); // Scope is in a separate view (Tab to access)
+      expect(lastFrame()).not.toContain('Apply To');
       expect(lastFrame()).toContain(
-        '(Use Enter to select, Tab to configure scope)',
+        '(Use Enter to select, Tab to switch scope)',
       ); // Help text
-
-      // This test validates the complete UI structure is available for user workflow
-      // Scope selection is now accessed via Tab key (view switching like ThemeDialog)
 
       unmount();
     });
@@ -1711,6 +1707,52 @@ describe('SettingsDialog', () => {
       // The search box is shown with its magnifier glyph and placeholder.
       expect(output).toContain('⌕');
       expect(output).toContain('Search settings…');
+
+      unmount();
+    });
+
+    it('switches the scope with Tab in place, keeping the list and the cursor', async () => {
+      terminal.columns = 120;
+      const userKeys = getDialogSettingKeys();
+      const workspaceKeys = new Set(
+        getDialogSettingKeys({ excludeWorkspaceRestricted: true }),
+      );
+      // A setting both scopes list, a few rows down.
+      const index = userKeys.findIndex(
+        (key, i) => i >= 2 && workspaceKeys.has(key),
+      );
+      const label = getSettingDefinition(userKeys[index]!)?.label ?? '';
+      expect(label).not.toBe('');
+
+      const { stdin, lastFrame, unmount } = render(
+        <KeypressProvider kittyProtocolEnabled={false}>
+          <SettingsDialog
+            settings={createMockSettings()}
+            onSelect={vi.fn()}
+            availableTerminalHeight={30}
+          />
+        </KeypressProvider>,
+      );
+      expect(lastFrame()).toContain('Scope: User · Workspace');
+      for (let step = 0; step < index; step++) {
+        act(() => stdin.write(TerminalKeys.DOWN_ARROW));
+        await waitFor(() => expect(lastFrame()).toContain(`${step + 2}/`));
+      }
+      expect(lastFrame()).toContain(`●\uFE0E ${label}`);
+
+      act(() => stdin.write(TerminalKeys.TAB));
+      await waitFor(() =>
+        expect(lastFrame()).toContain(`/${workspaceKeys.size}`),
+      );
+      const frame = lastFrame() ?? '';
+      expect(frame).toContain(`●\uFE0E ${label}`);
+      expect(frame).toContain('Search settings…');
+      expect(frame).not.toContain('Apply To');
+      expect(frame).toContain('Tab to switch scope');
+
+      act(() => stdin.write(TerminalKeys.TAB));
+      await waitFor(() => expect(lastFrame()).toContain(`/${userKeys.length}`));
+      expect(lastFrame()).toContain(`●\uFE0E ${label}`);
 
       unmount();
     });
@@ -2052,23 +2094,7 @@ describe('SettingsDialog', () => {
       expect(lastFrame()).toMatchSnapshot();
     });
 
-    it('should render focused on scope selector', () => {
-      const settings = createMockSettings();
-      const onSelect = vi.fn();
-
-      const { lastFrame, stdin } = render(
-        <KeypressProvider kittyProtocolEnabled={false}>
-          <SettingsDialog settings={settings} onSelect={onSelect} />
-        </KeypressProvider>,
-      );
-
-      // Switch focus to scope selector with Tab
-      stdin.write('\t');
-
-      expect(lastFrame()).toMatchSnapshot();
-    });
-
-    it('should render with different scope selected (System)', () => {
+    it('should render with system settings in the User scope', () => {
       const settings = createMockSettings(
         {}, // userSettings
         {
@@ -2082,22 +2108,16 @@ describe('SettingsDialog', () => {
       );
       const onSelect = vi.fn();
 
-      const { lastFrame, stdin } = render(
+      const { lastFrame } = render(
         <KeypressProvider kittyProtocolEnabled={false}>
           <SettingsDialog settings={settings} onSelect={onSelect} />
         </KeypressProvider>,
       );
 
-      // Switch to scope selector
-      stdin.write('\t');
-      // Navigate to System scope
-      stdin.write('ArrowDown');
-      stdin.write('\r'); // Enter to select
-
       expect(lastFrame()).toMatchSnapshot();
     });
 
-    it('should render with different scope selected (Workspace)', () => {
+    it('should render with the Workspace scope selected', async () => {
       const settings = createMockSettings(
         {}, // userSettings
         {}, // systemSettings
@@ -2121,12 +2141,9 @@ describe('SettingsDialog', () => {
         </KeypressProvider>,
       );
 
-      // Switch to scope selector
-      stdin.write('\t');
-      // Navigate to Workspace scope (down twice)
-      stdin.write('ArrowDown');
-      stdin.write('ArrowDown');
-      stdin.write('\r'); // Enter to select
+      const before = lastFrame();
+      act(() => stdin.write(TerminalKeys.TAB));
+      await waitFor(() => expect(lastFrame()).not.toBe(before));
 
       expect(lastFrame()).toMatchSnapshot();
     });

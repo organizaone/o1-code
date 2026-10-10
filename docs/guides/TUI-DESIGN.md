@@ -408,8 +408,12 @@ never leaves; it only shortens from the start.
   Stats keep one size while switching tabs. The settings list fills the rows it
   has and the footer stays at the bottom. In full-screen mode the conversation
   frame is hidden while the panel is open and returns when it closes.
-  The selected scope appears beside the search area and the footer shows the
-  selected position. At 120 columns and sufficient height, the selected setting's
+  Under the search box, `Scope: User · Workspace` is a toggle with the active
+  scope in brand bold. Tab switches it in place: the list stays, its values
+  follow the new scope, and the cursor stays on the same setting (or the nearest
+  row when the Workspace list leaves it out). There is no separate scope screen,
+  and Tab waits while a value is being edited. The footer shows the selected
+  position. At 120 columns and sufficient height, the selected setting's
   canonical key and description appear on the right; narrower terminals keep
   the description below the list. The help column takes its height from the
   visible list and search area; long descriptions end with an ellipsis instead

@@ -3392,4 +3392,6 @@ export default {
   'Run the authentication tests': 'Run the authentication tests',
   'Done. Login now ignores spaces around the e-mail.':
     'Done. Login now ignores spaces around the e-mail.',
+  '(Use Enter to select, Tab to switch scope)':
+    '(Use Enter to select, Tab to switch scope)',
 };

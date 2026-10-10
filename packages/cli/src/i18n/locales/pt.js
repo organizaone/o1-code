@@ -3700,4 +3700,6 @@ export default {
   'Run the authentication tests': 'Rodar os testes de autenticação',
   'Done. Login now ignores spaces around the e-mail.':
     'Pronto. O login agora ignora espaços no começo e no fim do e-mail.',
+  '(Use Enter to select, Tab to switch scope)':
+    '(Enter seleciona, Tab troca o escopo)',
 };

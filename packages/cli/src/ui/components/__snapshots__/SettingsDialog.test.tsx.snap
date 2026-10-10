@@ -5,7 +5,7 @@ exports[`SettingsDialog > Snapshot Tests > should render default state correctly
 │  Settings    Status    Stats   (↑ to switch tabs)                        │
 │                                                                          │
 │ ⌕ Search settings…                                                       │
-│ Scope: User Settings                                                     │
+│ Scope: User · Workspace                                                  │
 │                                                                          │
 │ ●︎ Tool Approval Mode                                                Auto │
 │   Code Mode Only (Experimental)                                    false │
@@ -18,29 +18,7 @@ exports[`SettingsDialog > Snapshot Tests > should render default state correctly
 │ ▼                                                                        │
 │                                                                          │
 │ Approval mode for tool usage. Controls how tools are approved before ex… │
-│ (Use Enter to select, Tab to configure scope)                       1/79 │
-╰──────────────────────────────────────────────────────────────────────────╯"
-`;
-
-exports[`SettingsDialog > Snapshot Tests > should render focused on scope selector 1`] = `
-"╭──────────────────────────────────────────────────────────────────────────╮
-│  Settings    Status    Stats   (↑ to switch tabs)                        │
-│                                                                          │
-│ ⌕ Search settings…                                                       │
-│ Scope: User Settings                                                     │
-│                                                                          │
-│ ●︎ Tool Approval Mode                                                Auto │
-│   Code Mode Only (Experimental)                                    false │
-│   Language: UI                                 Auto (detect from system) │
-│   Language: Model                               Auto (follow user input) │
-│   Theme                                                   O1-Code Dark ▸ │
-│   Display Mode                                                  Detailed │
-│   Vim Mode                                                         false │
-│   Interactive Shell (PTY)                                      (not set) │
-│ ▼                                                                        │
-│                                                                          │
-│ Approval mode for tool usage. Controls how tools are approved before ex… │
-│ (Use Enter to select, Tab to configure scope)                       1/79 │
+│ (Use Enter to select, Tab to switch scope)                          1/79 │
 ╰──────────────────────────────────────────────────────────────────────────╯"
 `;
 
@@ -49,7 +27,7 @@ exports[`SettingsDialog > Snapshot Tests > should render with accessibility sett
 │  Settings    Status    Stats   (↑ to switch tabs)                        │
 │                                                                          │
 │ ⌕ Search settings…                                                       │
-│ Scope: User Settings                                                     │
+│ Scope: User · Workspace                                                  │
 │                                                                          │
 │ ●︎ Tool Approval Mode                                                Auto │
 │   Code Mode Only (Experimental)                                    false │
@@ -62,7 +40,7 @@ exports[`SettingsDialog > Snapshot Tests > should render with accessibility sett
 │ ▼                                                                        │
 │                                                                          │
 │ Approval mode for tool usage. Controls how tools are approved before ex… │
-│ (Use Enter to select, Tab to configure scope)                       1/79 │
+│ (Use Enter to select, Tab to switch scope)                          1/79 │
 ╰──────────────────────────────────────────────────────────────────────────╯"
 `;
 
@@ -71,7 +49,7 @@ exports[`SettingsDialog > Snapshot Tests > should render with all boolean settin
 │  Settings    Status    Stats   (↑ to switch tabs)                        │
 │                                                                          │
 │ ⌕ Search settings…                                                       │
-│ Scope: User Settings                                                     │
+│ Scope: User · Workspace                                                  │
 │                                                                          │
 │ ●︎ Tool Approval Mode                                                Auto │
 │   Code Mode Only (Experimental)                                    false │
@@ -84,16 +62,60 @@ exports[`SettingsDialog > Snapshot Tests > should render with all boolean settin
 │ ▼                                                                        │
 │                                                                          │
 │ Approval mode for tool usage. Controls how tools are approved before ex… │
-│ (Use Enter to select, Tab to configure scope)                       1/79 │
+│ (Use Enter to select, Tab to switch scope)                          1/79 │
 ╰──────────────────────────────────────────────────────────────────────────╯"
 `;
 
-exports[`SettingsDialog > Snapshot Tests > should render with different scope selected (System) 1`] = `
+exports[`SettingsDialog > Snapshot Tests > should render with file filtering settings configured 1`] = `
 "╭──────────────────────────────────────────────────────────────────────────╮
 │  Settings    Status    Stats   (↑ to switch tabs)                        │
 │                                                                          │
 │ ⌕ Search settings…                                                       │
-│ Scope: User Settings                                                     │
+│ Scope: User · Workspace                                                  │
+│                                                                          │
+│ ●︎ Tool Approval Mode                                                Auto │
+│   Code Mode Only (Experimental)                                    false │
+│   Language: UI                                 Auto (detect from system) │
+│   Language: Model                               Auto (follow user input) │
+│   Theme                                                   O1-Code Dark ▸ │
+│   Display Mode                                                  Detailed │
+│   Vim Mode                                                         false │
+│   Interactive Shell (PTY)                                      (not set) │
+│ ▼                                                                        │
+│                                                                          │
+│ Approval mode for tool usage. Controls how tools are approved before ex… │
+│ (Use Enter to select, Tab to switch scope)                          1/79 │
+╰──────────────────────────────────────────────────────────────────────────╯"
+`;
+
+exports[`SettingsDialog > Snapshot Tests > should render with mixed boolean and number settings 1`] = `
+"╭──────────────────────────────────────────────────────────────────────────╮
+│  Settings    Status    Stats   (↑ to switch tabs)                        │
+│                                                                          │
+│ ⌕ Search settings…                                                       │
+│ Scope: User · Workspace                                                  │
+│                                                                          │
+│ ●︎ Tool Approval Mode                                                Auto │
+│   Code Mode Only (Experimental)                                    false │
+│   Language: UI                                 Auto (detect from system) │
+│   Language: Model                               Auto (follow user input) │
+│   Theme                                                   O1-Code Dark ▸ │
+│   Display Mode                                                  Detailed │
+│   Vim Mode                                                        false* │
+│   Interactive Shell (PTY)                                      (not set) │
+│ ▼                                                                        │
+│                                                                          │
+│ Approval mode for tool usage. Controls how tools are approved before ex… │
+│ (Use Enter to select, Tab to switch scope)                          1/79 │
+╰──────────────────────────────────────────────────────────────────────────╯"
+`;
+
+exports[`SettingsDialog > Snapshot Tests > should render with system settings in the User scope 1`] = `
+"╭──────────────────────────────────────────────────────────────────────────╮
+│  Settings    Status    Stats   (↑ to switch tabs)                        │
+│                                                                          │
+│ ⌕ Search settings…                                                       │
+│ Scope: User · Workspace                                                  │
 │                                                                          │
 │ ●︎ Tool Approval Mode                                                Auto │
 │   Code Mode Only (Experimental)                                    false │
@@ -106,60 +128,16 @@ exports[`SettingsDialog > Snapshot Tests > should render with different scope se
 │ ▼                                                                        │
 │                                                                          │
 │ Approval mode for tool usage. Controls how tools are approved before ex… │
-│ (Use Enter to select, Tab to configure scope)                       1/79 │
+│ (Use Enter to select, Tab to switch scope)                          1/79 │
 ╰──────────────────────────────────────────────────────────────────────────╯"
 `;
 
-exports[`SettingsDialog > Snapshot Tests > should render with different scope selected (Workspace) 1`] = `
+exports[`SettingsDialog > Snapshot Tests > should render with the Workspace scope selected 1`] = `
 "╭──────────────────────────────────────────────────────────────────────────╮
 │  Settings    Status    Stats   (↑ to switch tabs)                        │
 │                                                                          │
 │ ⌕ Search settings…                                                       │
-│ Scope: User Settings                                                     │
-│                                                                          │
-│ ●︎ Tool Approval Mode                                                Auto │
-│   Code Mode Only (Experimental)                                    false │
-│   Language: UI                                 Auto (detect from system) │
-│   Language: Model                               Auto (follow user input) │
-│   Theme                                                   O1-Code Dark ▸ │
-│   Display Mode                                                  Detailed │
-│   Vim Mode (Modified in Workspace)                                 false │
-│   Interactive Shell (PTY)                                      (not set) │
-│ ▼                                                                        │
-│                                                                          │
-│ Approval mode for tool usage. Controls how tools are approved before ex… │
-│ (Use Enter to select, Tab to configure scope)                       1/79 │
-╰──────────────────────────────────────────────────────────────────────────╯"
-`;
-
-exports[`SettingsDialog > Snapshot Tests > should render with file filtering settings configured 1`] = `
-"╭──────────────────────────────────────────────────────────────────────────╮
-│  Settings    Status    Stats   (↑ to switch tabs)                        │
-│                                                                          │
-│ ⌕ Search settings…                                                       │
-│ Scope: User Settings                                                     │
-│                                                                          │
-│ ●︎ Tool Approval Mode                                                Auto │
-│   Code Mode Only (Experimental)                                    false │
-│   Language: UI                                 Auto (detect from system) │
-│   Language: Model                               Auto (follow user input) │
-│   Theme                                                   O1-Code Dark ▸ │
-│   Display Mode                                                  Detailed │
-│   Vim Mode                                                         false │
-│   Interactive Shell (PTY)                                      (not set) │
-│ ▼                                                                        │
-│                                                                          │
-│ Approval mode for tool usage. Controls how tools are approved before ex… │
-│ (Use Enter to select, Tab to configure scope)                       1/79 │
-╰──────────────────────────────────────────────────────────────────────────╯"
-`;
-
-exports[`SettingsDialog > Snapshot Tests > should render with mixed boolean and number settings 1`] = `
-"╭──────────────────────────────────────────────────────────────────────────╮
-│  Settings    Status    Stats   (↑ to switch tabs)                        │
-│                                                                          │
-│ ⌕ Search settings…                                                       │
-│ Scope: User Settings                                                     │
+│ Scope: User · Workspace                                                  │
 │                                                                          │
 │ ●︎ Tool Approval Mode                                                Auto │
 │   Code Mode Only (Experimental)                                    false │
@@ -172,7 +150,7 @@ exports[`SettingsDialog > Snapshot Tests > should render with mixed boolean and 
 │ ▼                                                                        │
 │                                                                          │
 │ Approval mode for tool usage. Controls how tools are approved before ex… │
-│ (Use Enter to select, Tab to configure scope)                       1/79 │
+│ (Use Enter to select, Tab to switch scope)                          1/77 │
 ╰──────────────────────────────────────────────────────────────────────────╯"
 `;
 
@@ -181,7 +159,7 @@ exports[`SettingsDialog > Snapshot Tests > should render with tools and security
 │  Settings    Status    Stats   (↑ to switch tabs)                        │
 │                                                                          │
 │ ⌕ Search settings…                                                       │
-│ Scope: User Settings                                                     │
+│ Scope: User · Workspace                                                  │
 │                                                                          │
 │ ●︎ Tool Approval Mode                                                Auto │
 │   Code Mode Only (Experimental)                                    false │
@@ -194,7 +172,7 @@ exports[`SettingsDialog > Snapshot Tests > should render with tools and security
 │ ▼                                                                        │
 │                                                                          │
 │ Approval mode for tool usage. Controls how tools are approved before ex… │
-│ (Use Enter to select, Tab to configure scope)                       1/79 │
+│ (Use Enter to select, Tab to switch scope)                          1/79 │
 ╰──────────────────────────────────────────────────────────────────────────╯"
 `;
 
@@ -203,7 +181,7 @@ exports[`SettingsDialog > Snapshot Tests > should render with various boolean se
 │  Settings    Status    Stats   (↑ to switch tabs)                        │
 │                                                                          │
 │ ⌕ Search settings…                                                       │
-│ Scope: User Settings                                                     │
+│ Scope: User · Workspace                                                  │
 │                                                                          │
 │ ●︎ Tool Approval Mode                                                Auto │
 │   Code Mode Only (Experimental)                                    false │
@@ -216,6 +194,6 @@ exports[`SettingsDialog > Snapshot Tests > should render with various boolean se
 │ ▼                                                                        │
 │                                                                          │
 │ Approval mode for tool usage. Controls how tools are approved before ex… │
-│ (Use Enter to select, Tab to configure scope)                       1/79 │
+│ (Use Enter to select, Tab to switch scope)                          1/79 │
 ╰──────────────────────────────────────────────────────────────────────────╯"
 `;

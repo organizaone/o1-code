@@ -13,11 +13,7 @@ import { glyphs } from '../glyphs.js';
 import { useTerminalSize } from '../hooks/useTerminalSize.js';
 import type { LoadedSettings, Settings } from '../../config/settings.js';
 import { SettingScope } from '../../config/settings.js';
-import {
-  getScopeMessageForSetting,
-  SCOPE_LABELS,
-} from '../../config/dialogScopeUtils.js';
-import { ScopeSelector } from './shared/ScopeSelector.js';
+import { getScopeMessageForSetting } from '../../config/dialogScopeUtils.js';
 import { t } from '../../i18n/index.js';
 import { ICON } from '../constants.js';
 import {
@@ -170,12 +166,14 @@ export function SettingsDialog({
   const { vimEnabled } = useVimModeState();
   const { toggleVimEnabled } = useVimModeActions();
 
-  // Mode state: 'settings' or 'scope' (view switching like ThemeDialog)
-  const [mode, setMode] = useState<'settings' | 'scope'>('settings');
-  // Scope selector state (User by default)
+  // The scope the list reads and writes (User by default). Tab switches it in
+  // place, from the header toggle, without leaving the list.
   const [selectedScope, setSelectedScope] = useState<SettingScope>(
     SettingScope.User,
   );
+  // The setting under the cursor when Tab switched scope, so the cursor stays
+  // on it in the other scope's list.
+  const scopeSwitchKeyRef = useRef<string | undefined>(undefined);
   // Active indices
   const [activeSettingIndex, setActiveSettingIndex] = useState(0);
   // Scroll offset for settings
@@ -443,13 +441,8 @@ export function SettingsDialog({
     return () => clearInterval(id);
   }, [editingKey]);
 
-  // Scope mode applies only to the Settings tab. If the active tab changes
-  // while the scope selector is open, collapse back to the settings list so a
-  // stale <ScopeSelector> can't render while the keypress router (which routes
-  // by activeTab/focusZone) treats the tab as a data view.
   useEffect(() => {
     if (activeTab !== 'settings') {
-      setMode('settings');
       // The 'search' zone only exists on the Settings tab. If focus was in the
       // search box when the user cycled to another tab, drop it to 'list' so the
       // embedded data view (which receives isFocused={focusZone === 'list'})
@@ -458,17 +451,16 @@ export function SettingsDialog({
     }
   }, [activeTab, setFocusZone]);
 
-  // An in-progress edit only makes sense in the settings list (Settings tab,
-  // settings mode). If the user leaves that context — e.g. Tab into scope mode
-  // while editing, or switches tabs — discard the edit buffer so the keystrokes
-  // it captured can't resurface and later be committed against the wrong field.
+  // An in-progress edit only makes sense in the settings list. If the user
+  // switches tabs, discard the edit buffer so the keystrokes it captured can't
+  // resurface and later be committed against the wrong field.
   useEffect(() => {
-    if (editingKey && (activeTab !== 'settings' || mode !== 'settings')) {
+    if (editingKey && activeTab !== 'settings') {
       setEditingKey(null);
       setEditBuffer('');
       setEditCursorPos(0);
     }
-  }, [editingKey, activeTab, mode]);
+  }, [editingKey, activeTab]);
 
   // Keep the selection valid as the search query narrows the list.
   useEffect(() => {
@@ -632,20 +624,19 @@ export function SettingsDialog({
     setEditCursorPos(0);
   };
 
-  const handleScopeHighlight = (scope: SettingScope) => {
-    setSelectedScope(scope);
-  };
-
-  const handleScopeSelect = (scope: SettingScope) => {
-    handleScopeHighlight(scope);
-    setMode('settings');
+  const toggleScope = () => {
+    scopeSwitchKeyRef.current = items[activeSettingIndex]?.value;
+    setSelectedScope((scope) =>
+      scope === SettingScope.Workspace
+        ? SettingScope.User
+        : SettingScope.Workspace,
+    );
   };
 
   // Get the description for the currently active setting (only while the list
   // itself is focused, so nothing looks "active" from the tabs/search zones).
   const activeDescription =
     activeTab === 'settings' &&
-    mode === 'settings' &&
     focusZone === 'list' &&
     items[activeSettingIndex]?.description
       ? items[activeSettingIndex].description
@@ -700,6 +691,30 @@ export function SettingsDialog({
   // bottom).
   const showScrollUp = scrollOffset > 0;
   const showScrollDown = scrollOffset + effectiveMaxItemsToShow < items.length;
+
+  // After a scope switch, put the cursor back on the setting it was on; the
+  // Workspace list leaves out user-only settings, so fall back to the nearest
+  // row when it is gone.
+  const itemKeys = items.map((item) => item.value).join('\n');
+  useEffect(() => {
+    const key = scopeSwitchKeyRef.current;
+    if (key === undefined) return;
+    scopeSwitchKeyRef.current = undefined;
+    const keys = itemKeys ? itemKeys.split('\n') : [];
+    const found = keys.indexOf(key);
+    const index =
+      found >= 0
+        ? found
+        : Math.min(activeSettingIndex, Math.max(0, keys.length - 1));
+    setActiveSettingIndex(index);
+    setScrollOffset((offset) =>
+      index < offset
+        ? index
+        : index >= offset + effectiveMaxItemsToShow
+          ? index - effectiveMaxItemsToShow + 1
+          : offset,
+    );
+  }, [selectedScope, itemKeys, activeSettingIndex, effectiveMaxItemsToShow]);
   const settingsBodyHeight =
     SEARCH_BOX_HEIGHT +
     Math.max(1, visibleItems.length) +
@@ -826,14 +841,7 @@ export function SettingsDialog({
         } else if (name === 'down' || name === 'return') {
           setFocusZone('list');
         } else if (name === 'tab') {
-          // Keep the state updater pure: compute the next mode from the current
-          // render's value and apply both setters as side effects here, rather
-          // than calling setFocusZone from inside the setMode updater.
-          const nextMode = mode === 'settings' ? 'scope' : 'settings';
-          setMode(nextMode);
-          // Move focus out of the search box so the search-zone handler stops
-          // intercepting keys while the ScopeSelector is focused.
-          if (nextMode === 'scope') setFocusZone('list');
+          toggleScope();
         } else if (name === 'escape') {
           if (searchQuery) {
             setSearchQuery('');
@@ -859,193 +867,210 @@ export function SettingsDialog({
 
       // Settings tab, list focused (focusZone === 'list').
       if (name === 'tab') {
-        setMode((prev) => (prev === 'settings' ? 'scope' : 'settings'));
+        // An edit in progress belongs to the current scope: Tab waits for it.
+        if (!editingKey) toggleScope();
+        return;
       }
-      if (mode === 'settings') {
-        // If editing, capture input and control keys
-        if (editingKey) {
-          const definition = getSettingDefinition(editingKey);
-          const type = definition?.type;
+      // If editing, capture input and control keys
+      if (editingKey) {
+        const definition = getSettingDefinition(editingKey);
+        const type = definition?.type;
 
-          if (key.paste && key.sequence) {
-            let pasted = key.sequence;
-            if (isNumericSettingType(type)) {
-              pasted = key.sequence.replace(/[^0-9\-+.]/g, '');
-            }
-            if (pasted) {
-              setEditBuffer((b) => {
-                const before = cpSlice(b, 0, editCursorPos);
-                const after = cpSlice(b, editCursorPos);
-                return before + pasted + after;
-              });
-              setEditCursorPos((pos) => pos + cpLen(pasted));
-            }
-            return;
-          }
-          if (name === 'backspace' || name === 'delete') {
-            if (name === 'backspace' && editCursorPos > 0) {
-              setEditBuffer((b) => {
-                const before = cpSlice(b, 0, editCursorPos - 1);
-                const after = cpSlice(b, editCursorPos);
-                return before + after;
-              });
-              setEditCursorPos((pos) => pos - 1);
-            } else if (name === 'delete' && editCursorPos < cpLen(editBuffer)) {
-              setEditBuffer((b) => {
-                const before = cpSlice(b, 0, editCursorPos);
-                const after = cpSlice(b, editCursorPos + 1);
-                return before + after;
-              });
-              // Cursor position stays the same for delete
-            }
-            return;
-          }
-          if (name === 'escape') {
-            commitEdit(editingKey);
-            return;
-          }
-          if (name === 'return') {
-            commitEdit(editingKey);
-            return;
-          }
-
-          let ch = key.sequence;
-          let isValidChar = false;
+        if (key.paste && key.sequence) {
+          let pasted = key.sequence;
           if (isNumericSettingType(type)) {
-            // Allow digits, minus, plus, and dot.
-            isValidChar = /[0-9\-+.]/.test(ch);
-          } else {
-            ch = stripUnsafeCharacters(ch);
-            // For strings, allow any single character that isn't a control
-            // sequence.
-            isValidChar = ch.length === 1;
+            pasted = key.sequence.replace(/[^0-9\-+.]/g, '');
           }
-
-          if (isValidChar) {
-            setEditBuffer((currentBuffer) => {
-              const beforeCursor = cpSlice(currentBuffer, 0, editCursorPos);
-              const afterCursor = cpSlice(currentBuffer, editCursorPos);
-              return beforeCursor + ch + afterCursor;
+          if (pasted) {
+            setEditBuffer((b) => {
+              const before = cpSlice(b, 0, editCursorPos);
+              const after = cpSlice(b, editCursorPos);
+              return before + pasted + after;
             });
-            setEditCursorPos((pos) => pos + 1);
-            return;
+            setEditCursorPos((pos) => pos + cpLen(pasted));
           }
-          // Arrow key navigation
-          if (name === 'left') {
-            setEditCursorPos((pos) => Math.max(0, pos - 1));
-            return;
-          }
-          if (name === 'right') {
-            setEditCursorPos((pos) => Math.min(cpLen(editBuffer), pos + 1));
-            return;
-          }
-          // Home and End keys
-          if (name === 'home') {
-            setEditCursorPos(0);
-            return;
-          }
-          if (name === 'end') {
-            setEditCursorPos(cpLen(editBuffer));
-            return;
-          }
-          // Block other keys while editing
           return;
         }
-        if (keyMatchers[Command.SELECTION_UP](key)) {
-          // ↑/k/Ctrl+P all move selection up. If editing, commit first.
-          if (editingKey) {
-            commitEdit(editingKey);
+        if (name === 'backspace' || name === 'delete') {
+          if (name === 'backspace' && editCursorPos > 0) {
+            setEditBuffer((b) => {
+              const before = cpSlice(b, 0, editCursorPos - 1);
+              const after = cpSlice(b, editCursorPos);
+              return before + after;
+            });
+            setEditCursorPos((pos) => pos - 1);
+          } else if (name === 'delete' && editCursorPos < cpLen(editBuffer)) {
+            setEditBuffer((b) => {
+              const before = cpSlice(b, 0, editCursorPos);
+              const after = cpSlice(b, editCursorPos + 1);
+              return before + after;
+            });
+            // Cursor position stays the same for delete
           }
-          // At the top of the list, ↑ moves focus up to the search box.
-          if (activeSettingIndex === 0) {
-            setFocusZone('search');
-            // scrollOffset is already 0 here (it never exceeds
-            // activeSettingIndex), but reset defensively so the viewport can
-            // never be left scrolled past a top-of-list selection.
-            setScrollOffset(0);
-          } else {
-            const newIndex = activeSettingIndex - 1;
-            setActiveSettingIndex(newIndex);
-            if (newIndex < scrollOffset) {
-              setScrollOffset(newIndex);
-            }
-          }
-        } else if (keyMatchers[Command.SELECTION_DOWN](key)) {
-          // ↓/j/Ctrl+N all move selection down. If editing, commit first.
-          if (editingKey) {
-            commitEdit(editingKey);
-          }
-          const newIndex =
-            activeSettingIndex < items.length - 1 ? activeSettingIndex + 1 : 0;
+          return;
+        }
+        if (name === 'escape') {
+          commitEdit(editingKey);
+          return;
+        }
+        if (name === 'return') {
+          commitEdit(editingKey);
+          return;
+        }
+
+        let ch = key.sequence;
+        let isValidChar = false;
+        if (isNumericSettingType(type)) {
+          // Allow digits, minus, plus, and dot.
+          isValidChar = /[0-9\-+.]/.test(ch);
+        } else {
+          ch = stripUnsafeCharacters(ch);
+          // For strings, allow any single character that isn't a control
+          // sequence.
+          isValidChar = ch.length === 1;
+        }
+
+        if (isValidChar) {
+          setEditBuffer((currentBuffer) => {
+            const beforeCursor = cpSlice(currentBuffer, 0, editCursorPos);
+            const afterCursor = cpSlice(currentBuffer, editCursorPos);
+            return beforeCursor + ch + afterCursor;
+          });
+          setEditCursorPos((pos) => pos + 1);
+          return;
+        }
+        // Arrow key navigation
+        if (name === 'left') {
+          setEditCursorPos((pos) => Math.max(0, pos - 1));
+          return;
+        }
+        if (name === 'right') {
+          setEditCursorPos((pos) => Math.min(cpLen(editBuffer), pos + 1));
+          return;
+        }
+        // Home and End keys
+        if (name === 'home') {
+          setEditCursorPos(0);
+          return;
+        }
+        if (name === 'end') {
+          setEditCursorPos(cpLen(editBuffer));
+          return;
+        }
+        // Block other keys while editing
+        return;
+      }
+      if (keyMatchers[Command.SELECTION_UP](key)) {
+        // ↑/k/Ctrl+P all move selection up. If editing, commit first.
+        if (editingKey) {
+          commitEdit(editingKey);
+        }
+        // At the top of the list, ↑ moves focus up to the search box.
+        if (activeSettingIndex === 0) {
+          setFocusZone('search');
+          // scrollOffset is already 0 here (it never exceeds
+          // activeSettingIndex), but reset defensively so the viewport can
+          // never be left scrolled past a top-of-list selection.
+          setScrollOffset(0);
+        } else {
+          const newIndex = activeSettingIndex - 1;
           setActiveSettingIndex(newIndex);
-          // Adjust scroll offset for wrap-around
-          if (newIndex === 0) {
-            setScrollOffset(0);
-          } else if (newIndex >= scrollOffset + effectiveMaxItemsToShow) {
-            setScrollOffset(newIndex - effectiveMaxItemsToShow + 1);
+          if (newIndex < scrollOffset) {
+            setScrollOffset(newIndex);
           }
-        } else if (name === 'return' || isSpace) {
-          const currentItem = items[activeSettingIndex];
-          if (currentItem?.value === 'ui.theme') {
-            if (name === 'return') {
-              onSelect('ui.theme', selectedScope);
-            }
-            return;
+        }
+      } else if (keyMatchers[Command.SELECTION_DOWN](key)) {
+        // ↓/j/Ctrl+N all move selection down. If editing, commit first.
+        if (editingKey) {
+          commitEdit(editingKey);
+        }
+        const newIndex =
+          activeSettingIndex < items.length - 1 ? activeSettingIndex + 1 : 0;
+        setActiveSettingIndex(newIndex);
+        // Adjust scroll offset for wrap-around
+        if (newIndex === 0) {
+          setScrollOffset(0);
+        } else if (newIndex >= scrollOffset + effectiveMaxItemsToShow) {
+          setScrollOffset(newIndex - effectiveMaxItemsToShow + 1);
+        }
+      } else if (name === 'return' || isSpace) {
+        const currentItem = items[activeSettingIndex];
+        if (currentItem?.value === 'ui.theme') {
+          if (name === 'return') {
+            onSelect('ui.theme', selectedScope);
           }
-          if (currentItem?.value === 'general.preferredEditor') {
-            if (name === 'return') {
-              onSelect('general.preferredEditor', selectedScope);
-            }
-            return;
+          return;
+        }
+        if (currentItem?.value === 'general.preferredEditor') {
+          if (name === 'return') {
+            onSelect('general.preferredEditor', selectedScope);
           }
-          if (currentItem?.value === 'fastModel') {
-            if (name === 'return') {
-              onSelect('fastModel', selectedScope);
-            }
-            return;
+          return;
+        }
+        if (currentItem?.value === 'fastModel') {
+          if (name === 'return') {
+            onSelect('fastModel', selectedScope);
           }
-          if (currentItem?.value === 'visionModel') {
-            if (name === 'return') {
-              onSelect('visionModel', selectedScope);
-            }
-            return;
+          return;
+        }
+        if (currentItem?.value === 'visionModel') {
+          if (name === 'return') {
+            onSelect('visionModel', selectedScope);
           }
-          if (
-            isNumericSettingType(currentItem?.type) ||
-            currentItem?.type === 'string'
+          return;
+        }
+        if (
+          isNumericSettingType(currentItem?.type) ||
+          currentItem?.type === 'string'
+        ) {
+          startEditing(currentItem.value);
+        } else {
+          currentItem?.toggle();
+        }
+      } else if (name === 'right') {
+        // Right arrow opens sub-dialog settings (like a sub-menu)
+        const currentItem = items[activeSettingIndex];
+        if (
+          currentItem?.value === 'ui.theme' ||
+          currentItem?.value === 'general.preferredEditor' ||
+          currentItem?.value === 'fastModel' ||
+          currentItem?.value === 'visionModel'
+        ) {
+          onSelect(currentItem.value, selectedScope);
+        }
+      } else if (/^[0-9]$/.test(key.sequence || '') && !editingKey) {
+        const currentItem = items[activeSettingIndex];
+        if (isNumericSettingType(currentItem?.type)) {
+          startEditing(currentItem.value, key.sequence);
+        } else {
+          // Non-number setting: route the digit into the search box instead
+          // of swallowing it, so queries like "8080" can be typed.
+          setFocusZone('search');
+          setSearchQuery((q) => q + key.sequence);
+        }
+      } else if (ctrl && (name === 'c' || name === 'l')) {
+        // Ctrl+C or Ctrl+L: Clear current setting and reset to default
+        const currentSetting = items[activeSettingIndex];
+        if (currentSetting) {
+          const defaultValue = getDefaultValue(currentSetting.value);
+          const defType = currentSetting.type;
+          if (defType === 'boolean' || defaultValue === undefined) {
+            setPendingSettings((prev) =>
+              setPendingSettingValueAny(
+                currentSetting.value,
+                defaultValue,
+                prev,
+              ),
+            );
+          } else if (
+            isNumericSettingType(defType) ||
+            defType === 'string' ||
+            defType === 'enum'
           ) {
-            startEditing(currentItem.value);
-          } else {
-            currentItem?.toggle();
-          }
-        } else if (name === 'right') {
-          // Right arrow opens sub-dialog settings (like a sub-menu)
-          const currentItem = items[activeSettingIndex];
-          if (
-            currentItem?.value === 'ui.theme' ||
-            currentItem?.value === 'general.preferredEditor' ||
-            currentItem?.value === 'fastModel' ||
-            currentItem?.value === 'visionModel'
-          ) {
-            onSelect(currentItem.value, selectedScope);
-          }
-        } else if (/^[0-9]$/.test(key.sequence || '') && !editingKey) {
-          const currentItem = items[activeSettingIndex];
-          if (isNumericSettingType(currentItem?.type)) {
-            startEditing(currentItem.value, key.sequence);
-          } else {
-            // Non-number setting: route the digit into the search box instead
-            // of swallowing it, so queries like "8080" can be typed.
-            setFocusZone('search');
-            setSearchQuery((q) => q + key.sequence);
-          }
-        } else if (ctrl && (name === 'c' || name === 'l')) {
-          // Ctrl+C or Ctrl+L: Clear current setting and reset to default
-          const currentSetting = items[activeSettingIndex];
-          if (currentSetting) {
-            const defaultValue = getDefaultValue(currentSetting.value);
-            const defType = currentSetting.type;
-            if (defType === 'boolean' || defaultValue === undefined) {
+            if (
+              typeof defaultValue === 'number' ||
+              typeof defaultValue === 'string'
+            ) {
               setPendingSettings((prev) =>
                 setPendingSettingValueAny(
                   currentSetting.value,
@@ -1053,159 +1078,134 @@ export function SettingsDialog({
                   prev,
                 ),
               );
-            } else if (
-              isNumericSettingType(defType) ||
-              defType === 'string' ||
-              defType === 'enum'
-            ) {
-              if (
-                typeof defaultValue === 'number' ||
-                typeof defaultValue === 'string'
-              ) {
-                setPendingSettings((prev) =>
-                  setPendingSettingValueAny(
+            }
+          }
+
+          const scopeSettings = settings.forScope(selectedScope).settings;
+          const resetChangesValue =
+            !isDefaultValue(currentSetting.value, scopeSettings) &&
+            getEffectiveValue(currentSetting.value, scopeSettings, {}) !==
+              defaultValue;
+          setModifiedSettings((prev) => {
+            const updated = new Set(prev);
+            if (resetChangesValue) updated.add(currentSetting.value);
+            else updated.delete(currentSetting.value);
+            return updated;
+          });
+
+          setRestartRequiredSettings((prev) => {
+            const updated = new Set(prev);
+            if (resetChangesValue && requiresRestart(currentSetting.value)) {
+              updated.add(currentSetting.value);
+            } else {
+              updated.delete(currentSetting.value);
+            }
+            return updated;
+          });
+
+          // If this setting doesn't require restart, save it immediately
+          if (resetChangesValue && !requiresRestart(currentSetting.value)) {
+            const immediateSettings = new Set([currentSetting.value]);
+            const toSaveValue =
+              currentSetting.type === 'boolean'
+                ? defaultValue
+                : typeof defaultValue === 'number' ||
+                    typeof defaultValue === 'string'
+                  ? defaultValue
+                  : undefined;
+            const immediateSettingsObject =
+              toSaveValue !== undefined
+                ? setPendingSettingValueAny(
                     currentSetting.value,
-                    defaultValue,
-                    prev,
-                  ),
+                    toSaveValue,
+                    {} as Settings,
+                  )
+                : ({} as Settings);
+
+            saveModifiedSettings(
+              immediateSettings,
+              immediateSettingsObject,
+              settings,
+              selectedScope,
+            );
+
+            // Special handling for approval mode to apply to current session
+            if (
+              currentSetting.value === 'tools.approvalMode' &&
+              settings.merged.tools?.approvalMode
+            ) {
+              try {
+                config?.setApprovalMode(settings.merged.tools.approvalMode);
+              } catch (error) {
+                debugLogger.error(
+                  'Failed to apply approval mode to current session:',
+                  error,
                 );
               }
             }
 
-            const scopeSettings = settings.forScope(selectedScope).settings;
-            const resetChangesValue =
-              !isDefaultValue(currentSetting.value, scopeSettings) &&
-              getEffectiveValue(currentSetting.value, scopeSettings, {}) !==
-                defaultValue;
-            setModifiedSettings((prev) => {
-              const updated = new Set(prev);
-              if (resetChangesValue) updated.add(currentSetting.value);
-              else updated.delete(currentSetting.value);
-              return updated;
+            // Remove from global pending changes if present
+            setGlobalPendingChanges((prev) => {
+              if (!prev.has(currentSetting.value)) return prev;
+              const next = new Map(prev);
+              next.delete(currentSetting.value);
+              return next;
             });
-
-            setRestartRequiredSettings((prev) => {
-              const updated = new Set(prev);
-              if (resetChangesValue && requiresRestart(currentSetting.value)) {
-                updated.add(currentSetting.value);
-              } else {
-                updated.delete(currentSetting.value);
-              }
-              return updated;
+          } else if (
+            resetChangesValue &&
+            requiresRestart(currentSetting.value)
+          ) {
+            // Track default reset as a pending change if restart required
+            setGlobalPendingChanges((prev) => {
+              const next = new Map(prev);
+              next.set(currentSetting.value, defaultValue as PendingValue);
+              return next;
             });
-
-            // If this setting doesn't require restart, save it immediately
-            if (resetChangesValue && !requiresRestart(currentSetting.value)) {
-              const immediateSettings = new Set([currentSetting.value]);
-              const toSaveValue =
-                currentSetting.type === 'boolean'
-                  ? defaultValue
-                  : typeof defaultValue === 'number' ||
-                      typeof defaultValue === 'string'
-                    ? defaultValue
-                    : undefined;
-              const immediateSettingsObject =
-                toSaveValue !== undefined
-                  ? setPendingSettingValueAny(
-                      currentSetting.value,
-                      toSaveValue,
-                      {} as Settings,
-                    )
-                  : ({} as Settings);
-
-              saveModifiedSettings(
-                immediateSettings,
-                immediateSettingsObject,
-                settings,
-                selectedScope,
-              );
-
-              // Special handling for approval mode to apply to current session
-              if (
-                currentSetting.value === 'tools.approvalMode' &&
-                settings.merged.tools?.approvalMode
-              ) {
-                try {
-                  config?.setApprovalMode(settings.merged.tools.approvalMode);
-                } catch (error) {
-                  debugLogger.error(
-                    'Failed to apply approval mode to current session:',
-                    error,
-                  );
-                }
-              }
-
-              // Remove from global pending changes if present
-              setGlobalPendingChanges((prev) => {
-                if (!prev.has(currentSetting.value)) return prev;
-                const next = new Map(prev);
-                next.delete(currentSetting.value);
-                return next;
-              });
-            } else if (
-              resetChangesValue &&
-              requiresRestart(currentSetting.value)
-            ) {
-              // Track default reset as a pending change if restart required
-              setGlobalPendingChanges((prev) => {
-                const next = new Map(prev);
-                next.set(currentSetting.value, defaultValue as PendingValue);
-                return next;
-              });
-            } else {
-              setGlobalPendingChanges((prev) => {
-                if (!prev.has(currentSetting.value)) return prev;
-                const next = new Map(prev);
-                next.delete(currentSetting.value);
-                return next;
-              });
-            }
+          } else {
+            setGlobalPendingChanges((prev) => {
+              if (!prev.has(currentSetting.value)) return prev;
+              const next = new Map(prev);
+              next.delete(currentSetting.value);
+              return next;
+            });
           }
-        } else if (isDeletionKey(key) && searchQuery.length > 0) {
-          // Editing the query moves focus up into the search box. Uses the
-          // shared deletion predicate so raw DEL/BS bytes (terminals that don't
-          // normalize the key name) also delete rather than being swallowed.
-          setFocusZone('search');
-          setSearchQuery((q) => removeLastGrapheme(q));
-          // Consume the keypress, mirroring the isPrintableSearchChar branch
-          // below, so a handler added after this else-if chain never runs on
-          // deletion keys.
-          return;
-        } else if (showRestartPrompt && name === 'r') {
-          // Restart must win over the implicit-search-entry gesture: handle it
-          // here, before isPrintableSearchChar consumes `r`. Without this, the
-          // "Press r to exit" affordance shown while a restart prompt is active
-          // would only filter the list instead of restarting.
-          applyRestart();
-          return;
-        } else if (isPrintableSearchChar(key)) {
-          // Typing a printable key jumps to the search box and filters.
-          // (Digits are handled by the number-edit branch above, which routes
-          // them here when the current setting is not a number.) Using the
-          // shared predicate excludes DEL (0x7F) — Backspace's sequence byte —
-          // which an empty-query Backspace would otherwise append as an
-          // invisible character (space toggles a setting via the branch above,
-          // so it never reaches here).
-          setFocusZone('search');
-          setSearchQuery((q) => q + key.sequence);
-          // Consume the keypress so a printable char in the list zone only
-          // filters. (When a restart prompt is showing, `r` is handled by the
-          // dedicated branch above before reaching here.)
-          return;
         }
+      } else if (isDeletionKey(key) && searchQuery.length > 0) {
+        // Editing the query moves focus up into the search box. Uses the
+        // shared deletion predicate so raw DEL/BS bytes (terminals that don't
+        // normalize the key name) also delete rather than being swallowed.
+        setFocusZone('search');
+        setSearchQuery((q) => removeLastGrapheme(q));
+        // Consume the keypress, mirroring the isPrintableSearchChar branch
+        // below, so a handler added after this else-if chain never runs on
+        // deletion keys.
+        return;
+      } else if (showRestartPrompt && name === 'r') {
+        // Restart must win over the implicit-search-entry gesture: handle it
+        // here, before isPrintableSearchChar consumes `r`. Without this, the
+        // "Press r to exit" affordance shown while a restart prompt is active
+        // would only filter the list instead of restarting.
+        applyRestart();
+        return;
+      } else if (isPrintableSearchChar(key)) {
+        // Typing a printable key jumps to the search box and filters.
+        // (Digits are handled by the number-edit branch above, which routes
+        // them here when the current setting is not a number.) Using the
+        // shared predicate excludes DEL (0x7F) — Backspace's sequence byte —
+        // which an empty-query Backspace would otherwise append as an
+        // invisible character (space toggles a setting via the branch above,
+        // so it never reaches here).
+        setFocusZone('search');
+        setSearchQuery((q) => q + key.sequence);
+        // Consume the keypress so a printable char in the list zone only
+        // filters. (When a restart prompt is showing, `r` is handled by the
+        // dedicated branch above before reaching here.)
+        return;
       }
       if (name === 'escape') {
         if (editingKey) {
           commitEdit(editingKey);
-        } else if (mode === 'scope') {
-          // Esc backs out of the scope selector to the settings list rather
-          // than dismissing the whole dialog.
-          setMode('settings');
-        } else if (
-          activeTab === 'settings' &&
-          mode === 'settings' &&
-          searchQuery
-        ) {
+        } else if (activeTab === 'settings' && searchQuery) {
           // First Esc clears an active search; a second Esc closes the dialog.
           setSearchQuery('');
         } else {
@@ -1275,7 +1275,7 @@ export function SettingsDialog({
             />
           )}
         </Box>
-      ) : mode === 'settings' ? (
+      ) : (
         <Box
           flexDirection={sideHelp ? 'row' : 'column'}
           height={sideHelp ? settingsBodyHeight : undefined}
@@ -1301,12 +1301,23 @@ export function SettingsDialog({
             </Box>
             <Text color={theme.text.secondary} wrap="truncate-end">
               {t('Scope:')}{' '}
-              {t(
-                SCOPE_LABELS[
-                  selectedScope === SettingScope.Workspace
-                    ? SettingScope.Workspace
-                    : SettingScope.User
-                ],
+              {[SettingScope.User, SettingScope.Workspace].map(
+                (scope, index) => (
+                  <Text key={scope}>
+                    {index > 0 && (
+                      <Text color={extendedTheme.ui.separator}>{' · '}</Text>
+                    )}
+                    {scope === selectedScope ? (
+                      <Text bold color={extendedTheme.ui.brand}>
+                        {t(scope === SettingScope.User ? 'User' : 'Workspace')}
+                      </Text>
+                    ) : (
+                      <Text color={extendedTheme.text.muted}>
+                        {t(scope === SettingScope.User ? 'User' : 'Workspace')}
+                      </Text>
+                    )}
+                  </Text>
+                ),
               )}
             </Text>
             {showSpacing && <Box height={1} />}
@@ -1318,7 +1329,6 @@ export function SettingsDialog({
             )}
             {visibleItems.map((item, idx) => {
               const isActive =
-                mode === 'settings' &&
                 focusZone === 'list' &&
                 activeSettingIndex === idx + scrollOffset;
 
@@ -1508,48 +1518,30 @@ export function SettingsDialog({
             </Box>
           )}
         </Box>
-      ) : (
-        <ScopeSelector
-          onSelect={handleScopeSelect}
-          onHighlight={handleScopeHighlight}
-          isFocused={mode === 'scope'}
-          initialScope={selectedScope}
-        />
       )}
       {activeTab === 'settings' && <Box flexGrow={1} />}
-      {activeDescription &&
-        mode === 'settings' &&
-        !sideHelp &&
-        showDescription && (
-          <Box marginTop={1}>
-            <Text color={theme.text.secondary} wrap="truncate-end" italic>
-              {activeDescription}
-            </Text>
-          </Box>
-        )}
+      {activeDescription && !sideHelp && showDescription && (
+        <Box marginTop={1}>
+          <Text color={theme.text.secondary} wrap="truncate-end" italic>
+            {activeDescription}
+          </Text>
+        </Box>
+      )}
       {/* Status / Stats tabs surface their own hints (and the tab bar shows
           "↑ to switch tabs"), so only the Settings tab needs this footer. */}
       {activeTab === 'settings' && (
-        <Box
-          marginTop={activeDescription && mode === 'settings' ? 0 : 1}
-          flexShrink={0}
-        >
+        <Box marginTop={activeDescription ? 0 : 1} flexShrink={0}>
           <Box flexGrow={1} minWidth={0}>
             <Text color={theme.text.secondary} wrap="truncate">
-              {mode === 'settings'
-                ? t('(Use Enter to select, Tab to configure scope)')
-                : t('(Use Enter to apply scope, Tab to go back)')}
+              {t('(Use Enter to select, Tab to switch scope)')}
             </Text>
           </Box>
-          {mode === 'settings' && (
-            <Text color={extendedTheme.text.muted}>
-              {items.length ? activeSettingIndex + 1 : 0}/{items.length}
-            </Text>
-          )}
+          <Text color={extendedTheme.text.muted}>
+            {items.length ? activeSettingIndex + 1 : 0}/{items.length}
+          </Text>
         </Box>
       )}
       {activeTab === 'settings' &&
-        mode === 'settings' &&
         focusZone === 'list' &&
         showRestartPrompt && (
           <Text color={theme.status.warning}>
