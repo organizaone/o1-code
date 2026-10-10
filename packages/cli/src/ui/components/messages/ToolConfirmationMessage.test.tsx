@@ -1504,3 +1504,120 @@ describe('ToolConfirmationMessage', () => {
     });
   });
 });
+
+describe('ToolConfirmationMessage in the Summary display mode', () => {
+  const config = {
+    isTrustedFolder: () => true,
+    getIdeMode: () => false,
+  } as unknown as Config;
+  const summarySettings = {
+    merged: { ui: { displayMode: 'summary' }, general: {} },
+  } as unknown as LoadedSettings;
+
+  const diff = [
+    '--- a/validate.ts',
+    '+++ b/validate.ts',
+    '@@ -12,3 +12,3 @@',
+    '-  return raw;',
+    '+  return raw.trim().toLowerCase();',
+    '-  return EMAIL_RE.test(raw);',
+    '+  return EMAIL_RE.test(normalizeEmail(raw));',
+  ].join('\n');
+
+  const edit = (onConfirm = vi.fn()): ToolCallConfirmationDetails => ({
+    type: 'edit',
+    title: 'Confirm Edit',
+    fileName: 'validate.ts',
+    filePath: '/repo/src/auth/validate.ts',
+    fileDiff: diff,
+    originalContent: 'a',
+    newContent: 'b',
+    onConfirm,
+  });
+
+  const renderSummary = (
+    details: ToolCallConfirmationDetails,
+    intent?: string,
+  ) =>
+    renderWithProviders(
+      <ToolConfirmationMessage
+        confirmationDetails={details}
+        config={config}
+        availableTerminalHeight={30}
+        contentWidth={100}
+        intent={intent}
+      />,
+      { settings: summarySettings },
+    );
+
+  it('states the file, the line counts and the intent instead of the diff', () => {
+    const frame =
+      renderSummary(edit(), 'Clean the e-mail before validating').lastFrame() ??
+      '';
+    expect(frame).toContain('Change file');
+    expect(frame).toContain('validate.ts');
+    expect(frame).toContain('+2');
+    expect(frame).toContain('−2');
+    expect(frame).toContain('Clean the e-mail before validating');
+    expect(frame).toContain('View changes');
+    expect(frame).not.toContain('toLowerCase');
+  });
+
+  it('opens and closes the diff without answering', async () => {
+    const onConfirm = vi.fn();
+    const { stdin, lastFrame } = renderSummary(edit(onConfirm), 'Fix it');
+
+    // allow once, allow always, view changes, no.
+    stdin.write('3');
+    await vi.waitFor(() => expect(lastFrame()).toContain('toLowerCase'));
+    expect(lastFrame()).toContain('Hide changes');
+    expect(onConfirm).not.toHaveBeenCalled();
+
+    stdin.write('3');
+    await vi.waitFor(() => expect(lastFrame()).not.toContain('toLowerCase'));
+    expect(onConfirm).not.toHaveBeenCalled();
+  });
+
+  it('resolves the same outcomes as the Detailed options', async () => {
+    const onConfirm = vi.fn();
+    const { stdin } = renderSummary(edit(onConfirm));
+    stdin.write('2');
+    await vi.waitFor(() =>
+      expect(onConfirm).toHaveBeenCalledWith(
+        ToolConfirmationOutcome.ProceedAlways,
+      ),
+    );
+  });
+
+  it('always shows the full shell command, under the intent', () => {
+    const frame =
+      renderSummary(
+        {
+          type: 'exec',
+          title: 'Confirm Execution',
+          command: 'npm test -- src/auth --run && rm -rf ./tmp',
+          rootCommand: 'npm',
+          onConfirm: vi.fn(),
+        },
+        'Run the auth tests',
+      ).lastFrame() ?? '';
+    expect(frame).toContain('Run the auth tests');
+    expect(frame).toContain('npm test -- src/auth --run && rm -rf ./tmp');
+  });
+
+  it('keeps the Detailed edit approval when the mode is Detailed', () => {
+    const frame =
+      renderWithProviders(
+        <ToolConfirmationMessage
+          confirmationDetails={edit()}
+          config={config}
+          availableTerminalHeight={30}
+          contentWidth={100}
+          intent="Fix it"
+        />,
+      ).lastFrame() ?? '';
+    expect(frame).toContain('toLowerCase');
+    expect(frame).not.toContain('View changes');
+    expect(frame).not.toContain('Fix it');
+  });
+});

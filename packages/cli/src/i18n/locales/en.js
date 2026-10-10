@@ -3367,4 +3367,7 @@ export default {
   'Delegating to an agent': 'Delegating to an agent',
   '{{count}} files': '{{count}} files',
   '{{count}} steps': '{{count}} steps',
+  'Change file': 'Change file',
+  'View changes': 'View changes',
+  'Hide changes': 'Hide changes',
 };

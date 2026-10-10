@@ -686,6 +686,7 @@ export const ToolGroupMessage: React.FC<ToolGroupMessageProps> = ({
                     availableTerminalHeightPerToolMessage
                   }
                   contentWidth={confirmationInnerWidth}
+                  intent={tool.intent}
                 />
               )}
           </Box>

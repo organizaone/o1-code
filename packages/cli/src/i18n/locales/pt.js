@@ -3675,4 +3675,7 @@ export default {
   'Delegating to an agent': 'Delegando a um agente',
   '{{count}} files': '{{count}} arquivos',
   '{{count}} steps': '{{count}} passos',
+  'Change file': 'Alterar arquivo',
+  'View changes': 'Ver as alterações',
+  'Hide changes': 'Ocultar as alterações',
 };
