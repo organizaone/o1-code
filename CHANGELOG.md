@@ -7,6 +7,8 @@ follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.13.0] - 2026-10-10
+
 ### Added
 
 - A Summary display mode (`ui.displayMode`, issue #66). Each step of the agent
@@ -535,7 +537,8 @@ The first release of o1-code, a coding agent for the terminal.
 - `o1-code serve` runs a local daemon with a REST API and the Web Shell, a browser interface.
 - Editor companions for VS Code and Zed.
 
-[Unreleased]: https://github.com/organizaone/o1-code/compare/v0.12.0...HEAD
+[Unreleased]: https://github.com/organizaone/o1-code/compare/v0.13.0...HEAD
+[0.13.0]: https://github.com/organizaone/o1-code/compare/v0.12.0...v0.13.0
 [0.12.0]: https://github.com/organizaone/o1-code/compare/v0.11.3...v0.12.0
 [0.11.3]: https://github.com/organizaone/o1-code/compare/v0.10.4...v0.11.3
 [0.10.4]: https://github.com/organizaone/o1-code/compare/v0.9.0...v0.10.4
