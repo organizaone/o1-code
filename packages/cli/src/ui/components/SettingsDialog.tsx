@@ -683,9 +683,10 @@ export function SettingsDialog({
   // Each setting item takes 1 line
   const maxVisibleItems = Math.max(1, availableHeightForSettings);
 
-  // Use the calculated maxVisibleItems or fall back to the original maxItemsToShow
+  // With a known height the panel keeps it on every tab, so the list fills the
+  // rows it has; without one it falls back to maxItemsToShow.
   const effectiveMaxItemsToShow = availableTerminalHeight
-    ? Math.max(1, Math.min(maxItemsToShow, maxVisibleItems, items.length))
+    ? Math.max(1, Math.min(maxVisibleItems, items.length))
     : maxItemsToShow;
 
   // Scroll logic for settings
@@ -1216,13 +1217,14 @@ export function SettingsDialog({
   );
 
   return (
+    // A fixed height keeps the panel from resizing as the tabs change.
     <Box
       borderStyle={glyphs().borderStyle}
       borderColor={extendedTheme.ui.rule}
       flexDirection="column"
       paddingX={1}
       width={panelWidth}
-      maxHeight={availableTerminalHeight}
+      height={availableTerminalHeight}
       overflow="hidden"
     >
       <ConfigTabBar
@@ -1514,6 +1516,7 @@ export function SettingsDialog({
           initialScope={selectedScope}
         />
       )}
+      {activeTab === 'settings' && <Box flexGrow={1} />}
       {activeDescription &&
         mode === 'settings' &&
         !sideHelp &&

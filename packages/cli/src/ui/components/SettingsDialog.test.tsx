@@ -42,6 +42,13 @@ vi.mock('../hooks/useTerminalSize.js', () => ({
   useTerminalSize: () => terminal,
 }));
 
+// The Stats tab embeds the /stats dashboard, which needs the session and
+// config providers; these tests cover the panel around it.
+vi.mock('./StatsDialog.js', async () => {
+  const { Text } = await import('ink');
+  return { StatsDialog: () => <Text>STATS_DASHBOARD</Text> };
+});
+
 // Mock the VimModeContext
 const mockToggleVimEnabled = vi.fn();
 const mockSetVimMode = vi.fn();
@@ -225,6 +232,57 @@ describe('SettingsDialog', () => {
   });
 
   describe('Initial Rendering', () => {
+    it.each([80, 160])(
+      'keeps the panel at the available height on every tab at %i columns',
+      async (columns) => {
+        terminal.columns = columns;
+        const height = 30;
+        const { lastFrame, stdin } = render(
+          <KeypressProvider kittyProtocolEnabled={false}>
+            <SettingsDialog
+              settings={createMockSettings()}
+              onSelect={vi.fn()}
+              availableTerminalHeight={height}
+            />
+          </KeypressProvider>,
+        );
+        const rows = () => (lastFrame() ?? '').split('\n').length;
+        expect(rows()).toBe(height);
+        expect(lastFrame()).toContain('Use Enter to select');
+
+        // list -> search -> tab bar, then across Status and Stats.
+        act(() => stdin.write(TerminalKeys.UP_ARROW));
+        act(() => stdin.write(TerminalKeys.UP_ARROW));
+        for (const tab of ['Status', 'Stats']) {
+          act(() => stdin.write(TerminalKeys.RIGHT_ARROW));
+          await waitFor(() => {
+            expect(lastFrame()).not.toContain('Search settings');
+          });
+          await waitFor(() => expect(rows()).toBe(height));
+          expect(lastFrame()).toContain(tab);
+        }
+      },
+    );
+
+    it('uses the available height for more settings rows', () => {
+      terminal.columns = 160;
+      const { lastFrame } = render(
+        <KeypressProvider kittyProtocolEnabled={false}>
+          <SettingsDialog
+            settings={createMockSettings()}
+            onSelect={vi.fn()}
+            availableTerminalHeight={30}
+          />
+        </KeypressProvider>,
+      );
+      const keys = getDialogSettingKeys();
+      expect(keys.length).toBeGreaterThan(12);
+      // Rows beyond the former eight-item cap are on screen.
+      expect(lastFrame()).toContain(
+        getSettingDefinition(keys[9]!)?.label ?? keys[9]!,
+      );
+    });
+
     it.each([120, 160, 210])(
       'bounds long help without growing the panel at %i columns',
       async (columns) => {

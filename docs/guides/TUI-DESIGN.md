@@ -403,8 +403,11 @@ never leaves; it only shortens from the start.
   When direct autocomplete has no results, natural-language queries search the
   same labels and descriptions across available commands and descendants.
 - **Settings** (`SettingsDialog.tsx`): interactive `/config` and `/settings` open
-  the same content-sized panel, using the terminal width with two-column outer
-  margins on each side.
+  the same panel, using the terminal width with two-column outer margins on each
+  side and the layout's whole dialog-height reservation, so Settings, Status and
+  Stats keep one size while switching tabs. The settings list fills the rows it
+  has and the footer stays at the bottom. In full-screen mode the conversation
+  frame is hidden while the panel is open and returns when it closes.
   The selected scope appears beside the search area and the footer shows the
   selected position. At 120 columns and sufficient height, the selected setting's
   canonical key and description appear on the right; narrower terminals keep
