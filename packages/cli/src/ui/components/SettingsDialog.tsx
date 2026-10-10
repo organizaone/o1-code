@@ -112,22 +112,34 @@ function ConfigTabBar({
   focused: boolean;
   compact: boolean;
 }): React.JSX.Element {
+  // Focus is shown by the `❯` marker and a filled brand chip; without focus the
+  // active tab is only named, so the list or search below reads as the focus.
+  // The marker column is always reserved so the bar keeps its width.
   return (
     <Box>
+      <Box width={2} flexShrink={0}>
+        <Text color={extendedTheme.ui.brand}>{focused ? '❯' : ''}</Text>
+      </Box>
       {CONFIG_TAB_ORDER.map((tab) => {
         const isActive = tab === activeTab;
         return (
           <Box key={tab} marginRight={compact ? 1 : 2}>
-            {isActive ? (
+            {isActive && focused ? (
               <Text
                 bold
-                backgroundColor={theme.text.accent}
+                backgroundColor={extendedTheme.ui.brand}
                 color={theme.background.primary}
               >
                 {` ${configTabLabel(tab)} `}
               </Text>
+            ) : isActive ? (
+              <Text bold color={theme.text.accent}>
+                {` ${configTabLabel(tab)} `}
+              </Text>
             ) : (
-              <Text color={theme.text.secondary}>
+              <Text
+                color={focused ? theme.text.primary : extendedTheme.text.muted}
+              >
                 {` ${configTabLabel(tab)} `}
               </Text>
             )}
@@ -136,7 +148,7 @@ function ConfigTabBar({
       })}
       {!compact && (
         <Text
-          color={theme.text.secondary}
+          color={focused ? extendedTheme.ui.brandSoft : theme.text.secondary}
           dimColor={!focused}
           wrap="truncate-end"
         >

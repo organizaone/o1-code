@@ -1711,6 +1711,43 @@ describe('SettingsDialog', () => {
       unmount();
     });
 
+    it('marks the tab bar while it has focus, without changing its width', async () => {
+      terminal.columns = 120;
+      const { stdin, lastFrame, unmount } = render(
+        <KeypressProvider kittyProtocolEnabled={false}>
+          <SettingsDialog
+            settings={createMockSettings()}
+            onSelect={vi.fn()}
+            availableTerminalHeight={30}
+          />
+        </KeypressProvider>,
+      );
+      const tabRow = () =>
+        (lastFrame() ?? '').split('\n').find((row) => row.includes('Stats')) ??
+        '';
+      const tabsAt = () => tabRow().indexOf('Settings');
+      const unfocusedAt = tabsAt();
+      expect(tabRow()).not.toContain('❯');
+
+      // list -> search -> tab bar.
+      act(() => stdin.write(TerminalKeys.UP_ARROW));
+      act(() => stdin.write(TerminalKeys.UP_ARROW));
+      await waitFor(() => expect(tabRow()).toContain('❯'));
+      expect(tabRow()).toContain('↓ to return');
+      expect(tabsAt()).toBe(unfocusedAt);
+
+      // Moving across tabs keeps the marker.
+      act(() => stdin.write(TerminalKeys.RIGHT_ARROW));
+      await waitFor(() => expect(lastFrame()).not.toContain('Search settings'));
+      expect(tabRow()).toContain('❯');
+
+      // Back into the content, the marker goes.
+      act(() => stdin.write(TerminalKeys.DOWN_ARROW));
+      await waitFor(() => expect(tabRow()).not.toContain('❯'));
+
+      unmount();
+    });
+
     it('switches the scope with Tab in place, keeping the list and the cursor', async () => {
       terminal.columns = 120;
       const userKeys = getDialogSettingKeys();

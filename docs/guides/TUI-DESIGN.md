@@ -408,6 +408,10 @@ never leaves; it only shortens from the start.
   Stats keep one size while switching tabs. The settings list fills the rows it
   has and the footer stays at the bottom. In full-screen mode the conversation
   frame is hidden while the panel is open and returns when it closes.
+  The tab bar shows where the focus is: while it has focus, a brand `❯` leads
+  it, the active tab is a filled brand chip and the other tabs and the hint turn
+  brighter; otherwise the active tab is only named in accent bold and the hint
+  dims. The `❯` column is always reserved, so the bar never shifts.
   The search is an input like the composer's: a frame in `rule`, `brand` with a
   cursor while it has focus, `⌕` and the placeholder colour while empty (panels
   under 14 rows drop the frame). After one blank row, the scope reads
