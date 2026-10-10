@@ -135,9 +135,9 @@ describe('useProviderSetupFlow API selection', () => {
     const submit = vi.fn().mockResolvedValue(undefined);
     const { result } = renderHook(() => useProviderSetupFlow(submit));
     act(() => result.current.start(organizaoneProvider));
-    expect(result.current.state.baseUrl).toBe('https://api.organizago.com');
+    expect(result.current.state.baseUrl).toBe('https://api.organizaone.com');
     act(() => result.current.selectProtocol(AuthType.USE_OPENAI));
-    expect(result.current.state.baseUrl).toBe('https://api.organizago.com/v1');
+    expect(result.current.state.baseUrl).toBe('https://api.organizaone.com/v1');
     expect(result.current.state.step).toBe('wireApi');
   });
 
@@ -148,7 +148,7 @@ describe('useProviderSetupFlow API selection', () => {
     expect(result.current.state.step).toBe('protocol');
     act(() => result.current.selectProtocol(AuthType.USE_ANTHROPIC));
     expect(result.current.state.step).toBe('signIn');
-    expect(result.current.state.baseUrl).toBe('https://api.organizago.com');
+    expect(result.current.state.baseUrl).toBe('https://api.organizaone.com');
     act(() =>
       result.current.submitSignIn(
         {
@@ -185,7 +185,7 @@ describe('useProviderSetupFlow API selection', () => {
     expect(result.current.state.step).toBe('wireApi');
     act(() => result.current.selectWireApi('chat-completions'));
     expect(result.current.state.step).toBe('connectionCode');
-    expect(result.current.state.baseUrl).toBe('https://api.organizago.com/v1');
+    expect(result.current.state.baseUrl).toBe('https://api.organizaone.com/v1');
     act(() =>
       result.current.submitConnection({
         status: 'ok',

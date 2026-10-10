@@ -15,7 +15,7 @@ import {
   type FetchLike,
 } from '../organizaone-device-auth.js';
 
-const BASE = 'https://api.organizago.com';
+const BASE = 'https://api.organizaone.com';
 
 type Scripted = {
   status: number;

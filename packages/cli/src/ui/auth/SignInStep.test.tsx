@@ -61,8 +61,8 @@ const press = (name: string) => {
 const authorization = {
   deviceCode: 'dev-1',
   userCode: 'BCDFGHJK',
-  verificationUri: 'https://api.organizago.com/device',
-  verificationUriComplete: 'https://api.organizago.com/device?code=BCDF-GHJK',
+  verificationUri: 'https://id.organizaone.com/device',
+  verificationUriComplete: 'https://id.organizaone.com/device?code=BCDF-GHJK',
   expiresAt: Date.now() + 900_000,
   intervalMs: 5_000,
 };
@@ -80,7 +80,7 @@ function makeFlow(): ProviderSetupFlow {
       provider: organizaoneLoginProvider,
       step: 'signIn',
       protocol: AuthType.USE_ANTHROPIC,
-      baseUrl: 'https://api.organizago.com',
+      baseUrl: 'https://api.organizaone.com',
     },
     submitSignIn: vi.fn(),
     goBack: vi.fn(),
@@ -124,14 +124,14 @@ describe('SignInStep', () => {
 
     expect(lastFrame()).toContain('BCDF-GHJK');
     expect(lastFrame()).toContain(
-      'https://api.organizago.com/device?code=BCDF-GHJK',
+      'https://id.organizaone.com/device?code=BCDF-GHJK',
     );
     expect(lastFrame()).toContain('Waiting for your approval');
     expect(openBrowserMock).toHaveBeenCalledWith(
-      'https://api.organizago.com/device?code=BCDF-GHJK',
+      'https://id.organizaone.com/device?code=BCDF-GHJK',
     );
     expect(startMock.mock.calls[0]![0]).toMatchObject({
-      baseUrl: 'https://api.organizago.com',
+      baseUrl: 'https://api.organizaone.com',
       deviceName: expect.stringMatching(/^o1-code on /),
     });
 
@@ -143,7 +143,7 @@ describe('SignInStep', () => {
     expect(checkMock).toHaveBeenCalledWith(
       expect.objectContaining({
         protocol: 'anthropic',
-        baseUrl: 'https://api.organizago.com',
+        baseUrl: 'https://api.organizaone.com',
         apiKey: 'o1gw_token',
       }),
     );

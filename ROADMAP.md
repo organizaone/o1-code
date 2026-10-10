@@ -41,7 +41,7 @@ remain disabled in the Web Shell (`serve/server/auth-provider-helpers.ts`).
   Google Gemini, Kimi, MiniMax, ModelScope, OpenAI, xAI, Z.AI); Local (Ollama and LM Studio detected on
   their ports, or another local server); Custom (any URL, OpenAI-compatible or Anthropic). The
   OpenRouter and Requesty presets go; Custom covers them.
-- **OrganizaOne:** an API key against `api.organizago.com`, account login through the browser
+- **OrganizaOne:** an API key against `api.organizaone.com`, account login through the browser
   (device code, RFC 8628), or an `o1gw1.` connection code in the terminal. The Web Shell supports
   the API key; account login and connection codes remain marked as "coming soon" there.
 - **Credentials:** one file per provider under `~/.o1-code/credentials/`, owner-only; keys no

@@ -168,7 +168,7 @@ describe('outbound fetch', () => {
       {
         recordRateLimits: true,
       },
-    )('https://api.organizago.com/v1');
+    )('https://api.organizaone.com/v1');
     expect(response.headers.get('x-ratelimit-limit-requests')).toBe('60');
     expect(getLatestRateLimits()?.requests).toEqual({
       limit: 60,

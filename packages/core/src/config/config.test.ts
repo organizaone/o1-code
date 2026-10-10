@@ -8296,7 +8296,7 @@ describe('Server Config (config.ts)', () => {
           anthropic: [
             {
               id: 'claude-sonnet-4-5',
-              baseUrl: 'https://api.organizago.com',
+              baseUrl: 'https://api.organizaone.com',
               connection: 'o1-connect',
             },
           ],
@@ -8336,7 +8336,7 @@ describe('Server Config (config.ts)', () => {
         model: 'claude-sonnet-4-5',
         modelProvidersConfig: {
           anthropic: [
-            { id: 'claude-sonnet-4-5', baseUrl: 'https://api.organizago.com' },
+            { id: 'claude-sonnet-4-5', baseUrl: 'https://api.organizaone.com' },
           ],
         },
       });

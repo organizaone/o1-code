@@ -251,7 +251,7 @@ describe('AnthropicContentGenerator', () => {
     };
     const run = async (
       reasoning: ContentGeneratorConfig['reasoning'],
-      baseUrl = 'https://api.organizago.com',
+      baseUrl = 'https://api.organizaone.com',
       model: object = declared,
     ) => {
       const { AnthropicContentGenerator } = await importGenerator();
@@ -301,7 +301,7 @@ describe('AnthropicContentGenerator', () => {
     });
 
     it('sends the default the proxy lists when no effort was chosen', async () => {
-      const body = await run(undefined, 'https://api.organizago.com', {
+      const body = await run(undefined, 'https://api.organizaone.com', {
         capabilities: {
           reasoning: {
             ...declared.capabilities.reasoning,
@@ -319,7 +319,7 @@ describe('AnthropicContentGenerator', () => {
     });
   });
 
-  it.each(['https://api.organizago.com'])(
+  it.each(['https://api.organizaone.com'])(
     'tells the OrganizaOne proxy at %s who is calling, keeping the proxy auth',
     async (baseUrl) => {
       const { AnthropicContentGenerator } = await importGenerator();

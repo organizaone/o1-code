@@ -697,7 +697,7 @@ describe('Turn', () => {
       mockSendMessageStream.mockRejectedValue(error);
       (
         mockChatInstance as unknown as { getActiveBaseUrl: () => string }
-      ).getActiveBaseUrl = () => 'https://api.organizago.com';
+      ).getActiveBaseUrl = () => 'https://api.organizaone.com';
       mockGetHistoryLength.mockReturnValue(0);
       mockGetHistoryTailShallow.mockReturnValue([]);
       mockMaybeIncludeSchemaDepthContext.mockResolvedValue(undefined);
@@ -716,7 +716,7 @@ describe('Turn', () => {
       expect(errorEvent.value.error.organizaone?.kind).toBe('expired');
       expect(errorEvent.value.error.message).toContain('2026-10-01');
       expect(errorEvent.value.error.message).toContain(
-        'https://api.organizago.com/account',
+        'https://api.organizaone.com/account',
       );
     });
 

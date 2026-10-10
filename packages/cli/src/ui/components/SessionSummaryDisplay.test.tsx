@@ -127,7 +127,7 @@ describe('<SessionSummaryDisplay />', () => {
         {
           model: 'runtime-model',
           authType: AuthType.USE_ANTHROPIC,
-          baseUrl: 'https://api.organizago.com',
+          baseUrl: 'https://api.organizaone.com',
           apiKey: 'active-key',
         },
       );
@@ -189,7 +189,7 @@ describe('<SessionSummaryDisplay />', () => {
       {
         model: 'runtime-model',
         authType: AuthType.USE_ANTHROPIC,
-        baseUrl: 'https://api.organizago.com',
+        baseUrl: 'https://api.organizaone.com',
       },
       'OrganizaOne · Anthropic API',
     ],

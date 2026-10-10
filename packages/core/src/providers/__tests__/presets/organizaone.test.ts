@@ -39,8 +39,8 @@ describe('organizaoneProvider', () => {
   });
 
   it.each([
-    [AuthType.USE_ANTHROPIC, 'https://api.organizago.com'],
-    [AuthType.USE_OPENAI, 'https://api.organizago.com/v1'],
+    [AuthType.USE_ANTHROPIC, 'https://api.organizaone.com'],
+    [AuthType.USE_OPENAI, 'https://api.organizaone.com/v1'],
   ])('resolves the proxy base URL for %s', (protocol, baseUrl) => {
     expect(resolveBaseUrl(organizaoneProvider, undefined, protocol)).toBe(
       baseUrl,
@@ -49,13 +49,13 @@ describe('organizaoneProvider', () => {
 
   it('starts on the Anthropic base URL', () => {
     expect(resolveBaseUrl(organizaoneProvider)).toBe(
-      'https://api.organizago.com',
+      'https://api.organizaone.com',
     );
   });
 
   it.each([
-    [AuthType.USE_ANTHROPIC, 'https://api.organizago.com'],
-    [AuthType.USE_OPENAI, 'https://api.organizago.com/v1'],
+    [AuthType.USE_ANTHROPIC, 'https://api.organizaone.com'],
+    [AuthType.USE_OPENAI, 'https://api.organizaone.com/v1'],
   ])(
     'installs %s on the proxy host whatever URL it is handed',
     (protocol, baseUrl) => {
@@ -118,7 +118,7 @@ describe('OrganizaOne sign-in entries', () => {
       deviceName: 'o1-code-on-BOX',
     });
     expect(plan.modelProviders?.[0]?.models[0]).toMatchObject({
-      baseUrl: 'https://api.organizago.com',
+      baseUrl: 'https://api.organizaone.com',
       envKey: 'ORGANIZAONE_API_KEY',
       credential: 'organizaone',
     });
@@ -148,7 +148,7 @@ describe('OrganizaOne sign-in entries', () => {
     expect(plan.credential?.apiKey).toBe('local');
     expect(plan.modelProviders?.[0]?.models[0]).toMatchObject({
       id: 'claude-sonnet-4-5',
-      baseUrl: 'https://api.organizago.com',
+      baseUrl: 'https://api.organizaone.com',
       connection: 'o1-connect',
     });
   });
@@ -156,21 +156,21 @@ describe('OrganizaOne sign-in entries', () => {
 
 describe('isOrganizaOneBaseUrl', () => {
   it.each([
-    'https://api.organizago.com',
-    'https://api.organizago.com/v1',
-    'https://API.organizago.com/v1',
+    'https://api.organizaone.com',
+    'https://api.organizaone.com/v1',
+    'https://API.organizaone.com/v1',
   ])('recognizes the proxy API at %s', (url) => {
     expect(isOrganizaOneBaseUrl(url)).toBe(true);
   });
 
   it.each([
-    // Deprecated API host.
-    'https://models.organizago.com',
-    // A host that serves pages, not the API.
-    'https://www.organizago.com',
-    'https://organizago.com',
-    'https://api.organizago.com.evil.example',
-    'https://evil.example/api.organizago.com',
+    // The sign-in and account hosts serve pages, not the API.
+    'https://id.organizaone.com',
+    'https://account.organizaone.com',
+    'https://www.organizaone.com',
+    'https://organizaone.com',
+    'https://api.organizaone.com.evil.example',
+    'https://evil.example/api.organizaone.com',
     'not a url',
     undefined,
   ])('does not take %s for the proxy API', (url) => {

@@ -162,7 +162,7 @@ describe('loadOrganizaOneKeySummary', () => {
     fetchKeyInfoMock.mockResolvedValue(null);
     await expect(
       loadOrganizaOneKeySummary(
-        configFor({ baseUrl: 'https://api.organizago.com', apiKey: 'k' }),
+        configFor({ baseUrl: 'https://api.organizaone.com', apiKey: 'k' }),
       ),
     ).resolves.toEqual({ status: 'unavailable' });
   });
