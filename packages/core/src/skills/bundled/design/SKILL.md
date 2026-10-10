@@ -46,7 +46,9 @@ code has tests). No design document and no separate plan.
    components and their single responsibilities, interfaces between them, data flow, error handling,
    and testing. Ask for approval after each section.
 3. Check the whole design once before the last approval: no placeholders, no contradictions between
-   sections, nothing in scope that was not asked for.
+   sections, nothing in scope that was not asked for. Save the approved design under the same
+   location rule as `write-plan`, in the project's specs location or, when it has none,
+   `docs/specs/YYYY-MM-DD-<topic>.md`.
 4. Hand it to the `write-plan` skill. The approved design is the plan's source; when plan mode is active, the
    plan is submitted there and the harness keeps it.
 

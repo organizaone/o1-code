@@ -57,4 +57,11 @@ describe('bundled design skill', () => {
     expect(text).toContain('A session that cannot ask questions');
     expect(text).toContain('Hand it to the `write-plan` skill.');
   });
+
+  it('saves the approved design next to the plans, under the project convention', () => {
+    const { text } = loadSkill();
+
+    expect(text).toContain('`docs/specs/YYYY-MM-DD-<topic>.md`');
+    expect(text).toContain('same location rule as `write-plan`');
+  });
 });
