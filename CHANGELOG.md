@@ -7,6 +7,19 @@ follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Added
+
+- A Summary display mode (`ui.displayMode`, issue #66). Each step of the agent
+  shows as one plain-language sentence about its purpose, with the file and
+  the lines changed, and no diffs, file contents, shell output or arguments.
+  Edit approvals state what changes and offer "View changes"; shell approvals
+  still show the full command, and approval stays mandatory. Code blocks in
+  replies fold into one line, the prompt asks the model for plain language
+  that still states every risk, and the footer names the mode. Ctrl+O shows
+  the full Detailed view in both modes. The choice is offered once as the last
+  step of connecting a provider and can be changed in `/settings`; Detailed
+  stays the default.
+
 ### Fixed
 
 - Plans and designs are saved where the project keeps them, or else in
