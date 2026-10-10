@@ -3678,4 +3678,7 @@ export default {
   'Change file': 'Alterar arquivo',
   'View changes': 'Ver as alterações',
   'Hide changes': 'Ocultar as alterações',
+  'code {{lang}} · {{count}} lines · ctrl+o':
+    'código {{lang}} · {{count}} linhas · ctrl+o',
+  'code · {{count}} lines · ctrl+o': 'código · {{count}} linhas · ctrl+o',
 };

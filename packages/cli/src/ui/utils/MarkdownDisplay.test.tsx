@@ -1783,3 +1783,59 @@ flowchart TD
     });
   });
 });
+
+describe('<MarkdownDisplay foldCodeBlocks />', () => {
+  const props = {
+    isPending: false,
+    contentWidth: 80,
+    availableTerminalHeight: 40,
+  };
+  const text = [
+    'The fix trims the e-mail.',
+    '',
+    '```ts',
+    'export function normalizeEmail(raw: string): string {',
+    '  return raw.trim().toLowerCase();',
+    '}',
+    '```',
+    '',
+    'Old accounts were not migrated.',
+  ].join('\n');
+
+  it('folds each fenced block into one row and keeps the text around it', () => {
+    const frame = stripAnsi(
+      renderWithProviders(
+        <MarkdownDisplay {...props} text={text} foldCodeBlocks />,
+      ).lastFrame() ?? '',
+    );
+    expect(frame).toContain('▸ code ts · 3 lines · ctrl+o');
+    expect(frame).toContain('The fix trims the e-mail.');
+    expect(frame).toContain('Old accounts were not migrated.');
+    expect(frame).not.toContain('toLowerCase');
+  });
+
+  it('folds a block without a language and an unterminated block', () => {
+    const frame = stripAnsi(
+      renderWithProviders(
+        <MarkdownDisplay
+          {...props}
+          text={'```\nls -la\n```\n\n```sh\nrm -rf x'}
+          foldCodeBlocks
+        />,
+      ).lastFrame() ?? '',
+    );
+    expect(frame).toContain('▸ code · 1 lines · ctrl+o');
+    expect(frame).toContain('▸ code sh · 1 lines · ctrl+o');
+    expect(frame).not.toContain('rm -rf');
+  });
+
+  it('renders code as before without the option', () => {
+    const frame = stripAnsi(
+      renderWithProviders(
+        <MarkdownDisplay {...props} text={text} />,
+      ).lastFrame() ?? '',
+    );
+    expect(frame).toContain('toLowerCase');
+    expect(frame).not.toContain('▸ code');
+  });
+});

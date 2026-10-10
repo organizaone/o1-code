@@ -3370,4 +3370,7 @@ export default {
   'Change file': 'Change file',
   'View changes': 'View changes',
   'Hide changes': 'Hide changes',
+  'code {{lang}} · {{count}} lines · ctrl+o':
+    'code {{lang}} · {{count}} lines · ctrl+o',
+  'code · {{count}} lines · ctrl+o': 'code · {{count}} lines · ctrl+o',
 };
