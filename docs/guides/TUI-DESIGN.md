@@ -206,6 +206,26 @@ settings (`ui.customAsciiArt`, `ui.hideBanner`, …) are gone and ignored if pre
   `Retrying in Ns — esc to give up (attempt/max)`, then `Retrying…` with a spinner. The footer shows
   failed meanwhile.
 
+### Summary display mode
+
+`ui.displayMode` is `detailed` (the default, everything above) or `summary`. Ctrl+O always shows the
+Detailed view, so the transcript is the same in both modes (`hooks/use-display-mode.ts`).
+
+- **Step rows** (`messages/SummaryToolGroupDisplay.tsx`): the category marker and label of a tool row,
+  then one sentence on the step's purpose: the `intent` the model gave with the call, sanitized to one
+  line, or a fallback from `utils/summary-label.ts` (`Changing login.ts`, `Running npm test` — the
+  program and its subcommand, never the other arguments). A muted file name and `+N −M` follow when
+  the step changed a file. Consecutive reads and searches share one row with `· N files`. No diff,
+  file body, shell output or arguments. An error adds its first line in red.
+- **Kept as in Detailed:** approvals, the user's own `!` commands, a focused shell, the parallel-agent
+  roster, and results that already summarize (todo list, plan, findings, subagents, question answers).
+- **Approvals** keep the amber frame and every option and outcome. An edit shows `Change file`, the
+  file and `+N −M`, then the intent, and adds `View changes`, which opens and closes the diff inside
+  the box without answering. A shell approval shows the intent above the full command, which never
+  hides.
+- **Replies:** each fenced code block folds into one muted row, `▸ code ts · 12 lines · ctrl+o`; the
+  text around it stays.
+
 ### Queue
 
 During a turn, `enter` steers the running turn and `ctrl+q` queues the message. The queue
@@ -289,7 +309,8 @@ and [ready attachment](../images/tui-attachment-ready.png).
 Three zones spread across the width (`footer-zones.tsx`):
 
 1. **Mode:** `● AUTO` bold — brand soft for default and auto, amber for edits, red for YOLO, green
-   for plan — then `│`, the model name alone (no provider; `—` without one), `· reasoning high`, and
+   for plan — then `│`, the model name alone (no provider; `—` without one), `· reasoning high`,
+   `· summary` in brand soft when the Summary display mode is set (Detailed adds nothing), and
    `Safe Mode` / `Debug Mode` when on.
 2. **Git:** `⎇ main` in accent, `+31` green `-6` red: the working-tree diff. A worktree shows its
    own branch. The folder is not repeated here; it is in the header.
@@ -316,7 +337,7 @@ and `sideMargin(tier)`. Components read it through `hooks/use-layout-tier.ts`; `
 | `full`    | ≥ 120   | nothing                                                                                                                                                |
 | `medium`  | 100–119 | context bar; `ctrl+c quit` hint                                                                                                                        |
 | `compact` | 80–99   | footer git zone; active skill; memory bar; `@ files` hint; `reasoning high` becomes `high`; approval options stack vertically                          |
-| `minimal` | < 80    | logo becomes the wordmark; hints; memory row; reasoning; tokens; inactive chip labels; `online`/`failed`/`no provider` text (dot stays); side margin 1 |
+| `minimal` | < 80    | logo becomes the wordmark; hints; memory row; reasoning; `summary`; tokens; inactive chip labels; `online`/`failed`/`no provider` text (dot stays); side margin 1 |
 
 Side margin is 2 columns, 1 under 80. Under 80 the header is three rows: wordmark and version,
 notices (shortened to `↑ v… · /update` and `● MCP · /mcp`), and the path right-aligned. The path

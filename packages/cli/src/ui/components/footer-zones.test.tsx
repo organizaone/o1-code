@@ -77,6 +77,26 @@ describe('footer zones', () => {
     ).toBe('● DEFAULT │ m · reasoning default');
   });
 
+  it('names the Summary display mode from the compact tier up', () => {
+    const props = {
+      mode: ApprovalMode.DEFAULT,
+      model: 'm',
+      reasoning: 'high',
+    } as const;
+    expect(text(<ModeZone tier="full" {...props} summaryMode />)).toBe(
+      '● DEFAULT │ m · reasoning high · summary',
+    );
+    expect(text(<ModeZone tier="compact" {...props} summaryMode />)).toBe(
+      '● DEFAULT │ m · high · summary',
+    );
+    expect(text(<ModeZone tier="minimal" {...props} summaryMode />)).toBe(
+      '● DEFAULT │ m',
+    );
+    expect(text(<ModeZone tier="full" {...props} />)).toBe(
+      '● DEFAULT │ m · reasoning high',
+    );
+  });
+
   it('shows the branch and the diff, and nothing without a branch', () => {
     expect(
       text(

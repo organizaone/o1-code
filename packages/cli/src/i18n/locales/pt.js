@@ -3681,4 +3681,5 @@ export default {
   'code {{lang}} · {{count}} lines · ctrl+o':
     'código {{lang}} · {{count}} linhas · ctrl+o',
   'code · {{count}} lines · ctrl+o': 'código · {{count}} linhas · ctrl+o',
+  summary: 'resumido',
 };

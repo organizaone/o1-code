@@ -3373,4 +3373,5 @@ export default {
   'code {{lang}} · {{count}} lines · ctrl+o':
     'code {{lang}} · {{count}} lines · ctrl+o',
   'code · {{count}} lines · ctrl+o': 'code · {{count}} lines · ctrl+o',
+  summary: 'summary',
 };
