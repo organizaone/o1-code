@@ -23,6 +23,7 @@ import type { Settings } from '../../config/settingsSchema.js';
 import type { Config } from '@organizaone/o1-code-core';
 import { AuthType } from '@organizaone/o1-code-core';
 import { renderWithProviders } from '../../test-utils/render.js';
+import { act } from 'react';
 import { UIStateContext } from '../contexts/UIStateContext.js';
 import { UIActionsContext } from '../contexts/UIActionsContext.js';
 import type { UIState } from '../contexts/UIStateContext.js';
@@ -95,6 +96,7 @@ const createMockUIState = (overrides: UIStateOverrides = {}): UIState => {
       authError: null,
       isAuthDialogOpen: false,
       isAuthenticating: false,
+      choosingDisplayMode: false,
       pendingAuthType: undefined,
       externalAuthState: null,
     },
@@ -122,6 +124,8 @@ const createMockUIActions = (overrides: UIActionsOverrides = {}): UIActions => {
     onAuthError: vi.fn(),
     openAuthDialog: vi.fn(),
     cancelAuthentication: vi.fn(),
+    chooseDisplayMode: vi.fn(),
+    skipDisplayModeChoice: vi.fn(),
     ...auth,
   } as UIActions['auth'];
 
@@ -2240,4 +2244,68 @@ describe('AuthDialog Custom API Key Wizard', { timeout: 15000 }, () => {
       unmount();
     },
   );
+});
+
+describe('AuthDialog display-mode step', () => {
+  const settings = () => {
+    const scope = { ui: { customThemes: {} }, mcpServers: {} };
+    return new LoadedSettings(
+      { settings: scope, originalSettings: scope, path: '' },
+      { settings: {}, originalSettings: {}, path: '' },
+      { settings: scope, originalSettings: scope, path: '' },
+      { settings: scope, originalSettings: scope, path: '' },
+      true,
+      new Set(),
+    );
+  };
+
+  it('shows the step with its path and one step past the provider', () => {
+    const { lastFrame, unmount } = renderAuthDialog(
+      settings(),
+      { auth: { choosingDisplayMode: true } as UIState['auth'] },
+      {},
+      AuthType.USE_OPENAI,
+    );
+    const frame = lastFrame() ?? '';
+    expect(frame).toContain('Connect a provider › display');
+    expect(frame).toMatch(/step (\d+) of \1/);
+    expect(frame).toContain("How do you want to follow the agent's work?");
+    unmount();
+  });
+
+  it('skips the choice with esc', async () => {
+    const skipDisplayModeChoice = vi.fn();
+    const closeAuthDialog = vi.fn();
+    const { stdin, unmount } = renderAuthDialog(
+      settings(),
+      { auth: { choosingDisplayMode: true } as UIState['auth'] },
+      { skipDisplayModeChoice, closeAuthDialog },
+      AuthType.USE_OPENAI,
+    );
+    await act(async () => {
+      stdin.write('\u001b');
+      await new Promise((resolve) => setTimeout(resolve, 100));
+    });
+    await vi.waitFor(() => expect(skipDisplayModeChoice).toHaveBeenCalled());
+    expect(closeAuthDialog).not.toHaveBeenCalled();
+    unmount();
+  });
+
+  it('saves the highlighted mode with enter', async () => {
+    const chooseDisplayMode = vi.fn();
+    const { stdin, unmount } = renderAuthDialog(
+      settings(),
+      { auth: { choosingDisplayMode: true } as UIState['auth'] },
+      { chooseDisplayMode },
+      AuthType.USE_OPENAI,
+    );
+    await act(async () => {
+      stdin.write('\r');
+      await new Promise((resolve) => setTimeout(resolve, 50));
+    });
+    await vi.waitFor(() =>
+      expect(chooseDisplayMode).toHaveBeenCalledWith('detailed'),
+    );
+    unmount();
+  });
 });

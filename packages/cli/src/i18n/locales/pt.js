@@ -3682,4 +3682,22 @@ export default {
     'código {{lang}} · {{count}} linhas · ctrl+o',
   'code · {{count}} lines · ctrl+o': 'código · {{count}} linhas · ctrl+o',
   summary: 'resumido',
+  display: 'exibição',
+  'Account connected.': 'Conta conectada.',
+  "How do you want to follow the agent's work?":
+    'Como você quer acompanhar o trabalho do agente?',
+  'as today': 'como hoje',
+  'Shows the code changed, the commands and their output, step by step.':
+    'Mostra o código alterado, os comandos e as saídas, passo a passo.',
+  'Shows only what is being done, in short sentences. Code and commands stay one ctrl+o away.':
+    'Mostra só o que está sendo feito, em frases curtas. Código e comandos ficam a um ctrl+o.',
+  PREVIEW: 'PRÉVIA',
+  'You can change it later in /settings › Display Mode. ctrl+o shows every detail at any time.':
+    'Dá para trocar depois em /settings › Modo de exibição. A qualquer momento, ctrl+o mostra todos os detalhes.',
+  '↑↓ navigate · enter confirm · esc skip':
+    '↑↓ navegar · enter confirmar · esc pular',
+  'Adjust the e-mail validation': 'Ajustar a validação do e-mail',
+  'Run the authentication tests': 'Rodar os testes de autenticação',
+  'Done. Login now ignores spaces around the e-mail.':
+    'Pronto. O login agora ignora espaços no começo e no fim do e-mail.',
 };

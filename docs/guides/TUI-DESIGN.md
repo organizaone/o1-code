@@ -332,11 +332,11 @@ zones stay visible.
 and `sideMargin(tier)`. Components read it through `hooks/use-layout-tier.ts`; `isNarrowWidth` is
 `tier === 'minimal'`. Each band drops what the band above dropped.
 
-| Tier      | Columns | Drops                                                                                                                                                  |
-| --------- | ------- | ------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `full`    | ≥ 120   | nothing                                                                                                                                                |
-| `medium`  | 100–119 | context bar; `ctrl+c quit` hint                                                                                                                        |
-| `compact` | 80–99   | footer git zone; active skill; memory bar; `@ files` hint; `reasoning high` becomes `high`; approval options stack vertically                          |
+| Tier      | Columns | Drops                                                                                                                                                             |
+| --------- | ------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `full`    | ≥ 120   | nothing                                                                                                                                                           |
+| `medium`  | 100–119 | context bar; `ctrl+c quit` hint                                                                                                                                   |
+| `compact` | 80–99   | footer git zone; active skill; memory bar; `@ files` hint; `reasoning high` becomes `high`; approval options stack vertically                                     |
 | `minimal` | < 80    | logo becomes the wordmark; hints; memory row; reasoning; `summary`; tokens; inactive chip labels; `online`/`failed`/`no provider` text (dot stays); side margin 1 |
 
 Side margin is 2 columns, 1 under 80. Under 80 the header is three rows: wordmark and version,
@@ -476,6 +476,12 @@ never leaves; it only shortens from the start.
   `the key is saved in ~/.o1-code/credentials/, for your user only`. The review is one line each for
   Provider, Endpoint, Key and Models plus one muted line on where they are saved, so it fits 40 rows;
   the settings JSON is not shown.
+- **Display-mode step** (`auth/DisplayModeStep.tsx`): after a successful connection, as long as
+  `ui.displayMode` is not saved in the User scope, the dialog ends on one more step (`› display`,
+  `step N of N`): `✓ Account connected.`, the question, Detailed (preselected, `as today`) and
+  Summary with one line each, and from 100 columns a preview of the highlighted mode built from the
+  same row components. Enter saves the mode for the user and applies it; Esc closes without saving,
+  so the step returns on the next connection.
 - **Start screen** (`components/WelcomeScreen.tsx`, hidden by `ui.hideTips`): welcome line, one
   sentence on what the agent does, `GETTING STARTED` and `RECENT SESSIONS` (up to three, then
   `/resume to continue a session`). Section titles use brand colour, bold, upper case;

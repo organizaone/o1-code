@@ -17,6 +17,7 @@ import {
   type DescriptiveRadioSelectItem,
 } from '../components/shared/DescriptiveRadioButtonSelect.js';
 import { useUIState } from '../contexts/UIStateContext.js';
+import { DisplayModeStep } from './DisplayModeStep.js';
 import { useUIActions } from '../contexts/UIActionsContext.js';
 import { useConfig } from '../contexts/ConfigContext.js';
 import { useSettings } from '../contexts/SettingsContext.js';
@@ -390,10 +391,16 @@ const MAIN_INDEX_BY_GROUP: Record<string, number> = {
 
 export function AuthDialog(): React.JSX.Element {
   const {
-    auth: { authError },
+    auth: { authError, choosingDisplayMode },
   } = useUIState();
   const {
-    auth: { closeAuthDialog, handleProviderSubmit, onAuthError },
+    auth: {
+      closeAuthDialog,
+      handleProviderSubmit,
+      onAuthError,
+      chooseDisplayMode,
+      skipDisplayModeChoice,
+    },
   } = useUIActions();
   const config = useConfig();
   const settings = useSettings();
@@ -583,6 +590,10 @@ export function AuthDialog(): React.JSX.Element {
 
   useKeypress(
     (key) => {
+      if (choosingDisplayMode) {
+        if (key.name === 'escape') skipDisplayModeChoice();
+        return;
+      }
       if (key.name === 'escape') {
         if (viewLevel !== 'main') {
           goBack();
@@ -634,6 +645,17 @@ export function AuthDialog(): React.JSX.Element {
         ? { flow: { stepIndex, totalSteps } }
         : {}),
     });
+    if (choosingDisplayMode) {
+      // The display choice comes after the provider's last step: one more.
+      const total = String((position.total ?? position.step) + 1);
+      return {
+        viewPath: [
+          ...(p ? [t(p.uiLabels?.flowTitle ?? p.label)] : []),
+          t('display'),
+        ],
+        stepText: t('step {{step}} of {{total}}', { step: total, total }),
+      };
+    }
     return {
       viewPath: path,
       stepText:
@@ -644,7 +666,13 @@ export function AuthDialog(): React.JSX.Element {
               total: String(position.total),
             }),
     };
-  }, [viewLevel, viewStack.length, family, setupFlow.state]);
+  }, [
+    viewLevel,
+    viewStack.length,
+    family,
+    setupFlow.state,
+    choosingDisplayMode,
+  ]);
 
   // -- Render ---------------------------------------------------------------
 
@@ -652,6 +680,37 @@ export function AuthDialog(): React.JSX.Element {
     viewLevel === 'main' || viewLevel === 'provider-setup'
       ? undefined
       : subMenus[viewLevel];
+
+  const header = (
+    <Box>
+      <Box flexGrow={1}>
+        <Text wrap="truncate-end">
+          <Text bold>{t('Connect a provider')}</Text>
+          <Text color={extendedTheme.text.muted}>
+            {viewPath.map((segment) => ` › ${segment}`).join('')}
+          </Text>
+        </Text>
+      </Box>
+      <Box flexShrink={0} marginLeft={2}>
+        <Text color={extendedTheme.text.muted}>{stepText}</Text>
+      </Box>
+    </Box>
+  );
+
+  if (choosingDisplayMode) {
+    return (
+      <Box
+        borderStyle={glyphs().borderStyle}
+        borderColor={extendedTheme.ui.brand}
+        flexDirection="column"
+        padding={1}
+        width="100%"
+      >
+        {header}
+        <DisplayModeStep onChoose={chooseDisplayMode} />
+      </Box>
+    );
+  }
 
   return (
     <Box
@@ -661,19 +720,7 @@ export function AuthDialog(): React.JSX.Element {
       padding={1}
       width="100%"
     >
-      <Box>
-        <Box flexGrow={1}>
-          <Text wrap="truncate-end">
-            <Text bold>{t('Connect a provider')}</Text>
-            <Text color={extendedTheme.text.muted}>
-              {viewPath.map((segment) => ` › ${segment}`).join('')}
-            </Text>
-          </Text>
-        </Box>
-        <Box flexShrink={0} marginLeft={2}>
-          <Text color={extendedTheme.text.muted}>{stepText}</Text>
-        </Box>
-      </Box>
+      {header}
 
       {viewLevel === 'main' && (
         <Box marginTop={1}>

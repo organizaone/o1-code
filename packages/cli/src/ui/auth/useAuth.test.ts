@@ -30,6 +30,7 @@ import {
   maskApiKey,
 } from './useAuth.js';
 import { setNestedPropertySafe } from '../../config/settingsUtils.js';
+import { SettingScope } from '../../config/settings.js';
 
 vi.mock('../../config/settingsUtils.js', async (importOriginal) => {
   const actual =
@@ -162,7 +163,69 @@ describe('useAuthCommand', () => {
     expect(result.current.authError).toBe(
       'Service models saved. Configure a conversation model to start chatting.',
     );
+    expect(result.current.state.choosingDisplayMode).toBe(false);
     expect(addItem).not.toHaveBeenCalled();
+  });
+
+  describe('display-mode step', () => {
+    const inputs = (): ProviderSetupInputs => ({
+      baseUrl: resolveBaseUrl(deepseekProvider),
+      apiKey: 'sk-deepseek',
+      modelIds: ['deepseek-v4-flash'],
+    });
+
+    const connect = async (settings: ReturnType<typeof createSettings>) => {
+      const hook = renderHook(() =>
+        useAuthCommand(settings as never, createConfig() as never, vi.fn()),
+      );
+      act(() => {
+        hook.result.current.openAuthDialog();
+      });
+      await act(async () => {
+        await hook.result.current.handleProviderSubmit(
+          deepseekProvider,
+          inputs(),
+        );
+      });
+      return hook.result;
+    };
+
+    it('closes right away once a display mode is saved for the user', async () => {
+      const settings = createSettings();
+      settings.forScope().settings['ui'] = { displayMode: 'detailed' };
+      const result = await connect(settings);
+      expect(result.current.isAuthDialogOpen).toBe(false);
+      expect(result.current.state.choosingDisplayMode).toBe(false);
+    });
+
+    it('saves the chosen mode in the User scope and closes', async () => {
+      const settings = createSettings();
+      const result = await connect(settings);
+      act(() => {
+        result.current.actions.chooseDisplayMode('summary');
+      });
+      expect(settings.setValue).toHaveBeenCalledWith(
+        SettingScope.User,
+        'ui.displayMode',
+        'summary',
+      );
+      expect(result.current.isAuthDialogOpen).toBe(false);
+      expect(result.current.state.choosingDisplayMode).toBe(false);
+    });
+
+    it('skips without saving, so the step returns next time', async () => {
+      const settings = createSettings();
+      const result = await connect(settings);
+      act(() => {
+        result.current.actions.skipDisplayModeChoice();
+      });
+      expect(
+        settings.setValue.mock.calls.some(
+          ([, key]) => key === 'ui.displayMode',
+        ),
+      ).toBe(false);
+      expect(result.current.isAuthDialogOpen).toBe(false);
+    });
   });
 
   it('configures DeepSeek via the unified provider submit', async () => {
@@ -212,7 +275,9 @@ describe('useAuthCommand', () => {
       'deepseek-v4-flash',
     );
     expect(config.refreshAuth).toHaveBeenCalledWith(AuthType.USE_OPENAI);
-    expect(result.current.isAuthDialogOpen).toBe(false);
+    // No display mode saved yet: the dialog stays open on that step.
+    expect(result.current.isAuthDialogOpen).toBe(true);
+    expect(result.current.state.choosingDisplayMode).toBe(true);
     expect(addItem).toHaveBeenCalledWith(
       expect.objectContaining({
         text: expect.stringContaining('Successfully configured DeepSeek'),

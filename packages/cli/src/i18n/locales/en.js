@@ -3374,4 +3374,22 @@ export default {
     'code {{lang}} · {{count}} lines · ctrl+o',
   'code · {{count}} lines · ctrl+o': 'code · {{count}} lines · ctrl+o',
   summary: 'summary',
+  display: 'display',
+  'Account connected.': 'Account connected.',
+  "How do you want to follow the agent's work?":
+    "How do you want to follow the agent's work?",
+  'as today': 'as today',
+  'Shows the code changed, the commands and their output, step by step.':
+    'Shows the code changed, the commands and their output, step by step.',
+  'Shows only what is being done, in short sentences. Code and commands stay one ctrl+o away.':
+    'Shows only what is being done, in short sentences. Code and commands stay one ctrl+o away.',
+  PREVIEW: 'PREVIEW',
+  'You can change it later in /settings › Display Mode. ctrl+o shows every detail at any time.':
+    'You can change it later in /settings › Display Mode. ctrl+o shows every detail at any time.',
+  '↑↓ navigate · enter confirm · esc skip':
+    '↑↓ navigate · enter confirm · esc skip',
+  'Adjust the e-mail validation': 'Adjust the e-mail validation',
+  'Run the authentication tests': 'Run the authentication tests',
+  'Done. Login now ignores spaces around the e-mail.':
+    'Done. Login now ignores spaces around the e-mail.',
 };
