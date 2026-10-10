@@ -645,7 +645,8 @@ export function SettingsDialog({
   // Height constraint calculations similar to ThemeDialog
   const DIALOG_PADDING = 0;
   const TAB_BAR_HEIGHT = showSpacing ? 2 : 1;
-  const SEARCH_BOX_HEIGHT = showSpacing ? 3 : 2;
+  // Framed search (3), blank row, scope, blank row; short panels: search, scope.
+  const SEARCH_BOX_HEIGHT = showSpacing ? 6 : 2;
   const SCROLL_ARROWS_HEIGHT = 2; // Up and down arrows
   const DESCRIPTION_HEIGHT = sideHelp || !showDescription ? 0 : 2;
   const BOTTOM_HELP_TEXT_HEIGHT = 1; // Help text
@@ -1287,37 +1288,75 @@ export function SettingsDialog({
             width={sideHelp ? '48%' : '100%'}
             paddingRight={sideHelp ? 1 : 0}
           >
-            <Box height={1} width="100%" flexShrink={0}>
-              <Text color={theme.text.secondary}>{'⌕ '}</Text>
-              {searchQuery ? (
-                <Text color={theme.text.primary} wrap="truncate">
-                  {searchQuery}
+            {/* An input like the composer's: a frame in rule colour, brand
+                while it has focus, the placeholder colour while empty. Short
+                panels drop the frame to keep their rows for the list. */}
+            <Box
+              width="100%"
+              flexShrink={0}
+              paddingX={showSpacing ? 1 : 0}
+              borderStyle={showSpacing ? glyphs().borderStyle : undefined}
+              borderColor={
+                focusZone === 'search'
+                  ? extendedTheme.ui.brand
+                  : extendedTheme.ui.rule
+              }
+            >
+              <Text
+                color={
+                  focusZone === 'search'
+                    ? extendedTheme.ui.brand
+                    : extendedTheme.text.muted
+                }
+              >
+                {'⌕ '}
+              </Text>
+              <Box flexGrow={1} minWidth={0}>
+                <Text wrap="truncate-start">
+                  {searchQuery ? (
+                    <Text color={theme.text.primary}>{searchQuery}</Text>
+                  ) : null}
+                  {focusZone === 'search' && renderSoftwareCursor(' ')}
+                  {searchQuery ? null : (
+                    <Text color={extendedTheme.text.placeholder}>
+                      {t('Search settings…')}
+                    </Text>
+                  )}
                 </Text>
-              ) : (
-                <Text color={theme.text.secondary}>
-                  {t('Search settings…')}
-                </Text>
-              )}
+              </Box>
             </Box>
-            <Text color={theme.text.secondary} wrap="truncate-end">
-              {t('Scope:')}{' '}
-              {[SettingScope.User, SettingScope.Workspace].map(
-                (scope, index) => (
+            {showSpacing && <Box height={1} />}
+            {/* The scope is another context than the list: its own colours,
+                brand soft for the user's settings, amber for the project's,
+                which override them. */}
+            <Text color={extendedTheme.text.muted} wrap="truncate-end">
+              {t('Scope:')}
+              {[SettingScope.User, SettingScope.Workspace].map((scope) => {
+                const active = scope === selectedScope;
+                const color =
+                  scope === SettingScope.Workspace
+                    ? theme.status.warning
+                    : extendedTheme.ui.brandSoft;
+                return (
                   <Text key={scope}>
-                    {index > 0 && (
-                      <Text color={extendedTheme.ui.separator}>{' · '}</Text>
-                    )}
-                    {scope === selectedScope ? (
-                      <Text bold color={extendedTheme.ui.brand}>
-                        {t(scope === SettingScope.User ? 'User' : 'Workspace')}
-                      </Text>
-                    ) : (
-                      <Text color={extendedTheme.text.muted}>
-                        {t(scope === SettingScope.User ? 'User' : 'Workspace')}
-                      </Text>
-                    )}
+                    {'  '}
+                    <Text color={active ? color : extendedTheme.ui.separator}>
+                      {active ? glyphs().dot : glyphs().hollow}{' '}
+                    </Text>
+                    <Text
+                      bold={active}
+                      color={active ? color : extendedTheme.text.muted}
+                    >
+                      {t(scope === SettingScope.User ? 'User' : 'Workspace')}
+                    </Text>
                   </Text>
-                ),
+                );
+              })}
+              {selectedScope === SettingScope.Workspace && (
+                <Text color={extendedTheme.text.muted}>
+                  {'  · '}
+                  {t('this project only')}
+                </Text>
               )}
             </Text>
             {showSpacing && <Box height={1} />}

@@ -3702,4 +3702,5 @@ export default {
     'Pronto. O login agora ignora espaços no começo e no fim do e-mail.',
   '(Use Enter to select, Tab to switch scope)':
     '(Enter seleciona, Tab troca o escopo)',
+  'this project only': 'só neste projeto',
 };

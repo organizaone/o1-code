@@ -1733,7 +1733,8 @@ describe('SettingsDialog', () => {
           />
         </KeypressProvider>,
       );
-      expect(lastFrame()).toContain('Scope: User · Workspace');
+      expect(lastFrame()).toContain('Scope:  ●︎ User  ○︎ Workspace');
+      expect(lastFrame()).not.toContain('this project only');
       for (let step = 0; step < index; step++) {
         act(() => stdin.write(TerminalKeys.DOWN_ARROW));
         await waitFor(() => expect(lastFrame()).toContain(`${step + 2}/`));
@@ -1749,10 +1750,41 @@ describe('SettingsDialog', () => {
       expect(frame).toContain('Search settings…');
       expect(frame).not.toContain('Apply To');
       expect(frame).toContain('Tab to switch scope');
+      expect(frame).toContain(
+        'Scope:  ○︎ User  ●︎ Workspace  · this project only',
+      );
 
       act(() => stdin.write(TerminalKeys.TAB));
       await waitFor(() => expect(lastFrame()).toContain(`/${userKeys.length}`));
       expect(lastFrame()).toContain(`●\uFE0E ${label}`);
+
+      unmount();
+    });
+
+    it('frames the search as an input, with a blank row before the scope', async () => {
+      terminal.columns = 100;
+      const { stdin, lastFrame, unmount } = render(
+        <KeypressProvider kittyProtocolEnabled={false}>
+          <SettingsDialog
+            settings={createMockSettings()}
+            onSelect={vi.fn()}
+            availableTerminalHeight={30}
+          />
+        </KeypressProvider>,
+      );
+      const rowsOf = () => (lastFrame() ?? '').split('\n');
+      const searchRow = rowsOf().findIndex((row) =>
+        row.includes('Search settings…'),
+      );
+      // Frame above and below the search text, then a blank row, then scope.
+      expect(rowsOf()[searchRow - 1]).toContain('╭');
+      expect(rowsOf()[searchRow + 1]).toContain('╰');
+      expect(rowsOf()[searchRow + 2]?.replace(/[│\s]/g, '')).toBe('');
+      expect(rowsOf()[searchRow + 3]).toContain('Scope:');
+
+      // Focused, the empty field shows a cursor before the placeholder.
+      act(() => stdin.write(TerminalKeys.UP_ARROW));
+      await waitFor(() => expect(lastFrame()).toMatch(/⌕ .Search settings…/));
 
       unmount();
     });

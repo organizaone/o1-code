@@ -408,8 +408,12 @@ never leaves; it only shortens from the start.
   Stats keep one size while switching tabs. The settings list fills the rows it
   has and the footer stays at the bottom. In full-screen mode the conversation
   frame is hidden while the panel is open and returns when it closes.
-  Under the search box, `Scope: User · Workspace` is a toggle with the active
-  scope in brand bold. Tab switches it in place: the list stays, its values
+  The search is an input like the composer's: a frame in `rule`, `brand` with a
+  cursor while it has focus, `⌕` and the placeholder colour while empty (panels
+  under 14 rows drop the frame). After one blank row, the scope reads
+  `Scope:  ● User  ○ Workspace` in its own colours, so it does not look like a
+  setting: brand soft for User, amber for Workspace (project settings override
+  the user's), with `· this project only` while Workspace is active. Tab switches it in place: the list stays, its values
   follow the new scope, and the cursor stays on the same setting (or the nearest
   row when the Workspace list leaves it out). There is no separate scope screen,
   and Tab waits while a value is being edited. The footer shows the selected

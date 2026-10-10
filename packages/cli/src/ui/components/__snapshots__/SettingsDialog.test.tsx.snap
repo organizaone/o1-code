@@ -4,8 +4,11 @@ exports[`SettingsDialog > Snapshot Tests > should render default state correctly
 "╭──────────────────────────────────────────────────────────────────────────╮
 │  Settings    Status    Stats   (↑ to switch tabs)                        │
 │                                                                          │
-│ ⌕ Search settings…                                                       │
-│ Scope: User · Workspace                                                  │
+│ ╭──────────────────────────────────────────────────────────────────────╮ │
+│ │ ⌕ Search settings…                                                   │ │
+│ ╰──────────────────────────────────────────────────────────────────────╯ │
+│                                                                          │
+│ Scope:  ●︎ User  ○︎ Workspace                                              │
 │                                                                          │
 │ ●︎ Tool Approval Mode                                                Auto │
 │   Code Mode Only (Experimental)                                    false │
@@ -26,8 +29,11 @@ exports[`SettingsDialog > Snapshot Tests > should render with accessibility sett
 "╭──────────────────────────────────────────────────────────────────────────╮
 │  Settings    Status    Stats   (↑ to switch tabs)                        │
 │                                                                          │
-│ ⌕ Search settings…                                                       │
-│ Scope: User · Workspace                                                  │
+│ ╭──────────────────────────────────────────────────────────────────────╮ │
+│ │ ⌕ Search settings…                                                   │ │
+│ ╰──────────────────────────────────────────────────────────────────────╯ │
+│                                                                          │
+│ Scope:  ●︎ User  ○︎ Workspace                                              │
 │                                                                          │
 │ ●︎ Tool Approval Mode                                                Auto │
 │   Code Mode Only (Experimental)                                    false │
@@ -48,8 +54,11 @@ exports[`SettingsDialog > Snapshot Tests > should render with all boolean settin
 "╭──────────────────────────────────────────────────────────────────────────╮
 │  Settings    Status    Stats   (↑ to switch tabs)                        │
 │                                                                          │
-│ ⌕ Search settings…                                                       │
-│ Scope: User · Workspace                                                  │
+│ ╭──────────────────────────────────────────────────────────────────────╮ │
+│ │ ⌕ Search settings…                                                   │ │
+│ ╰──────────────────────────────────────────────────────────────────────╯ │
+│                                                                          │
+│ Scope:  ●︎ User  ○︎ Workspace                                              │
 │                                                                          │
 │ ●︎ Tool Approval Mode                                                Auto │
 │   Code Mode Only (Experimental)                                    false │
@@ -70,8 +79,11 @@ exports[`SettingsDialog > Snapshot Tests > should render with file filtering set
 "╭──────────────────────────────────────────────────────────────────────────╮
 │  Settings    Status    Stats   (↑ to switch tabs)                        │
 │                                                                          │
-│ ⌕ Search settings…                                                       │
-│ Scope: User · Workspace                                                  │
+│ ╭──────────────────────────────────────────────────────────────────────╮ │
+│ │ ⌕ Search settings…                                                   │ │
+│ ╰──────────────────────────────────────────────────────────────────────╯ │
+│                                                                          │
+│ Scope:  ●︎ User  ○︎ Workspace                                              │
 │                                                                          │
 │ ●︎ Tool Approval Mode                                                Auto │
 │   Code Mode Only (Experimental)                                    false │
@@ -92,8 +104,11 @@ exports[`SettingsDialog > Snapshot Tests > should render with mixed boolean and 
 "╭──────────────────────────────────────────────────────────────────────────╮
 │  Settings    Status    Stats   (↑ to switch tabs)                        │
 │                                                                          │
-│ ⌕ Search settings…                                                       │
-│ Scope: User · Workspace                                                  │
+│ ╭──────────────────────────────────────────────────────────────────────╮ │
+│ │ ⌕ Search settings…                                                   │ │
+│ ╰──────────────────────────────────────────────────────────────────────╯ │
+│                                                                          │
+│ Scope:  ●︎ User  ○︎ Workspace                                              │
 │                                                                          │
 │ ●︎ Tool Approval Mode                                                Auto │
 │   Code Mode Only (Experimental)                                    false │
@@ -114,8 +129,11 @@ exports[`SettingsDialog > Snapshot Tests > should render with system settings in
 "╭──────────────────────────────────────────────────────────────────────────╮
 │  Settings    Status    Stats   (↑ to switch tabs)                        │
 │                                                                          │
-│ ⌕ Search settings…                                                       │
-│ Scope: User · Workspace                                                  │
+│ ╭──────────────────────────────────────────────────────────────────────╮ │
+│ │ ⌕ Search settings…                                                   │ │
+│ ╰──────────────────────────────────────────────────────────────────────╯ │
+│                                                                          │
+│ Scope:  ●︎ User  ○︎ Workspace                                              │
 │                                                                          │
 │ ●︎ Tool Approval Mode                                                Auto │
 │   Code Mode Only (Experimental)                                    false │
@@ -136,8 +154,11 @@ exports[`SettingsDialog > Snapshot Tests > should render with the Workspace scop
 "╭──────────────────────────────────────────────────────────────────────────╮
 │  Settings    Status    Stats   (↑ to switch tabs)                        │
 │                                                                          │
-│ ⌕ Search settings…                                                       │
-│ Scope: User · Workspace                                                  │
+│ ╭──────────────────────────────────────────────────────────────────────╮ │
+│ │ ⌕ Search settings…                                                   │ │
+│ ╰──────────────────────────────────────────────────────────────────────╯ │
+│                                                                          │
+│ Scope:  ○︎ User  ●︎ Workspace  · this project only                         │
 │                                                                          │
 │ ●︎ Tool Approval Mode                                                Auto │
 │   Code Mode Only (Experimental)                                    false │
@@ -158,8 +179,11 @@ exports[`SettingsDialog > Snapshot Tests > should render with tools and security
 "╭──────────────────────────────────────────────────────────────────────────╮
 │  Settings    Status    Stats   (↑ to switch tabs)                        │
 │                                                                          │
-│ ⌕ Search settings…                                                       │
-│ Scope: User · Workspace                                                  │
+│ ╭──────────────────────────────────────────────────────────────────────╮ │
+│ │ ⌕ Search settings…                                                   │ │
+│ ╰──────────────────────────────────────────────────────────────────────╯ │
+│                                                                          │
+│ Scope:  ●︎ User  ○︎ Workspace                                              │
 │                                                                          │
 │ ●︎ Tool Approval Mode                                                Auto │
 │   Code Mode Only (Experimental)                                    false │
@@ -180,8 +204,11 @@ exports[`SettingsDialog > Snapshot Tests > should render with various boolean se
 "╭──────────────────────────────────────────────────────────────────────────╮
 │  Settings    Status    Stats   (↑ to switch tabs)                        │
 │                                                                          │
-│ ⌕ Search settings…                                                       │
-│ Scope: User · Workspace                                                  │
+│ ╭──────────────────────────────────────────────────────────────────────╮ │
+│ │ ⌕ Search settings…                                                   │ │
+│ ╰──────────────────────────────────────────────────────────────────────╯ │
+│                                                                          │
+│ Scope:  ●︎ User  ○︎ Workspace                                              │
 │                                                                          │
 │ ●︎ Tool Approval Mode                                                Auto │
 │   Code Mode Only (Experimental)                                    false │
