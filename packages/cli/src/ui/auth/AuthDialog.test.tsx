@@ -4,7 +4,15 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import {
+  describe,
+  it,
+  expect,
+  vi,
+  beforeEach,
+  afterEach,
+  onTestFinished,
+} from 'vitest';
 import { setTimeout as settleInput } from 'node:timers/promises';
 import {
   AuthDialog,
@@ -33,10 +41,43 @@ const discoverProviderModelsMock = vi.hoisted(() =>
   vi.fn().mockResolvedValue(null),
 );
 
+// The key step asks the provider for its models. Without this the wizard
+// tests reach the real endpoint, and a 401 there stops them on the key step.
+const checkProviderKeyMock = vi.hoisted(() =>
+  vi.fn().mockResolvedValue({ status: 'unavailable' }),
+);
+
 vi.mock('@organizaone/o1-code-core', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@organizaone/o1-code-core')>()),
   discoverProviderModels: discoverProviderModelsMock,
+  checkProviderKey: checkProviderKeyMock,
 }));
+
+// No shipped provider is `comingSoon` today; a test adds an id here to cover
+// how the menu treats one.
+const comingSoonProviderIds = vi.hoisted(() => new Set<string>());
+
+vi.mock(
+  '@organizaone/o1-code-core/providers/all-providers.js',
+  async (importOriginal) => {
+    const actual =
+      await importOriginal<
+        typeof import('@organizaone/o1-code-core/providers/all-providers.js')
+      >();
+    return {
+      ...actual,
+      getMenuRows: (...args: Parameters<typeof actual.getMenuRows>) =>
+        actual.getMenuRows(...args).map((row) =>
+          row.kind === 'provider' && comingSoonProviderIds.has(row.provider.id)
+            ? {
+                ...row,
+                provider: { ...row.provider, comingSoon: true as const },
+              }
+            : row,
+        ),
+    };
+  },
+);
 
 const NOTHING_RUNNING: LocalServerProbe[] = [
   {
@@ -92,6 +133,11 @@ type UIActionsOverrides = Partial<UIActions> & Partial<UIActions['auth']>;
 
 const createMockUIState = (overrides: UIStateOverrides = {}): UIState => {
   const baseState = {
+    // The model IDs step sizes its inputs from these; without them the input
+    // width is NaN and the field draws empty.
+    terminalWidth: 120,
+    terminalHeight: 40,
+    mainAreaWidth: 116,
     auth: {
       authError: null,
       isAuthDialogOpen: false,
@@ -1339,7 +1385,10 @@ describe('AuthDialog', { timeout: 15000 }, () => {
           expect(frame).toContain('DeepSeek');
           expect(frame).not.toContain('OpenRouter');
           expect(frame).not.toContain('Requesty');
-          expect(frame).not.toContain('Standard API Key');
+          // The Alibaba plans share the "Alibaba Cloud" row, whose
+          // description names them; none has a row of its own.
+          expect(frame).toContain('Alibaba Cloud');
+          expect(frame).not.toMatch(/^[│\s❯]*Standard API Key/m);
         },
         { timeout: WAIT_FOR_TIMEOUT },
       );
@@ -1710,6 +1759,8 @@ describe('AuthDialog', { timeout: 15000 }, () => {
   itWhenTuiInputReliable(
     'says a coming-soon OrganizaOne entry is not available yet',
     async () => {
+      comingSoonProviderIds.add('organizaone-login');
+      onTestFinished(() => comingSoonProviderIds.clear());
       const handleProviderSubmit = vi.fn();
       const { stdin, lastFrame, unmount } = renderAuthDialog(
         plainSettings(),
