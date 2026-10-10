@@ -24,7 +24,10 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 }
 
 /** True when the tool's own schema already has an `intent` property. */
-export function declaresOwnIntent(declaration: FunctionDeclaration): boolean {
+export function declaresOwnIntent(
+  declaration: FunctionDeclaration | undefined,
+): boolean {
+  if (!declaration) return false;
   const json = declaration.parametersJsonSchema;
   if (isRecord(json) && isRecord(json['properties'])) {
     return Object.hasOwn(json['properties'], INTENT_PARAM);
@@ -97,7 +100,7 @@ export function extractIntent(args: Record<string, unknown>): {
 
 /** Arguments a tool may be built with: `intent` removed unless it owns one. */
 export function argsWithoutIntent(
-  declaration: FunctionDeclaration,
+  declaration: FunctionDeclaration | undefined,
   args: Record<string, unknown>,
 ): Record<string, unknown> {
   return declaresOwnIntent(declaration) ? args : extractIntent(args).args;

@@ -9,6 +9,7 @@ import { Type, type FunctionDeclaration } from '@google/genai';
 import {
   INTENT_DESCRIPTION,
   INTENT_MAX_LENGTH,
+  argsWithoutIntent,
   declaresOwnIntent,
   extractIntent,
   withIntentParam,
@@ -72,6 +73,13 @@ describe('withIntentParam', () => {
     };
     expect(declaresOwnIntent(declaration)).toBe(true);
     expect(withIntentParam(declaration)).toBe(declaration);
+  });
+
+  it('treats a missing declaration as not owning intent', () => {
+    expect(declaresOwnIntent(undefined)).toBe(false);
+    expect(argsWithoutIntent(undefined, { a: 1, intent: 'x' })).toEqual({
+      a: 1,
+    });
   });
 });
 
