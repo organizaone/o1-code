@@ -38,6 +38,7 @@ import {
   ToolMode,
   type CodeModeBindingPlan,
 } from './code-mode.js';
+import { withIntentParam } from './intent-param.js';
 
 type ToolParams = Record<string, unknown>;
 
@@ -865,7 +866,7 @@ export class ToolRegistry {
           !this.isDeferredAndHidden(tool.name),
       )
       .sort(ToolRegistry.compareToolsByDeclarationName)
-      .map((tool) => tool.schema);
+      .map((tool) => withIntentParam(tool.schema));
   }
 
   private getCodeModeFunctionDeclarations(
@@ -885,7 +886,7 @@ export class ToolRegistry {
       .map((tool) =>
         tool.name === ToolNames.EXEC
           ? buildExecDeclaration(tool, plan)
-          : tool.schema,
+          : withIntentParam(tool.schema),
       );
   }
 
@@ -1111,7 +1112,7 @@ export class ToolRegistry {
     for (const name of toolNames) {
       const tool = this.getTool(name);
       if (tool && this.isToolDeclared(tool.name)) {
-        declarations.push(tool.schema);
+        declarations.push(withIntentParam(tool.schema));
       }
     }
     return declarations;

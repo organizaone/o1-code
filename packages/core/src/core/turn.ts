@@ -194,6 +194,11 @@ export interface ToolCallRequestInfo {
   providerCallId?: string;
   name: string;
   args: Record<string, unknown>;
+  /**
+   * The step's purpose as the model stated it in the `intent` argument, which
+   * the scheduler removes from `args` at intake.
+   */
+  intent?: string;
   isClientInitiated: boolean;
   prompt_id: string;
   response_id?: string;
