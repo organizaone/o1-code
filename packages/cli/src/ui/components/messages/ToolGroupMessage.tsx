@@ -19,6 +19,11 @@ import {
   isCollapsibleTool,
 } from './CompactToolGroupDisplay.js';
 import { InlineParallelAgentsDisplay } from './InlineParallelAgentsDisplay.js';
+import {
+  keepsDetailedRendering,
+  SummaryToolGroupDisplay,
+} from './SummaryToolGroupDisplay.js';
+import { useDisplayMode } from '../../hooks/use-display-mode.js';
 import { useConfig } from '../../contexts/ConfigContext.js';
 import { useShowToolCallArgs } from '../../hooks/use-show-tool-call-args.js';
 import { ICON } from '../../constants.js';
@@ -246,6 +251,7 @@ export const ToolGroupMessage: React.FC<ToolGroupMessageProps> = ({
 }) => {
   const config = useConfig();
   const showToolCallArgs = useShowToolCallArgs();
+  const { summaryActive } = useDisplayMode();
 
   const hasConfirmingTool = toolCalls.some(
     (t) => t.status === ToolCallStatus.Confirming,
@@ -359,6 +365,28 @@ export const ToolGroupMessage: React.FC<ToolGroupMessageProps> = ({
     focusedSubagentCallId ?? runningSubagentCallId;
 
   const hasSubagentPendingConfirmation = subagentsAwaitingApproval.length > 0;
+
+  // Summary display mode. Everything that needs the user's eyes or input
+  // keeps today's rendering: approvals, the user's own `!` commands, a
+  // focused shell, the parallel-agent roster and self-summarizing results.
+  if (
+    summaryActive &&
+    !fullDetail &&
+    !hasConfirmingTool &&
+    !hasSubagentPendingConfirmation &&
+    !isEmbeddedShellFocused &&
+    !isUserInitiated &&
+    !isPureParallelAgentGroup(toolCalls) &&
+    !inlineToolCalls.some(keepsDetailedRendering)
+  ) {
+    if (inlineToolCalls.length === 0) return null;
+    return (
+      <SummaryToolGroupDisplay
+        toolCalls={inlineToolCalls}
+        contentWidth={contentWidth}
+      />
+    );
+  }
 
   if (hideDetails) {
     if (isPending && inlineToolCalls.length === 0) return null;

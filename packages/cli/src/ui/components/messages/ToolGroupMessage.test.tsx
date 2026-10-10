@@ -20,6 +20,7 @@ import type {
 import { TOOL_STATUS } from '../../constants.js';
 import { ConfigContext } from '../../contexts/ConfigContext.js';
 import { SettingsContext } from '../../contexts/SettingsContext.js';
+import { ThoughtExpandedProvider } from '../../contexts/ThoughtExpandedContext.js';
 import type { LoadedSettings } from '../../../config/settings.js';
 // Global compact mode was removed; type-based tool rendering no longer
 // consumes a compact-mode context.
@@ -1839,5 +1840,103 @@ describe('<ToolGroupMessage />', () => {
       expect(committedFrame).toContain('CAPAGENT7');
       expect(committedFrame).toContain('8/8 done');
     });
+  });
+});
+
+describe('<ToolGroupMessage /> in the Summary display mode', () => {
+  const summarySettings = {
+    merged: { ui: { displayMode: 'summary' } },
+  } as unknown as LoadedSettings;
+
+  const tool = (
+    overrides: Partial<IndividualToolCallDisplay> = {},
+  ): IndividualToolCallDisplay => ({
+    callId: 'tool-1',
+    name: 'Edit',
+    description: 'validate.ts',
+    intent: 'Fix the e-mail validation',
+    resultDisplay: 'diff body that must stay hidden',
+    status: ToolCallStatus.Success,
+    confirmationDetails: undefined,
+    ...overrides,
+  });
+
+  const frame = (
+    toolCalls: IndividualToolCallDisplay[],
+    extra: Partial<React.ComponentProps<typeof ToolGroupMessage>> = {},
+    allExpanded = false,
+  ) =>
+    render(
+      <ConfigContext.Provider value={{} as Config}>
+        <SettingsContext.Provider value={summarySettings}>
+          <ThoughtExpandedProvider
+            value={{
+              allExpanded,
+              expandedHeadIds: new Set(),
+              toggle: () => {},
+            }}
+          >
+            <ToolGroupMessage
+              groupId={1}
+              contentWidth={100}
+              toolCalls={toolCalls}
+              {...extra}
+            />
+          </ThoughtExpandedProvider>
+        </SettingsContext.Provider>
+      </ConfigContext.Provider>,
+    ).lastFrame() ?? '';
+
+  it('renders the intent instead of the tool rows and their output', () => {
+    const output = frame([tool()]);
+    expect(output).toContain('Fix the e-mail validation');
+    expect(output).not.toContain('MockTool[');
+    expect(output).not.toContain('diff body');
+  });
+
+  it('keeps the error visible', () => {
+    const output = frame([
+      tool({
+        status: ToolCallStatus.Error,
+        resultDisplay: 'Permission denied',
+      }),
+    ]);
+    expect(output).toContain('Permission denied');
+  });
+
+  it('renders as Detailed under Ctrl+O full detail', () => {
+    expect(frame([tool()], {}, true)).toContain('MockTool[tool-1]');
+    expect(frame([tool()], { fullDetail: true })).toContain('MockTool[tool-1]');
+  });
+
+  it('keeps approvals and user commands as they are', () => {
+    const confirming = frame([
+      tool({
+        status: ToolCallStatus.Confirming,
+        confirmationDetails: {
+          type: 'info',
+          title: 'Run',
+          prompt: 'Allow it?',
+          onConfirm: vi.fn(),
+        } as unknown as ToolCallConfirmationDetails,
+      }),
+    ]);
+    expect(confirming).toContain('MockConfirmation');
+    expect(frame([tool()], { isUserInitiated: true })).toContain(
+      'MockTool[tool-1]',
+    );
+  });
+
+  it('keeps a todo list in the Detailed rendering', () => {
+    const output = frame([
+      tool({
+        name: 'TodoWrite',
+        resultDisplay: {
+          type: 'todo_list',
+          todos: [],
+        } as unknown as IndividualToolCallDisplay['resultDisplay'],
+      }),
+    ]);
+    expect(output).toContain('MockTool[tool-1]');
   });
 });

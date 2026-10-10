@@ -5,6 +5,7 @@
  */
 
 import * as path from 'node:path';
+import stripAnsi from 'strip-ansi';
 import { t, localizeToolDisplayName } from '../../i18n/index.js';
 import type { IndividualToolCallDisplay } from '../types.js';
 import { getToolCategory } from '../components/messages/CompactToolGroupDisplay.js';
@@ -35,9 +36,9 @@ const SUBCOMMAND_PROGRAMS = new Set([
 const PATH_ARGS = ['file_path', 'absolute_path', 'path', 'notebook_path'];
 const QUERY_ARGS = ['pattern', 'query'];
 
-/** One line of terminal-safe text. */
+/** One line of terminal-safe text, with escape sequences removed. */
 export function oneLine(value: string): string {
-  return sanitizeTerminalText(value).replace(/\s+/g, ' ').trim();
+  return sanitizeTerminalText(stripAnsi(value)).replace(/\s+/g, ' ').trim();
 }
 
 function stringArg(

@@ -3673,4 +3673,6 @@ export default {
   'Running {{program}}': 'Rodando {{program}}',
   'Running a command': 'Rodando um comando',
   'Delegating to an agent': 'Delegando a um agente',
+  '{{count}} files': '{{count}} arquivos',
+  '{{count}} steps': '{{count}} passos',
 };
