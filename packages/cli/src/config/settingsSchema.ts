@@ -1117,6 +1117,20 @@ const SETTINGS_SCHEMA = {
           { value: 'raw', label: 'Show raw source' },
         ],
       },
+      displayMode: {
+        type: 'enum',
+        label: 'Display Mode',
+        category: 'UI',
+        requiresRestart: false,
+        default: 'detailed',
+        description:
+          'How the agent shows its work. "Detailed" shows code, diffs, commands and outputs. "Summary" shows one plain-language sentence per step; approvals stay mandatory, shell approvals still show the full command, and Ctrl+O shows everything.',
+        showInDialog: true,
+        options: [
+          { value: 'detailed', label: 'Detailed' },
+          { value: 'summary', label: 'Summary' },
+        ],
+      },
       showCitations: {
         type: 'boolean',
         label: 'Show Citations',

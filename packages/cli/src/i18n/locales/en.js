@@ -3346,4 +3346,23 @@ export default {
     'The selected marketplace source changed while it was being validated. Refresh the source list and try again.',
   'Another marketplace already uses that name or source.':
     'Another marketplace already uses that name or source.',
+  'Display Mode': 'Display Mode',
+  'How the agent shows its work. "Detailed" shows code, diffs, commands and outputs. "Summary" shows one plain-language sentence per step; approvals stay mandatory, shell approvals still show the full command, and Ctrl+O shows everything.':
+    'How the agent shows its work. "Detailed" shows code, diffs, commands and outputs. "Summary" shows one plain-language sentence per step; approvals stay mandatory, shell approvals still show the full command, and Ctrl+O shows everything.',
+  Detailed: 'Detailed',
+  Summary: 'Summary',
+  'Using {{server}}/{{tool}}': 'Using {{server}}/{{tool}}',
+  'Reading {{target}}': 'Reading {{target}}',
+  'Reading files': 'Reading files',
+  'Changing {{target}}': 'Changing {{target}}',
+  'Changing files': 'Changing files',
+  'Writing {{target}}': 'Writing {{target}}',
+  'Writing files': 'Writing files',
+  'Listing {{target}}': 'Listing {{target}}',
+  'Listing files': 'Listing files',
+  'Searching "{{query}}"': 'Searching "{{query}}"',
+  'Searching the project': 'Searching the project',
+  'Running {{program}}': 'Running {{program}}',
+  'Running a command': 'Running a command',
+  'Delegating to an agent': 'Delegating to an agent',
 };

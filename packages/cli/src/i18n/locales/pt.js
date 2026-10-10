@@ -3654,4 +3654,23 @@ export default {
     'A fonte da loja selecionada mudou durante a validação. Atualize a lista de fontes e tente novamente.',
   'Another marketplace already uses that name or source.':
     'Outra loja já usa esse nome ou essa fonte.',
+  'Display Mode': 'Modo de exibição',
+  'How the agent shows its work. "Detailed" shows code, diffs, commands and outputs. "Summary" shows one plain-language sentence per step; approvals stay mandatory, shell approvals still show the full command, and Ctrl+O shows everything.':
+    'Como o agente mostra o trabalho. "Detalhado" mostra código, diffs, comandos e saídas. "Resumido" mostra uma frase simples por passo; as aprovações continuam obrigatórias, a aprovação de comandos shell mostra o comando completo e o Ctrl+O mostra tudo.',
+  Detailed: 'Detalhado',
+  Summary: 'Resumido',
+  'Using {{server}}/{{tool}}': 'Usando {{server}}/{{tool}}',
+  'Reading {{target}}': 'Lendo {{target}}',
+  'Reading files': 'Lendo arquivos',
+  'Changing {{target}}': 'Alterando {{target}}',
+  'Changing files': 'Alterando arquivos',
+  'Writing {{target}}': 'Escrevendo {{target}}',
+  'Writing files': 'Escrevendo arquivos',
+  'Listing {{target}}': 'Listando {{target}}',
+  'Listing files': 'Listando arquivos',
+  'Searching "{{query}}"': 'Buscando "{{query}}"',
+  'Searching the project': 'Buscando no projeto',
+  'Running {{program}}': 'Rodando {{program}}',
+  'Running a command': 'Rodando um comando',
+  'Delegating to an agent': 'Delegando a um agente',
 };

@@ -412,6 +412,14 @@
           ],
           "default": "render"
         },
+        "displayMode": {
+          "description": "How the agent shows its work. \"Detailed\" shows code, diffs, commands and outputs. \"Summary\" shows one plain-language sentence per step; approvals stay mandatory, shell approvals still show the full command, and Ctrl+O shows everything. Options: detailed, summary",
+          "enum": [
+            "detailed",
+            "summary"
+          ],
+          "default": "detailed"
+        },
         "showCitations": {
           "description": "Show citations for generated text in the chat.",
           "type": "boolean",
