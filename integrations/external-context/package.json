@@ -1,6 +1,6 @@
 {
   "name": "@organizaone/o1-code-external-context",
-  "version": "0.12.0",
+  "version": "0.12.1",
   "private": true,
   "description": "Provider-bound external context for O1-Code",
   "type": "module",

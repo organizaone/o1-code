@@ -50,6 +50,15 @@ describe('bundled write-plan skill', () => {
     expect(text).toContain('No placeholder is left');
   });
 
+  it('saves the plan under the project convention, never a foreign tool folder', () => {
+    const { text } = loadSkill();
+
+    expect(text).toContain('`docs/plans/YYYY-MM-DD-<feature>.md`');
+    expect(text).toContain(
+      'Never save it under a directory named after a tool, plugin or skill set',
+    );
+  });
+
   it('hands off to execute-plan or to a Goal', () => {
     const { text } = loadSkill();
 

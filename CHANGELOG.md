@@ -7,6 +7,12 @@ follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Fixed
+
+- Plans and designs are saved where the project keeps them, or else in
+  `docs/plans/` and `docs/specs/`, instead of a folder named after a plugin
+  the user never installed.
+
 ## [0.12.0] - 2026-10-09
 
 ### Added

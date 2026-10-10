@@ -59,6 +59,13 @@ Interfaces: consumes <names and signatures from earlier tasks>; produces <names 
 4. The review focus is filled in, or says you checked and found nothing.
 5. The plan is shorter than the code it describes.
 
+## Where to save it
+
+Save the plan as a file in the project. Use the location the project already has for plans (named in
+`AGENTS.md` or an existing plans directory); when it has none, use
+`docs/plans/YYYY-MM-DD-<feature>.md`. Never save it under a directory named after a tool, plugin or
+skill set, unless the user installed that tool and the project uses its folder.
+
 ## Hand-off
 
 When plan mode is active, submit the plan through plan mode; the harness keeps the approved plan.
