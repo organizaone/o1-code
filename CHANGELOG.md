@@ -7,6 +7,8 @@ follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.15.0] - 2026-10-11
+
 ### Added
 
 - Remote sessions: `/rc` puts the terminal in remote mode through the OrganizaOne
@@ -569,7 +571,8 @@ The first release of o1-code, a coding agent for the terminal.
 - `o1-code serve` runs a local daemon with a REST API and the Web Shell, a browser interface.
 - Editor companions for VS Code and Zed.
 
-[Unreleased]: https://github.com/organizaone/o1-code/compare/v0.14.1...HEAD
+[Unreleased]: https://github.com/organizaone/o1-code/compare/v0.15.0...HEAD
+[0.15.0]: https://github.com/organizaone/o1-code/compare/v0.14.1...v0.15.0
 [0.14.1]: https://github.com/organizaone/o1-code/compare/v0.14.0...v0.14.1
 [0.14.0]: https://github.com/organizaone/o1-code/compare/v0.13.0...v0.14.0
 [0.13.0]: https://github.com/organizaone/o1-code/compare/v0.12.0...v0.13.0
