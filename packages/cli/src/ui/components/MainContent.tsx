@@ -563,6 +563,7 @@ export const MainContent = ({
     useVirtualScroll &&
     (uiState.isExtensionsManagerDialogOpen ||
       uiState.isSettingsDialogOpen ||
+      uiState.isRemoteDialogOpen ||
       uiState.auth.isAuthDialogOpen ||
       uiState.auth.isAuthenticating ||
       uiState.auth.authError)

@@ -3776,5 +3776,7 @@ export default {
     'Modo remoto ligado como "{{name}}". Abra este endereço na página da sua conta ou leia o código:',
   'Esc closes this; /rc off ends the session.':
     'Esc fecha isto; /rc off encerra a sessão.',
+  'The QR code does not fit this terminal; open the address instead.':
+    'O código QR não cabe neste terminal; abra o endereço.',
   Other: 'Outra resposta',
 };

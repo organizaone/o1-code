@@ -13,6 +13,7 @@ import { useRemoteController } from '../../remote/RemoteControllerContext.js';
 import type { RemoteStatus } from '../../remote/remote-controller.js';
 import { useSettings } from '../contexts/SettingsContext.js';
 import { useKeypress } from '../hooks/useKeypress.js';
+import { useTerminalSize } from '../hooks/useTerminalSize.js';
 import { theme } from '../semantic-colors.js';
 import {
   describeRemoteOutcome,
@@ -20,6 +21,27 @@ import {
 } from '../commands/rc-command.js';
 
 type Phase = 'consent' | 'connecting' | 'on' | 'error';
+
+/**
+ * Drops the blank border the QR generator pads in, so the code takes only
+ * the rows and columns it needs. Rows inside the code stay: an all-white
+ * module row renders as spaces and shifting it would break the pattern.
+ */
+export function compactQr(code: string): string {
+  const lines = code.replace(/\r/g, '').split('\n');
+  while (lines.length > 0 && lines[0]!.trim() === '') lines.shift();
+  while (lines.length > 0 && lines[lines.length - 1]!.trim() === '')
+    lines.pop();
+  const inked = lines.filter((line) => line.trim() !== '');
+  const indent =
+    inked.length === 0
+      ? 0
+      : Math.min(...inked.map((line) => line.match(/^[ \t]*/)![0].length));
+  return lines.map((line) => line.slice(indent).replace(/\s+$/, '')).join('\n');
+}
+
+/** The dialog's own rows (title, address, hint, border) plus the header and footer. */
+const QR_ROW_BUDGET = 12;
 
 /**
  * `/rc`: the one-time notice the first time, then the viewer's address and
@@ -30,6 +52,7 @@ export const RemoteControlDialog: React.FC<{ onClose: () => void }> = ({
 }) => {
   const remote = useRemoteController();
   const settings = useSettings();
+  const { rows: terminalRows } = useTerminalSize();
   const consented = settings.merged.remote?.consented === true;
   const [status, setStatus] = useState<RemoteStatus | null>(
     () => remote?.status() ?? null,
@@ -85,13 +108,19 @@ export const RemoteControlDialog: React.FC<{ onClose: () => void }> = ({
     void import('qrcode-terminal').then(({ default: qrcode }) => {
       qrcode.setErrorLevel('Q');
       qrcode.generate(url, { small: true }, (code: string) => {
-        if (alive) setQr(code.trimEnd());
+        if (alive) setQr(compactQr(code));
       });
     });
     return () => {
       alive = false;
     };
   }, [url]);
+  const qrRows = qr ? qr.split('\n').length : 0;
+  // A code taller than what is left of the terminal would be clipped by the
+  // dialog's height cap mid-pattern, unreadable to a camera; the address is
+  // the way in then.
+  const showQr =
+    qr !== null && qrRows <= Math.max(0, terminalRows - QR_ROW_BUDGET);
 
   useKeypress(
     (key) => {
@@ -147,7 +176,7 @@ export const RemoteControlDialog: React.FC<{ onClose: () => void }> = ({
         </Box>
       )}
       {phase === 'on' && status?.active && (
-        <Box flexDirection="column" marginTop={1}>
+        <Box flexDirection="column">
           <Text>
             {t(
               'Remote mode is on as "{{name}}". Open this address on your account page, or scan the code:',
@@ -156,29 +185,29 @@ export const RemoteControlDialog: React.FC<{ onClose: () => void }> = ({
               },
             )}
           </Text>
-          <Box marginTop={1}>
-            <Text color={theme.text.link}>{status.url}</Text>
-          </Box>
-          {qr && (
-            <Box marginTop={1}>
-              <Text>{qr}</Text>
-            </Box>
+          <Text color={theme.text.link}>{status.url}</Text>
+          {showQr ? (
+            <Text>{qr}</Text>
+          ) : (
+            qr !== null && (
+              <Text color={theme.text.secondary}>
+                {t(
+                  'The QR code does not fit this terminal; open the address instead.',
+                )}
+              </Text>
+            )
           )}
-          <Box marginTop={1}>
-            <Text color={theme.text.secondary}>
-              {status.snapshot ? describeRemoteSnapshot(status.snapshot) : ''}
-              {' · '}
-              {t('Esc closes this; /rc off ends the session.')}
-            </Text>
-          </Box>
+          <Text color={theme.text.secondary}>
+            {status.snapshot ? describeRemoteSnapshot(status.snapshot) : ''}
+            {' · '}
+            {t('Esc closes this; /rc off ends the session.')}
+          </Text>
         </Box>
       )}
       {phase === 'error' && (
-        <Box flexDirection="column" marginTop={1}>
+        <Box flexDirection="column">
           <Text color={theme.status.warning}>{message}</Text>
-          <Box marginTop={1}>
-            <Text color={theme.text.secondary}>{t('Esc to close')}</Text>
-          </Box>
+          <Text color={theme.text.secondary}>{t('Esc to close')}</Text>
         </Box>
       )}
     </Box>

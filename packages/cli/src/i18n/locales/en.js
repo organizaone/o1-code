@@ -3466,5 +3466,7 @@ export default {
     'Remote mode is on as "{{name}}". Open this address on your account page, or scan the code:',
   'Esc closes this; /rc off ends the session.':
     'Esc closes this; /rc off ends the session.',
+  'The QR code does not fit this terminal; open the address instead.':
+    'The QR code does not fit this terminal; open the address instead.',
   Other: 'Other',
 };
