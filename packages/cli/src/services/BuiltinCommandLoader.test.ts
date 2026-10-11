@@ -135,6 +135,7 @@ describe('BuiltinCommandLoader', () => {
       isManagedMemoryAvailable: vi.fn().mockReturnValue(true),
       isLspEnabled: vi.fn().mockReturnValue(false),
       isWorkflowsEnabled: vi.fn().mockReturnValue(false),
+      isRemoteEnabled: vi.fn().mockReturnValue(false),
     } as unknown as Config;
 
     restoreCommandMock.mockReturnValue({
@@ -322,6 +323,19 @@ describe('BuiltinCommandLoader', () => {
     );
 
     expect(enabledCommands.find((c) => c.name === 'workflows')).toBeDefined();
+  });
+
+  it('should include /rc only when remote sessions are enabled', async () => {
+    const disabledCommands = await new BuiltinCommandLoader(
+      mockConfig,
+    ).loadCommands(new AbortController().signal);
+    expect(disabledCommands.find((c) => c.name === 'rc')).toBeUndefined();
+
+    (mockConfig.isRemoteEnabled as Mock).mockReturnValue(true);
+    const enabledCommands = await new BuiltinCommandLoader(
+      mockConfig,
+    ).loadCommands(new AbortController().signal);
+    expect(enabledCommands.find((c) => c.name === 'rc')).toBeDefined();
   });
 
   it('should still load all other commands when ideCommand() throws', async () => {

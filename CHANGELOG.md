@@ -7,6 +7,22 @@ follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Added
+
+- Remote sessions: `/rc` puts the terminal in remote mode through the OrganizaOne
+  gateway, which mirrors the conversation to the account page (Remote sessions)
+  and hands back what is typed there, the commands it allows (stop the turn,
+  compact, clear, model, effort) and the answers to permissions, questions and
+  plans — the first answer, terminal or browser, wins. The first `/rc` asks for
+  consent once, then shows the viewer's address and a QR code; `/rc off` ends
+  it, `/rc status` and `/rc name <name>` report and rename it. Needs the
+  OrganizaOne sign-in and a plan that includes remote sessions. Settings
+  `remote.enabled`, `remote.atStartup`, `remote.viaTunnel` (`auto`, `always`
+  for a filtered network, `never`), the `--rc [name]` flag, the
+  `O1CODE_DISABLE_REMOTE=1` kill switch, a footer line while remote, and a
+  REMOTE column in `o1-code sessions ps`. See docs/users/features/remote-sessions.md.
+- The vendored o1-connect library is 9.9.0, which adds `openRemote`.
+
 ## [0.14.1] - 2026-10-11
 
 ### Changed

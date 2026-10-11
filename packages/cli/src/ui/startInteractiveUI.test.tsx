@@ -161,6 +161,9 @@ function makeConfig(): TestConfig {
     getChatRecordingService: () => undefined,
     isTelemetryInitializationDeferred: () => false,
     getApprovalMode: () => 'default',
+    // Remote sessions are on by default; off here so the suites below count
+    // the registry teardown pair alone, like cross-session messaging.
+    isRemoteEnabled: () => false,
     trackSessionRegistration,
     whenSessionRegistered: vi.fn().mockResolvedValue(true),
     updateSessionRegistryIpcPath: vi.fn().mockResolvedValue(undefined),

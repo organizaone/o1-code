@@ -213,6 +213,12 @@ export interface KeyInfo {
     maxOutputTokens: number | null;
   } | null;
   own: { enabled: boolean; caps: LimitValues; usage: UsageValues } | null;
+  /**
+   * Whether the key may put a session in remote mode (contract §5.1), and
+   * the plan's ceilings. `null` for a key without an owner, or from a proxy
+   * that predates remote sessions.
+   */
+  remote: { enabled: boolean; maxSessions: number; maxViewers: number } | null;
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -301,6 +307,7 @@ export function parseKeyInfo(body: unknown): KeyInfo | null {
   }
   const device = isRecord(data['device']) ? data['device'] : undefined;
   const own = isRecord(data['own']) ? data['own'] : undefined;
+  const remote = isRecord(data['remote']) ? data['remote'] : undefined;
   return {
     ...(device
       ? {
@@ -328,6 +335,13 @@ export function parseKeyInfo(body: unknown): KeyInfo | null {
           enabled: own['enabled'] === true,
           caps: limitValues(own['caps']),
           usage: usageValues(own['usage']),
+        }
+      : null,
+    remote: remote
+      ? {
+          enabled: remote['enabled'] === true,
+          maxSessions: num(remote['max_sessions']) ?? 0,
+          maxViewers: num(remote['max_viewers']) ?? 0,
         }
       : null,
   };

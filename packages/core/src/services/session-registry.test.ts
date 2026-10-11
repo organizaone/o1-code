@@ -300,6 +300,30 @@ describe('registerSession', () => {
     expect((await listLiveSessions())[0]?.name).toBe('live');
   });
 
+  it('carries the remote session a patch announces, and drops it on leave', async () => {
+    await registerSession({ sessionId: 's1', cwd: '/w/app' });
+    expect(
+      await patchSessionRecord({ remote: { id: 'rm_1', since: 1700 } }),
+    ).toBe(true);
+    expect((await listLiveSessions())[0]?.remote).toEqual({
+      id: 'rm_1',
+      since: 1700,
+    });
+
+    expect(await patchSessionRecord({ remote: undefined })).toBe(true);
+    expect((await listLiveSessions())[0]).not.toHaveProperty('remote');
+  });
+
+  it('drops a malformed remote field instead of listing it', async () => {
+    await writeRaw(
+      `${process.pid}.json`,
+      liveBody({ remote: { id: 7, since: 'now' } }),
+    );
+    const live = await listLiveSessions();
+    expect(live).toHaveLength(1);
+    expect(live[0]).not.toHaveProperty('remote');
+  });
+
   it('flattens and bounds an explicit name, and falls back when it empties', async () => {
     await registerSession({
       sessionId: 's1',

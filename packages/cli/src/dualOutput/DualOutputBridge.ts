@@ -22,6 +22,7 @@ import { createDebugLogger } from '@organizaone/o1-code-core';
 import type { Part } from '@google/genai';
 import { StreamJsonOutputAdapter } from '../nonInteractive/io/index.js';
 import { reportChatRecordingFailureToAdapter } from '../nonInteractive/chat-recording-failure.js';
+import type { DualOutputSink } from './dual-output-sink.js';
 
 const debugLogger = createDebugLogger('DUAL_OUTPUT');
 
@@ -82,7 +83,7 @@ export interface DualOutputBridgeOptions {
  *   o1-code --json-fd 3        # JSON events written to fd 3
  *   o1-code --json-file /path  # JSON events written to file/FIFO
  */
-export class DualOutputBridge {
+export class DualOutputBridge implements DualOutputSink {
   private readonly adapter: StreamJsonOutputAdapter;
   private readonly stream: WriteStream;
   private readonly sessionId: string;

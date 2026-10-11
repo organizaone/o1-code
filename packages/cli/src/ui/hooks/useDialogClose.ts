@@ -84,6 +84,10 @@ export interface DialogCloseOptions {
   isStatsDialogOpen?: boolean;
   closeStatsDialog?: () => void;
 
+  // Remote sessions dialog (/rc)
+  isRemoteDialogOpen?: boolean;
+  closeRemoteDialog?: () => void;
+
   // Worktree exit dialog (Phase C)
   showWorktreeExitDialog?: boolean;
   closeWorktreeExitDialog?: () => void;
@@ -175,6 +179,11 @@ export function useDialogClose(options: DialogCloseOptions) {
     // priority dialogs in `DialogManager` (theme, auth, settings, …)
     // already appear above this block in their own priority order. Only
     // the diff-vs-background pair previously matched the wrong way.
+    if (options.isRemoteDialogOpen && options.closeRemoteDialog) {
+      options.closeRemoteDialog();
+      return true;
+    }
+
     if (options.isStatsDialogOpen && options.closeStatsDialog) {
       options.closeStatsDialog();
       return true;

@@ -1,4 +1,4 @@
-// o1-connect-lib 9.4.0 - https://github.com/organizaone/o1-gateway (MIT)
+// o1-connect-lib 9.9.0 - https://github.com/organizaone/o1-gateway (MIT)
 /**
  * o1-connect as a library (docs/O1-CODE-LOGIN.md §3): the pinned tunnel
  * of `o1-connect run`, started inside the host app instead of as a
@@ -14,6 +14,9 @@
  *   proxy's API with the device token swapped in, and returns its base URL, a
  *   per-session key for it, and close().
  * - forget({ store }) deletes the saved configuration.
+ * - openRemote({ connection | baseUrl + apiKey, session, history }) puts a
+ *   terminal session in remote mode (remote.ts, §5): the gateway mirrors what
+ *   the app sends to the owner's browser and hands back its input and answers.
  *
  * Secrets (the device token) live only in the app's SecretStore and in this
  * process's memory: the library writes no file, sets no environment
@@ -57,7 +60,13 @@ export type O1ConnectErrorCode =
 /** The local port asked for is taken. */
  | "port_in_use"
 /** The loopback endpoint could not listen for another reason (EACCES, EADDRNOTAVAIL: a port the OS reserves or forbids); the message names it. */
- | "port_unavailable";
+ | "port_unavailable"
+/** The gateway refused the remote session before it opened; the `cause` is `{ status, code }` (the HTTP status, 0 for a `bye`, and the gateway's code or the bye's reason). */
+ | "remote_refused"
+/** The upgrade was answered by something that is not a remote session's gateway. */
+ | "remote_protocol"
+/** A decision was closed before a viewer answered it (in the terminal, by its expiry, or with the session). */
+ | "decision_closed";
 export declare class O1ConnectError extends Error {
     readonly code: O1ConnectErrorCode;
     constructor(code: O1ConnectErrorCode, message: string, options?: {
@@ -130,6 +139,119 @@ export interface Connection {
     /** Stops the tunnel and the endpoint; resolves once the port is free. Safe to call twice. */
     close(): Promise<void>;
 }
+export type RemoteState = "online" | "reconnecting" | "ended";
+export type RemoteDecisionKind = "can_use_tool" | "ask_user" | "plan";
+export type RemoteCommandName = "interrupt" | "compact" | "clear" | "model" | "effort";
+/** The terminal session going remote, as the gateway and a viewer name it. */
+export interface RemoteSessionInfo {
+    /** The session's own id: the same id re-opens the same remote session (and keeps a viewer's URL) within four hours. */
+    id: string;
+    /** Shown to the viewer (the host's name and a suffix, as a rule). */
+    name: string;
+    /** A hint of the working directory, for the viewer's list; never a secret. */
+    cwd?: string;
+    /** The terminal's version. */
+    version: string;
+    approvalMode: string;
+    model: string;
+}
+export interface RemoteDecisionOption {
+    value: string;
+    label: string;
+    danger?: boolean;
+}
+/** A question the terminal puts to its viewers too: a tool's permission, a question to the user, a plan. */
+export interface RemoteDecisionRequest {
+    id: string;
+    kind: RemoteDecisionKind;
+    /** ISO time; the gateway holds the request open at most an hour. */
+    expiresAt: string;
+    title: string;
+    summary: string;
+    options: RemoteDecisionOption[];
+}
+export interface RemoteDecision {
+    outcome: string;
+    payload?: unknown;
+    by: "remote";
+}
+export interface RemoteAgentEvents {
+    /** A viewer typed a prompt: for the terminal's own queue. */
+    input: {
+        id: string;
+        text: string;
+    };
+    /** A viewer ran one of the commands allowed remotely. */
+    command: {
+        id: string;
+        name: RemoteCommandName;
+        args?: Record<string, unknown>;
+    };
+    /** A viewer answered a decision (requestDecision's promise resolves with it too). */
+    decision: {
+        id: string;
+        outcome: string;
+        payload?: unknown;
+    };
+    viewer: {
+        op: "attached" | "detached";
+        count: number;
+    };
+    /** online after a reconnection, reconnecting while the gateway is away, ended with why (a `bye`'s reason, or `closed`). */
+    state: {
+        state: RemoteState;
+        reason?: string;
+    };
+    /** The gateway refused one of this side's frames (`code`, and the frame's `id` when it had one). */
+    error: {
+        code: string;
+        id?: string;
+    };
+}
+export interface RemoteOpenOptions {
+    /** The gateway's base URL (https; http for a loopback host in tests), with `apiKey`. */
+    baseUrl?: string;
+    /** Or an open() connection: the session rides its pinned tunnel with its device key. */
+    connection?: Connection;
+    /** The device key, with `baseUrl`. */
+    apiKey?: string;
+    session: RemoteSessionInfo;
+    /** The session's recent events, for a viewer's first screen (the newest that fit 512 KiB); a function is read at every hello. */
+    history?: unknown[] | (() => unknown[]);
+    /** Lines without content (ids, counts, reasons); default: none. */
+    log?(line: string): void;
+}
+export interface RemoteAgent {
+    readonly remoteId: string;
+    /** Where a viewer opens the session (the account page). */
+    readonly url: string;
+    readonly state: RemoteState;
+    /** One event of the session, as the terminal shows it (opaque to the gateway). */
+    send(ev: unknown): void;
+    status(s: {
+        state: "idle" | "streaming" | "awaiting";
+        model?: string;
+        approvalMode?: string;
+    }): void;
+    /** Asks the viewers; resolves with the first viewer's answer, rejects `decision_closed` once closeDecision runs (the terminal answered first) or the session ends. */
+    requestDecision(req: RemoteDecisionRequest): Promise<RemoteDecision>;
+    /** The request is no longer open: answered in the terminal (`local`), by a viewer (`remote`, after the promise resolved), or expired. */
+    closeDecision(id: string, by: "local" | "remote" | "expired", outcome?: string | null): void;
+    /** Subscribes; the function returned unsubscribes. */
+    on<K extends keyof RemoteAgentEvents>(event: K, fn: (e: RemoteAgentEvents[K]) => void): () => void;
+    /** Leaves remote mode: the gateway ends the session at once and tells the viewers. Safe to call twice. */
+    close(): Promise<void>;
+}
+/**
+ * Puts a terminal session in remote mode: an outbound connection to the
+ * gateway's `/remote/agent` (through `connection`'s tunnel, or straight to
+ * `baseUrl` with `apiKey`), the session's hello, and the gateway's ready.
+ * Resolves once viewers may attach; rejects `remote_refused` when the
+ * gateway will not have it (the key, the plan, a ceiling), with why in the
+ * `cause`. The agent reconnects on its own and ends only on a refusal it
+ * cannot mend or on close().
+ */
+export declare function openRemote(opts: RemoteOpenOptions): Promise<RemoteAgent>;
 /**
  * Reads the code, has the app confirm every key's fingerprint, then saves the
  * configuration under `name` in the store (replacing any there). Nothing is

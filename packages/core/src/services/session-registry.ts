@@ -233,6 +233,13 @@ export interface SessionRegistryRecord {
    * requiring inbox drops what it sends.
    */
   ipcToken?: string;
+  /**
+   * The remote session this terminal is mirrored to (`/rc`), when it is
+   * in remote mode: the gateway's `remote_id` and when the mode started.
+   * Patched in when the mode starts and cleared when it ends, so `ps` can
+   * say which terminals a browser may be watching. A claim, like `name`.
+   */
+  remote?: { id: string; since: number };
 }
 
 export interface RegisterSessionFields {
@@ -933,6 +940,20 @@ async function readRecord(filePath: string): Promise<ReadRecordResult> {
   const kind = value['kind'];
   const ipcPath = value['ipcPath'];
   const ipcToken = value['ipcToken'];
+  const remote = value['remote'];
+  const remoteField =
+    typeof remote === 'object' &&
+    remote !== null &&
+    typeof (remote as Record<string, unknown>)['id'] === 'string' &&
+    typeof (remote as Record<string, unknown>)['since'] === 'number' &&
+    Number.isFinite((remote as Record<string, unknown>)['since'])
+      ? {
+          remote: {
+            id: (remote as Record<string, unknown>)['id'] as string,
+            since: (remote as Record<string, unknown>)['since'] as number,
+          },
+        }
+      : {};
 
   return {
     status: 'ok',
@@ -958,6 +979,7 @@ async function readRecord(filePath: string): Promise<ReadRecordResult> {
       ...(typeof ipcToken === 'string' && ipcToken.length > 0
         ? { ipcToken }
         : {}),
+      ...remoteField,
     },
   };
 }

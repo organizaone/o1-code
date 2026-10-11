@@ -35,6 +35,7 @@ import {
   openO1Connect,
   type O1ConnectSession,
 } from '../providers/o1-connect/session.js';
+import type { RemoteViaTunnel } from '../providers/o1-connect/remote.js';
 import {
   setGeneratorReasoningEffort,
   type ReasoningEffort,
@@ -1220,6 +1221,18 @@ export interface ConfigParameters {
   todoWriteEnabled?: boolean;
   agentTeamEnabled?: boolean;
   workflowsEnabled?: boolean;
+  /**
+   * Remote sessions (`/rc`): whether the command is offered at all. On by
+   * default; eligibility (the OrganizaOne sign-in and the plan) is checked
+   * when the command runs. `O1CODE_DISABLE_REMOTE=1` overrides it.
+   */
+  remoteEnabled?: boolean;
+  /** Put the session in remote mode as soon as the UI is up (`--rc`, `remote.atStartup`). */
+  remoteAtStartup?: boolean;
+  /** The name a remote session announces (`--rc <name>`); the host's name otherwise. */
+  remoteSessionName?: string;
+  /** Whether remote mode must ride the o1-connect tunnel, must not, or takes it when open. */
+  remoteViaTunnel?: RemoteViaTunnel;
   /** Enable the opt-in ACP/Web Shell Session Workflow gate. */
   sessionWorkflowEnabled?: boolean;
   /** Consent gate for the propose_goal tool; see ProposeGoalTool. */
@@ -2928,6 +2941,10 @@ export class Config {
    * lazily on first use, never persisted. */
   private omniMediaResourceRegistry?: MediaResourceRegistry;
   private workflowsEnabled: boolean | undefined;
+  private readonly remoteEnabled: boolean | undefined;
+  private readonly remoteAtStartup: boolean;
+  private readonly remoteSessionName: string | undefined;
+  private readonly remoteViaTunnel: RemoteViaTunnel;
   private readonly sessionWorkflowEnabled: boolean;
   private sessionWorkflowEnabledProvider?: () => boolean;
   private sessionWorkflowPlanRevision?: SessionWorkflowPlanRevision;
@@ -3343,6 +3360,10 @@ export class Config {
     this.omniStorageMaxTotalBytes = params.omniStorageMaxTotalBytes;
     this.omniMemory = params.omniMemory;
     this.workflowsEnabled = params.workflowsEnabled;
+    this.remoteEnabled = params.remoteEnabled;
+    this.remoteAtStartup = params.remoteAtStartup ?? false;
+    this.remoteSessionName = params.remoteSessionName;
+    this.remoteViaTunnel = params.remoteViaTunnel ?? 'auto';
     this.sessionWorkflowEnabled = params.sessionWorkflowEnabled ?? false;
     this.modelProposedGoals = params.modelProposedGoals ?? 'alwaysAsk';
     this.skipWorkflowUsageWarning = params.skipWorkflowUsageWarning ?? false;
@@ -5757,6 +5778,22 @@ export class Config {
           'peer inbox address was not published to the session registry; peers cannot discover this session until it restarts',
         );
       }
+    });
+    await this.sessionRegistryWrite;
+  }
+
+  /**
+   * Announce, or withdraw, the remote session this terminal is mirrored to
+   * (`/rc`), serialized with every other registry patch. Best-effort: a
+   * record that cannot be patched costs `ps` its REMOTE column, nothing
+   * else.
+   */
+  async updateSessionRegistryRemote(
+    remote: { id: string; since: number } | undefined,
+  ): Promise<void> {
+    if (!this.sessionRegistryActive) return;
+    this.queueSessionRegistryWrite(async () => {
+      await patchSessionRecord({ remote }, this.sessionRegistrySlot);
     });
     await this.sessionRegistryWrite;
   }
@@ -9213,6 +9250,34 @@ export class Config {
 
   setWorkflowsEnabled(enabled: boolean | undefined): void {
     this.workflowsEnabled = enabled;
+  }
+
+  /**
+   * Whether `/rc` is offered. A sandboxed or provisional session has no
+   * terminal of its own to mirror; the kill switch is for an operator.
+   */
+  isRemoteEnabled(): boolean {
+    if (this.shellExecutionSandbox) return false;
+    if (this.provisionalWorkspace) return false;
+    if (process.env['O1CODE_DISABLE_REMOTE'] === '1') return false;
+    return this.remoteEnabled ?? true;
+  }
+
+  getRemoteAtStartup(): boolean {
+    return this.remoteAtStartup;
+  }
+
+  getRemoteSessionName(): string | undefined {
+    return this.remoteSessionName;
+  }
+
+  getRemoteViaTunnel(): RemoteViaTunnel {
+    return this.remoteViaTunnel;
+  }
+
+  /** The open o1-connect tunnel of this session, when the model rides one. */
+  getO1ConnectSession(): O1ConnectSession | undefined {
+    return this.o1ConnectSession;
   }
 
   async enableReviewWorkflow(): Promise<void> {

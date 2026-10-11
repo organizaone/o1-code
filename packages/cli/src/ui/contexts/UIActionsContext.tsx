@@ -120,6 +120,8 @@ export interface UIActions {
   // Hooks dialog
   closeHooksDialog: () => void;
   closeStatsDialog: () => void;
+  // Remote sessions dialog (/rc)
+  closeRemoteDialog: () => void;
   // Resume session dialog
   openResumeDialog: () => void;
   closeResumeDialog: () => void;

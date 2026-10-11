@@ -199,6 +199,7 @@ const keyAnswer = {
       },
       usage: { rpm: 0, rpd: 3, tpd: 900, concurrent: 0 },
     },
+    remote: { enabled: true, max_sessions: 3, max_viewers: 2 },
   },
 };
 
@@ -234,14 +235,29 @@ describe('parseKeyInfo', () => {
         caps: keyAnswer.data.own.caps,
         usage: keyAnswer.data.own.usage,
       },
+      remote: { enabled: true, maxSessions: 3, maxViewers: 2 },
     });
   });
 
-  it('reads no plan and no own credentials as null', () => {
+  it('reads no plan, no own credentials and no remote as null', () => {
     const info = parseKeyInfo({
-      data: { limits: { scopes: [] }, plan: null, own: null },
+      data: { limits: { scopes: [] }, plan: null, own: null, remote: null },
     });
-    expect(info).toEqual({ scopes: [], plan: null, own: null });
+    expect(info).toEqual({ scopes: [], plan: null, own: null, remote: null });
+  });
+
+  it('reads a remote that the plan or the installation switched off', () => {
+    const info = parseKeyInfo({
+      data: {
+        limits: { scopes: [] },
+        remote: { enabled: false, max_sessions: 0, max_viewers: 0 },
+      },
+    });
+    expect(info?.remote).toEqual({
+      enabled: false,
+      maxSessions: 0,
+      maxViewers: 0,
+    });
   });
 
   it('refuses an answer that is not the key endpoint’s', () => {

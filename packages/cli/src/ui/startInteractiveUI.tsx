@@ -35,6 +35,9 @@ import type { InitializationResult } from '../core/initializer.js';
 import type { ExtensionRefreshState } from '../config/extension-refresh-state.js';
 import { DualOutputBridge } from '../dualOutput/DualOutputBridge.js';
 import { DualOutputContext } from '../dualOutput/DualOutputContext.js';
+import { DualOutputFanout } from '../dualOutput/dual-output-fanout.js';
+import { RemoteController } from '../remote/remote-controller.js';
+import { RemoteControllerContext } from '../remote/RemoteControllerContext.js';
 import { RemoteInputWatcher } from '../remoteInput/RemoteInputWatcher.js';
 import { RemoteInputContext } from '../remoteInput/RemoteInputContext.js';
 import { AppContainer } from './AppContainer.js';
@@ -158,6 +161,18 @@ export async function startInteractiveUI(
       `Warning: dual output disabled — ${err instanceof Error ? err.message : String(err)}`,
     );
   }
+  // The UI writes to one sink for the whole session; the sidecar joins it
+  // now, a remote session's mirror joins and leaves with /rc.
+  const dualOutputSinks = new DualOutputFanout();
+  if (dualOutputBridge) dualOutputSinks.add(dualOutputBridge);
+  const remoteController = config.isRemoteEnabled()
+    ? new RemoteController({
+        config,
+        version,
+        sinks: dualOutputSinks,
+        log: (line) => debugLogger.debug(`[remote] ${line}`),
+      })
+    : null;
 
   // Create remote input watcher if --input-file is specified.
   // This enables bidirectional sync: an external process writes JSONL
@@ -261,41 +276,43 @@ export async function startInteractiveUI(
       <PeerInboxFailureContext.Provider value={peerInboxFailure}>
         <PeerMessagingContext.Provider value={peerMessaging}>
           <RemoteInputContext.Provider value={remoteInputWatcher}>
-            <DualOutputContext.Provider value={dualOutputBridge}>
-              <SettingsContext.Provider value={settings}>
-                <KeypressProvider
-                  kittyProtocolEnabled={kittyProtocolStatus.enabled}
-                  config={config}
-                  debugKeystrokeLogging={
-                    settings.merged.general?.debugKeystrokeLogging
-                  }
-                  pasteWorkaround={
-                    process.platform === 'win32' || nodeMajorVersion < 20
-                  }
-                  initialCapturedInput={initialCapturedInput}
-                >
-                  <SessionStatsProvider sessionId={config.getSessionId()}>
-                    <VimModeProvider settings={settings}>
-                      <AgentViewProvider config={config}>
-                        <BackgroundTaskViewProvider config={config}>
-                          <AppContainer
-                            config={config}
-                            settings={settings}
-                            startupWarnings={startupWarnings}
-                            version={version}
-                            initializationResult={initializationResult}
-                            initialUseVirtualViewport={useVP}
-                            extensionRefreshState={
-                              options.extensionRefreshState
-                            }
-                            repaintViewport={resizeReflow.repaint}
-                          />
-                        </BackgroundTaskViewProvider>
-                      </AgentViewProvider>
-                    </VimModeProvider>
-                  </SessionStatsProvider>
-                </KeypressProvider>
-              </SettingsContext.Provider>
+            <DualOutputContext.Provider value={dualOutputSinks}>
+              <RemoteControllerContext.Provider value={remoteController}>
+                <SettingsContext.Provider value={settings}>
+                  <KeypressProvider
+                    kittyProtocolEnabled={kittyProtocolStatus.enabled}
+                    config={config}
+                    debugKeystrokeLogging={
+                      settings.merged.general?.debugKeystrokeLogging
+                    }
+                    pasteWorkaround={
+                      process.platform === 'win32' || nodeMajorVersion < 20
+                    }
+                    initialCapturedInput={initialCapturedInput}
+                  >
+                    <SessionStatsProvider sessionId={config.getSessionId()}>
+                      <VimModeProvider settings={settings}>
+                        <AgentViewProvider config={config}>
+                          <BackgroundTaskViewProvider config={config}>
+                            <AppContainer
+                              config={config}
+                              settings={settings}
+                              startupWarnings={startupWarnings}
+                              version={version}
+                              initializationResult={initializationResult}
+                              initialUseVirtualViewport={useVP}
+                              extensionRefreshState={
+                                options.extensionRefreshState
+                              }
+                              repaintViewport={resizeReflow.repaint}
+                            />
+                          </BackgroundTaskViewProvider>
+                        </AgentViewProvider>
+                      </VimModeProvider>
+                    </SessionStatsProvider>
+                  </KeypressProvider>
+                </SettingsContext.Provider>
+              </RemoteControllerContext.Provider>
             </DualOutputContext.Provider>
           </RemoteInputContext.Provider>
         </PeerMessagingContext.Provider>
@@ -403,6 +420,9 @@ export async function startInteractiveUI(
       // Best-effort: ignore.
     }
     remoteInputWatcher?.shutdown();
+    // Close code 1000: the gateway ends the session at once and tells the
+    // viewers, instead of waiting two minutes for a terminal that is gone.
+    await remoteController?.stop();
     await dualOutputBridge?.shutdown();
     instance.unmount();
     // Pop the Kitty keyboard protocol only after Ink has unmounted. The

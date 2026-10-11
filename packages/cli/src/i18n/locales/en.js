@@ -3396,4 +3396,79 @@ export default {
     '(Use Enter to select, Tab to switch scope)',
   'this project only': 'this project only',
   'Next: {{commands}}': 'Next: {{commands}}',
+  // Remote sessions (/rc)
+  'Mirror this session to your OrganizaOne account page and take input from there':
+    'Mirror this session to your OrganizaOne account page and take input from there',
+  '[off | status | name <name>]': '[off | status | name <name>]',
+  'Remote sessions are not available in this session.':
+    'Remote sessions are not available in this session.',
+  'Remote mode is not on.': 'Remote mode is not on.',
+  'Remote mode is off; the session ended on the account page.':
+    'Remote mode is off; the session ended on the account page.',
+  'Usage: /rc name <name>': 'Usage: /rc name <name>',
+  'Remote session renamed to {{name}}.': 'Remote session renamed to {{name}}.',
+  'Usage: /rc [off | status | name <name>]':
+    'Usage: /rc [off | status | name <name>]',
+  'remote: active · 1 viewer': 'remote: active · 1 viewer',
+  'remote: active · {{count}} viewers': 'remote: active · {{count}} viewers',
+  'remote: reconnecting': 'remote: reconnecting',
+  'remote: ended: {{reason}}': 'remote: ended: {{reason}}',
+  'Remote sessions are off for this session (remote.enabled, or O1CODE_DISABLE_REMOTE).':
+    'Remote sessions are off for this session (remote.enabled, or O1CODE_DISABLE_REMOTE).',
+  'Remote needs the OrganizaOne sign-in: connect with "Sign in with your account" or the o1-gateway device code (/auth).':
+    'Remote needs the OrganizaOne sign-in: connect with "Sign in with your account" or the o1-gateway device code (/auth).',
+  'Your plan does not include remote sessions. See your account at {{url}}.':
+    'Your plan does not include remote sessions. See your account at {{url}}.',
+  'The OrganizaOne gateway did not answer about this key. Try again in a moment.':
+    'The OrganizaOne gateway did not answer about this key. Try again in a moment.',
+  'remote.viaTunnel is "always", but this session has no o1-connect tunnel open.':
+    'remote.viaTunnel is "always", but this session has no o1-connect tunnel open.',
+  'remote.viaTunnel is "never", but this session only reaches OrganizaOne through the o1-connect tunnel.':
+    'remote.viaTunnel is "never", but this session only reaches OrganizaOne through the o1-connect tunnel.',
+  'Your plan allows no more remote sessions at once. Live now: {{sessions}}.':
+    'Your plan allows no more remote sessions at once. Live now: {{sessions}}.',
+  'Your plan allows no more remote sessions at once.':
+    'Your plan allows no more remote sessions at once.',
+  'The gateway refused the remote session ({{code}}): {{message}}':
+    'The gateway refused the remote session ({{code}}): {{message}}',
+  'Remote mode could not start.': 'Remote mode could not start.',
+  'Name: {{name}}': 'Name: {{name}}',
+  'Open: {{url}}': 'Open: {{url}}',
+  '/rc off ends it.': '/rc off ends it.',
+  'Remote mode is off.': 'Remote mode is off.',
+  '/rc turns it on.': '/rc turns it on.',
+  'Remote mode is on as "{{name}}": {{url}}':
+    'Remote mode is on as "{{name}}": {{url}}',
+  'A viewer opened this session on the account page ({{count}} watching).':
+    'A viewer opened this session on the account page ({{count}} watching).',
+  'A viewer left the account page ({{count}} watching).':
+    'A viewer left the account page ({{count}} watching).',
+  'Remote: the gateway is away; reconnecting.':
+    'Remote: the gateway is away; reconnecting.',
+  'Remote: connected to the gateway again.':
+    'Remote: connected to the gateway again.',
+  'Remote mode ended: {{reason}}.': 'Remote mode ended: {{reason}}.',
+  '[from the account page] {{text}}': '[from the account page] {{text}}',
+  'Answered from the account page: {{label}}':
+    'Answered from the account page: {{label}}',
+  'Remote sessions': 'Remote sessions',
+  'The OrganizaOne gateway will mirror this terminal to your account page: what you type, what the model answers, each tool call and its result, and the questions the terminal asks.':
+    'The OrganizaOne gateway will mirror this terminal to your account page: what you type, what the model answers, each tool call and its result, and the questions the terminal asks.',
+  'From the page you can type prompts, stop a turn, compact or clear the session, and answer permissions and questions. Shell access, /resume, plugins and the approval mode stay in the terminal.':
+    'From the page you can type prompts, stop a turn, compact or clear the session, and answer permissions and questions. Shell access, /resume, plugins and the approval mode stay in the terminal.',
+  'The gateway relays the session and keeps none of its content; it records that a session existed, who viewed it, and each decision and who answered it.':
+    'The gateway relays the session and keeps none of its content; it records that a session existed, who viewed it, and each decision and who answered it.',
+  'Enter to continue · Esc to cancel. Shown once.':
+    'Enter to continue · Esc to cancel. Shown once.',
+  'Connecting to the OrganizaOne gateway…':
+    'Connecting to the OrganizaOne gateway…',
+  'Remote mode is on as "{{name}}". Open this address on your account page, or scan the code:':
+    'Remote mode is on as "{{name}}". Open this address on your account page, or scan the code:',
+  'Esc closes this; /rc off ends the session.':
+    'Esc closes this; /rc off ends the session.',
+  'The QR code does not fit this terminal; open the address instead.':
+    'The QR code does not fit this terminal; open the address instead.',
+  Continue: 'Continue',
+  'Disconnect remote control': 'Disconnect remote control',
+  Other: 'Other',
 };

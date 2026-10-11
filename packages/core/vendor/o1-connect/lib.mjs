@@ -1,4 +1,4 @@
-// o1-connect-lib 9.4.0 - https://github.com/organizaone/o1-gateway (MIT)
+// o1-connect-lib 9.9.0 - https://github.com/organizaone/o1-gateway (MIT)
 
 // src/shared/tunnel-protocol.ts
 import { createHash } from "node:crypto";
@@ -910,14 +910,14 @@ var TunnelAgent = class extends http4.Agent {
       return void 0;
     }
     this.opening += 1;
-    const dial = (host, transport) => this.connect(this.targets[host], this.pins, { ca: this.target.ca, userAgent: this.target.userAgent, env: this.target.env, transport, onOuter: (i) => this.events.onOuter?.(i) });
+    const dial2 = (host, transport) => this.connect(this.targets[host], this.pins, { ca: this.target.ca, userAgent: this.target.userAgent, env: this.target.env, transport, onOuter: (i) => this.events.onOuter?.(i) });
     const hosts = this.targets.map((_, i) => (this.preferred + i) % this.targets.length);
     const transports = this.mode === "auto" ? this.using === "ws" ? ["ws", "post"] : ["post"] : [this.using === "post" ? "post" : "ws"];
     const chain = transports.flatMap((transport) => hosts.map((host) => ({ host, transport })));
     let firstErr = null;
     const run = (i) => {
       const at = chain[i];
-      return dial(at.host, at.transport).then(
+      return dial2(at.host, at.transport).then(
         (socket) => {
           if (this.preferred !== at.host) this.preferred = at.host;
           if (this.mode === "auto" && this.using !== "post" && at.transport === "post") {
@@ -1067,6 +1067,525 @@ function startLocalServer(o) {
   });
 }
 
+// src/client/remote.ts
+import { createHash as createHash4, randomBytes as randomBytes4 } from "node:crypto";
+import http6 from "node:http";
+import https3 from "node:https";
+import { isIP as isIP3 } from "node:net";
+
+// src/shared/remote-protocol.ts
+var REMOTE_PROTOCOL = "o1gw-remote.v1";
+var REMOTE_AGENT_PATH = "/remote/agent";
+var LIMITS = {
+  /** Any frame but a hello, as text. */
+  frameBytes: 256 * 1024,
+  /** A hello's `history`, as text; the hello itself may be frameBytes + historyBytes. */
+  historyBytes: 512 * 1024,
+  /** An `input.text`. */
+  inputBytes: 64 * 1024,
+  /** Outbound bytes queued for one viewer before it is closed with `bye busy`. */
+  viewerQueueBytes: 512 * 1024,
+  /** A peer-chosen name, id, model, version, mode or outcome (they reach the store, the audit log, an alert): characters. */
+  nameChars: 128,
+  /** A hello's `cwd_hint`: characters. */
+  pathChars: 512,
+  /** Decision requests open at once on one session; one more ends the session (`protocol`). */
+  pendingMax: 64,
+  /** The longest a decision request stays open, whatever `expires_at` says. */
+  decisionMs: 36e5,
+  /** Each side pings this often. */
+  pingMs: 3e4,
+  /** A peer silent this long is gone. */
+  deadMs: 9e4,
+  /** An agent gone this long ends the session (`idle`). */
+  reconnectMs: 12e4,
+  /** An ended session stays listed, and its `remote_id` re-opens for the same `session_id`, this long. */
+  listedMs: 4 * 36e5
+};
+
+// src/client/remote.ts
+var GUID2 = "258EAFA5-E914-47DA-95CA-C5AB0DC85B11";
+var DIAL_MS = 15e3;
+var HELLO_MS = 1e4;
+var UNACKED_MAX_BYTES = 4 * 1024 * 1024;
+var BACKOFF_MIN_MS = 1e3;
+var BACKOFF_MAX_MS = 3e4;
+var FATAL = /* @__PURE__ */ new Set(["taken_over", "revoked", "plan", "limit", "protocol", "unauthenticated"]);
+var tunnels = /* @__PURE__ */ new WeakMap();
+function bindTunnel(connection, tunnel) {
+  tunnels.set(connection, tunnel);
+}
+function dial(via, apiKey) {
+  const key = randomBytes4(16).toString("base64");
+  const hostname = via.url.hostname.replace(/^\[|\]$/g, "");
+  const secure = via.url.protocol === "https:";
+  const port = Number(via.url.port || (secure ? 443 : 80));
+  const headers = {
+    Host: via.url.host,
+    Connection: "Upgrade",
+    Upgrade: "websocket",
+    "Sec-WebSocket-Version": "13",
+    "Sec-WebSocket-Key": key,
+    "Sec-WebSocket-Protocol": REMOTE_PROTOCOL,
+    Authorization: `Bearer ${apiKey}`
+  };
+  return new Promise((resolve, reject) => {
+    let done = false;
+    const settle = (err, value) => {
+      if (done) return;
+      done = true;
+      clearTimeout(timer);
+      if (err) reject(err);
+      else resolve(value);
+    };
+    const req = via.agent ? http6.request({ agent: via.agent, method: "GET", path: REMOTE_AGENT_PATH, headers, setHost: false }) : secure ? https3.request({ host: hostname, port, method: "GET", path: REMOTE_AGENT_PATH, headers, agent: false, ...isIP3(hostname) ? {} : { servername: hostname } }) : http6.request({ host: hostname, port, method: "GET", path: REMOTE_AGENT_PATH, headers, agent: false });
+    const timer = setTimeout(() => {
+      req.destroy();
+      settle(new O1ConnectError("tunnel_unavailable", "the remote session's connection timed out"));
+    }, DIAL_MS);
+    timer.unref();
+    req.on("response", (res) => {
+      let body = "";
+      res.setEncoding("utf8");
+      res.on("data", (c) => {
+        if (body.length < 64e3) body += c;
+      });
+      res.on("end", () => {
+        const status = res.statusCode ?? 0;
+        let code = "refused";
+        let message = `HTTP ${status}`;
+        try {
+          const j = JSON.parse(body);
+          code = j.error?.code ?? code;
+          message = j.error?.message ?? message;
+        } catch {
+        }
+        settle(new O1ConnectError("remote_refused", `the remote session was refused (HTTP ${status} ${code}): ${message}`, { cause: { status, code } }));
+      });
+    });
+    req.on("error", (err) => settle(new O1ConnectError("tunnel_unavailable", `the remote session's connection failed: ${err.message}`, { cause: err })));
+    req.on("upgrade", (res, sock, head) => {
+      const accept = createHash4("sha1").update(key + GUID2).digest("base64");
+      if (res.headers["sec-websocket-accept"] !== accept || res.headers["sec-websocket-protocol"] !== REMOTE_PROTOCOL) {
+        sock.destroy();
+        settle(new O1ConnectError("remote_protocol", "the upgrade was answered by something that is not a remote session's gateway"));
+        return;
+      }
+      settle(null, { sock, head });
+    });
+    req.end();
+  });
+}
+var Wire = class {
+  constructor(sock, head, on) {
+    this.sock = sock;
+    this.on = on;
+    sock.on("data", (c) => this.onData(c));
+    sock.on("error", () => {
+    });
+    sock.on("close", () => {
+      if (this.gone) return;
+      this.gone = true;
+      on.close(this.closeCode ?? 1006);
+    });
+    if (head.length) this.onData(head);
+  }
+  sock;
+  on;
+  parser = new FrameParser(LIMITS.frameBytes + LIMITS.historyBytes);
+  partial = null;
+  closeSent = false;
+  closeCode = null;
+  gone = false;
+  send(text) {
+    if (this.gone || this.sock.destroyed) return false;
+    this.sock.write(encodeFrame(OP.text, Buffer.from(text, "utf8"), randomBytes4(4)));
+    return true;
+  }
+  /** A close handshake (code 1000 by default); the socket is cut 2 s later whatever the other side does. */
+  close(code = 1e3, reason = "") {
+    if (!this.closeSent && !this.sock.destroyed) {
+      this.closeSent = true;
+      this.closeCode ??= code;
+      const r = Buffer.from(reason, "utf8").subarray(0, 100);
+      this.sock.write(encodeFrame(OP.close, Buffer.concat([Buffer.from([code >> 8, code & 255]), r]), randomBytes4(4)));
+      this.sock.end();
+    }
+    setTimeout(() => this.sock.destroy(), 2e3).unref();
+  }
+  destroy() {
+    this.sock.destroy();
+  }
+  onData(chunk) {
+    let frames;
+    try {
+      frames = this.parser.push(chunk);
+    } catch (err) {
+      void (err instanceof WsProtocolError);
+      this.sock.destroy();
+      return;
+    }
+    for (const f of frames) {
+      if (f.opcode === OP.text || f.opcode === OP.cont && this.partial) {
+        (this.partial ??= []).push(Buffer.from(f.payload));
+        if (!f.fin) continue;
+        const text = Buffer.concat(this.partial).toString("utf8");
+        this.partial = null;
+        this.on.message(text);
+      } else if (f.opcode === OP.ping) {
+        if (!this.sock.destroyed) this.sock.write(encodeFrame(OP.pong, Buffer.from(f.payload), randomBytes4(4)));
+      } else if (f.opcode === OP.close) {
+        this.closeCode ??= f.payload.length >= 2 ? f.payload.readUInt16BE(0) : 1005;
+        if (!this.closeSent) {
+          this.closeSent = true;
+          if (!this.sock.destroyed) this.sock.write(encodeFrame(OP.close, Buffer.from(f.payload.subarray(0, 2)), randomBytes4(4)));
+        }
+        this.sock.end();
+      } else if (f.opcode === OP.binary) {
+        this.sock.destroy();
+      }
+    }
+  }
+};
+function trimHistory(items) {
+  let out = items;
+  while (out.length > 0 && Buffer.byteLength(JSON.stringify(out), "utf8") > LIMITS.historyBytes) out = out.slice(Math.max(1, Math.floor(out.length / 4)));
+  return out;
+}
+var Agent = class {
+  constructor(o) {
+    this.o = o;
+    this.model = o.session.model;
+    this.approvalMode = o.session.approvalMode;
+  }
+  o;
+  remoteId = "";
+  url = "";
+  state = "online";
+  seq = 0;
+  unacked = [];
+  unackedBytes = 0;
+  lastGatewaySeq = 0;
+  wire = null;
+  closed = false;
+  attempt = 0;
+  reconnectTimer = null;
+  pinger = null;
+  lastSeen = Date.now();
+  model;
+  approvalMode;
+  listeners = /* @__PURE__ */ new Map();
+  pending = /* @__PURE__ */ new Map();
+  closedWire = null;
+  log(line) {
+    try {
+      this.o.log?.(`remote: ${line}`);
+    } catch {
+    }
+  }
+  emit(event, e) {
+    for (const fn of this.listeners.get(event) ?? []) {
+      try {
+        fn(e);
+      } catch {
+      }
+    }
+  }
+  on(event, fn) {
+    let set = this.listeners.get(event);
+    if (!set) {
+      set = /* @__PURE__ */ new Set();
+      this.listeners.set(event, set);
+    }
+    set.add(fn);
+    return () => {
+      set.delete(fn);
+    };
+  }
+  hello(resumeSeq) {
+    const s = this.o.session;
+    return {
+      v: 1,
+      type: "hello",
+      session_id: s.id,
+      name: s.name,
+      cwd_hint: s.cwd ?? "",
+      o1code_version: s.version,
+      approval_mode: this.approvalMode,
+      model: this.model,
+      history: trimHistory(this.o.history()),
+      ...resumeSeq !== void 0 ? { resume_seq: resumeSeq } : {}
+    };
+  }
+  /** Dials, says hello, waits for the ready (or a bye): the first time from openRemote, then at every reconnection. */
+  connect(first) {
+    return dial(this.o.via, this.o.apiKey).then((d) => new Promise((resolve, reject) => {
+      let ready = false;
+      const timer = setTimeout(() => {
+        if (!ready) wire.destroy();
+      }, HELLO_MS);
+      timer.unref();
+      const wire = new Wire(d.sock, d.head, {
+        message: (text) => {
+          let frame;
+          try {
+            frame = JSON.parse(text);
+          } catch {
+            wire.destroy();
+            return;
+          }
+          this.lastSeen = Date.now();
+          if (ready) {
+            this.onFrame(wire, frame);
+            return;
+          }
+          if (frame.type === "ready") {
+            ready = true;
+            clearTimeout(timer);
+            this.onReady(wire, frame);
+            resolve();
+          } else if (frame.type === "bye") {
+            reject(new O1ConnectError("remote_refused", `the remote session was refused (${frame.reason})`, { cause: { status: 0, code: frame.reason, ...frame.sessions ? { sessions: frame.sessions } : {} } }));
+          }
+        },
+        close: (code) => {
+          if (!ready) {
+            clearTimeout(timer);
+            reject(new O1ConnectError("tunnel_unavailable", `the remote session's connection closed before it was ready (${code})`));
+            return;
+          }
+          if (this.wire === wire) this.onClose(code);
+        }
+      });
+      this.wire = wire;
+      wire.send(JSON.stringify(this.hello(first ? void 0 : this.lastGatewaySeq)));
+    }));
+  }
+  onReady(wire, frame) {
+    this.remoteId = frame.remote_id;
+    this.url = frame.url;
+    this.attempt = 0;
+    for (const k of this.unacked) if (k.seq > frame.ack_seq) wire.send(k.text);
+    if (this.state !== "online") {
+      this.state = "online";
+      this.emit("state", { state: "online" });
+    }
+    this.lastSeen = Date.now();
+    if (!this.pinger) {
+      this.pinger = setInterval(() => {
+        if (!this.wire) return;
+        if (Date.now() - this.lastSeen > LIMITS.deadMs) {
+          this.log("the gateway went silent");
+          this.wire.destroy();
+          return;
+        }
+        this.wire.send(JSON.stringify({ v: 1, type: "ping" }));
+      }, LIMITS.pingMs);
+      this.pinger.unref();
+    }
+    this.log(`${frame.resumed ? "back on" : "open:"} ${this.remoteId} (${frame.viewers} viewer${frame.viewers === 1 ? "" : "s"})`);
+  }
+  onFrame(wire, frame) {
+    switch (frame.type) {
+      case "ack": {
+        let i = 0;
+        while (i < this.unacked.length && this.unacked[i].seq <= frame.seq) i++;
+        for (const k of this.unacked.splice(0, i)) this.unackedBytes -= k.bytes;
+        return;
+      }
+      case "input":
+      case "command":
+      case "decision": {
+        if (frame.seq !== void 0) {
+          this.lastGatewaySeq = Math.max(this.lastGatewaySeq, frame.seq);
+          wire.send(JSON.stringify({ v: 1, type: "ack", seq: frame.seq }));
+        }
+        if (frame.type === "input") this.emit("input", { id: frame.id, text: frame.text });
+        else if (frame.type === "command") this.emit("command", { id: frame.id, name: frame.name, args: frame.args });
+        else {
+          const p = this.pending.get(frame.id);
+          this.pending.delete(frame.id);
+          p?.resolve({ outcome: frame.outcome, payload: frame.payload, by: "remote" });
+          this.emit("decision", { id: frame.id, outcome: frame.outcome, payload: frame.payload });
+        }
+        return;
+      }
+      case "viewer":
+        this.emit("viewer", { op: frame.op, count: frame.count });
+        return;
+      case "resync":
+        this.log("resync asked: the history goes again");
+        wire.send(JSON.stringify(this.hello(this.lastGatewaySeq)));
+        return;
+      case "bye":
+        if (FATAL.has(frame.reason)) this.end(frame.reason);
+        else {
+          this.log(`bye ${frame.reason}: reconnecting`);
+          wire.destroy();
+        }
+        return;
+      case "error":
+        this.emit("error", { code: frame.code, ...frame.id !== void 0 ? { id: frame.id } : {} });
+        return;
+      case "ready":
+        wire.destroy();
+        return;
+      case "pong":
+        return;
+    }
+  }
+  onClose(code) {
+    this.wire = null;
+    if (this.closed || this.state === "ended") return;
+    if (this.state !== "reconnecting") {
+      this.state = "reconnecting";
+      this.emit("state", { state: "reconnecting" });
+      this.log(`connection closed (${code}): reconnecting`);
+    }
+    this.scheduleReconnect();
+  }
+  scheduleReconnect() {
+    if (this.closed || this.reconnectTimer) return;
+    const delay2 = Math.min(BACKOFF_MIN_MS * 2 ** this.attempt, BACKOFF_MAX_MS);
+    this.attempt += 1;
+    this.reconnectTimer = setTimeout(() => {
+      this.reconnectTimer = null;
+      if (this.closed || this.state === "ended") return;
+      this.connect(false).catch((err) => {
+        if (this.closed || this.state === "ended") return;
+        const cause = err instanceof O1ConnectError && err.code === "remote_refused" ? err.cause : null;
+        if (cause && cause.status !== 429 && cause.status !== 503) {
+          this.end(cause.status === 401 ? "revoked" : cause.status === 402 || cause.status === 403 ? "plan" : cause.status === 0 ? cause.code : "protocol");
+          return;
+        }
+        this.log(`reconnection failed: ${err instanceof Error ? err.message : String(err)}`);
+        this.scheduleReconnect();
+      });
+    }, delay2);
+    this.reconnectTimer.unref();
+  }
+  stopTimers() {
+    if (this.pinger) clearInterval(this.pinger);
+    this.pinger = null;
+    if (this.reconnectTimer) clearTimeout(this.reconnectTimer);
+    this.reconnectTimer = null;
+  }
+  failPending() {
+    for (const [id, p] of [...this.pending]) {
+      this.pending.delete(id);
+      p.reject(new O1ConnectError("decision_closed", `the decision ${id} was not answered: the remote session ended`));
+    }
+  }
+  end(reason) {
+    if (this.state === "ended") return;
+    this.state = "ended";
+    this.stopTimers();
+    this.failPending();
+    const w = this.wire;
+    this.wire = null;
+    w?.destroy();
+    this.log(`ended: ${reason}`);
+    this.emit("state", { state: "ended", reason });
+  }
+  keep(frame) {
+    const text = JSON.stringify(frame);
+    const bytes = Buffer.byteLength(text, "utf8");
+    this.unacked.push({ seq: frame.seq, text, bytes });
+    this.unackedBytes += bytes;
+    while (this.unackedBytes > UNACKED_MAX_BYTES && this.unacked.length > 1) this.unackedBytes -= this.unacked.shift().bytes;
+    this.wire?.send(text);
+  }
+  send(ev) {
+    if (this.state === "ended") return;
+    this.keep({ v: 1, type: "event", seq: ++this.seq, at: (/* @__PURE__ */ new Date()).toISOString(), ev });
+  }
+  status(s) {
+    if (s.model !== void 0) this.model = s.model;
+    if (s.approvalMode !== void 0) this.approvalMode = s.approvalMode;
+    if (this.state === "ended") return;
+    this.wire?.send(JSON.stringify({ v: 1, type: "status", state: s.state, model: this.model, approval_mode: this.approvalMode }));
+  }
+  requestDecision(req) {
+    if (this.state === "ended") return Promise.reject(new O1ConnectError("decision_closed", "the remote session has ended"));
+    return new Promise((resolve, reject) => {
+      this.pending.set(req.id, { resolve, reject });
+      this.keep({ v: 1, type: "decision_request", seq: ++this.seq, id: req.id, kind: req.kind, expires_at: req.expiresAt, title: req.title, summary: req.summary, options: req.options });
+    });
+  }
+  closeDecision(id, by, outcome) {
+    const p = this.pending.get(id);
+    this.pending.delete(id);
+    p?.reject(new O1ConnectError("decision_closed", `the decision ${id} was closed ${by === "local" ? "in the terminal" : by === "expired" ? "by its expiry" : "by the viewer's answer"}`));
+    if (this.state === "ended") return;
+    this.wire?.send(JSON.stringify({ v: 1, type: "decision_closed", id, outcome: outcome ?? null, by }));
+  }
+  close() {
+    if (this.closedWire) return this.closedWire;
+    this.closed = true;
+    this.stopTimers();
+    this.failPending();
+    const w = this.wire;
+    this.wire = null;
+    const was = this.state;
+    this.state = "ended";
+    this.closedWire = new Promise((resolve) => {
+      if (!w) {
+        resolve();
+        return;
+      }
+      const done = setTimeout(resolve, 2500);
+      done.unref();
+      w.close(1e3, "closed");
+      setTimeout(() => {
+        clearTimeout(done);
+        resolve();
+      }, 300).unref();
+    });
+    if (was !== "ended") this.emit("state", { state: "ended", reason: "closed" });
+    this.log("closed");
+    return this.closedWire;
+  }
+};
+async function openRemoteImpl(opts) {
+  const s = opts.session;
+  if (!s || typeof s !== "object") throw new TypeError("session is required: { id, name, version, approvalMode, model, cwd? }");
+  for (const k of ["id", "name", "version", "approvalMode", "model"]) {
+    if (typeof s[k] !== "string" || k !== "model" && s[k] === "") throw new TypeError(`session.${k} must be a string`);
+  }
+  if (s.cwd !== void 0 && typeof s.cwd !== "string") throw new TypeError("session.cwd must be a string");
+  const history = typeof opts.history === "function" ? opts.history : Array.isArray(opts.history) ? () => opts.history : () => [];
+  let via;
+  let apiKey;
+  if (opts.connection) {
+    const t = tunnels.get(opts.connection);
+    if (!t) throw new TypeError("connection must be one this library opened (open())");
+    via = { url: t.target, agent: t.agent };
+    apiKey = t.token;
+  } else {
+    if (typeof opts.baseUrl !== "string") throw new TypeError("baseUrl (or connection) is required");
+    let url;
+    try {
+      url = new URL(opts.baseUrl);
+    } catch {
+      throw new TypeError("baseUrl must be a URL");
+    }
+    const loopback = url.hostname === "127.0.0.1" || url.hostname === "localhost" || url.hostname === "[::1]";
+    if (!(url.protocol === "https:" || url.protocol === "http:" && loopback)) throw new TypeError("baseUrl must be https (http only for a loopback host)");
+    if (typeof opts.apiKey !== "string" || opts.apiKey === "") throw new TypeError("apiKey (the device key) is required with baseUrl");
+    via = { url };
+    apiKey = opts.apiKey;
+  }
+  const log = opts.log ? (line) => {
+    try {
+      opts.log(line);
+    } catch {
+    }
+  } : void 0;
+  const agent = new Agent({ via, apiKey, session: { ...s }, history, log });
+  await agent.connect(true);
+  return agent;
+}
+
 // src/client/backoff.ts
 var IdentityBackoff = class {
   constructor(now = Date.now, baseMs = 6e4, maxMs = 60 * 6e4) {
@@ -1103,7 +1622,7 @@ var IdentityBackoff = class {
 };
 
 // src/client/pin-sync.ts
-import http6 from "node:http";
+import http7 from "node:http";
 import tls4 from "node:tls";
 function mergePins(own, listed, via) {
   const unchanged = { pins: [...own], added: [], dropped: [] };
@@ -1182,7 +1701,7 @@ var PinSync = class {
   fetch() {
     const { target } = this.o;
     return new Promise((resolve, reject) => {
-      const req = http6.request({
+      const req = http7.request({
         host: target.hostname,
         port: target.port,
         method: "GET",
@@ -1263,7 +1782,7 @@ async function startTunnelSession(o) {
 }
 
 // src/client/version.ts
-var VERSION = true ? "9.4.0" : "dev";
+var VERSION = true ? "9.9.0" : "dev";
 
 // src/client/lib.ts
 var version = VERSION;
@@ -1275,6 +1794,9 @@ var O1ConnectError = class extends Error {
     this.code = code;
   }
 };
+async function openRemote(opts) {
+  return openRemoteImpl(opts);
+}
 var DEFAULT_NAME = "aipp-connect";
 var TRANSPORTS = ["auto", "websocket", "post"];
 function entryName(name) {
@@ -1424,7 +1946,9 @@ async function open(opts) {
   }
   const baseUrl = `http://127.0.0.1:${session.port}`;
   log?.(`o1-connect library ${VERSION} for ${cfg.device} listening on ${baseUrl} (transport ${cfg.transport})`);
-  return { baseUrl, openaiBaseUrl: `${baseUrl}/v1`, apiKey, port: session.port, device: cfg.device, close: session.close };
+  const connection = { baseUrl, openaiBaseUrl: `${baseUrl}/v1`, apiKey, port: session.port, device: cfg.device, close: session.close };
+  bindTunnel(connection, { agent: session.agent, target: session.target, token: cfg.token });
+  return connection;
 }
 async function forget(opts) {
   const store = checkStore(opts?.store);
@@ -1448,6 +1972,7 @@ export {
   O1ConnectError,
   forget,
   open,
+  openRemote,
   setup,
   version
 };

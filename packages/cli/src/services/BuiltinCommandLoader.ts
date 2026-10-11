@@ -57,6 +57,7 @@ import { planCommand } from '../ui/commands/planCommand.js';
 import { permissionsCommand } from '../ui/commands/permissionsCommand.js';
 import { trustCommand } from '../ui/commands/trustCommand.js';
 import { quitCommand } from '../ui/commands/quitCommand.js';
+import { rcCommand } from '../ui/commands/rc-command.js';
 import { recapCommand } from '../ui/commands/recapCommand.js';
 import { reloadPluginsCommand } from '../ui/commands/reload-plugins-command.js';
 import { renameCommand } from '../ui/commands/renameCommand.js';
@@ -176,6 +177,9 @@ export class BuiltinCommandLoader implements ICommandLoader {
       permissionsCommand,
       ...(this.config?.getFolderTrust() ? [trustCommand] : []),
       quitCommand,
+      // Gated like /workflows: remote.enabled and the O1CODE_DISABLE_REMOTE
+      // kill switch take the command out of typeahead and help entirely.
+      this.config?.isRemoteEnabled() ? rcCommand : null,
       recapCommand,
       reloadPluginsCommand,
       renameCommand,

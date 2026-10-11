@@ -36,6 +36,7 @@ import type { ExtensionUpdateState } from '../state/extensions.js';
 import type { UpdateObject } from '../utils/updateCheck.js';
 
 import { type UseHistoryManagerReturn } from '../hooks/useHistoryManager.js';
+import type { RemoteStatus } from '../../remote/remote-controller.js';
 import { type HelpTab } from './UIActionsContext.js';
 import { type RestartReason } from '../hooks/useIdeTrustListener.js';
 import { type ProviderUpdateRequest } from '../hooks/useProviderUpdates.js';
@@ -210,6 +211,9 @@ export interface UIState {
   // Hooks dialog
   isHooksDialogOpen: boolean;
   isStatsDialogOpen: boolean;
+  // Remote sessions (/rc): the dialog, and the state the footer shows
+  isRemoteDialogOpen: boolean;
+  remoteStatus: RemoteStatus | null;
   // Feedback dialog
   isFeedbackDialogOpen: boolean;
   // Per-task token tracking

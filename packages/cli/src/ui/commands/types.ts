@@ -31,6 +31,7 @@ import type {
 } from '../state/extensions.js';
 import type { ExtensionRefreshState } from '../../config/extension-refresh-state.js';
 import type { PeerMessaging } from '../../peerMessaging/peer-messaging.js';
+import type { RemoteController } from '../../remote/remote-controller.js';
 
 export interface NonInteractiveSlashCommandPolicy {
   readonly allowSessionReset: boolean;
@@ -71,6 +72,11 @@ export interface CommandContext {
      * bound; `/peers` treats null as "the feature is off".
      */
     peerMessaging?: PeerMessaging | null;
+    /**
+     * Present only in the interactive UI with remote sessions on; `/rc`
+     * treats null as "not available here".
+     */
+    remote?: RemoteController | null;
   };
   // UI state and history management
   ui: {
@@ -259,7 +265,8 @@ export interface OpenDialogActionReturn {
     | 'rewind'
     | 'diff'
     | 'stats'
-    | 'background_tasks';
+    | 'background_tasks'
+    | 'remote';
 }
 
 /**

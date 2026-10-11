@@ -278,6 +278,9 @@ export function validateSettingValue(
 export const WORKSPACE_RESTRICTED_SETTINGS = [
   { section: 'tools', key: 'executionSandbox' },
   { section: 'tools', key: 'workflowsEnabled' },
+  // A cloned repository must not mirror the user's terminal to a browser.
+  { section: 'remote', key: 'enabled' },
+  { section: 'remote', key: 'atStartup' },
   { section: 'security', key: 'allowPrivateNetworkHooks' },
   { section: 'security', key: 'allowedInsecureVoiceBaseUrls' },
   { section: 'goals', key: 'modelProposed' },

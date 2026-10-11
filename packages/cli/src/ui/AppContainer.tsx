@@ -285,6 +285,13 @@ import {
 } from '../peerMessaging/peer-messaging.js';
 import { inboundPolicyScope } from '../peerMessaging/inbound-policy-scope.js';
 import { useDualOutput } from '../dualOutput/DualOutputContext.js';
+import { useRemoteController } from '../remote/RemoteControllerContext.js';
+import type { RemoteStatus } from '../remote/remote-controller.js';
+import { historyToRemoteEvents } from '../remote/history-seed.js';
+import {
+  describeToolConfirmation,
+  remoteAnswerToConfirmation,
+} from '../remote/remote-decisions.js';
 import {
   requestConsentInteractive,
   requestConsentOrFail,
@@ -1964,6 +1971,9 @@ export const AppContainer = (props: AppContainerProps) => {
     useBackgroundTaskViewActions();
   const { isStatsDialogOpen, openStatsDialog, closeStatsDialog } =
     useStatsDialog();
+  const [isRemoteDialogOpen, setIsRemoteDialogOpen] = useState(false);
+  const openRemoteDialog = useCallback(() => setIsRemoteDialogOpen(true), []);
+  const closeRemoteDialog = useCallback(() => setIsRemoteDialogOpen(false), []);
 
   // Ref bridges: these callbacks are defined later, but slashCommandActions
   // needs them now. The refs let the useMemo capture stable function pointers
@@ -2127,6 +2137,7 @@ export const AppContainer = (props: AppContainerProps) => {
       openHooksDialog,
       openStatsDialog,
       openBackgroundTasksDialog,
+      openRemoteDialog,
       openResumeDialog,
       openRewindSelector: () => openRewindSelectorRef.current(),
       openDiffDialog,
@@ -2161,6 +2172,7 @@ export const AppContainer = (props: AppContainerProps) => {
       openHooksDialog,
       openStatsDialog,
       openBackgroundTasksDialog,
+      openRemoteDialog,
       openResumeDialog,
       handleResume,
       handleBranch,
@@ -2741,6 +2753,128 @@ export const AppContainer = (props: AppContainerProps) => {
     peerMessaging,
   ]);
 
+  // Remote sessions (/rc): the controller lives outside React; the UI
+  // feeds it the conversation on screen and takes what a viewer sends.
+  const remote = useRemoteController();
+  const [remoteStatus, setRemoteStatus] = useState<RemoteStatus | null>(
+    () => remote?.status() ?? null,
+  );
+  const historyForRemoteRef = useRef(historyManager.history);
+  historyForRemoteRef.current = historyManager.history;
+  useEffect(() => {
+    if (!remote) return;
+    remote.setHistoryProvider(() =>
+      historyToRemoteEvents(historyForRemoteRef.current, config.getSessionId()),
+    );
+  }, [remote, config]);
+  useEffect(() => {
+    if (!remote) return;
+    return remote.onEvent((event) => {
+      setRemoteStatus(remote.status());
+      const say = (
+        type: MessageType.INFO | MessageType.WARNING,
+        text: string,
+      ) => historyManager.addItem({ type, text }, Date.now());
+      switch (event.kind) {
+        case 'started':
+          say(
+            MessageType.INFO,
+            t('Remote mode is on as "{{name}}": {{url}}', {
+              name: event.name,
+              url: event.url,
+            }),
+          );
+          break;
+        case 'viewer':
+          say(
+            MessageType.INFO,
+            event.op === 'attached'
+              ? t(
+                  'A viewer opened this session on the account page ({{count}} watching).',
+                  {
+                    count: String(event.count),
+                  },
+                )
+              : t('A viewer left the account page ({{count}} watching).', {
+                  count: String(event.count),
+                }),
+          );
+          break;
+        case 'state':
+          say(
+            event.state === 'reconnecting'
+              ? MessageType.WARNING
+              : MessageType.INFO,
+            event.state === 'reconnecting'
+              ? t('Remote: the gateway is away; reconnecting.')
+              : t('Remote: connected to the gateway again.'),
+          );
+          break;
+        case 'stopped':
+          say(
+            event.reason === 'closed' ? MessageType.INFO : MessageType.WARNING,
+            event.reason === 'closed'
+              ? t('Remote mode is off.')
+              : t('Remote mode ended: {{reason}}.', { reason: event.reason }),
+          );
+          break;
+        default:
+          break;
+      }
+    });
+  }, [remote, historyManager]);
+  // A viewer's prompt enters the queue as if typed here, marked as remote
+  // in the transcript; the viewer's commands run their slash commands.
+  useEffect(() => {
+    if (!remote) return;
+    return remote.onInput(({ text }) => {
+      addMessage(text, false, t('[from the account page] {{text}}', { text }));
+    });
+  }, [remote, addMessage]);
+  useEffect(() => {
+    if (!remote) return;
+    return remote.onCommand(({ name, args }) => {
+      const arg = (key: string): string | undefined => {
+        const value = args?.[key];
+        return typeof value === 'string' && value.trim()
+          ? value.trim()
+          : undefined;
+      };
+      switch (name) {
+        case 'interrupt':
+          cancelOngoingRequestRef.current();
+          break;
+        case 'compact':
+          void handleSlashCommand('/compress');
+          break;
+        case 'clear':
+          void handleSlashCommand('/clear');
+          break;
+        case 'model': {
+          const model = arg('model') ?? arg('id');
+          if (model) void handleSlashCommand(`/model ${model}`);
+          break;
+        }
+        case 'effort': {
+          const effort = arg('effort') ?? arg('level');
+          if (effort) void handleSlashCommand(`/effort ${effort}`);
+          break;
+        }
+        default:
+          break;
+      }
+    });
+  }, [remote, handleSlashCommand]);
+  const remoteStartupRequestedRef = useRef(false);
+  useEffect(() => {
+    if (!remote || !isConfigInitialized || remoteStartupRequestedRef.current) {
+      return;
+    }
+    if (!config.getRemoteAtStartup()) return;
+    remoteStartupRequestedRef.current = true;
+    openRemoteDialog();
+  }, [remote, isConfigInitialized, config, openRemoteDialog]);
+
   // Surface parked messages. The model never sees a held message, so
   // without a notice the only symptom is a peer that seems to be ignored.
   // Only ids that are newly held are announced: the gate emits on every
@@ -3091,6 +3225,83 @@ export const AppContainer = (props: AppContainerProps) => {
       remoteInput.setConfirmationHandler(() => {});
     };
   }, [remoteInput]);
+
+  // Remote decisions (contract §5.5): every question the terminal asks is
+  // put to the viewers too, and the first answer wins. The terminal's own
+  // answer is seen as the call leaving awaiting_approval; a viewer's is
+  // applied through the same onConfirm the terminal's prompt would use.
+  const remoteApprovalMode = config.getApprovalMode();
+  useEffect(() => {
+    if (!remote) return;
+    remote.setStatus({
+      state:
+        streamingState === StreamingState.WaitingForConfirmation
+          ? 'awaiting'
+          : streamingState === StreamingState.Idle
+            ? 'idle'
+            : 'streaming',
+      model: currentModel,
+      approvalMode: remoteApprovalMode,
+    });
+  }, [remote, streamingState, currentModel, remoteApprovalMode]);
+  const remoteOfferedRef = useRef(new Set<string>());
+  useEffect(() => {
+    if (!remote || !remoteStatus?.active) {
+      remoteOfferedRef.current.clear();
+      return;
+    }
+    const trustedFolder = config.isTrustedFolder();
+    for (const tc of pendingToolCalls) {
+      if (
+        tc.status !== 'awaiting_approval' ||
+        remoteOfferedRef.current.has(tc.request.callId)
+      ) {
+        continue;
+      }
+      const details = (tc as WaitingToolCall).confirmationDetails;
+      if (!details) continue;
+      const spec = describeToolConfirmation(details, { trustedFolder });
+      if (!spec) continue;
+      remoteOfferedRef.current.add(tc.request.callId);
+      remote.offerDecision(tc.request.callId, spec);
+    }
+    for (const callId of [...remoteOfferedRef.current]) {
+      const tc = pendingToolCalls.find((t) => t.request.callId === callId);
+      if (tc && tc.status === 'awaiting_approval') continue;
+      remoteOfferedRef.current.delete(callId);
+      remote.closeDecision(
+        callId,
+        tc === undefined
+          ? null
+          : tc.status !== 'cancelled' && tc.status !== 'error'
+            ? ToolConfirmationOutcome.ProceedOnce
+            : ToolConfirmationOutcome.Cancel,
+      );
+    }
+  }, [remote, remoteStatus, pendingToolCalls, config]);
+  useEffect(() => {
+    if (!remote) return;
+    return remote.onDecisionAnswer((id, answer, spec) => {
+      const tc = pendingToolCallsRef.current.find(
+        (t) => t.request.callId === id && t.status === 'awaiting_approval',
+      ) as WaitingToolCall | undefined;
+      const details = tc?.confirmationDetails;
+      if (!details) return;
+      const confirmation = remoteAnswerToConfirmation(details, spec, answer);
+      if (!confirmation) return;
+      const label =
+        spec.options.find((option) => option.value === answer.outcome)?.label ??
+        answer.outcome;
+      historyManager.addItem(
+        {
+          type: MessageType.INFO,
+          text: t('Answered from the account page: {{label}}', { label }),
+        },
+        Date.now(),
+      );
+      void details.onConfirm(confirmation.outcome, confirmation.payload);
+    });
+  }, [remote, historyManager]);
 
   // Callback for handling final submit (must be after addMessage from useMessageQueue)
   const handleFinalSubmit = useCallback(
@@ -4054,6 +4265,7 @@ export const AppContainer = (props: AppContainerProps) => {
     isMcpDialogOpen ||
     isHooksDialogOpen ||
     isStatsDialogOpen ||
+    isRemoteDialogOpen ||
     isApprovalModeDialogOpen ||
     isEffortDialogOpen ||
     isOutputStyleDialogOpen ||
@@ -4690,6 +4902,8 @@ export const AppContainer = (props: AppContainerProps) => {
     closeDiffDialog,
     isStatsDialogOpen,
     closeStatsDialog,
+    isRemoteDialogOpen,
+    closeRemoteDialog,
     showWorktreeExitDialog,
     closeWorktreeExitDialog: () => setShowWorktreeExitDialog(false),
   });
@@ -5258,6 +5472,8 @@ export const AppContainer = (props: AppContainerProps) => {
       // Hooks dialog
       isHooksDialogOpen,
       isStatsDialogOpen,
+      isRemoteDialogOpen,
+      remoteStatus,
       // Feedback dialog
       isFeedbackDialogOpen,
       // Per-task token tracking
@@ -5409,6 +5625,8 @@ export const AppContainer = (props: AppContainerProps) => {
       // Hooks dialog
       isHooksDialogOpen,
       isStatsDialogOpen,
+      isRemoteDialogOpen,
+      remoteStatus,
       // Feedback dialog
       isFeedbackDialogOpen,
       // Per-task token tracking
@@ -5500,6 +5718,7 @@ export const AppContainer = (props: AppContainerProps) => {
       // Hooks dialog
       closeHooksDialog,
       closeStatsDialog,
+      closeRemoteDialog,
       // Resume session dialog
       openResumeDialog,
       closeResumeDialog,
@@ -5590,6 +5809,7 @@ export const AppContainer = (props: AppContainerProps) => {
       // Hooks dialog
       closeHooksDialog,
       closeStatsDialog,
+      closeRemoteDialog,
       // Resume session dialog
       openResumeDialog,
       closeResumeDialog,

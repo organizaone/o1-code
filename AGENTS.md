@@ -22,10 +22,11 @@ package and what comes next in `ROADMAP.md`, how to propose and weigh a feature 
 3. **Identity comes from `brand.json`.** New code reads from there; a branding change is a direct
    edit to the code. No third-party name as identity on a user surface; `node scripts/o1/brand-lint.mjs`
    is the gate. A provider's name appears only where it names that provider and its models.
-4. **Out of scope, and out of the tree**: desktop, mobile, the Chrome extension and the browser tool,
-   computer use and its Rust driver, messaging channels, the Java and Python SDKs, and the GitHub
-   Action integration. They do not come back without a
-   maintainer decision. The Web Shell, the interface for `o1-code serve`, is in scope.
+4. **Out of scope, and out of the tree**: desktop and mobile apps, the Chrome extension and the
+   browser tool, computer use and its Rust driver, messaging channels, the Java and Python SDKs,
+   and the GitHub Action integration. They do not come back without a maintainer decision. In
+   scope: the Web Shell, the interface for `o1-code serve`, and remote sessions (`/rc`), a channel
+   of the OrganizaOne gateway that mirrors the terminal to the account page — not an app.
 
 ## Commands
 

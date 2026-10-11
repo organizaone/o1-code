@@ -37,6 +37,8 @@ export const NAME_COL = 22;
 export const KIND_COL = 10;
 export const PID_COL = 9;
 export const AGE_COL = 10;
+/** How long the session has been in remote mode (`/rc`), or `-`. */
+export const REMOTE_COL = 8;
 
 interface PsArgs {
   json?: boolean;
@@ -85,6 +87,7 @@ function outputHuman(records: SessionRegistryRecord[], now: number): void {
       padDisplay('KIND', KIND_COL) +
       padDisplay('PID', PID_COL) +
       padDisplay('AGE', AGE_COL) +
+      padDisplay('REMOTE', REMOTE_COL) +
       'DIRECTORY',
   );
   for (const record of records) {
@@ -104,6 +107,10 @@ function outputHuman(records: SessionRegistryRecord[], now: number): void {
         ) +
         padDisplay(String(record.pid), PID_COL) +
         padDisplay(formatAge(now - record.startedAt), AGE_COL) +
+        padDisplay(
+          record.remote ? formatAge(now - record.remote.since) : '-',
+          REMOTE_COL,
+        ) +
         sanitize(record.cwd),
     );
   }

@@ -58,6 +58,7 @@ const info: KeyInfo = {
     caps: { credentials: 2, requests_per_day: 1000, tokens_per_day: null },
     usage: { rpd: 3, tpd: 900 },
   },
+  remote: null,
 };
 
 describe('formatOrganizaOneKeyInfo', () => {
@@ -87,6 +88,7 @@ describe('formatOrganizaOneKeyInfo', () => {
         scopes: [{ scope: 'user', limits: {}, usage: {} }],
         plan: null,
         own: null,
+        remote: null,
       },
       undefined,
       now,

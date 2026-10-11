@@ -29,6 +29,23 @@ import {
   useFooterGoalState,
 } from './GoalPill.js';
 import { CronPill, useFooterCronTaskCount } from './CronPill.js';
+import { describeRemoteSnapshot } from '../commands/rc-command.js';
+import type { RemoteStatus } from '../../remote/remote-controller.js';
+import type { RemoteSessionSnapshot } from '../../remote/remote-session.js';
+
+/**
+ * What the footer says about remote mode: the live session while it is on,
+ * how the last one ended until `/rc off` or the next start clears it, and
+ * nothing after a clean leave.
+ */
+export function remoteFooterSnapshot(
+  status: RemoteStatus | null,
+): RemoteSessionSnapshot | null {
+  if (!status) return null;
+  if (status.active) return status.snapshot;
+  if (status.last && status.last.reason !== 'closed') return status.last;
+  return null;
+}
 
 const CATEGORIES = Object.entries(CATEGORY_LABELS) as ReadonlyArray<
   [ActivityCategory, string]
@@ -101,6 +118,7 @@ const Sep = () => <Text color={extendedTheme.ui.separator}>{' · '}</Text>;
 
 export const ActivityLine: React.FC = () => {
   const uiState = useUIState();
+  const remoteSnapshot = remoteFooterSnapshot(uiState.remoteStatus);
   const tier = useLayoutTier();
   const goal = useFooterGoalState();
   const cronCount = useFooterCronTaskCount();
@@ -185,6 +203,20 @@ export const ActivityLine: React.FC = () => {
             <>
               <Sep />
               <Text color={theme.text.accent}>{t('workflow active')}</Text>
+            </>
+          )}
+          {remoteSnapshot && (
+            <>
+              <Sep />
+              <Text
+                color={
+                  remoteSnapshot.state === 'online'
+                    ? extendedTheme.ui.brandSoft
+                    : theme.status.warning
+                }
+              >
+                {describeRemoteSnapshot(remoteSnapshot)}
+              </Text>
             </>
           )}
         </Text>

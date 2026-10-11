@@ -5555,6 +5555,83 @@ describe('loadCliConfig workflowsEnabled', () => {
   });
 });
 
+describe('loadCliConfig remote sessions', () => {
+  const originalArgv = process.argv;
+
+  beforeEach(() => {
+    vi.resetAllMocks();
+    vi.mocked(os.homedir).mockReturnValue('/mock/home/user');
+    vi.stubEnv('GEMINI_API_KEY', 'test-api-key');
+    vi.stubEnv('O1CODE_DISABLE_REMOTE', undefined);
+  });
+
+  afterEach(() => {
+    process.argv = originalArgv;
+    vi.unstubAllEnvs();
+    vi.restoreAllMocks();
+  });
+
+  it('offers /rc by default and lets remote.enabled turn it off', async () => {
+    process.argv = ['node', 'script.js'];
+    const argv = await parseArguments();
+    expect(
+      (await loadCliConfig({}, argv, undefined, [])).isRemoteEnabled(),
+    ).toBe(true);
+    const settings: Settings = { remote: { enabled: false } };
+    expect(
+      (await loadCliConfig(settings, argv, undefined, [])).isRemoteEnabled(),
+    ).toBe(false);
+  });
+
+  it('lets the O1CODE_DISABLE_REMOTE kill switch override a true setting', async () => {
+    vi.stubEnv('O1CODE_DISABLE_REMOTE', '1');
+    process.argv = ['node', 'script.js'];
+    const argv = await parseArguments();
+    const settings: Settings = { remote: { enabled: true } };
+    const config = await loadCliConfig(settings, argv, undefined, []);
+    expect(config.isRemoteEnabled()).toBe(false);
+  });
+
+  it('reads --rc with and without a name, and remote.atStartup', async () => {
+    process.argv = ['node', 'script.js', '--rc', 'laptop'];
+    const named = await loadCliConfig(
+      {},
+      await parseArguments(),
+      undefined,
+      [],
+    );
+    expect(named.getRemoteAtStartup()).toBe(true);
+    expect(named.getRemoteSessionName()).toBe('laptop');
+
+    process.argv = ['node', 'script.js', '--rc'];
+    const bare = await loadCliConfig({}, await parseArguments(), undefined, []);
+    expect(bare.getRemoteAtStartup()).toBe(true);
+    expect(bare.getRemoteSessionName()).toBeUndefined();
+
+    process.argv = ['node', 'script.js'];
+    const argv = await parseArguments();
+    expect(
+      (await loadCliConfig({}, argv, undefined, [])).getRemoteAtStartup(),
+    ).toBe(false);
+    const settings: Settings = { remote: { atStartup: true } };
+    expect(
+      (await loadCliConfig(settings, argv, undefined, [])).getRemoteAtStartup(),
+    ).toBe(true);
+  });
+
+  it('reads remote.viaTunnel and falls back to auto', async () => {
+    process.argv = ['node', 'script.js'];
+    const argv = await parseArguments();
+    expect(
+      (await loadCliConfig({}, argv, undefined, [])).getRemoteViaTunnel(),
+    ).toBe('auto');
+    const settings: Settings = { remote: { viaTunnel: 'always' } };
+    expect(
+      (await loadCliConfig(settings, argv, undefined, [])).getRemoteViaTunnel(),
+    ).toBe('always');
+  });
+});
+
 describe('screenReader configuration', () => {
   const originalArgv = process.argv;
 
