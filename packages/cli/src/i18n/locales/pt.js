@@ -3778,5 +3778,7 @@ export default {
     'Esc fecha isto; /rc off encerra a sessão.',
   'The QR code does not fit this terminal; open the address instead.':
     'O código QR não cabe neste terminal; abra o endereço.',
+  Continue: 'Continuar',
+  'Disconnect remote control': 'Desconectar controle remoto',
   Other: 'Outra resposta',
 };

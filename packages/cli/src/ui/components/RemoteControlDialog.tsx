@@ -16,11 +16,17 @@ import { useKeypress } from '../hooks/useKeypress.js';
 import { useTerminalSize } from '../hooks/useTerminalSize.js';
 import { theme } from '../semantic-colors.js';
 import {
+  RadioButtonSelect,
+  type RadioSelectItem,
+} from './shared/RadioButtonSelect.js';
+import {
   describeRemoteOutcome,
   describeRemoteSnapshot,
 } from '../commands/rc-command.js';
 
 type Phase = 'consent' | 'connecting' | 'on' | 'error';
+
+type RemoteAction = 'continue' | 'disconnect';
 
 /**
  * Drops the blank border the QR generator pads in, so the code takes only
@@ -40,8 +46,8 @@ export function compactQr(code: string): string {
   return lines.map((line) => line.slice(indent).replace(/\s+$/, '')).join('\n');
 }
 
-/** The dialog's own rows (title, address, hint, border) plus the header and footer. */
-const QR_ROW_BUDGET = 12;
+/** The dialog's own rows (title, address, status, actions, border) plus the header and footer. */
+const QR_ROW_BUDGET = 14;
 
 /**
  * `/rc`: the one-time notice the first time, then the viewer's address and
@@ -122,6 +128,25 @@ export const RemoteControlDialog: React.FC<{ onClose: () => void }> = ({
   const showQr =
     qr !== null && qrRows <= Math.max(0, terminalRows - QR_ROW_BUDGET);
 
+  const onAction = useCallback(
+    (action: RemoteAction) => {
+      if (action === 'disconnect') {
+        void remote?.stop().finally(() => onClose());
+        return;
+      }
+      onClose();
+    },
+    [remote, onClose],
+  );
+  const actions: Array<RadioSelectItem<RemoteAction>> = [
+    { label: t('Continue'), value: 'continue', key: 'continue' },
+    {
+      label: t('Disconnect remote control'),
+      value: 'disconnect',
+      key: 'disconnect',
+    },
+  ];
+
   useKeypress(
     (key) => {
       if (key.name === 'escape') {
@@ -197,11 +222,18 @@ export const RemoteControlDialog: React.FC<{ onClose: () => void }> = ({
               </Text>
             )
           )}
-          <Text color={theme.text.secondary}>
-            {status.snapshot ? describeRemoteSnapshot(status.snapshot) : ''}
-            {' · '}
-            {t('Esc closes this; /rc off ends the session.')}
-          </Text>
+          <Box marginTop={1}>
+            <Text color={theme.text.secondary}>
+              {status.snapshot ? describeRemoteSnapshot(status.snapshot) : ''}
+            </Text>
+          </Box>
+          <Box marginTop={1}>
+            <RadioButtonSelect
+              items={actions}
+              onSelect={onAction}
+              showNumbers={false}
+            />
+          </Box>
         </Box>
       )}
       {phase === 'error' && (
