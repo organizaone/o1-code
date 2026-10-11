@@ -18,6 +18,7 @@ import process from 'node:process';
 import type { UseHistoryManagerReturn } from './useHistoryManager.js';
 import type { ArenaDialogType } from './useArenaCommand.js';
 import { usePeerMessaging } from '../../peerMessaging/PeerMessagingContext.js';
+import { useRemoteController } from '../../remote/RemoteControllerContext.js';
 import {
   type Logger,
   type Config,
@@ -207,6 +208,7 @@ export interface SlashCommandProcessorActions {
   openHooksDialog: () => void;
   openStatsDialog: () => void;
   openBackgroundTasksDialog: () => void;
+  openRemoteDialog: () => void;
   openRewindSelector: () => void;
   openDiffDialog: () => void;
   openHelpDialog: () => void;
@@ -249,6 +251,8 @@ export const useSlashCommandProcessor = (
   // Null unless cross-session messaging is enabled and bound; `/peers`
   // reads that as "the feature is off" rather than as an error.
   const peerMessaging = usePeerMessaging();
+  // Null unless remote sessions are on for this process; `/rc` says so.
+  const remote = useRemoteController();
 
   // Ref avoids adding `history` to the commandContext useMemo deps,
   // which would cause a full context rebuild on every history append.
@@ -524,6 +528,7 @@ export const useSlashCommandProcessor = (
         logger,
         extensionRefreshState: activeExtensionRefreshState,
         peerMessaging,
+        remote,
       },
       ui: {
         get history() {
@@ -590,6 +595,7 @@ export const useSlashCommandProcessor = (
       isIdleRef,
       activeExtensionRefreshState,
       peerMessaging,
+      remote,
     ],
   );
 
@@ -1297,6 +1303,9 @@ export const useSlashCommandProcessor = (
                       return { type: 'handled' };
                     case 'background_tasks':
                       actions.openBackgroundTasksDialog();
+                      return { type: 'handled' };
+                    case 'remote':
+                      actions.openRemoteDialog();
                       return { type: 'handled' };
                     case 'approval-mode':
                       actions.openApprovalModeDialog();

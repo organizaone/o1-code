@@ -3704,4 +3704,77 @@ export default {
     '(Enter seleciona, Tab troca o escopo)',
   'this project only': 'só neste projeto',
   'Next: {{commands}}': 'Próximo: {{commands}}',
+  // Remote sessions (/rc)
+  'Mirror this session to your OrganizaOne account page and take input from there':
+    'Espelhar esta sessão na página da sua conta OrganizaOne e receber entrada de lá',
+  '[off | status | name <name>]': '[off | status | name <nome>]',
+  'Remote sessions are not available in this session.':
+    'Sessões remotas não estão disponíveis nesta sessão.',
+  'Remote mode is not on.': 'O modo remoto não está ligado.',
+  'Remote mode is off; the session ended on the account page.':
+    'Modo remoto desligado; a sessão foi encerrada na página da conta.',
+  'Usage: /rc name <name>': 'Uso: /rc name <nome>',
+  'Remote session renamed to {{name}}.':
+    'Sessão remota renomeada para {{name}}.',
+  'Usage: /rc [off | status | name <name>]':
+    'Uso: /rc [off | status | name <nome>]',
+  'remote: active · 1 viewer': 'remoto: ativo · 1 visualizador',
+  'remote: active · {{count}} viewers':
+    'remoto: ativo · {{count}} visualizadores',
+  'remote: reconnecting': 'remoto: reconectando',
+  'remote: ended: {{reason}}': 'remoto: encerrado: {{reason}}',
+  'Remote sessions are off for this session (remote.enabled, or O1CODE_DISABLE_REMOTE).':
+    'Sessões remotas estão desligadas nesta sessão (remote.enabled ou O1CODE_DISABLE_REMOTE).',
+  'Remote needs the OrganizaOne sign-in: connect with "Sign in with your account" or the o1-gateway device code (/auth).':
+    'O modo remoto precisa do login OrganizaOne: conecte com "Entrar com sua conta" ou com o código de dispositivo do o1-gateway (/auth).',
+  'Your plan does not include remote sessions. See your account at {{url}}.':
+    'Seu plano não inclui sessões remotas. Veja sua conta em {{url}}.',
+  'The OrganizaOne gateway did not answer about this key. Try again in a moment.':
+    'O gateway OrganizaOne não respondeu sobre esta chave. Tente de novo em instantes.',
+  'remote.viaTunnel is "always", but this session has no o1-connect tunnel open.':
+    'remote.viaTunnel está em "always", mas esta sessão não tem um túnel o1-connect aberto.',
+  'remote.viaTunnel is "never", but this session only reaches OrganizaOne through the o1-connect tunnel.':
+    'remote.viaTunnel está em "never", mas esta sessão só alcança a OrganizaOne pelo túnel o1-connect.',
+  'Your plan allows no more remote sessions at once. Live now: {{sessions}}.':
+    'Seu plano não permite mais sessões remotas ao mesmo tempo. Ativas agora: {{sessions}}.',
+  'Your plan allows no more remote sessions at once.':
+    'Seu plano não permite mais sessões remotas ao mesmo tempo.',
+  'The gateway refused the remote session ({{code}}): {{message}}':
+    'O gateway recusou a sessão remota ({{code}}): {{message}}',
+  'Remote mode could not start.': 'O modo remoto não pôde iniciar.',
+  'Name: {{name}}': 'Nome: {{name}}',
+  'Open: {{url}}': 'Abrir: {{url}}',
+  '/rc off ends it.': '/rc off encerra.',
+  'Remote mode is off.': 'Modo remoto desligado.',
+  '/rc turns it on.': '/rc liga.',
+  'Remote mode is on as "{{name}}": {{url}}':
+    'Modo remoto ligado como "{{name}}": {{url}}',
+  'A viewer opened this session on the account page ({{count}} watching).':
+    'Um visualizador abriu esta sessão na página da conta ({{count}} assistindo).',
+  'A viewer left the account page ({{count}} watching).':
+    'Um visualizador saiu da página da conta ({{count}} assistindo).',
+  'Remote: the gateway is away; reconnecting.':
+    'Remoto: o gateway está fora; reconectando.',
+  'Remote: connected to the gateway again.':
+    'Remoto: conectado ao gateway de novo.',
+  'Remote mode ended: {{reason}}.': 'Modo remoto encerrado: {{reason}}.',
+  '[from the account page] {{text}}': '[da página da conta] {{text}}',
+  'Answered from the account page: {{label}}':
+    'Respondido pela página da conta: {{label}}',
+  'Remote sessions': 'Sessões remotas',
+  'The OrganizaOne gateway will mirror this terminal to your account page: what you type, what the model answers, each tool call and its result, and the questions the terminal asks.':
+    'O gateway OrganizaOne vai espelhar este terminal na página da sua conta: o que você digita, o que o modelo responde, cada chamada de ferramenta e seu resultado, e as perguntas que o terminal faz.',
+  'From the page you can type prompts, stop a turn, compact or clear the session, and answer permissions and questions. Shell access, /resume, plugins and the approval mode stay in the terminal.':
+    'Pela página você pode digitar prompts, interromper um turno, compactar ou limpar a sessão, e responder permissões e perguntas. Acesso ao shell, /resume, plugins e o modo de aprovação ficam no terminal.',
+  'The gateway relays the session and keeps none of its content; it records that a session existed, who viewed it, and each decision and who answered it.':
+    'O gateway retransmite a sessão e não guarda nada do conteúdo; registra que uma sessão existiu, quem a viu, e cada decisão e quem respondeu.',
+  'Enter to continue · Esc to cancel. Shown once.':
+    'Enter continua · Esc cancela. Mostrado uma vez.',
+  'Connecting to the OrganizaOne gateway…':
+    'Conectando ao gateway OrganizaOne…',
+  'Remote mode is on as "{{name}}". Open this address on your account page, or scan the code:':
+    'Modo remoto ligado como "{{name}}". Abra este endereço na página da sua conta ou leia o código:',
+  'Esc closes this; /rc off ends the session.':
+    'Esc fecha isto; /rc off encerra a sessão.',
+  Other: 'Outra resposta',
 };

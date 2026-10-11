@@ -55,6 +55,7 @@ import { RewindSelector } from './RewindSelector.js';
 import { DiffDialog } from './DiffDialog.js';
 import { MemoryDialog } from './MemoryDialog.js';
 import { SkillReviewDialog } from './SkillReviewDialog.js';
+import { RemoteControlDialog } from './RemoteControlDialog.js';
 import { Help } from './Help.js';
 import { BackgroundTasksDialog } from './background-view/BackgroundTasksDialog.js';
 import { useBackgroundTaskViewState } from '../contexts/BackgroundTaskViewContext.js';
@@ -506,6 +507,9 @@ export const DialogManager = ({
     return (
       <StatsDialog onClose={uiActions.closeStatsDialog} width={mainAreaWidth} />
     );
+  }
+  if (uiState.isRemoteDialogOpen) {
+    return <RemoteControlDialog onClose={uiActions.closeRemoteDialog} />;
   }
   if (uiState.isMcpDialogOpen) {
     return <MCPManagementDialog onClose={uiActions.closeMcpDialog} />;
