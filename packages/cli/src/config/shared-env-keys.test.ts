@@ -77,6 +77,10 @@ describe('PROJECT_ENV_HARDCODED_EXCLUSIONS', () => {
     );
   });
 
+  it('keeps the remote-sessions kill switch operator-owned', () => {
+    expect(PROJECT_ENV_HARDCODED_EXCLUSIONS).toContain('O1CODE_DISABLE_REMOTE');
+  });
+
   it('excludes attribution markers so a project .env cannot spoof channel', () => {
     expect(PROJECT_ENV_HARDCODED_EXCLUSIONS).toContain('O1CODE_SERVE');
     expect(PROJECT_ENV_HARDCODED_EXCLUSIONS).toContain('O1CODE_DESKTOP');

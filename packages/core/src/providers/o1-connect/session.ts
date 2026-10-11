@@ -8,8 +8,11 @@ import {
   O1ConnectError,
   forget,
   open,
+  openRemote,
   setup,
   type O1ConnectErrorCode,
+  type RemoteAgent,
+  type RemoteOpenOptions,
   type SecretStore,
   type SetupInfo,
   type Transport,
@@ -24,6 +27,12 @@ import { createO1ConnectStore } from './store.js';
 export { O1ConnectError };
 export type { O1ConnectErrorCode, SecretStore, SetupInfo };
 
+/** What a remote session announces and serves, without how it is reached (contract §5.4). */
+export type RemoteSessionOptions = Omit<
+  RemoteOpenOptions,
+  'baseUrl' | 'apiKey' | 'connection'
+>;
+
 /** The tunnel of one session: its loopback endpoint and how to stop it. */
 export interface O1ConnectSession {
   /** `http://127.0.0.1:<port>`: the Anthropic protocol. */
@@ -33,6 +42,12 @@ export interface O1ConnectSession {
   /** The endpoint's own key for this session; not the device token. */
   apiKey: string;
   device: string;
+  /**
+   * Puts a terminal session in remote mode through this tunnel: the
+   * WebSocket rides its inner TLS with the device key, so a network that
+   * passes the tunnel passes remote mode (contract §5.4).
+   */
+  openRemote(options: RemoteSessionOptions): Promise<RemoteAgent>;
   close(): Promise<void>;
 }
 
@@ -98,6 +113,7 @@ export async function openO1Connect(
     openaiBaseUrl: connection.openaiBaseUrl,
     apiKey: connection.apiKey,
     device: connection.device,
+    openRemote: (remoteOptions) => openRemote({ ...remoteOptions, connection }),
     close: () => connection.close(),
   };
 }
@@ -211,6 +227,22 @@ export function describeO1ConnectError(error: unknown): {
     case 'port_unavailable':
       return {
         message: `No loopback port could be opened for the tunnel: ${error.message}`,
+        forgetAndSetUpAgain: false,
+      };
+    case 'remote_refused':
+      return {
+        message: `The gateway would not open the remote session: ${error.message}`,
+        forgetAndSetUpAgain: false,
+      };
+    case 'remote_protocol':
+      return {
+        message:
+          'The address answered, but not as a remote session gateway. Check the connection and try again.',
+        forgetAndSetUpAgain: false,
+      };
+    case 'decision_closed':
+      return {
+        message: 'The question was answered elsewhere before a viewer could.',
         forgetAndSetUpAgain: false,
       };
     default:

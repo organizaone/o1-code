@@ -359,6 +359,13 @@ export const DEFAULT_COMMAND_OPTIONS = {
       'File path for receiving remote input commands (bidirectional sync). ' +
       'An external process writes JSONL commands; the TUI watches and processes them.',
   },
+  rc: {
+    type: 'string' as const,
+    description:
+      'Put the session in remote mode at startup, as /rc does, optionally ' +
+      'under the given name. Needs the OrganizaOne sign-in and a plan that ' +
+      'includes remote sessions.',
+  },
   continue: {
     alias: 'c',
     type: 'boolean' as const,

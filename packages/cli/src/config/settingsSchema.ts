@@ -889,6 +889,68 @@ const SETTINGS_SCHEMA = {
     },
   },
 
+  remote: {
+    type: 'object',
+    label: 'Remote Sessions',
+    category: 'Advanced',
+    requiresRestart: false,
+    default: {},
+    description:
+      'Remote sessions (/rc): the OrganizaOne gateway mirrors this terminal ' +
+      'to the account page and hands back what is typed and answered there. ' +
+      'Needs the OrganizaOne sign-in and a plan that includes remote sessions. ' +
+      'See docs/users/features/remote-sessions.md.',
+    showInDialog: false,
+    properties: {
+      enabled: {
+        type: 'boolean',
+        label: 'Remote Sessions',
+        category: 'Advanced',
+        // The command is registered once, when the built-in commands load.
+        requiresRestart: true,
+        default: true,
+        description:
+          'Offer /rc, which puts the session in remote mode through the OrganizaOne gateway. The command still needs the OrganizaOne sign-in and a plan that includes remote sessions. O1CODE_DISABLE_REMOTE=1 turns it off regardless. Only honored from User, System, and SystemDefaults settings scopes.',
+        showInDialog: true,
+      },
+      atStartup: {
+        type: 'boolean',
+        label: 'Remote at Startup',
+        category: 'Advanced',
+        requiresRestart: true,
+        default: false,
+        description:
+          'Put every interactive session in remote mode as soon as it starts, as if /rc had been typed. Equivalent to the --rc flag. Only honored from User, System, and SystemDefaults settings scopes.',
+        showInDialog: true,
+      },
+      viaTunnel: {
+        type: 'enum',
+        label: 'Remote via Tunnel',
+        category: 'Advanced',
+        requiresRestart: false,
+        default: 'auto',
+        description:
+          'How the remote session reaches the gateway: "auto" (default) rides the o1-connect tunnel when the model goes through one and connects directly otherwise; "always" requires the tunnel, which is what a filtered network needs; "never" always connects directly with the device key.',
+        showInDialog: true,
+        options: [
+          { value: 'auto', label: 'Auto (tunnel when open)' },
+          { value: 'always', label: 'Always through the tunnel' },
+          { value: 'never', label: 'Never (direct)' },
+        ],
+      },
+      consented: {
+        type: 'boolean',
+        label: 'Remote Consent Given',
+        category: 'Advanced',
+        requiresRestart: false,
+        default: false,
+        description:
+          'Set once the one-time notice shown by the first /rc has been accepted: what the gateway mirrors, what it keeps, and that it keeps none of the content.',
+        showInDialog: false,
+      },
+    },
+  },
+
   ui: {
     type: 'object',
     label: 'UI',

@@ -61,6 +61,9 @@ export const PROJECT_ENV_HARDCODED_EXCLUSIONS = [
   // it or override a user opt-in through settings.env or a project .env.
   'O1CODE_ENABLE_WORKFLOWS',
   'O1CODE_DISABLE_WORKFLOWS',
+  // The remote-sessions kill switch is an operator decision; a project .env
+  // must not be able to unset the operator's exported value.
+  'O1CODE_DISABLE_REMOTE',
   // The name-only lock is a deployment policy. A project that wants it sets
   // tools.workflowNameOnly, which a workspace may only turn on; a project
   // .env must not be able to unset the operator's exported value.

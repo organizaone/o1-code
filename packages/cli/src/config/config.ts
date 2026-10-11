@@ -7,6 +7,7 @@
 
 import { readSshWorkspace } from '../serve/ssh-workspace-store.js';
 import { SshExecutionEnvironment } from '@organizaone/o1-code-core/services/ssh-execution-environment.js';
+import { isRemoteViaTunnel } from '@organizaone/o1-code-core/providers/o1-connect/remote.js';
 import {
   type ModelProposedGoalsMode,
   ApprovalMode,
@@ -271,6 +272,8 @@ export interface CliArgs {
   jsonFile?: string | undefined;
   jsonSchema?: string | undefined;
   inputFile?: string | undefined;
+  /** `--rc [name]`: `''` when given without a name, absent when not given. */
+  rc?: string | undefined;
 }
 
 /**
@@ -722,6 +725,7 @@ export async function parseArguments(): Promise<CliArgs> {
         .option('json-file', DEFAULT_COMMAND_OPTIONS['json-file'])
         .option('json-schema', DEFAULT_COMMAND_OPTIONS['json-schema'])
         .option('input-file', DEFAULT_COMMAND_OPTIONS['input-file'])
+        .option('rc', DEFAULT_COMMAND_OPTIONS.rc)
         .option('continue', DEFAULT_COMMAND_OPTIONS.continue)
         .option('resume', DEFAULT_COMMAND_OPTIONS.resume)
         .option('session-id', DEFAULT_COMMAND_OPTIONS['session-id'])
@@ -2643,6 +2647,13 @@ export async function loadCliConfig(
     workflowsEnabled: settings.tools?.workflowsEnabled,
     workflowSizeGuideline: settings.tools?.workflowSizeGuideline,
     workflowNameOnly: settings.tools?.workflowNameOnly,
+    remoteEnabled: settings.remote?.enabled,
+    remoteAtStartup:
+      argv.rc !== undefined || settings.remote?.atStartup === true,
+    remoteSessionName: argv.rc?.trim() || undefined,
+    remoteViaTunnel: isRemoteViaTunnel(settings.remote?.viaTunnel)
+      ? settings.remote.viaTunnel
+      : undefined,
     modelProposedGoals: normalizeModelProposedGoals(
       settings.goals?.modelProposed,
     ),

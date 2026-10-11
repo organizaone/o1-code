@@ -30,8 +30,15 @@ vi.mock('../../utils/stdioHelpers.js', () => ({
   writeStderrLine: (line: string) => stderr.push(line),
 }));
 
-const { psCommand, formatAge, NAME_COL, KIND_COL, PID_COL, AGE_COL } =
-  await import('./ps.js');
+const {
+  psCommand,
+  formatAge,
+  NAME_COL,
+  KIND_COL,
+  PID_COL,
+  AGE_COL,
+  REMOTE_COL,
+} = await import('./ps.js');
 
 function record(
   over: Partial<SessionRegistryRecord> = {},
@@ -92,7 +99,7 @@ describe('o1-code sessions ps', () => {
     listLiveSessions.mockResolvedValue([record()]);
     await run({ json: false });
 
-    expect(stdout[0]).toMatch(/^NAME\s+KIND\s+PID\s+AGE\s+DIRECTORY$/);
+    expect(stdout[0]).toMatch(/^NAME\s+KIND\s+PID\s+AGE\s+REMOTE\s+DIRECTORY$/);
     expect(stdout[1]).toContain('app-ab');
     expect(stdout[1]).toContain('4242');
     expect(stdout[1]).toContain('/w/app');
@@ -117,6 +124,7 @@ describe('o1-code sessions ps', () => {
         'KIND'.padEnd(KIND_COL) +
         'PID'.padEnd(PID_COL) +
         'AGE'.padEnd(AGE_COL) +
+        'REMOTE'.padEnd(REMOTE_COL) +
         'DIRECTORY',
     );
     expect(stdout[1]).toBe(
@@ -124,9 +132,31 @@ describe('o1-code sessions ps', () => {
         'serve'.padEnd(KIND_COL) +
         '4242'.padEnd(PID_COL) +
         '5s'.padEnd(AGE_COL) +
+        '-'.padEnd(REMOTE_COL) +
         '/w/app',
     );
-    expect([NAME_COL, KIND_COL, PID_COL, AGE_COL]).toEqual([22, 10, 9, 10]);
+    expect([NAME_COL, KIND_COL, PID_COL, AGE_COL, REMOTE_COL]).toEqual([
+      22, 10, 9, 10, 8,
+    ]);
+  });
+
+  it('shows how long a session has been in remote mode', async () => {
+    vi.useFakeTimers();
+    try {
+      vi.setSystemTime(new Date('2026-01-01T00:00:00Z'));
+      listLiveSessions.mockResolvedValue([
+        record({ remote: { id: 'rm_1', since: Date.now() - 120_000 } }),
+      ]);
+      await run({ json: false });
+    } finally {
+      vi.useRealTimers();
+    }
+    expect(
+      stdout[1].slice(
+        NAME_COL + KIND_COL + PID_COL + AGE_COL,
+        NAME_COL + KIND_COL + PID_COL + AGE_COL + REMOTE_COL,
+      ),
+    ).toBe('2m'.padEnd(REMOTE_COL));
   });
 
   it('shows a record with no kind as the interactive UI', async () => {
@@ -148,7 +178,10 @@ describe('o1-code sessions ps', () => {
     );
     expect(stdout[1]).toContain('abcdefg…');
     expect(stdout[1].slice(NAME_COL + KIND_COL)).toBe(
-      '4242'.padEnd(PID_COL) + formatAge(90_000).padEnd(AGE_COL) + '/w/app',
+      '4242'.padEnd(PID_COL) +
+        formatAge(90_000).padEnd(AGE_COL) +
+        '-'.padEnd(REMOTE_COL) +
+        '/w/app',
     );
   });
 
