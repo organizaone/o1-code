@@ -47,7 +47,7 @@ export function compactQr(code: string): string {
 }
 
 /** The dialog's own rows (title, address, status, actions, border) plus the header and footer. */
-const QR_ROW_BUDGET = 14;
+const QR_ROW_BUDGET = 15;
 
 /**
  * `/rc`: the one-time notice the first time, then the viewer's address and
@@ -212,7 +212,10 @@ export const RemoteControlDialog: React.FC<{ onClose: () => void }> = ({
           </Text>
           <Text color={theme.text.link}>{status.url}</Text>
           {showQr ? (
-            <Text>{qr}</Text>
+            // The breathing line after the code travels inside the Text on
+            // purpose: as content it cannot be collapsed by a layout or a
+            // frame diff the way a margin row can.
+            <Text>{qr + '\n'}</Text>
           ) : (
             qr !== null && (
               <Text color={theme.text.secondary}>
