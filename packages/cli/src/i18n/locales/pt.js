@@ -3703,4 +3703,5 @@ export default {
   '(Use Enter to select, Tab to switch scope)':
     '(Enter seleciona, Tab troca o escopo)',
   'this project only': 'só neste projeto',
+  'Next: {{commands}}': 'Próximo: {{commands}}',
 };

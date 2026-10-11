@@ -127,6 +127,20 @@ describe('GoalPill', () => {
     unmount();
   });
 
+  it('tells how to dismiss a blocked Goal, and only a blocked one', () => {
+    vi.setSystemTime(NOW);
+    const blocked = renderPill({ snapshot: snapshot('blocked') });
+    expect(blocked.lastFrame()).toContain('✖\uFE0E /goal blocked');
+    expect(blocked.lastFrame()).toContain('· /goal clear');
+    blocked.unmount();
+
+    for (const status of ['active', 'paused', 'usage_limited'] as const) {
+      const other = renderPill({ snapshot: snapshot(status) });
+      expect(other.lastFrame()).not.toContain('/goal clear');
+      other.unmount();
+    }
+  });
+
   it('adds the current active span to persisted active time', () => {
     vi.setSystemTime(NOW);
     const { lastFrame, unmount } = renderPill({

@@ -60,7 +60,16 @@ export type GoalCardView =
       subtitle: string | null;
       objective: string;
       reason?: string;
+      /** Commands the user can run next; set when the Goal waits on them. */
+      nextCommands?: readonly string[];
     };
+
+// The transitions the reducer accepts from a blocked Goal.
+const BLOCKED_GOAL_COMMANDS = [
+  '/goal resume',
+  '/goal edit <objective>',
+  '/goal clear',
+] as const;
 
 /** Computes the GoalStateCard view (icon/title/subtitle/objective/reason)
  * from a v2 snapshot, pure so every lifecycle state is unit-testable. */
@@ -152,6 +161,9 @@ export function describeGoalCard(
     subtitle: stats.length > 0 ? stats.join(' · ') : null,
     objective: goal.objective ?? '',
     reason,
+    ...(goal.status === 'blocked'
+      ? { nextCommands: BLOCKED_GOAL_COMMANDS }
+      : {}),
   };
 }
 
