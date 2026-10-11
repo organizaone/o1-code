@@ -142,7 +142,8 @@ Decisions so far.
 
 Not in the tree; they do not come back without a maintainer decision (`AGENTS.md`, rule 4):
 
-- a desktop app and a mobile shell;
+- a desktop app and a mobile shell (remote sessions, `/rc`, are not one: the terminal stays the
+  only executor and the OrganizaOne gateway mirrors it to the account page in a browser);
 - a browser extension, a browser tool and its CDP tunnel;
 - computer use and a native driver for it;
 - messaging channels;
