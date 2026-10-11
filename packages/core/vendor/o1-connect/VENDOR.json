@@ -1,10 +1,10 @@
 {
   "name": "o1-connect-lib",
-  "version": "9.4.0",
+  "version": "9.9.0",
   "source": "https://github.com/organizaone/o1-gateway",
-  "commit": "eb849d839dca8a53958885bb0cfe1320b09fd24b",
+  "commit": "a7234d36eca4d9bc6b73c68d26494e21a44b6cae",
   "files": {
-    "lib.mjs": "06c4176a6cfd975c70e8c079bdb93ed1024e3076090c77d066d12cef5a305db1",
-    "lib.d.mts": "852feb8f9dbb324c5118e9ca8d92371abc2364b0536e161bfb7682fd1dd6eafe"
+    "lib.mjs": "3f1784b067660cfd2866a023885948f1a246c029ee9a3dc73f1a126072c7d0fb",
+    "lib.d.mts": "242576aa4d42aa82665f7bd570b5b0f432e2df497e7ed0586ceb850b3fe250e4"
   }
 }
