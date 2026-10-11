@@ -3395,4 +3395,5 @@ export default {
   '(Use Enter to select, Tab to switch scope)':
     '(Use Enter to select, Tab to switch scope)',
   'this project only': 'this project only',
+  'Next: {{commands}}': 'Next: {{commands}}',
 };

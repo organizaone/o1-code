@@ -252,7 +252,9 @@ of the status rows right above the input.
   above the input.
 - Right, each only when present: background tasks pill, `plan 2/4` (count bold primary), active
   skill (`● name`, brand soft bold, no "skill" label), goal, scheduled tasks, skills pending review,
-  active workflow.
+  active workflow. A blocked Goal stays until the user acts, so its pill ends with a muted
+  `· /goal clear`, and its card in the conversation adds a `Next:` line with the commands it
+  accepts: `/goal resume`, `/goal edit <objective>` and `/goal clear`.
 
 ### Input
 

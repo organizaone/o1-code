@@ -12,7 +12,7 @@ import type { Config } from '@organizaone/o1-code-core/config/config.js';
 import type { GoalSnapshotV2 } from '@organizaone/o1-code-core/goals/goal-protocol.js';
 import type { GoalRuntime } from '@organizaone/o1-code-core/goals/goal-runtime.js';
 import { useConfig } from '../contexts/ConfigContext.js';
-import { theme } from '../semantic-colors.js';
+import { extendedTheme, theme } from '../semantic-colors.js';
 import { ICON } from '../constants.js';
 import { formatTokenCount } from '../statusLinePresets.js';
 
@@ -151,10 +151,14 @@ export const GoalPill: React.FC<GoalPillProps> = ({ snapshot }) => {
   const spend = formatSpend(goal);
   const detail = [elapsed, spend].filter(Boolean).join(' · ');
   const suffix = detail ? ` (${detail})` : '';
+  // A blocked Goal stays until the user acts, so the pill names the way out.
   return (
     <Text color={visible.color}>
       {visible.icon} /goal {visible.label}
       {suffix}
+      {goal.status === 'blocked' && (
+        <Text color={extendedTheme.text.muted}> · /goal clear</Text>
+      )}
     </Text>
   );
 };

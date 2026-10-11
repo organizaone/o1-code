@@ -5,6 +5,14 @@ All notable changes to o1-code are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project
 follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Changed
+
+- A blocked Goal says how to move on: its indicator above the input ends with
+  `· /goal clear`, and its card in the conversation lists `/goal resume`,
+  `/goal edit <objective>` and `/goal clear`.
+
 ## [0.14.0] - 2026-10-10
 
 ### Changed

@@ -10,6 +10,7 @@ import type { GoalSnapshotV2 } from '@organizaone/o1-code-core';
 import { GOAL_STATUS_KINDS, MessageType } from '../../types.js';
 import { theme } from '../../semantic-colors.js';
 import { GoalStatusMessage, goalCardThemeColor } from './GoalStatusMessage.js';
+import { setLanguageAsync } from '../../../i18n/index.js';
 
 function snapshot(
   status: NonNullable<GoalSnapshotV2['goal']>['status'],
@@ -146,6 +147,42 @@ describe('<GoalStatusMessage />', () => {
     expect(output).toContain('12s');
     if (value.goal?.lastReason) {
       expect(output).toContain(`Reason: ${value.goal.lastReason}`);
+    }
+  });
+
+  it('lists what can be done with a blocked Goal', async () => {
+    const blocked = render(
+      <GoalStatusMessage
+        snapshot={snapshot('blocked', 'idle', 'approval is required')}
+        cause="blocked"
+      />,
+    ).lastFrame();
+    expect(blocked).toContain(
+      'Next: /goal resume · /goal edit <objective> · /goal clear',
+    );
+
+    for (const status of [
+      'active',
+      'paused',
+      'usage_limited',
+      'complete',
+    ] as const) {
+      expect(
+        render(<GoalStatusMessage snapshot={snapshot(status)} />).lastFrame(),
+      ).not.toContain('Next:');
+    }
+
+    await setLanguageAsync('pt');
+    try {
+      expect(
+        render(
+          <GoalStatusMessage snapshot={snapshot('blocked')} />,
+        ).lastFrame(),
+      ).toContain(
+        'Próximo: /goal resume · /goal edit <objective> · /goal clear',
+      );
+    } finally {
+      await setLanguageAsync('en');
     }
   });
 

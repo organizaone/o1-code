@@ -16,6 +16,7 @@ import {
   type GoalCardColor,
 } from '../../utils/goal-card-view.js';
 import type { GoalStatusKind } from '../../types.js';
+import { t } from '../../../i18n/index.js';
 
 interface LegacyGoalStatusMessageProps {
   kind: GoalStatusKind;
@@ -112,6 +113,13 @@ const GoalStateCard: React.FC<GoalStateMessageProps> = ({
         {reason ? (
           <Text color={theme.text.secondary} wrap="wrap">
             Reason: {reason}
+          </Text>
+        ) : null}
+        {view.nextCommands ? (
+          <Text color={theme.text.secondary} wrap="wrap">
+            {t('Next: {{commands}}', {
+              commands: view.nextCommands.join(' · '),
+            })}
           </Text>
         ) : null}
       </Box>
