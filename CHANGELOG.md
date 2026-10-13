@@ -7,6 +7,8 @@ follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.15.1] - 2026-10-13
+
 ### Fixed
 
 - Recover XML tool calls emitted as conversation text, including the function/parameter format seen with MiMo, without displaying their protocol tags. Reconcile accompanying empty calls once and preserve Windows paths and schema-defined argument types. Invalid argument buffers and incomplete XML stop after bounded retries instead of repeatedly reaching tools with empty arguments.
@@ -575,7 +577,8 @@ The first release of o1-code, a coding agent for the terminal.
 - `o1-code serve` runs a local daemon with a REST API and the Web Shell, a browser interface.
 - Editor companions for VS Code and Zed.
 
-[Unreleased]: https://github.com/organizaone/o1-code/compare/v0.15.0...HEAD
+[Unreleased]: https://github.com/organizaone/o1-code/compare/v0.15.1...HEAD
+[0.15.1]: https://github.com/organizaone/o1-code/compare/v0.15.0...v0.15.1
 [0.15.0]: https://github.com/organizaone/o1-code/compare/v0.14.1...v0.15.0
 [0.14.1]: https://github.com/organizaone/o1-code/compare/v0.14.0...v0.14.1
 [0.14.0]: https://github.com/organizaone/o1-code/compare/v0.13.0...v0.14.0
