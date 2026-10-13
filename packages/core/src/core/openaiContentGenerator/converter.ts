@@ -1396,7 +1396,21 @@ export function convertOpenAIResponseToLlm(
         if (toolCall.function) {
           let args: Record<string, unknown> = {};
           if (toolCall.function.arguments) {
-            args = safeJsonParse(toolCall.function.arguments, {});
+            const parsed = safeJsonParse<unknown>(
+              toolCall.function.arguments,
+              null,
+            );
+            if (
+              typeof parsed !== 'object' ||
+              parsed === null ||
+              Array.isArray(parsed)
+            ) {
+              throw new InvalidStreamError(
+                'Model response contained invalid tool-call arguments.',
+                'MALFORMED_TOOL_CALL',
+              );
+            }
+            args = parsed as Record<string, unknown>;
           }
 
           parts.push({
@@ -1895,6 +1909,8 @@ export function convertOpenAIChunkToLlm(
     if (
       choice.finish_reason &&
       (toolCallParser.hasInvalidToolCallIndex() ||
+        toolCallParser.hasConflictingToolCallIdentity() ||
+        (!toolCallsTruncated && toolCallParser.hasInvalidToolCallArguments()) ||
         toolCallWithoutName ||
         (choice.finish_reason === 'tool_calls' &&
           completedToolCalls.length === 0))

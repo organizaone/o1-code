@@ -480,6 +480,38 @@ describe('OpenAIContentConverter', () => {
       ).toThrowError(expect.objectContaining({ type: 'MALFORMED_TOOL_CALL' }));
     });
 
+    it.each([
+      '"file_path"',
+      '[]',
+      'null',
+      '<parameter=file_path>a.ts</parameter>',
+    ])(
+      'rejects invalid argument buffers instead of dispatching empty args: %s',
+      (argumentsText) => {
+        const stream = withStreamParser();
+        converter.convertOpenAIChunkToLlm(
+          streamChunk('open', {
+            tool_calls: [
+              {
+                index: 0,
+                id: 'invalid-args',
+                function: { name: 'read_file', arguments: argumentsText },
+              },
+            ],
+          }),
+          stream,
+        );
+        expect(() =>
+          converter.convertOpenAIChunkToLlm(
+            streamChunk('finish', {}, 'tool_calls'),
+            stream,
+          ),
+        ).toThrowError(
+          expect.objectContaining({ type: 'MALFORMED_TOOL_CALL' }),
+        );
+      },
+    );
+
     it('rejects a tool call that never provides a function name', () => {
       const stream = withStreamParser();
       const partial = converter.convertOpenAIChunkToLlm(
@@ -4183,6 +4215,51 @@ describe('OpenAIContentConverter', () => {
   });
 
   describe('convertOpenAIResponseToLlm', () => {
+    it.each([
+      '"file_path"',
+      '[]',
+      'null',
+      '<parameter=file_path>a.ts</parameter>',
+    ])(
+      'rejects non-object arguments in complete responses: %s',
+      (argumentsText) => {
+        expect(() =>
+          converter.convertOpenAIResponseToLlm(
+            {
+              id: 'invalid-args',
+              object: 'chat.completion',
+              created: 1,
+              model: 'test-model',
+              choices: [
+                {
+                  index: 0,
+                  finish_reason: 'tool_calls',
+                  logprobs: null,
+                  message: {
+                    role: 'assistant',
+                    content: null,
+                    refusal: null,
+                    tool_calls: [
+                      {
+                        id: 'invalid-call',
+                        type: 'function',
+                        function: {
+                          name: 'read_file',
+                          arguments: argumentsText,
+                        },
+                      },
+                    ],
+                  },
+                },
+              ],
+            },
+            requestContext,
+          ),
+        ).toThrowError(
+          expect.objectContaining({ type: 'MALFORMED_TOOL_CALL' }),
+        );
+      },
+    );
     it('should handle empty choices array without crashing', () => {
       const response = converter.convertOpenAIResponseToLlm(
         {

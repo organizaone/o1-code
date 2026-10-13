@@ -21,9 +21,104 @@ function param(name: string, value: string): string {
 
 import {
   containsXmlToolCalls,
+  coerceXmlToolCallArguments,
   extractXmlToolCalls,
   tryRecoverXmlToolCalls,
+  XmlToolCallTextBuffer,
 } from './xml-tool-call-fallback.js';
+
+describe('function/parameter XML dialect', () => {
+  const xml =
+    '<tool_call><function=read_file><parameter=file_path>W:\\workspace\\test.py</parameter><parameter=offset>44</parameter><parameter=limit>80</parameter></function></tool_call>';
+
+  it('recovers the reported Windows path and strips the complete wrapper', () => {
+    const result = tryRecoverXmlToolCalls(xml);
+    expect(result.recovered).toBe(true);
+    expect(result.remainingText).toBe('');
+    expect(result.functionCallParts[0]?.functionCall?.args).toEqual({
+      file_path: 'W:\\workspace\\test.py',
+      offset: '44',
+      limit: '80',
+    });
+  });
+
+  it('does not recover mismatched closing tags', () => {
+    expect(
+      tryRecoverXmlToolCalls(
+        '<tool_call><function=read_file><parameter=file_path>a.ts</parameter></invoke>',
+      ).recovered,
+    ).toBe(false);
+    expect(
+      tryRecoverXmlToolCalls(
+        '<invoke name="read_file"><parameter name="file_path">a.ts</parameter></function></tool_call>',
+      ).recovered,
+    ).toBe(false);
+  });
+
+  it('coerces scalar arguments only according to the declared schema', () => {
+    const args = {
+      file_path: '123',
+      offset: '44',
+      limit: '80',
+      enabled: 'true',
+      invalid: '1.5',
+    };
+    coerceXmlToolCallArguments(args, {
+      properties: {
+        file_path: { type: 'string' },
+        offset: { type: 'integer' },
+        limit: { type: 'number' },
+        enabled: { type: 'boolean' },
+        invalid: { type: 'integer' },
+      },
+    });
+    expect(args).toEqual({
+      file_path: '123',
+      offset: 44,
+      limit: 80,
+      enabled: true,
+      invalid: '1.5',
+    });
+  });
+
+  it('holds tags split at every character boundary without holding preceding prose', () => {
+    for (let split = 1; split < xml.length; split++) {
+      const buffer = new XmlToolCallTextBuffer();
+      expect(buffer.accept('Reading now.\n' + xml.slice(0, split))).toBe(
+        'Reading now.\n',
+      );
+      expect(buffer.accept(xml.slice(split))).toBe('');
+      expect(buffer.remainingText).toBe(xml);
+    }
+  });
+
+  it('preserves fenced examples and ordinary angle brackets', () => {
+    const buffer = new XmlToolCallTextBuffer();
+    expect(buffer.accept('```xml\n' + xml + '\n```')).toBe(
+      '```xml\n' + xml + '\n```',
+    );
+    expect(buffer.accept('\nUse <')).toBe('\nUse ');
+    expect(buffer.accept('div>.')).toBe('<div>.');
+  });
+
+  it('preserves trailing prose after normalization of already emitted newlines', () => {
+    const buffer = new XmlToolCallTextBuffer();
+    expect(buffer.accept('Before\n\n\n' + xml + 'After')).toBe('Before\n\n\n');
+    expect(buffer.remainingRecoveredText()).toBe('After');
+  });
+
+  it('holds the invoke envelope as well as its calls', () => {
+    const buffer = new XmlToolCallTextBuffer();
+    expect(
+      buffer.accept(
+        '<function_calls>' +
+          invoke('read_file', param('file_path', 'a.ts')) +
+          '</function_calls>After',
+      ),
+    ).toBe('');
+    expect(buffer.remainingRecoveredText()).toBe('After');
+  });
+});
 
 describe('containsXmlToolCalls', () => {
   it('detects an invoke block', () => {

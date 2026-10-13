@@ -232,6 +232,30 @@ describe('LoopDetectionService', () => {
       );
     });
 
+    it('halts repeated read_file calls with missing required arguments even when heuristics are skipped', () => {
+      expect(mockConfig.getSkipLoopDetection()).toBe(true);
+      for (let i = 0; i < TOOL_CALL_LOOP_THRESHOLD - 1; i++) {
+        expect(
+          service.checkAlwaysOnSafeties(
+            createToolCallRequestEvent(ToolNames.READ_FILE, {}),
+          ),
+        ).toBe(false);
+        expect(
+          service.checkAlwaysOnSafeties({
+            type: LlmEventType.Finished,
+          } as ServerLlmStreamEvent),
+        ).toBe(false);
+      }
+      expect(
+        service.checkAlwaysOnSafeties(
+          createToolCallRequestEvent(ToolNames.READ_FILE, {}),
+        ),
+      ).toBe(true);
+      expect(service.getLastLoopType()).toBe(
+        LoopType.CONSECUTIVE_IDENTICAL_TOOL_CALLS,
+      );
+    });
+
     it('treats reordered argument fields as identical for the consecutive guard', () => {
       // canonicalizeForHash makes the consecutive-identical guard see the same
       // call with fields in different insertion orders as identical, so a stuck

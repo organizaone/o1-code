@@ -9347,6 +9347,51 @@ describe('LlmChat', async () => {
         finishReason: 'tool_calls',
         retryCount: 4,
       },
+      {
+        name: 'non-object tool arguments',
+        errorType: 'MALFORMED_TOOL_CALL',
+        delta: {
+          tool_calls: [
+            {
+              index: 0,
+              id: 'invalid-args',
+              type: 'function',
+              function: { name: 'read_file', arguments: '"file_path"' },
+            },
+          ],
+        },
+        finishReason: 'tool_calls',
+        retryCount: 4,
+      },
+      {
+        name: 'incomplete XML tool calls',
+        errorType: 'MALFORMED_TOOL_CALL',
+        delta: {
+          content: '<tool_call><function=read_file><parameter=file_path>a.ts',
+        },
+        finishReason: 'stop',
+        retryCount: 4,
+      },
+      {
+        name: 'incomplete invoke envelopes',
+        errorType: 'MALFORMED_TOOL_CALL',
+        delta: {
+          content:
+            '<function_calls><invoke name="read_file"><parameter name="file_path">a.ts',
+        },
+        finishReason: 'stop',
+        retryCount: 4,
+      },
+      {
+        name: 'complete XML followed by an incomplete call',
+        errorType: 'MALFORMED_TOOL_CALL',
+        delta: {
+          content:
+            '<tool_call><function=read_file><parameter=file_path>a.ts</parameter></function></tool_call><tool_call><function=read_file>',
+        },
+        finishReason: 'stop',
+        retryCount: 4,
+      },
     ] as const)(
       'should retry $name through the OpenAI pipeline',
       async (testCase) => {
@@ -22934,6 +22979,281 @@ describe('LlmChat', async () => {
     });
   });
   describe('XML tool call fallback integration', () => {
+    it.each([false, true])(
+      'preserves native no-argument calls beside stray XML (mixed batch: %s)',
+      async (mixed) => {
+        vi.mocked(mockConfig.getToolRegistry().getTool).mockReturnValue({
+          schema: { parametersJsonSchema: { type: 'object', properties: {} } },
+        } as unknown as ReturnType<
+          ReturnType<Config['getToolRegistry']>['getTool']
+        >);
+        const nativeParts: Part[] = [
+          { functionCall: { id: 'no-args', name: 'cron_list', args: {} } },
+          ...(mixed
+            ? [
+                {
+                  functionCall: {
+                    id: 'populated',
+                    name: 'list_dir',
+                    args: { path: '.' },
+                  },
+                },
+              ]
+            : []),
+        ];
+        vi.mocked(
+          mockContentGenerator.generateContentStream,
+        ).mockResolvedValueOnce(
+          (async function* () {
+            yield {
+              candidates: [{ content: { role: 'model', parts: nativeParts } }],
+            } as GenerateContentResponse;
+            yield xmlChunk(
+              '<tool_call><function=read_file><parameter=file_path>a.ts</parameter></function></tool_call>',
+              'STOP',
+            );
+          })(),
+        );
+        const stream = await chat.sendMessageStream(
+          'mimo-v2.6-pro',
+          { message: 'list tasks' },
+          'no-args-stray-xml',
+        );
+        const parts: Part[] = [];
+        for await (const event of stream)
+          if (event.type === StreamEventType.CHUNK)
+            parts.push(...(event.value.candidates?.[0]?.content?.parts ?? []));
+        expect(parts.filter((p) => p.functionCall)).toEqual(nativeParts);
+        expect(parts.some((p) => p.text?.includes('<tool_call>'))).toBe(false);
+        expect(
+          chat
+            .getHistory()
+            .at(-1)
+            ?.parts?.filter((p) => p.functionCall),
+        ).toEqual(nativeParts);
+        expect(
+          mockContentGenerator.generateContentStream,
+        ).toHaveBeenCalledTimes(1);
+      },
+    );
+    it.each(['failure', 'cancel'] as const)(
+      'does not persist withheld XML or calls on %s',
+      async (kind) => {
+        const controller = new AbortController();
+        const recordAssistantTurn = vi.fn();
+        const recordingChat = chatWithRecorder(recordAssistantTurn);
+        const failure = new Error('unrecoverable XML stream failure');
+        vi.mocked(
+          mockContentGenerator.generateContentStream,
+        ).mockResolvedValueOnce(
+          (async function* () {
+            yield {
+              candidates: [
+                {
+                  content: {
+                    role: 'model',
+                    parts: [
+                      {
+                        text: 'Reading now.\n<tool_call><function=read_file><parameter=file_path>a.ts</parameter></function></tool_call>',
+                      },
+                      {
+                        functionCall: {
+                          id: 'withheld-read',
+                          name: 'read_file',
+                          args: {},
+                        },
+                      },
+                    ],
+                  },
+                },
+              ],
+            } as GenerateContentResponse;
+            throw failure;
+          })(),
+        );
+        const stream = await recordingChat.sendMessageStream(
+          'mimo-v2.6-pro',
+          {
+            message: 'read the file',
+            config: { abortSignal: controller.signal },
+          },
+          'withheld-xml',
+        );
+        expect((await stream.next()).done).toBe(false);
+        if (kind === 'cancel') {
+          controller.abort(new DOMException('Cancelled', 'AbortError'));
+          await stream.return(undefined);
+        } else {
+          await expect(stream.next()).rejects.toBe(failure);
+        }
+        const parts = recordingChat
+          .getHistory()
+          .flatMap((entry) => entry.parts ?? []);
+        expect(parts.some((part) => part.functionCall)).toBe(false);
+        expect(parts.some((part) => part.text?.includes('<tool_call>'))).toBe(
+          false,
+        );
+        if (kind === 'cancel')
+          expect(recordAssistantTurn).toHaveBeenCalledWith(
+            expect.objectContaining({ message: [{ text: 'Reading now.\n' }] }),
+          );
+      },
+    );
+    it.each(['none', 'before', 'after', 'mixed', 'mixed-noargs'])(
+      'recovers split function XML without exposing tags (native empty call: %s)',
+      async (native) => {
+        vi.mocked(mockConfig.getToolRegistry().getTool).mockImplementation(
+          (name) =>
+            ({
+              schema: {
+                parametersJsonSchema: {
+                  required: name === 'read_file' ? ['file_path'] : [],
+                  properties: {
+                    file_path: { type: 'string' },
+                    offset: { type: 'integer' },
+                    limit: { type: 'integer' },
+                  },
+                },
+              },
+            }) as unknown as ReturnType<
+              ReturnType<Config['getToolRegistry']>['getTool']
+            >,
+        );
+        const xml =
+          '<tool_call><function=read_file><parameter=file_path>W:\\workspace\\test.py</parameter><parameter=offset>44</parameter><parameter=limit>80</parameter></function></tool_call>';
+        vi.mocked(mockContentGenerator.generateContentStream).mockResolvedValue(
+          (async function* () {
+            if (native === 'mixed')
+              yield {
+                candidates: [
+                  {
+                    content: {
+                      role: 'model',
+                      parts: [
+                        {
+                          functionCall: {
+                            id: 'populated-list',
+                            name: 'list_dir',
+                            args: { path: '.' },
+                          },
+                        },
+                      ],
+                    },
+                  },
+                ],
+              } as unknown as GenerateContentResponse;
+            if (native === 'before' || native === 'mixed')
+              yield {
+                candidates: [
+                  {
+                    content: {
+                      role: 'model',
+                      parts: [
+                        {
+                          functionCall: {
+                            id: 'native-read',
+                            name: 'read_file',
+                            args: {},
+                          },
+                        },
+                      ],
+                    },
+                  },
+                ],
+              } as GenerateContentResponse;
+            yield xmlChunk('Reading now.\n<tool_');
+            yield xmlChunk(xml.slice('<tool_'.length));
+            yield {
+              candidates: [
+                {
+                  content: {
+                    role: 'model',
+                    parts:
+                      native === 'after' || native === 'mixed-noargs'
+                        ? [
+                            ...(native === 'mixed-noargs'
+                              ? [
+                                  {
+                                    functionCall: {
+                                      id: 'valid-noargs',
+                                      name: 'cron_list',
+                                      args: {},
+                                    },
+                                  },
+                                ]
+                              : []),
+                            {
+                              functionCall: {
+                                id: 'native-read',
+                                name: 'read_file',
+                                args: {},
+                              },
+                            },
+                          ]
+                        : [],
+                  },
+                  finishReason: 'STOP',
+                },
+              ],
+            } as GenerateContentResponse;
+          })(),
+        );
+        const stream = await chat.sendMessageStream(
+          'mimo-v2.6-pro',
+          { message: 'read the file' },
+          'split-function-xml',
+        );
+        const parts: Part[] = [];
+        for await (const event of stream) {
+          if (event.type === StreamEventType.CHUNK)
+            parts.push(...(event.value.candidates?.[0]?.content?.parts ?? []));
+        }
+        expect(
+          parts
+            .filter((p) => p.text)
+            .map((p) => p.text)
+            .join(''),
+        ).toBe('Reading now.\n');
+        const calls = parts.filter((p) => p.functionCall?.name === 'read_file');
+        expect(calls).toHaveLength(1);
+        expect(calls[0]?.functionCall?.args).toEqual({
+          file_path: 'W:\\workspace\\test.py',
+          offset: 44,
+          limit: 80,
+        });
+        if (native !== 'none')
+          expect(calls[0]?.functionCall?.id).toBe('native-read');
+        if (native === 'mixed') {
+          expect(
+            parts.filter((p) => p.functionCall?.name === 'list_dir'),
+          ).toHaveLength(1);
+          expect(
+            chat
+              .getHistory()
+              .at(-1)
+              ?.parts?.filter((p) => p.functionCall),
+          ).toHaveLength(2);
+        }
+        if (native === 'mixed-noargs') {
+          expect(
+            parts.filter((p) => p.functionCall?.name === 'cron_list'),
+          ).toHaveLength(1);
+          expect(
+            chat
+              .getHistory()
+              .at(-1)
+              ?.parts?.filter((p) => p.functionCall),
+          ).toHaveLength(2);
+        }
+        expect(
+          chat
+            .getHistory()
+            .at(-1)
+            ?.parts?.some((p) => p.text?.includes('<tool_call>')),
+        ).toBe(false);
+      },
+    );
+
     function xmlChunk(
       text: string,
       finishReason?: string,
@@ -23426,7 +23746,7 @@ describe('LlmChat', async () => {
       );
     });
 
-    it('does not recover when a structured tool call is already present', async () => {
+    it('keeps a populated structured call authoritative and strips stray XML without double execution', async () => {
       const xml =
         '<invoke name="read_file"><parameter name="file_path">a.ts</parameter></invoke>';
       vi.mocked(mockContentGenerator.generateContentStream).mockResolvedValue(
@@ -23474,12 +23794,15 @@ describe('LlmChat', async () => {
       );
       expect(recoveredChunk).toBeUndefined();
 
-      // History retains the raw XML text (not stripped by recovery).
       const history = chat.getHistory();
       const lastEntry = history[history.length - 1]!;
       expect(
         lastEntry.parts?.some((p) => p.text && p.text.includes('<invoke')),
-      ).toBe(true);
+      ).toBe(false);
+      expect(lastEntry.parts?.filter((p) => p.functionCall)).toHaveLength(1);
+      expect(
+        lastEntry.parts?.find((p) => p.functionCall)?.functionCall,
+      ).toMatchObject({ name: 'list_dir', args: { path: '.' } });
     });
 
     it('does not recover documentation prose containing invoke examples', async () => {
