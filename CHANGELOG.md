@@ -7,6 +7,10 @@ follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Fixed
+
+- Recover XML tool calls emitted as conversation text, including the function/parameter format seen with MiMo, without displaying their protocol tags. Reconcile accompanying empty calls once and preserve Windows paths and schema-defined argument types. Invalid argument buffers and incomplete XML stop after bounded retries instead of repeatedly reaching tools with empty arguments.
+
 ## [0.15.0] - 2026-10-11
 
 ### Added

@@ -6,13 +6,101 @@
 
 import type { Part } from '@google/genai';
 
-const INVOKE_PATTERN = /<invoke\s+name=["']([^"']+)["']>([\s\S]*?)<\/invoke>/g;
+const INVOKE_PATTERN =
+  /<invoke\s+name=["']([^"']+)["']>([\s\S]*?)<\/invoke>|<tool_call>\s*<function=([^>]+)>([\s\S]*?)<\/function>\s*<\/tool_call>/g;
 const PARAMETER_PATTERN =
-  /<parameter\s+name=["']([^"']+)["']>([\s\S]*?)<\/parameter>/g;
+  /<parameter(?:\s+name=["']([^"']+)["']|=([^>]+))>([\s\S]*?)<\/parameter>/g;
 
 export interface ExtractedToolCall {
   name: string;
   args: Record<string, unknown>;
+}
+
+export class XmlToolCallTextBuffer {
+  private text = '';
+  private emittedLength = 0;
+  private holding = false;
+
+  accept(text: string): string {
+    this.text += text;
+    if (this.holding) return '';
+    const prefixes = ['<tool_call>', '<invoke ', '<function_calls>'];
+    for (let i = this.emittedLength; i < this.text.length; i++) {
+      if (this.text[i] !== '<') continue;
+      const suffix = this.text.slice(i);
+      if (
+        prefixes.some((prefix) => suffix.startsWith(prefix)) &&
+        !positionInsideFence(this.text, i, computeInvokeRanges(this.text))
+      ) {
+        this.holding = true;
+        const output = this.text.slice(this.emittedLength, i);
+        this.emittedLength = i;
+        return output;
+      }
+      if (prefixes.some((prefix) => prefix.startsWith(suffix))) {
+        const output = this.text.slice(this.emittedLength, i);
+        this.emittedLength = i;
+        return output;
+      }
+    }
+    const output = this.text.slice(this.emittedLength);
+    this.emittedLength = this.text.length;
+    return output;
+  }
+
+  get buffered(): boolean {
+    return this.emittedLength < this.text.length;
+  }
+
+  get remainingText(): string {
+    return this.text.slice(this.emittedLength);
+  }
+
+  remainingRecoveredText(): string {
+    return tryRecoverXmlToolCalls(this.remainingText).remainingText;
+  }
+}
+
+export function coerceXmlToolCallArguments(
+  args: Record<string, unknown>,
+  schema: unknown,
+): void {
+  if (
+    typeof schema !== 'object' ||
+    schema === null ||
+    !('properties' in schema)
+  )
+    return;
+  const properties = schema.properties;
+  if (typeof properties !== 'object' || properties === null) return;
+  for (const [name, value] of Object.entries(args)) {
+    if (typeof value !== 'string' || !(name in properties)) continue;
+    const property: unknown = (properties as Record<string, unknown>)[name];
+    if (
+      typeof property !== 'object' ||
+      property === null ||
+      !('type' in property)
+    )
+      continue;
+    const types = Array.isArray(property.type)
+      ? property.type
+      : [property.type];
+    if (types.includes('string')) continue;
+    try {
+      const parsed: unknown = JSON.parse(value);
+      if (
+        (typeof parsed === 'number' &&
+          Number.isFinite(parsed) &&
+          (types.includes('number') ||
+            (types.includes('integer') && Number.isInteger(parsed)))) ||
+        (typeof parsed === 'boolean' && types.includes('boolean')) ||
+        (parsed === null && types.includes('null'))
+      )
+        args[name] = parsed;
+    } catch {
+      // Keep invalid values for the tool's normal schema validation.
+    }
+  }
 }
 
 /**
@@ -152,8 +240,8 @@ export function extractXmlToolCalls(text: string): ExtractedToolCall[] {
       continue;
     }
 
-    const toolName = match[1];
-    const paramsBlock = match[2];
+    const toolName = match[1] ?? match[3];
+    const paramsBlock = match[2] ?? match[4];
 
     const args: Record<string, unknown> = Object.create(null) as Record<
       string,
@@ -163,9 +251,9 @@ export function extractXmlToolCalls(text: string): ExtractedToolCall[] {
 
     let paramMatch: RegExpExecArray | null;
     while ((paramMatch = PARAMETER_PATTERN.exec(paramsBlock)) !== null) {
-      const paramName = paramMatch[1];
+      const paramName = paramMatch[1] ?? paramMatch[2];
       const paramValue = decodeXmlEntities(
-        stripDelimitingNewlines(paramMatch[2]),
+        stripDelimitingNewlines(paramMatch[3]),
       );
       args[paramName] = parseParameterValue(paramValue);
     }
@@ -218,7 +306,14 @@ export function tryRecoverXmlToolCalls(text: string): {
   const remainingText = text
     .replace(
       INVOKE_PATTERN,
-      (block, _name: string, _body: string, offset: number) => {
+      (
+        block,
+        _invokeName: string,
+        _invokeBody: string,
+        _functionName: string,
+        _functionBody: string,
+        offset: number,
+      ) => {
         if (positionInsideFence(text, offset, invokeRanges)) {
           return block;
         }

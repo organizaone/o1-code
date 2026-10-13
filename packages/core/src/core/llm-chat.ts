@@ -32,7 +32,9 @@ import { getErrorStatus, isAbortError } from '../utils/errors.js';
 import { createDebugLogger } from '../utils/debugLogger.js';
 import {
   containsXmlToolCalls,
+  coerceXmlToolCallArguments,
   tryRecoverXmlToolCalls,
+  XmlToolCallTextBuffer,
 } from './xml-tool-call-fallback.js';
 import { parseAndFormatApiError } from '../utils/errorParsing.js';
 import {
@@ -5851,6 +5853,22 @@ export class LlmChat {
       | undefined;
 
     let hasToolCall = false;
+    const xmlTextBuffer = new XmlToolCallTextBuffer();
+    const heldXmlCalls: Part[] = [];
+    const deliveredXmlParts: Part[] = [];
+    const hasEmptyRequiredArguments = (part: Part): boolean => {
+      const call = part.functionCall;
+      if (!call || Object.keys(call.args ?? {}).length > 0) return false;
+      const schema = this.config.getToolRegistry()?.getTool?.(call.name ?? '')
+        ?.schema.parametersJsonSchema;
+      return (
+        typeof schema === 'object' &&
+        schema !== null &&
+        'required' in schema &&
+        Array.isArray(schema.required) &&
+        schema.required.length > 0
+      );
+    };
     let hasFinishReason = false;
     // The first closed finish reason seen, if any — tracked so a stream
     // that fails *after* the model closed its answer can be accepted as
@@ -6112,12 +6130,49 @@ export class LlmChat {
           !protocolTextWasSuppressed ||
           !protocolTagDetector.blockingOutput
         ) {
+          const parts = chunk.candidates?.[0]?.content?.parts;
+          if (parts) {
+            const visibleParts: Part[] = [];
+            for (const part of parts) {
+              if (typeof part.text === 'string' && !part.thought) {
+                const text = xmlTextBuffer.accept(part.text);
+                if (text) visibleParts.push({ ...part, text });
+              } else {
+                visibleParts.push(part);
+              }
+            }
+            const deliveredParts = visibleParts.filter((part) => {
+              const call = part.functionCall;
+              if (
+                call &&
+                Object.keys(call.args ?? {}).length === 0 &&
+                (xmlTextBuffer.buffered || hasEmptyRequiredArguments(part))
+              ) {
+                heldXmlCalls.push(part);
+                return false;
+              }
+              return true;
+            });
+            chunk.candidates![0]!.content = {
+              ...chunk.candidates![0]!.content,
+              parts: deliveredParts,
+            };
+            syncFunctionCallsField(chunk, deliveredParts);
+            deliveredXmlParts.push(...deliveredParts);
+          }
           yield chunk;
         }
       }
     } catch (e) {
       streamError = e;
     } finally {
+      if (
+        (streamError !== null || abortSignal?.aborted) &&
+        (xmlTextBuffer.buffered || heldXmlCalls.length > 0)
+      ) {
+        allModelParts.splice(0, allModelParts.length, ...deliveredXmlParts);
+        hasToolCall = allModelParts.some((part) => part.functionCall);
+      }
       // Cancellation can close the generator at a yield, skipping everything
       // after this finally. Keep the delivered partial in both history and JSONL.
       if (abortSignal?.aborted) {
@@ -6288,6 +6343,8 @@ export class LlmChat {
     if (
       streamError !== null &&
       !hasToolCall &&
+      !xmlTextBuffer.buffered &&
+      heldXmlCalls.length === 0 &&
       closedFinishReason !== undefined &&
       completedText &&
       hasAnyContent &&
@@ -6344,13 +6401,80 @@ export class LlmChat {
     // recover these so the agent loop is not broken.
     if (
       streamError === null &&
-      !hasToolCall &&
       hasFinishReason &&
       contentText &&
       containsXmlToolCalls(contentText)
     ) {
       const recovery = tryRecoverXmlToolCalls(contentText);
       if (recovery.recovered) {
+        const residual = new XmlToolCallTextBuffer();
+        residual.accept(recovery.remainingText);
+        if (
+          residual.buffered &&
+          !containsXmlToolCalls(residual.remainingText) &&
+          /^<(?:tool_call>|function_calls>|invoke\s)/.test(
+            residual.remainingText,
+          )
+        ) {
+          throw new InvalidStreamError(
+            'Model response contained an incomplete XML tool call.',
+            'MALFORMED_TOOL_CALL',
+          );
+        }
+      }
+      if (recovery.recovered && hasToolCall) {
+        const nativeCalls = consolidatedHistoryParts.filter(
+          (p) => p.functionCall,
+        );
+        const repairCandidates = heldXmlCalls.filter(hasEmptyRequiredArguments);
+        const canRepair =
+          repairCandidates.length > 0 &&
+          repairCandidates.length === recovery.functionCallParts.length &&
+          repairCandidates.every(
+            (part, index) =>
+              part.functionCall?.name ===
+                recovery.functionCallParts[index]?.functionCall?.name &&
+              Object.keys(part.functionCall?.args ?? {}).length === 0,
+          );
+        const hasCompleteNativeCalls = nativeCalls.every(
+          (part) => !hasEmptyRequiredArguments(part),
+        );
+        if (!canRepair && !hasCompleteNativeCalls) {
+          throw new InvalidStreamError(
+            'Model response mixed incompatible XML and structured tool calls.',
+            'MALFORMED_TOOL_CALL',
+          );
+        }
+        if (hasCompleteNativeCalls) {
+          recovery.functionCallParts = heldXmlCalls;
+        } else {
+          const recoveredCalls = recovery.functionCallParts;
+          recovery.functionCallParts = heldXmlCalls.map((part) => {
+            const index = repairCandidates.indexOf(part);
+            if (index < 0) return part;
+            const recovered = recoveredCalls[index]!;
+            recovered.functionCall!.id = part.functionCall!.id;
+            return recovered;
+          });
+        }
+        const heldIds = new Set(
+          heldXmlCalls.map((part) => part.functionCall?.id),
+        );
+        for (let i = consolidatedHistoryParts.length - 1; i >= 0; i--) {
+          const part = consolidatedHistoryParts[i]!;
+          if (part.functionCall && heldIds.has(part.functionCall.id))
+            consolidatedHistoryParts.splice(i, 1);
+        }
+      }
+      if (recovery.recovered) {
+        for (const part of recovery.functionCallParts) {
+          const call = part.functionCall!;
+          coerceXmlToolCallArguments(
+            call.args ?? {},
+            this.config.getToolRegistry()?.getTool?.(call.name ?? '')?.schema
+              .parametersJsonSchema,
+          );
+        }
         hasToolCall = true;
         // recovery.remainingText is derived from the join of ALL
         // non-thought text parts (contentText excludes thought parts), so
@@ -6441,7 +6565,19 @@ export class LlmChat {
         const syntheticChunk = {
           candidates: [
             {
-              content: { role: 'model', parts: recovery.functionCallParts },
+              content: {
+                role: 'model',
+                parts: [
+                  ...(xmlTextBuffer.remainingRecoveredText()
+                    ? [
+                        {
+                          text: xmlTextBuffer.remainingRecoveredText(),
+                        },
+                      ]
+                    : []),
+                  ...recovery.functionCallParts,
+                ],
+              },
             },
           ],
         } as GenerateContentResponse;
@@ -6455,6 +6591,34 @@ export class LlmChat {
           `XML tool call fallback: detected XML tool calls but recovery was rejected (prose ratio too high or no parameterized blocks), contentLength=${contentText.length}`,
         );
       }
+    }
+
+    if (
+      streamError === null &&
+      !recoveredChunk &&
+      (xmlTextBuffer.buffered || heldXmlCalls.length > 0)
+    ) {
+      const text = xmlTextBuffer.remainingText;
+      if (
+        /^<(?:tool_call>|function_calls>|invoke\s)/.test(text) &&
+        !containsXmlToolCalls(text)
+      ) {
+        throw new InvalidStreamError(
+          'Model response contained an incomplete XML tool call.',
+          'MALFORMED_TOOL_CALL',
+        );
+      }
+      recoveredChunk = {
+        candidates: [
+          {
+            content: {
+              role: 'model',
+              parts: [...(text ? [{ text }] : []), ...heldXmlCalls],
+            },
+          },
+        ],
+      } as GenerateContentResponse;
+      syncFunctionCallsField(recoveredChunk, heldXmlCalls);
     }
 
     if (streamError === null && protocolTagDetector.leaked && !hasToolCall) {
