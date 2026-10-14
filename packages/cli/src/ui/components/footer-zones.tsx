@@ -13,6 +13,11 @@ import { t } from '../../i18n/index.js';
 import { atLeast, type LayoutTier } from '../utils/layout-tier.js';
 import type { WorkingTreeDiff } from '../hooks/use-working-tree-diff.js';
 import { useSecondsSince } from '../hooks/use-turn-clock.js';
+import {
+  isWeeklyQuotaLow,
+  type ModelQuotaFooterState,
+  type ModelQuotaWindow,
+} from '../hooks/use-model-quota-footer.js';
 
 const SEP = ' · ';
 const CONTEXT_BAR_CELLS = 6;
@@ -146,7 +151,8 @@ export const UsageZone: React.FC<{
   tokens?: number;
   turnStartedAt?: number;
   status: 'online' | 'failed' | 'none';
-}> = ({ tier, contextPercent, tokens, turnStartedAt, status }) => {
+  modelQuota?: ModelQuotaFooterState;
+}> = ({ tier, contextPercent, tokens, turnStartedAt, status, modelQuota }) => {
   const wide = atLeast(tier, 'compact');
   const percent = Math.min(100, Math.max(0, contextPercent));
   const full = Math.round((percent / 100) * CONTEXT_BAR_CELLS);
@@ -177,6 +183,7 @@ export const UsageZone: React.FC<{
         </>
       )}
       {`${Math.round(contextPercent)}% ctx`}
+      <ModelQuotaZone quota={modelQuota} />
       {wide && (
         <>
           <Sep />
@@ -195,5 +202,48 @@ export const UsageZone: React.FC<{
       <Sep />
       {statusNode}
     </Text>
+  );
+};
+
+function quotaLabel(window: ModelQuotaWindow, fallback: string): string {
+  return window.id === 'five_hour' ? fallback : window.name;
+}
+
+function quotaText(
+  window: ModelQuotaWindow,
+  fallback: string,
+): string | undefined {
+  if (typeof window.usedPercent !== 'number') return undefined;
+  const remaining = Math.min(100, Math.max(0, 100 - window.usedPercent));
+  const percent = String(Math.floor(remaining));
+  const remainingLabel = remaining < 25 ? ` ${t('remaining')}` : '';
+  return `${quotaLabel(window, fallback)} ${percent}%${remainingLabel}`;
+}
+
+/** Selected-model quota shown next to the built-in context indicator. */
+export const ModelQuotaZone: React.FC<{
+  quota: ModelQuotaFooterState | undefined;
+}> = ({ quota }) => {
+  const fiveHour = quota?.fiveHour;
+  const weekly = quota?.weekly;
+  const lowWeekly = weekly && isWeeklyQuotaLow(weekly) ? weekly : undefined;
+  const fiveHourText = fiveHour ? quotaText(fiveHour, '5h') : undefined;
+  const weeklyText = lowWeekly ? quotaText(lowWeekly, 'week') : undefined;
+  if (!fiveHourText && !weeklyText) return null;
+  return (
+    <>
+      {fiveHourText && (
+        <>
+          <Sep />
+          <Text color={extendedTheme.ui.brandSoft}>{fiveHourText}</Text>
+        </>
+      )}
+      {weeklyText && (
+        <>
+          <Sep />
+          <Text color={theme.status.warning}>{`! ${weeklyText}`}</Text>
+        </>
+      )}
+    </>
   );
 };

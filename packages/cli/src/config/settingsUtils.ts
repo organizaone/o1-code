@@ -173,6 +173,7 @@ const SETTINGS_DIALOG_ORDER: readonly string[] = [
   // Theme
   'ui.theme',
   'ui.displayMode',
+  'ui.showModelQuotaInFooter',
 
   // Editor/Shell Experience
   'general.vimMode',

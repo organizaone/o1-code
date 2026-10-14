@@ -30,7 +30,10 @@ import { extendedTheme, theme } from '../semantic-colors.js';
 import { glyphs } from '../glyphs.js';
 import { t } from '../../i18n/index.js';
 import { organizaOneAccountCredential } from './organizaone-account.js';
-import { ProviderSetupSteps } from './ProviderSetupSteps.js';
+import {
+  MODEL_CATALOG_MIN_VISIBLE_ROWS,
+  ProviderSetupSteps,
+} from './ProviderSetupSteps.js';
 import { useProviderSetupFlow } from './useProviderSetupFlow.js';
 
 export interface ModelListEditDialogProps {
@@ -193,7 +196,7 @@ export function ModelListEditDialog({
         flow={flow}
         showKeyStatus={false}
         onKeyStatusChange={setIsKeyValid}
-        minVisibleModelRows={6}
+        minVisibleModelRows={MODEL_CATALOG_MIN_VISIBLE_ROWS}
       />
       {(flow.state.apiKeyError || errorMessage) && (
         <Box marginTop={1}>

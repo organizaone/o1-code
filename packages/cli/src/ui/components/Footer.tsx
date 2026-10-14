@@ -5,7 +5,7 @@
  */
 
 import type React from 'react';
-import { type RefObject, useRef } from 'react';
+import { type RefObject, useCallback, useRef } from 'react';
 import { type DOMElement, Box, Text, useBoxMetrics } from 'ink';
 import { ApprovalMode } from '@organizaone/o1-code-core/config/approval-mode.js';
 import { theme } from '../semantic-colors.js';
@@ -31,9 +31,13 @@ import {
 import { getReasoningForDisplay } from '../../acp-integration/model-configuration.js';
 import { resolveReasoningForModel } from '@organizaone/o1-code-core/core/reasoning-overrides.js';
 import { t } from '../../i18n/index.js';
-import { StreamingState } from '../types.js';
+import { MessageType, StreamingState } from '../types.js';
 import { useDisplayMode } from '../hooks/use-display-mode.js';
-import type { Config } from '@organizaone/o1-code-core';
+import {
+  formatWeeklyQuotaWarning,
+  useModelQuotaFooter,
+} from '../hooks/use-model-quota-footer.js';
+import type { Config } from '@organizaone/o1-code-core/config/config.js';
 
 /**
  * The reasoning effort to show, `false` when off, `default` when the model
@@ -83,6 +87,23 @@ export const Footer: React.FC<FooterProps> = ({ containerRef }) => {
   );
   const configInitMessage = useConfigInitMessage(uiState.isConfigInitialized);
   const diff = useWorkingTreeDiff(config.getTargetDir());
+  const onWeeklyQuotaLow = useCallback(
+    (window: Parameters<typeof formatWeeklyQuotaWarning>[0]) => {
+      uiState.historyManager.addItem(
+        {
+          type: MessageType.WARNING,
+          text: formatWeeklyQuotaWarning(window),
+        },
+        Date.now(),
+      );
+    },
+    [uiState.historyManager],
+  );
+  const modelQuota = useModelQuotaFooter(
+    settings.merged.ui?.showModelQuotaInFooter === true,
+    config,
+    onWeeklyQuotaLow,
+  );
 
   const promptTokenCount = uiState.sessionStats.lastPromptTokenCount;
   const generationConfig = config.getContentGeneratorConfig();
@@ -229,6 +250,7 @@ export const Footer: React.FC<FooterProps> = ({ containerRef }) => {
             // tokens; the loading timer starts over after each approval.
             turnStartedAt={inTurn ? uiState.turnStartedAt : undefined}
             status={requestStatus}
+            modelQuota={modelQuota}
           />
         </Box>
       )}

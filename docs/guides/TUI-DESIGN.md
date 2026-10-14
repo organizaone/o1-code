@@ -321,7 +321,12 @@ Three zones spread across the width (`footer-zones.tsx`):
    request succeeded. Idle: `0% ctx · — tok · —`.
 
 The turn time counts the whole turn, approvals included, on the same base as its tokens. A custom
-`ui.statusLine` replaces zone 3.
+`ui.statusLine` replaces zone 3. When `ui.showModelQuotaInFooter` is enabled for an OrganizaOne
+model, its API-reported remaining 5-hour quota (`5h 58%`) sits next to the context indicator. Below
+25%, it is explicit (`5h 24% remaining`). If the API also reports 20% or less remaining for the weekly
+quota, an amber `! Weekly 16% remaining` follows it and the same threshold adds one warning to the
+conversation for that weekly reset. Missing or invalid quota values are not rendered; the footer does
+not derive a countdown from a reset timestamp.
 
 Notices: short-lived ones (`ctrl+c`/`ctrl+d` again to exit, `esc` again to clear or rewind, paste
 progress) take the **whole row** while they apply — cut short they lose their meaning. Lasting

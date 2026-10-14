@@ -7,6 +7,10 @@ follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Added
+
+- `ui.showModelQuotaInFooter` shows an OrganizaOne model's API-reported remaining 5-hour percentage beside the built-in context indicator. Below 25%, the footer explicitly says “remaining”; a weekly quota with 20% or less remaining stays visible as an amber warning and adds one warning per reset to the conversation. Absent or invalid values and locally derived reset countdowns stay hidden.
+
 ## [0.16.0] - 2026-10-14
 
 ### Added
