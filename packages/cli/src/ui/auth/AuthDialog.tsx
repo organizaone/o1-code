@@ -49,7 +49,10 @@ import type {
   ProviderFamily,
 } from '@organizaone/o1-code-core/providers/types.js';
 import { useProviderSetupFlow } from './useProviderSetupFlow.js';
-import { ProviderSetupSteps } from './ProviderSetupSteps.js';
+import {
+  MODEL_CATALOG_MIN_VISIBLE_ROWS,
+  ProviderSetupSteps,
+} from './ProviderSetupSteps.js';
 
 const TOS_PRIVACY_URL = repoDocUrl('users/support/tos-privacy.md');
 
@@ -769,7 +772,10 @@ export function AuthDialog(): React.JSX.Element {
       )}
 
       {viewLevel === 'provider-setup' && (
-        <ProviderSetupSteps flow={setupFlow} />
+        <ProviderSetupSteps
+          flow={setupFlow}
+          minVisibleModelRows={MODEL_CATALOG_MIN_VISIBLE_ROWS}
+        />
       )}
 
       {(authError || errorMessage) && (

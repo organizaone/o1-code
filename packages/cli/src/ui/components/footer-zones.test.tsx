@@ -11,6 +11,7 @@ import stripAnsi from 'strip-ansi';
 import { ApprovalMode } from '@organizaone/o1-code-core/config/approval-mode.js';
 import {
   GitZone,
+  ModelQuotaZone,
   ModeZone,
   REASONING_DEFAULT,
   UsageZone,
@@ -21,6 +22,12 @@ import {
 const VS15 = String.fromCharCode(0xfe0e);
 const text = (node: React.ReactElement) =>
   stripAnsi(render(node).lastFrame() ?? '').replaceAll(VS15, '');
+const inlineText = (node: React.ReactElement) =>
+  text(node)
+    .trim()
+    .split('\n')
+    .map((line) => line.trim())
+    .join(' ');
 
 describe('footer zones', () => {
   it('formats turn time and tokens', () => {
@@ -131,5 +138,80 @@ describe('footer zones', () => {
     expect(
       text(<UsageZone tier="minimal" contextPercent={5} status="none" />),
     ).toBe('5% ctx · — · ○');
+    expect(
+      text(
+        <UsageZone
+          tier="medium"
+          contextPercent={42}
+          status="online"
+          modelQuota={{
+            fiveHour: { id: 'five_hour', name: '5-hour', usedPercent: 25 },
+            weekly: { id: 'weekly', name: 'Weekly', usedPercent: 84 },
+          }}
+        />,
+      ),
+    ).toBe('42% ctx · 5h 75% · ! Weekly 16% remaining · — tok · — · ● online');
+  });
+
+  it('shows only API-reported percentages without a reset countdown', () => {
+    const normal = inlineText(
+      <ModelQuotaZone
+        quota={{
+          fiveHour: { id: 'five_hour', name: '5-hour', usedPercent: 42 },
+          weekly: { id: 'weekly', name: 'Weekly', usedPercent: 75 },
+        }}
+      />,
+    );
+    expect(normal).toBe('· 5h 58%');
+
+    const lowWeekly = inlineText(
+      <ModelQuotaZone
+        quota={{
+          fiveHour: { id: 'five_hour', name: '5-hour', usedPercent: 42 },
+          weekly: { id: 'weekly', name: 'Weekly', usedPercent: 84 },
+        }}
+      />,
+    );
+    expect(lowWeekly).toBe('· 5h 58% · ! Weekly 16% remaining');
+
+    expect(
+      inlineText(
+        <ModelQuotaZone
+          quota={{
+            fiveHour: { id: 'five_hour', name: '5-hour' },
+            weekly: { id: 'weekly', name: 'Weekly', usedPercent: null },
+          }}
+        />,
+      ),
+    ).toBe('');
+    expect(
+      inlineText(
+        <ModelQuotaZone
+          quota={{
+            fiveHour: { id: 'five_hour', name: '5-hour', usedPercent: 0.1 },
+          }}
+        />,
+      ),
+    ).toBe('· 5h 99%');
+
+    expect(
+      inlineText(
+        <ModelQuotaZone
+          quota={{
+            fiveHour: { id: 'five_hour', name: '5-hour', usedPercent: 76 },
+          }}
+        />,
+      ),
+    ).toBe('· 5h 24% remaining');
+
+    expect(
+      inlineText(
+        <ModelQuotaZone
+          quota={{
+            fiveHour: { id: 'five_hour', name: '5-hour', usedPercent: 75 },
+          }}
+        />,
+      ),
+    ).toBe('· 5h 25%');
   });
 });

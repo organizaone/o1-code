@@ -44,6 +44,7 @@ const TUI_ONLY_SETTINGS = new Set([
   'ui.showToolCallArgs',
   'ui.renderMode',
   'ui.displayMode',
+  'ui.showModelQuotaInFooter',
   'ui.useTerminalBuffer',
   'ui.mouseTracking',
   'ui.showScrollbar',

@@ -22,6 +22,12 @@ export default {
   'Gemini API': 'API Gemini',
   'Show session statistics when quitting. Enable this to restore a previously hidden summary.':
     'Exibe as estatísticas da sessão ao sair. Ative para voltar a mostrar um resumo anteriormente ocultado.',
+  'Show Model Quota in Footer': 'Mostrar cota do modelo no rodapé',
+  "Show the selected OrganizaOne model's 5-hour quota in the footer and keep a weekly quota warning visible when 20% or less remains.":
+    'Mostra a cota de 5 horas do modelo OrganizaOne selecionado no rodapé e mantém visível um aviso da cota semanal quando restar 20% ou menos.',
+  'OrganizaOne: {{quota}} is near its limit: {{remaining}}% remains.':
+    'OrganizaOne: {{quota}} está perto do limite: restam {{remaining}}%.',
+  remaining: 'restante',
   'Keep Session Summary Open': 'Manter resumo da sessão aberto',
   'Session Summary Timeout (seconds)': 'Tempo do resumo da sessão (segundos)',
   'Keep the exit summary open until you confirm. When disabled, it closes after the configured timeout; pressing a key stops the countdown.':

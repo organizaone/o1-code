@@ -292,6 +292,8 @@ const MODALITY_DISPLAY_ORDER = ['image', 'video', 'audio', 'pdf'] as const;
 export const MODEL_CUSTOM_INPUT_FOCUS_INDEX = -2;
 export const MODEL_SEARCH_INPUT_FOCUS_INDEX = -1;
 export const MAX_MODELS_TO_SHOW = 8;
+/** The account picker and its editor keep the same useful catalog window. */
+export const MODEL_CATALOG_MIN_VISIBLE_ROWS = 6;
 
 export interface ModelOption {
   key: string;

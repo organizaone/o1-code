@@ -450,6 +450,11 @@
           ],
           "default": "detailed"
         },
+        "showModelQuotaInFooter": {
+          "description": "Show the selected OrganizaOne model's 5-hour quota in the footer and keep a weekly quota warning visible when 20% or less remains.",
+          "type": "boolean",
+          "default": false
+        },
         "showCitations": {
           "description": "Show citations for generated text in the chat.",
           "type": "boolean",

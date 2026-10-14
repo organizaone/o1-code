@@ -782,6 +782,18 @@ describe('SettingsSchema', () => {
       ]);
     });
 
+    it('shows the model quota footer preference in the UI settings', () => {
+      const setting = getSettingsSchema().ui.properties.showModelQuotaInFooter;
+
+      expect(setting).toMatchObject({
+        type: 'boolean',
+        default: false,
+        requiresRestart: false,
+        showInDialog: true,
+        label: 'Show Model Quota in Footer',
+      });
+    });
+
     it('should have useTerminalBuffer in ui settings', () => {
       const useTerminalBuffer =
         getSettingsSchema().ui.properties.useTerminalBuffer;

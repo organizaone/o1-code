@@ -1193,6 +1193,16 @@ const SETTINGS_SCHEMA = {
           { value: 'summary', label: 'Summary' },
         ],
       },
+      showModelQuotaInFooter: {
+        type: 'boolean',
+        label: 'Show Model Quota in Footer',
+        category: 'UI',
+        requiresRestart: false,
+        default: false,
+        description:
+          "Show the selected OrganizaOne model's 5-hour quota in the footer and keep a weekly quota warning visible when 20% or less remains.",
+        showInDialog: true,
+      },
       showCitations: {
         type: 'boolean',
         label: 'Show Citations',
