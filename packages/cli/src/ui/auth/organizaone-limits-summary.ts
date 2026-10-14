@@ -114,6 +114,36 @@ function windowLine(snapshot: RateLimitSnapshot | undefined): string[] {
   return [t('Last request: {{windows}}', { windows: parts.join(' · ') })];
 }
 
+function modelQuotaLines(info: KeyInfo, now: number): string[] {
+  const quota = info.modelQuota;
+  if (!quota) return [];
+  const heading =
+    quota.source === 'own' ? t('Your own account') : t('Your plan');
+  const parts = quota.windows.map((window) => {
+    let value: string;
+    if (window.usedPercent !== undefined && window.usedPercent !== null) {
+      value = t('{{percent}}% used', {
+        percent: String(Math.round(window.usedPercent * 10) / 10),
+      });
+    } else if (
+      window.limitMicros !== undefined &&
+      window.usedMicros !== undefined
+    ) {
+      value = t('{{used}} of {{limit}}', {
+        used: dollars(window.usedMicros),
+        limit: dollars(window.limitMicros),
+      });
+    } else {
+      value = t('usage unavailable');
+    }
+    const reset = window.resetsAt ? Date.parse(window.resetsAt) : NaN;
+    return Number.isFinite(reset)
+      ? `${window.name}: ${value} (${t('resets in {{wait}}', { wait: duration(Math.max(0, reset - now)) })})`
+      : `${window.name}: ${value}`;
+  });
+  return parts.length ? [`${heading}: ${parts.join(' · ')}`] : [];
+}
+
 /**
  * What the key may do, in a few lines: the plan and its spend, the output
  * cap, every limit that is set with its use, the own credentials' caps, and
@@ -170,6 +200,8 @@ export function formatOrganizaOneKeyInfo(
     }
   }
 
+  lines.push(...modelQuotaLines(info, now));
+
   const reset = resetLine(info.dayReset, now);
   if (reset) lines.push(reset);
   lines.push(...windowLine(latest));
@@ -198,6 +230,7 @@ export async function loadOrganizaOneKeySummary(
     apiKey: generator.apiKey ?? '',
     signal,
     clientVersion: config.getCliVersion(),
+    model: generator.model,
   });
   if (!info) return { status: 'unavailable' };
   return {
