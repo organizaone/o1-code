@@ -219,6 +219,20 @@ export interface KeyInfo {
    * that predates remote sessions.
    */
   remote: { enabled: boolean; maxSessions: number; maxViewers: number } | null;
+  /** The selected model's applicable quota, never an installation account-pool reading. */
+  modelQuota?: {
+    source: 'plan' | 'own';
+    windows: Array<{
+      id?: string;
+      name: string;
+      usedPercent?: number | null;
+      limitMicros?: number;
+      usedMicros?: number;
+      remainingMicros?: number;
+      resetsAt?: string | null;
+    }>;
+    lastEventAt?: string;
+  };
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -289,6 +303,46 @@ function readPlan(value: unknown): KeyInfo['plan'] {
   };
 }
 
+function readModelQuota(value: unknown): KeyInfo['modelQuota'] {
+  if (
+    !isRecord(value) ||
+    (value['source'] !== 'plan' && value['source'] !== 'own') ||
+    !Array.isArray(value['windows'])
+  )
+    return undefined;
+  const windows: NonNullable<KeyInfo['modelQuota']>['windows'] = [];
+  for (const entry of value['windows']) {
+    if (!isRecord(entry) || !str(entry['name'])) continue;
+    const window: NonNullable<KeyInfo['modelQuota']>['windows'][number] = {
+      name: str(entry['name'])!,
+    };
+    if (str(entry['id'])) window.id = str(entry['id']);
+    const percent = num(entry['used_percent']) ?? num(entry['usedPercent']);
+    if (percent !== undefined) window.usedPercent = percent;
+    else if (entry['used_percent'] === null || entry['usedPercent'] === null)
+      window.usedPercent = null;
+    const limitMicros = num(entry['limit_micros']);
+    const usedMicros = num(entry['used_micros']);
+    const remainingMicros = num(entry['remaining_micros']);
+    if (limitMicros !== undefined) window.limitMicros = limitMicros;
+    if (usedMicros !== undefined) window.usedMicros = usedMicros;
+    if (remainingMicros !== undefined) window.remainingMicros = remainingMicros;
+    const resetsAt = str(entry['resets_at']) ?? str(entry['resetsAt']);
+    if (resetsAt) window.resetsAt = resetsAt;
+    else if (entry['resets_at'] === null || entry['resetsAt'] === null)
+      window.resetsAt = null;
+    windows.push(window);
+  }
+  if (!windows.length) return undefined;
+  return {
+    source: value['source'],
+    windows,
+    ...(str(value['last_event_at'])
+      ? { lastEventAt: str(value['last_event_at']) }
+      : {}),
+  };
+}
+
 /** The `{ data: … }` answer of `GET /v1/key`, or null when it is not one. */
 export function parseKeyInfo(body: unknown): KeyInfo | null {
   if (!isRecord(body) || !isRecord(body['data'])) return null;
@@ -308,6 +362,7 @@ export function parseKeyInfo(body: unknown): KeyInfo | null {
   const device = isRecord(data['device']) ? data['device'] : undefined;
   const own = isRecord(data['own']) ? data['own'] : undefined;
   const remote = isRecord(data['remote']) ? data['remote'] : undefined;
+  const modelQuota = readModelQuota(data['model_quota']);
   return {
     ...(device
       ? {
@@ -344,12 +399,16 @@ export function parseKeyInfo(body: unknown): KeyInfo | null {
           maxViewers: num(remote['max_viewers']) ?? 0,
         }
       : null,
+    ...(modelQuota ? { modelQuota } : {}),
   };
 }
 
 /** `/v1/key` beside the base URL, whether it was written with `/v1` or not. */
-export function keyInfoUrl(baseUrl: string): string {
-  return `${baseUrl.trim().replace(/\/+$/, '').replace(/\/v1$/, '')}/v1/key`;
+export function keyInfoUrl(baseUrl: string, model?: string): string {
+  const url = `${baseUrl.trim().replace(/\/+$/, '').replace(/\/v1$/, '')}/v1/key`;
+  return model?.trim()
+    ? `${url}?${new URLSearchParams({ model: model.trim() }).toString()}`
+    : url;
 }
 
 /**
@@ -361,15 +420,17 @@ export async function fetchKeyInfo({
   apiKey,
   signal,
   clientVersion,
+  model,
 }: {
   baseUrl: string;
   apiKey: string;
   signal?: AbortSignal;
   clientVersion?: string;
+  model?: string;
 }): Promise<KeyInfo | null> {
   if (!baseUrl.trim() || !apiKey.trim()) return null;
   try {
-    const result = await fetchWithPolicy(keyInfoUrl(baseUrl), {
+    const result = await fetchWithPolicy(keyInfoUrl(baseUrl, model), {
       timeoutMs: KEY_TIMEOUT_MS,
       maxBytes: KEY_MAX_BYTES,
       maxRedirects: 2,

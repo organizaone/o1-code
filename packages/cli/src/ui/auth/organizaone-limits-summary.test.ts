@@ -82,6 +82,46 @@ describe('formatOrganizaOneKeyInfo', () => {
     expect(text).toContain('Last request: 8 of 10 requests left');
   });
 
+  it('labels selected-model quota by its source', () => {
+    const text = formatOrganizaOneKeyInfo(
+      {
+        ...info,
+        modelQuota: {
+          source: 'plan',
+          windows: [
+            {
+              name: '5-hour',
+              usedPercent: 25,
+              resetsAt: '2026-10-09T12:00:00.000Z',
+            },
+          ],
+        },
+      },
+      undefined,
+      now,
+    );
+    expect(text).toContain('Your plan: 5-hour: 25% used (resets in 2h)');
+    expect(
+      formatOrganizaOneKeyInfo(
+        {
+          ...info,
+          modelQuota: {
+            source: 'own',
+            windows: [
+              {
+                name: 'Weekly',
+                usedPercent: 40,
+                resetsAt: '2026-10-10T10:00:00.000Z',
+              },
+            ],
+          },
+        },
+        undefined,
+        now,
+      ),
+    ).toContain('Your own account: Weekly: 40% used (resets in 24h)');
+  });
+
   it('says so when the key has no limit at all', () => {
     const text = formatOrganizaOneKeyInfo(
       {
@@ -121,6 +161,7 @@ describe('loadOrganizaOneKeySummary', () => {
   const configFor = (generator: {
     baseUrl?: string;
     apiKey?: string;
+    model?: string;
     connection?: 'o1-connect';
   }) => ({
     getContentGeneratorConfig: () =>
@@ -141,13 +182,14 @@ describe('loadOrganizaOneKeySummary', () => {
     expect(fetchKeyInfoMock).not.toHaveBeenCalled();
   });
 
-  it('asks the tunnel with the session’s key', async () => {
+  it('asks the tunnel for the active model with the session key', async () => {
     fetchKeyInfoMock.mockResolvedValue(info);
     const result = await loadOrganizaOneKeySummary(
       configFor({
         baseUrl: 'http://127.0.0.1:4242',
         apiKey: 'session-key',
         connection: 'o1-connect',
+        model: 'own-claude-sonnet',
       }),
     );
     expect(result.status).toBe('ok');
@@ -156,6 +198,7 @@ describe('loadOrganizaOneKeySummary', () => {
         baseUrl: 'http://127.0.0.1:4242',
         apiKey: 'session-key',
         clientVersion: '1.2.3',
+        model: 'own-claude-sonnet',
       }),
     );
   });

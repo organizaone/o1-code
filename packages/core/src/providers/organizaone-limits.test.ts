@@ -260,6 +260,66 @@ describe('parseKeyInfo', () => {
     });
   });
 
+  it('reads only the selected model quota returned by the gateway', () => {
+    const info = parseKeyInfo({
+      data: {
+        limits: { scopes: [] },
+        model_quota: {
+          source: 'plan',
+          windows: [
+            {
+              id: 'five_hour',
+              name: '5-hour',
+              used_percent: 25,
+              resets_at: '2026-10-10T15:00:00.000Z',
+            },
+          ],
+        },
+      },
+    });
+    expect(info?.modelQuota).toEqual({
+      source: 'plan',
+      windows: [
+        {
+          id: 'five_hour',
+          name: '5-hour',
+          usedPercent: 25,
+          resetsAt: '2026-10-10T15:00:00.000Z',
+        },
+      ],
+    });
+  });
+
+  it('keeps only the own-account windows returned for an own model', () => {
+    const info = parseKeyInfo({
+      data: {
+        limits: { scopes: [] },
+        model_quota: {
+          source: 'own',
+          windows: [
+            {
+              id: 'sonnet_weekly',
+              name: 'Sonnet weekly',
+              usedPercent: 40,
+              resets_at: '2026-10-10T15:00:00.000Z',
+            },
+          ],
+        },
+      },
+    });
+    expect(info?.modelQuota).toEqual({
+      source: 'own',
+      windows: [
+        {
+          id: 'sonnet_weekly',
+          name: 'Sonnet weekly',
+          usedPercent: 40,
+          resetsAt: '2026-10-10T15:00:00.000Z',
+        },
+      ],
+    });
+  });
+
   it('refuses an answer that is not the key endpoint’s', () => {
     expect(parseKeyInfo(null)).toBeNull();
     expect(parseKeyInfo({ data: [] })).toBeNull();
@@ -280,6 +340,9 @@ describe('fetchKeyInfo', () => {
     expect(keyInfoUrl('http://127.0.0.1:4242/v1/')).toBe(
       'http://127.0.0.1:4242/v1/key',
     );
+    expect(keyInfoUrl('https://api.organizaone.com/v1', 'own-model/a')).toBe(
+      'https://api.organizaone.com/v1/key?model=own-model%2Fa',
+    );
 
     fetchMock.mockResolvedValue({
       kind: 'response',
@@ -290,10 +353,11 @@ describe('fetchKeyInfo', () => {
       baseUrl: 'https://api.organizaone.com/v1',
       apiKey: ' device-token ',
       clientVersion: '1.2.3',
+      model: 'own-model/a',
     });
     expect(info?.plan?.name).toBe('Pro');
     const [url, init] = fetchMock.mock.calls[0]!;
-    expect(url).toBe('https://api.organizaone.com/v1/key');
+    expect(url).toBe('https://api.organizaone.com/v1/key?model=own-model%2Fa');
     expect(init?.headers).toMatchObject({
       Authorization: 'Bearer device-token',
       'X-Title': 'o1-code',
