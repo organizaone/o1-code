@@ -354,7 +354,9 @@ never leaves; it only shortens from the start.
   available. Once the list has focus, arrows scroll, PgUp/PgDn move by a page,
   Home/End reach the first/last model, Space toggles and Enter confirms.
   Search remains optional; shrinking the terminal keeps the focused model in
-  view and retains checked models.
+  view and retains checked models. A list already saved opens with every model
+  the provider still serves checked, ready to toggle off; ids the provider no
+  longer serves stay visible in the input.
 - **One selection style everywhere** (`shared/BaseSelectionList.tsx`, `SuggestionsDisplay.tsx`,
   model and login lists): the selected item gets `❯` in brand and its text in bold primary; the rest
   are secondary with two spaces in place of the arrow. Numbers stay. The selected colour is
@@ -378,7 +380,10 @@ never leaves; it only shortens from the start.
   model, an `Effort` row lists `default` and the tiers the highlighted model takes, the chosen one
   as `‹ tier ›` in bold brand, the rest secondary; ←/→ move along it and the choice applies with the
   switch (`↑↓ navigate · ←→ effort · enter select · esc close`). A tier the next model lacks shows
-  as its nearest one.
+  as its nearest one. With a signed-in OrganizaOne account the footer adds
+  `ctrl+e edit list`, which replaces the picker with the provider model catalog
+  (`auth/ModelListEditDialog.tsx`): the list is fetched on open, ctrl+r fetches it
+  again, and the save refuses to drop the model in use.
 - **Effort** (`EffortDialog.tsx`): `default` first (the model/provider decides, and the saved tier
   is cleared), then the model's tiers; it opens on the current one.
 - **Slash categories** (`SlashCommandMenu.tsx`): bare `/` opens recent commands and

@@ -916,7 +916,7 @@ describe('modelConfigUtils', () => {
         );
       });
 
-      it('falls back to the first id match and emits a warning when the persisted baseUrl no longer matches any provider', () => {
+      it('falls back to the first duplicate id match and emits a warning when the persisted baseUrl no longer matches any provider', () => {
         mockResolved();
         const settings = makeMockSettings({
           model: {
@@ -940,6 +940,34 @@ describe('modelConfigUtils', () => {
         expect(result.warnings).toEqual(
           expect.arrayContaining([
             expect.stringContaining('https://removed.example.com/v1'),
+          ]),
+        );
+      });
+
+      it('silently ignores a stale baseUrl when the model ID has one provider', () => {
+        mockResolved();
+        const settings = makeMockSettings({
+          model: {
+            name: 'qwen3.7-max',
+            baseUrl: 'htto://127.0.0.1:64479',
+          },
+          modelProviders: {
+            [AuthType.USE_OPENAI]: [acmeGateway],
+          },
+        });
+
+        const result = resolveCliGenerationConfig({
+          argv: {},
+          settings,
+          selectedAuthType: AuthType.USE_OPENAI,
+        });
+
+        expect(vi.mocked(resolveModelConfig)).toHaveBeenCalledWith(
+          expect.objectContaining({ modelProvider: acmeGateway }),
+        );
+        expect(result.warnings).not.toEqual(
+          expect.arrayContaining([
+            expect.stringContaining('Persisted model.baseUrl'),
           ]),
         );
       });
