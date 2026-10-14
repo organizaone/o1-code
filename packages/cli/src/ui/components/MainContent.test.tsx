@@ -154,6 +154,7 @@ const createUIState = (overrides: Partial<UIState> = {}): UIState =>
     isStatusLineDialogOpen: false,
     isMemoryDialogOpen: false,
     isModelDialogOpen: false,
+    isStatsDialogOpen: false,
     isFastModelMode: false,
     isTrustDialogOpen: false,
     activeArenaDialog: null,
@@ -162,6 +163,7 @@ const createUIState = (overrides: Partial<UIState> = {}): UIState =>
     isResumeDialogOpen: false,
     resumeMatchedSessions: undefined,
     isDeleteDialogOpen: false,
+    isDiffDialogOpen: false,
     slashCommands: [],
     pendingSlashCommandHistoryItems: [],
     commandContext: {} as UIState['commandContext'],
@@ -908,6 +910,71 @@ describe('<MainContent />', () => {
       expect(lastFrame()).toContain('HISTORY:1');
       expect(lastFrame()).toContain('APP_HEADER');
     });
+
+    it('hides the conversation frame while /model is open and restores it on close', async () => {
+      const state = createUIState({
+        useTerminalBuffer: true,
+        availableTerminalHeight: 10,
+        history: [{ id: 1, type: 'user', text: '/model' }],
+      });
+      const { lastFrame, rerender } = renderMainContent(state);
+      expect(lastFrame()).toContain('╭');
+
+      rerender(mainContentTree({ ...state, isModelDialogOpen: true }));
+      await new Promise((resolve) => setImmediate(resolve));
+      expect(lastFrame()).toBe('');
+
+      rerender(mainContentTree(state));
+      await new Promise((resolve) => setImmediate(resolve));
+      expect(lastFrame()).toContain('HISTORY:1');
+      expect(lastFrame()).toContain('╭');
+    });
+
+    it('hides the conversation frame while /usage is open and restores it on close', async () => {
+      const state = createUIState({
+        useTerminalBuffer: true,
+        availableTerminalHeight: 10,
+        history: [{ id: 1, type: 'user', text: '/usage' }],
+      });
+      const { lastFrame, rerender } = renderMainContent(state);
+      expect(lastFrame()).toContain('╭');
+
+      rerender(mainContentTree({ ...state, isStatsDialogOpen: true }));
+      await new Promise((resolve) => setImmediate(resolve));
+      expect(lastFrame()).toBe('');
+
+      rerender(mainContentTree(state));
+      await new Promise((resolve) => setImmediate(resolve));
+      expect(lastFrame()).toContain('HISTORY:1');
+      expect(lastFrame()).toContain('╭');
+    });
+
+    it.each([
+      ['/resume', { isResumeDialogOpen: true }],
+      ['/delete', { isDeleteDialogOpen: true }],
+      ['/rewind', { isRewindSelectorOpen: true }],
+      ['/diff', { isDiffDialogOpen: true }],
+    ])(
+      'hides the conversation frame while %s is open and restores it on close',
+      async (command, dialogState) => {
+        const state = createUIState({
+          useTerminalBuffer: true,
+          availableTerminalHeight: 10,
+          history: [{ id: 1, type: 'user', text: command }],
+        });
+        const { lastFrame, rerender } = renderMainContent(state);
+        expect(lastFrame()).toContain('╭');
+
+        rerender(mainContentTree({ ...state, ...dialogState }));
+        await new Promise((resolve) => setImmediate(resolve));
+        expect(lastFrame()).toBe('');
+
+        rerender(mainContentTree(state));
+        await new Promise((resolve) => setImmediate(resolve));
+        expect(lastFrame()).toContain('HISTORY:1');
+        expect(lastFrame()).toContain('╭');
+      },
+    );
 
     it('hides the conversation frame while /config is open and restores it on close', async () => {
       const state = createUIState({

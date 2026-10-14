@@ -368,10 +368,14 @@ function getRecommendedSelections(
   modelOptions: ModelOption[],
   builtInModelIds: string[],
 ): string[] {
-  const selectedSet = new Set(selectedModelIds);
+  // Every saved id the provider still serves opens checked, built-in or
+  // not: the checkboxes are how a list already saved is edited again. What
+  // it no longer serves stays visible in the input instead.
   const servedIds = new Set(modelOptions.map((item) => item.key));
-  return builtInModelIds.filter(
-    (id) => selectedSet.has(id) && servedIds.has(id),
+  return orderSelectedModelKeys(
+    selectedModelIds.filter((id) => servedIds.has(id)),
+    modelOptions,
+    builtInModelIds,
   );
 }
 
@@ -393,6 +397,8 @@ function ModelIdsStep({
   syncChangesToFlow = true,
   preselect,
   keyVerified = false,
+  showKeyStatus = true,
+  minVisibleModelRows,
   draftModelIds,
   onDraftChange,
   additionalChromeRows = 0,
@@ -413,6 +419,10 @@ function ModelIdsStep({
   preselect?: string[];
   /** The provider accepted the key while listing its models. */
   keyVerified?: boolean;
+  /** The enclosing dialog already displays the valid-key status. */
+  showKeyStatus?: boolean;
+  /** The standalone editor keeps this many catalog rows visible. */
+  minVisibleModelRows?: number;
   additionalChromeRows?: number;
 }): React.JSX.Element {
   const uiState = useContext(UIStateContext);
@@ -441,32 +451,30 @@ function ModelIdsStep({
             (uiState.auth.authError ? 2 : 0),
         )
       : undefined;
-  const compact = budget !== undefined && budget < 26;
+  const compact =
+    minVisibleModelRows === undefined && budget !== undefined && budget < 18;
   const gap = compact ? 0 : 1;
-  const inputHeight = compact ? 1 : 3;
-  const showVerified =
-    keyVerified &&
-    (!compact ||
-      (budget ?? 0) >= 10 + Number(Boolean(flow.state.modelIdsError)));
+  const inputHeight = 1;
+  const showVerified = showKeyStatus && keyVerified && !compact;
   const statusRows =
     Number(showVerified) + Number(Boolean(flow.state.modelIdsError));
-  const showModelHeading = budget === undefined || budget >= 8 + statusRows;
-  const headingRows = Number(showModelHeading);
-  const showSearchLabel = budget === undefined || budget >= 8;
+  const showSearchLabel = !compact && (budget === undefined || budget >= 8);
   const searchRows = showSearchLabel ? 2 : 1;
-  const navigationRows = 3;
+  const showSelectionSummary = !compact;
+  const navigationRows = showSelectionSummary ? 4 : 3;
   const chromeRows =
-    gap * (6 + statusRows) +
+    gap * (7 + statusRows) +
     inputHeight +
     (compact ? 0 : 2) +
     statusRows +
-    headingRows +
     searchRows +
-    navigationRows;
+    navigationRows +
+    5;
   const modelRows =
-    budget === undefined
+    minVisibleModelRows ??
+    (budget === undefined
       ? MAX_MODELS_TO_SHOW
-      : Math.max(1, budget - chromeRows);
+      : Math.max(1, Math.min(compact ? 4 : 6, budget - chromeRows)));
   const defaultIds = config.models?.map((m) => m.id).join(', ') ?? '';
   const hasSelectableModels = models.length > 0;
   const selectedModelIds = useMemo(
@@ -663,26 +671,20 @@ function ModelIdsStep({
   if (hasSelectableModels) {
     return (
       <Box marginTop={gap} flexDirection="column" width={width}>
-        {showVerified && (
-          <Box marginTop={gap}>
-            <Text color={theme.status.success} wrap="truncate-end">
-              {`${glyphs().done} ${t('key valid')}`}
-            </Text>
-          </Box>
-        )}
-        {!compact && (
-          <Box marginTop={gap}>
-            <Text
-              color={theme.text.secondary}
-              wrap={constrained ? 'truncate-end' : undefined}
-            >
-              {t(
-                'Enter model IDs directly. Use commas to configure multiple models.',
-              )}
-            </Text>
-          </Box>
-        )}
-        <Box marginTop={gap}>
+        <Box
+          marginTop={0}
+          borderStyle={compact ? undefined : glyphs().borderStyle}
+          borderBottom={!compact}
+          borderTop={false}
+          borderLeft={false}
+          borderRight={false}
+          borderColor={
+            focusedModelIndex === MODEL_CUSTOM_INPUT_FOCUS_INDEX
+              ? extendedTheme.ui.brand
+              : extendedTheme.ui.rule
+          }
+          width={width}
+        >
           <TextInput
             key="model-ids-input"
             value={customModelIdsText}
@@ -697,64 +699,53 @@ function ModelIdsStep({
             placeholder="model-id"
             height={inputHeight}
             inputWidth={
-              width === undefined ? undefined : Math.max(1, width - 3)
+              width === undefined ? undefined : Math.max(1, width - 2)
             }
             isActive={focusedModelIndex === MODEL_CUSTOM_INPUT_FOCUS_INDEX}
           />
         </Box>
-        {!compact && (
-          <Box marginTop={0}>
-            <Text
-              color={theme.text.secondary}
-              wrap={constrained ? 'truncate-end' : undefined}
-            >
-              {t(
-                recommendationSource === 'provider'
-                  ? 'Checked models are applied on submit but not copied into the input.'
-                  : 'Checked recommended models are applied on submit but not copied into the input.',
-              )}
-            </Text>
-          </Box>
-        )}
-        {showModelHeading && (
-          <Box marginTop={gap}>
-            <Text color={theme.text.secondary} wrap="truncate-end">
-              {recommendationSource === 'provider'
-                ? t('Models · from the provider · {{count}} checked', {
-                    count: String(selectedRecommendationKeys.length),
-                  })
-                : t('Recommended models')}
-              {recommendationSource === 'fallback' &&
-                t(' · provider list unavailable, showing built-ins')}
-            </Text>
-          </Box>
-        )}
+        <Box marginBottom={compact ? 0 : 1} />
         <Box marginTop={0} flexDirection="column">
           {showSearchLabel && (
-            <Text color={theme.text.secondary}>{t('Search')}</Text>
+            <Text color={extendedTheme.text.muted}>
+              {'⌕'} {t('Search')}
+            </Text>
           )}
-          <TextInput
-            key="model-search-input"
-            value={modelSearchQuery}
-            onChange={setModelSearchQuery}
-            onSubmit={handleSubmitModelIds}
-            onUp={() => setFocusedModelIndex(MODEL_CUSTOM_INPUT_FOCUS_INDEX)}
-            onDown={() => {
-              if (filteredModelOptions.length > 0) {
-                setFocusedModelIndex(0);
-              }
-            }}
-            onTab={() => {
-              if (filteredModelOptions.length > 0) {
-                setFocusedModelIndex(0);
-              }
-            }}
-            placeholder="search"
-            inputWidth={
-              width === undefined ? undefined : Math.max(1, width - 3)
+          <Box
+            borderStyle={compact ? undefined : glyphs().borderStyle}
+            borderColor={
+              focusedModelIndex === MODEL_SEARCH_INPUT_FOCUS_INDEX
+                ? extendedTheme.ui.brand
+                : extendedTheme.ui.rule
             }
-            isActive={focusedModelIndex === MODEL_SEARCH_INPUT_FOCUS_INDEX}
-          />
+            paddingX={compact ? 0 : 1}
+            width={width}
+          >
+            <TextInput
+              key="model-search-input"
+              value={modelSearchQuery}
+              onChange={setModelSearchQuery}
+              onSubmit={handleSubmitModelIds}
+              onUp={() => setFocusedModelIndex(MODEL_CUSTOM_INPUT_FOCUS_INDEX)}
+              onDown={() => {
+                if (filteredModelOptions.length > 0) {
+                  setFocusedModelIndex(0);
+                }
+              }}
+              onTab={() => {
+                if (filteredModelOptions.length > 0) {
+                  setFocusedModelIndex(0);
+                }
+              }}
+              placeholder="search"
+              inputWidth={
+                width === undefined
+                  ? undefined
+                  : Math.max(1, width - (compact ? 2 : 6))
+              }
+              isActive={focusedModelIndex === MODEL_SEARCH_INPUT_FOCUS_INDEX}
+            />
+          </Box>
         </Box>
         <Box marginTop={gap} flexDirection="column">
           {visibleModelOptions.length > 0 ? (
@@ -806,17 +797,31 @@ function ModelIdsStep({
             </Text>
           )}
         </Box>
-        <Text color={extendedTheme.text.muted} wrap="truncate-end">
-          {recommendedScrollOffset > 0 ? '↑ ' : ''}
-          {filteredModelOptions.length > 0 ? recommendedScrollOffset + 1 : 0}–
-          {recommendedScrollOffset + visibleModelOptions.length}/
-          {filteredModelOptions.length}
-          {recommendedScrollOffset + visibleModelOptions.length <
-          filteredModelOptions.length
-            ? ' ↓'
-            : ''}
-          {' · PgUp/PgDn · Home/End'}
-        </Text>
+        <Box marginTop={gap} flexDirection="column">
+          {showSelectionSummary && (
+            <Text color={extendedTheme.ui.brandSoft} bold wrap="truncate-end">
+              {recommendationSource === 'provider'
+                ? t('Models from the provider · {{count}} checked', {
+                    count: String(selectedRecommendationKeys.length),
+                  })
+                : t('Recommended models')}
+              {recommendationSource === 'fallback' &&
+                t(' · provider list unavailable, showing built-ins')}
+            </Text>
+          )}
+          <Text color={extendedTheme.text.muted} wrap="truncate-end">
+            {recommendedScrollOffset > 0 ? '↑ ' : ''}
+            {filteredModelOptions.length > 0 ? recommendedScrollOffset + 1 : 0}–
+            {recommendedScrollOffset + visibleModelOptions.length}/
+            {filteredModelOptions.length}
+            {recommendedScrollOffset + visibleModelOptions.length <
+            filteredModelOptions.length
+              ? ' ↓'
+              : ''}
+            {' · PgUp/PgDn · Home/End'}
+            {showVerified && ` · ${t('key valid')} ${glyphs().done}`}
+          </Text>
+        </Box>
         {flow.state.modelIdsError && (
           <Box marginTop={gap}>
             <Text color={theme.status.error} wrap="truncate-end">
@@ -825,24 +830,14 @@ function ModelIdsStep({
           </Box>
         )}
         <Box marginTop={gap} flexDirection="column">
-          {constrained ? (
-            <>
-              <Text color={theme.text.secondary} wrap="truncate-end">
-                {t('↑↓/Tab navigate · Space toggle')}
-              </Text>
-              <Text color={theme.text.secondary} wrap="truncate-end">
-                {t('Enter confirm · Esc back')}
-              </Text>
-            </>
-          ) : (
-            <Text color={theme.text.secondary}>
-              {t(
-                recommendationSource === 'provider'
-                  ? 'Enter to submit, ↑↓/Tab to switch input, search, and models, Space to toggle models, Esc to go back'
-                  : 'Enter to submit, ↑↓/Tab to switch input, search, and recommendations, Space to toggle recommendations, Esc to go back',
-              )}
-            </Text>
-          )}
+          <Text color={extendedTheme.ui.brandSoft} wrap="truncate-end">
+            {t('↑↓/Tab navigate · Space toggle')}
+          </Text>
+          <Text color={theme.text.secondary} wrap="truncate-end">
+            {`${t('Enter confirm · Esc back')} · ${t(
+              'ctrl+r fetches the models again',
+            )}`}
+          </Text>
         </Box>
       </Box>
     );
@@ -936,9 +931,15 @@ function snapshotOf(
 function DiscoveringModelIdsStep({
   config,
   flow,
+  showKeyStatus,
+  onKeyStatusChange,
+  minVisibleModelRows,
 }: {
   config: ProviderConfig;
   flow: ProviderSetupFlow;
+  showKeyStatus?: boolean;
+  onKeyStatusChange?: (isValid: boolean) => void;
+  minVisibleModelRows?: number;
 }): React.JSX.Element {
   const uiState = useContext(UIStateContext);
   const constrained = Boolean(
@@ -977,6 +978,7 @@ function DiscoveringModelIdsStep({
   const apiKey = flow.state.apiKey;
   const protocol = protocolOf(flow.state.protocol);
   const clientVersion = useContext(AppContext)?.version;
+  const requiresKey = requiresApiKey(config);
   // The flow object changes on every render; the check must run once per key.
   const rejectApiKeyRef = useRef(flow.rejectApiKey);
   rejectApiKeyRef.current = flow.rejectApiKey;
@@ -1012,10 +1014,14 @@ function DiscoveringModelIdsStep({
       // refusal then leaves the list as it was instead of going back.
       if (result.status === 'rejected' && attempt === 0) {
         rejectApiKeyRef.current(rejectedKeyMessage(result.httpStatus));
+        // A wizard with no key step to return to stays on this step: it must
+        // still leave the spinner behind and open on the built-in list.
+        setSnapshot(snapshotOf(result, builtInModels));
         return;
       }
       answeredAttemptRef.current = attempt;
       const next = snapshotOf(result, builtInModels);
+      onKeyStatusChange?.(next.verified && requiresKey);
       if (next.source === 'provider') {
         providerSnapshotRef.current = next;
         setReloadFailed(false);
@@ -1044,6 +1050,8 @@ function DiscoveringModelIdsStep({
     reusableCheck,
     attempt,
     clientVersion,
+    requiresKey,
+    onKeyStatusChange,
   ]);
 
   // What the person had chosen when they asked for the list again: the new
@@ -1110,6 +1118,8 @@ function DiscoveringModelIdsStep({
           draftRef.current = ids;
         }}
         keyVerified={snapshot.verified && requiresApiKey(config)}
+        showKeyStatus={showKeyStatus}
+        minVisibleModelRows={minVisibleModelRows}
         additionalChromeRows={
           (compactNotices ? 0 : 2) + (listFailed ? noticeGap + 1 : 0)
         }
@@ -1123,16 +1133,6 @@ function DiscoveringModelIdsStep({
             : undefined
         }
       />
-      {!compactNotices && (
-        <Box marginTop={1}>
-          <Text
-            color={extendedTheme.text.muted}
-            wrap={constrained ? 'truncate-end' : undefined}
-          >
-            {t('ctrl+r fetches the models again')}
-          </Text>
-        </Box>
-      )}
     </Box>
   );
 }
@@ -1367,10 +1367,19 @@ const PROTOCOL_ITEMS = [
 
 export interface ProviderSetupStepsProps {
   flow: ProviderSetupFlow;
+  /** Whether this step should render the key-status line itself. */
+  showKeyStatus?: boolean;
+  /** Receives the result of model discovery when a parent displays it. */
+  onKeyStatusChange?: (isValid: boolean) => void;
+  /** Keeps this many catalog rows visible for an owning dialog. */
+  minVisibleModelRows?: number;
 }
 
 export function ProviderSetupSteps({
   flow,
+  showKeyStatus,
+  onKeyStatusChange,
+  minVisibleModelRows,
 }: ProviderSetupStepsProps): React.JSX.Element | null {
   const { provider, step } = flow.state;
 
@@ -1492,9 +1501,24 @@ export function ProviderSetupSteps({
 
     case 'models':
       if (provider.supportsModelDiscovery || flow.state.keyCheck) {
-        return <DiscoveringModelIdsStep config={provider} flow={flow} />;
+        return (
+          <DiscoveringModelIdsStep
+            config={provider}
+            flow={flow}
+            showKeyStatus={showKeyStatus}
+            onKeyStatusChange={onKeyStatusChange}
+            minVisibleModelRows={minVisibleModelRows}
+          />
+        );
       }
-      return <ModelIdsStep config={provider} flow={flow} />;
+      return (
+        <ModelIdsStep
+          config={provider}
+          flow={flow}
+          showKeyStatus={showKeyStatus}
+          minVisibleModelRows={minVisibleModelRows}
+        />
+      );
 
     case 'advancedConfig':
       return <AdvancedConfigStep flow={flow} />;

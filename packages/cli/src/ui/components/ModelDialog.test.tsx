@@ -46,6 +46,19 @@ vi.mock('./shared/DescriptiveRadioButtonSelect.js', () => ({
   DescriptiveRadioButtonSelect: vi.fn(() => null),
 }));
 
+const isOrganizaOneAccountLoginMock = vi.hoisted(() => vi.fn());
+const modelListEditDialogMock = vi.hoisted(() =>
+  vi.fn((_props: { onClose: () => void; onSaved: () => void }) => null),
+);
+
+vi.mock('../auth/organizaone-account.js', () => ({
+  isOrganizaOneAccountLogin: isOrganizaOneAccountLoginMock,
+  organizaOneAccountCredential: vi.fn(),
+}));
+vi.mock('../auth/ModelListEditDialog.js', () => ({
+  ModelListEditDialog: modelListEditDialogMock,
+}));
+
 // Helper to create getAvailableModelsForAuthType mock
 const createMockGetAvailableModelsForAuthType = () =>
   vi.fn((t: AuthType) => {
@@ -2026,5 +2039,165 @@ describe('encodeAuxModelSelector', () => {
   it('passes a bare id (and a malformed runtime key) through unchanged', () => {
     expect(encodeAuxModelSelector('gpt-4o')).toBe('gpt-4o');
     expect(encodeAuxModelSelector('$runtime|openai')).toBe('$runtime|openai');
+  });
+});
+
+describe('<ModelDialog /> model list editing', () => {
+  beforeEach(() => {
+    isOrganizaOneAccountLoginMock.mockReset();
+    isOrganizaOneAccountLoginMock.mockReturnValue(false);
+    modelListEditDialogMock.mockClear();
+    modelListEditDialogMock.mockReturnValue(null);
+    mockedUseKeypress.mockClear();
+  });
+
+  const accountConfig = {
+    getContentGeneratorConfig: vi.fn(() => ({
+      authType: AuthType.USE_ANTHROPIC,
+      model: DEFAULT_O1CODE_MODEL,
+      apiKey: 'device-token',
+    })),
+  } as unknown as Partial<Config>;
+
+  // The real hook keeps only the latest handler; the mock keeps every render's.
+  const latestKeyHandler = () => mockedUseKeypress.mock.calls.at(-1)![0];
+
+  const pressCtrlE = () => {
+    act(() => {
+      latestKeyHandler()({
+        name: 'e',
+        ctrl: true,
+        meta: false,
+        shift: false,
+        paste: false,
+        sequence: 'e',
+      });
+    });
+  };
+
+  // The picker's frame comes from an Ink render; the RTL render above only
+  // drives the mocks and the interaction.
+  const pickerFrame = (
+    mockConfig: Config,
+    mockSettings: LoadedSettings,
+    mockHistoryManager: UIState['historyManager'],
+  ): string =>
+    renderInk(
+      <SettingsContext.Provider value={mockSettings}>
+        <ConfigContext.Provider value={mockConfig}>
+          <UIStateContext.Provider
+            value={{ historyManager: mockHistoryManager } as unknown as UIState}
+          >
+            <ModelDialog onClose={vi.fn()} />
+          </UIStateContext.Provider>
+        </ConfigContext.Provider>
+      </SettingsContext.Provider>,
+    ).lastFrame() ?? '';
+
+  it('opens the account model list editor on ctrl+e', () => {
+    isOrganizaOneAccountLoginMock.mockReturnValue(true);
+    renderComponent({}, accountConfig);
+
+    pressCtrlE();
+
+    expect(isOrganizaOneAccountLoginMock).toHaveBeenCalledWith('device-token');
+    expect(modelListEditDialogMock).toHaveBeenCalledTimes(1);
+    expect(modelListEditDialogMock.mock.calls[0][0].onClose).toEqual(
+      expect.any(Function),
+    );
+    expect(modelListEditDialogMock.mock.calls[0][0].onSaved).toEqual(
+      expect.any(Function),
+    );
+  });
+
+  it('keeps ctrl+e quiet without an account login', () => {
+    renderComponent({}, accountConfig);
+
+    pressCtrlE();
+
+    expect(modelListEditDialogMock).not.toHaveBeenCalled();
+  });
+
+  it('shows the ctrl+e hint for an account login and hides it otherwise', () => {
+    isOrganizaOneAccountLoginMock.mockReturnValue(true);
+    const first = renderComponent({}, accountConfig);
+    expect(
+      pickerFrame(
+        first.mockConfig,
+        first.mockSettings,
+        first.mockHistoryManager,
+      ),
+    ).toContain('ctrl+e edit list');
+
+    isOrganizaOneAccountLoginMock.mockReturnValue(false);
+    const second = renderComponent({}, accountConfig);
+    expect(
+      pickerFrame(
+        second.mockConfig,
+        second.mockSettings,
+        second.mockHistoryManager,
+      ),
+    ).not.toContain('ctrl+e');
+  });
+
+  it('keeps the picker open on escape while the editor is showing', () => {
+    isOrganizaOneAccountLoginMock.mockReturnValue(true);
+    const { props } = renderComponent({}, accountConfig);
+    pressCtrlE();
+
+    act(() => {
+      latestKeyHandler()({
+        name: 'escape',
+        ctrl: false,
+        meta: false,
+        shift: false,
+        paste: false,
+        sequence: '',
+      });
+    });
+
+    expect(props.onClose).not.toHaveBeenCalled();
+  });
+
+  it('returns to the picker when the editor closes', () => {
+    isOrganizaOneAccountLoginMock.mockReturnValue(true);
+    renderComponent({}, accountConfig);
+    pressCtrlE();
+    mockedSelect.mockClear();
+
+    act(() => {
+      modelListEditDialogMock.mock.calls[0][0].onClose();
+    });
+
+    expect(mockedSelect).toHaveBeenCalled();
+  });
+
+  it('re-reads the configured models after the editor saves', () => {
+    isOrganizaOneAccountLoginMock.mockReturnValue(true);
+    const { mockConfig } = renderComponent({}, accountConfig);
+    pressCtrlE();
+    const reads = mockConfig.getAllConfiguredModels as ReturnType<typeof vi.fn>;
+    const callsBeforeSave = reads.mock.calls.length;
+
+    act(() => {
+      modelListEditDialogMock.mock.calls[0][0].onSaved();
+    });
+
+    expect(reads.mock.calls.length).toBeGreaterThan(callsBeforeSave);
+  });
+
+  it('reports the saved list in the conversation', () => {
+    isOrganizaOneAccountLoginMock.mockReturnValue(true);
+    const { mockHistoryManager } = renderComponent({}, accountConfig);
+    pressCtrlE();
+
+    act(() => {
+      modelListEditDialogMock.mock.calls[0][0].onSaved();
+    });
+
+    expect(mockHistoryManager.addItem).toHaveBeenCalledWith(
+      { type: 'success', text: 'Model list updated.' },
+      expect.any(Number),
+    );
   });
 });

@@ -2303,14 +2303,19 @@ export default {
   'The provider list could not be read · ctrl+r fetches the models again':
     'The provider list could not be read · ctrl+r fetches the models again',
   'ctrl+r fetches the models again': 'ctrl+r fetches the models again',
+  'Edit model list': 'Edit model list',
+  ' · ctrl+e edit list': ' · ctrl+e edit list',
+  'Model list updated.': 'Model list updated.',
+  "'{{model}}' is the current model. Keep it in the list, or switch models with /model first.":
+    "'{{model}}' is the current model. Keep it in the list, or switch models with /model first.",
   'Enter model IDs directly. Use commas to configure multiple models.':
     'Enter model IDs directly. Use commas to configure multiple models.',
   'Checked models are applied on submit but not copied into the input.':
     'Checked models are applied on submit but not copied into the input.',
   'Checked recommended models are applied on submit but not copied into the input.':
     'Checked recommended models are applied on submit but not copied into the input.',
-  'Models · from the provider · {{count}} checked':
-    'Models · from the provider · {{count}} checked',
+  'Models from the provider · {{count}} checked':
+    'Models from the provider · {{count}} checked',
   'Recommended models': 'Recommended models',
   ' · provider list unavailable, showing built-ins':
     ' · provider list unavailable, showing built-ins',
