@@ -7,6 +7,17 @@ follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.16.0] - 2026-10-14
+
+### Added
+
+- Account model lists can be edited from the model picker, so signed-in OrganizaOne accounts can add, remove, or update their available models without leaving the terminal.
+- The OrganizaOne status summary requests the active model's quota from the gateway and distinguishes licensed plan windows from the selected own credential's observed usage, including reset times.
+
+### Fixed
+
+- Selecting a model with a single configured endpoint no longer warns that its saved endpoint is stale; the ambiguity warning remains when duplicate model IDs use different endpoints.
+
 ## [0.15.1] - 2026-10-13
 
 ### Fixed
@@ -577,7 +588,8 @@ The first release of o1-code, a coding agent for the terminal.
 - `o1-code serve` runs a local daemon with a REST API and the Web Shell, a browser interface.
 - Editor companions for VS Code and Zed.
 
-[Unreleased]: https://github.com/organizaone/o1-code/compare/v0.15.1...HEAD
+[Unreleased]: https://github.com/organizaone/o1-code/compare/v0.16.0...HEAD
+[0.16.0]: https://github.com/organizaone/o1-code/compare/v0.15.1...v0.16.0
 [0.15.1]: https://github.com/organizaone/o1-code/compare/v0.15.0...v0.15.1
 [0.15.0]: https://github.com/organizaone/o1-code/compare/v0.14.1...v0.15.0
 [0.14.1]: https://github.com/organizaone/o1-code/compare/v0.14.0...v0.14.1
