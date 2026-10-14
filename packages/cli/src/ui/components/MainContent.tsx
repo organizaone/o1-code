@@ -564,6 +564,11 @@ export const MainContent = ({
     (uiState.isExtensionsManagerDialogOpen ||
       uiState.isSettingsDialogOpen ||
       uiState.isModelDialogOpen ||
+      uiState.isStatsDialogOpen ||
+      uiState.isResumeDialogOpen ||
+      uiState.isDeleteDialogOpen ||
+      uiState.isRewindSelectorOpen ||
+      uiState.isDiffDialogOpen ||
       uiState.isRemoteDialogOpen ||
       uiState.auth.isAuthDialogOpen ||
       uiState.auth.isAuthenticating ||
