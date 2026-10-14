@@ -338,14 +338,15 @@ export function resolveCliGenerationConfig(
       // all; the id-only fallback bounds the blast radius to a same-id provider.
       const persistedBaseUrl = settings.model?.baseUrl;
       if (resolvedFromSettings && persistedBaseUrl) {
-        const exactMatch = providers.find(
-          (p) => p.id === resolvedModel && p.baseUrl === persistedBaseUrl,
+        const idMatches = providers.filter((p) => p.id === resolvedModel);
+        const exactMatch = idMatches.find(
+          (p) => p.baseUrl === persistedBaseUrl,
         );
-        modelProvider =
-          exactMatch ?? providers.find((p) => p.id === resolvedModel);
-        // Surface the silent fallback: the paired provider was removed or its
-        // baseUrl changed, so traffic now routes to a different same-id provider.
-        if (!exactMatch && modelProvider) {
+        modelProvider = exactMatch ?? idMatches[0];
+        // A base URL only disambiguates duplicate IDs. With one candidate the
+        // persisted value is stale but cannot change the route, so startup does
+        // not need to warn about an already self-healed selection.
+        if (!exactMatch && idMatches.length > 1 && modelProvider) {
           const fallbackBaseUrl =
             modelProvider.baseUrl === undefined
               ? '(default baseUrl)'
