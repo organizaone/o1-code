@@ -620,4 +620,55 @@ describe('useProviderSetupFlow API selection', () => {
       );
     },
   );
+
+  it('opens on the models step alone when the flow starts there', () => {
+    const submit = vi.fn().mockResolvedValue(undefined);
+    const { result } = renderHook(() => useProviderSetupFlow(submit));
+    act(() =>
+      result.current.start(organizaoneLoginProvider, undefined, undefined, [], {
+        startAt: 'models',
+      }),
+    );
+
+    expect(result.current.state.step).toBe('models');
+    expect(result.current.state.totalSteps).toBe(1);
+
+    // Esc on the only step ends the flow instead of walking back to sign-in.
+    let ended = true;
+    act(() => {
+      ended = result.current.goBack();
+    });
+    expect(ended).toBe(false);
+    expect(result.current.state.step).toBeNull();
+  });
+
+  it('blocks the model submit with the validator message and keeps editing', () => {
+    const submit = vi.fn().mockResolvedValue(undefined);
+    const { result } = renderHook(() => useProviderSetupFlow(submit));
+    act(() =>
+      result.current.start(organizaoneLoginProvider, undefined, undefined, [], {
+        startAt: 'models',
+        validateModelIds: (ids) =>
+          ids.includes('keep-me') ? null : 'keep-me is missing',
+      }),
+    );
+    act(() => result.current.changeModelIds('other'));
+    let submitted = true;
+    act(() => {
+      submitted = result.current.submitModelIds();
+    });
+
+    expect(submitted).toBe(false);
+    expect(result.current.state.modelIdsError).toBe('keep-me is missing');
+    expect(submit).not.toHaveBeenCalled();
+
+    act(() => result.current.changeModelIds('other, keep-me'));
+    act(() => {
+      submitted = result.current.submitModelIds();
+    });
+
+    expect(submitted).toBe(true);
+    expect(result.current.state.modelIdsError).toBeNull();
+    expect(submit).toHaveBeenCalled();
+  });
 });

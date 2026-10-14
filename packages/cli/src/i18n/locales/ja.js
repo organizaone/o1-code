@@ -2715,14 +2715,19 @@ export default {
   'The provider list could not be read · ctrl+r fetches the models again':
     'プロバイダーの一覧を読み込めませんでした · ctrl+r でモデルを再取得',
   'ctrl+r fetches the models again': 'ctrl+r でモデルを再取得',
+  'Edit model list': 'モデル一覧を編集',
+  ' · ctrl+e edit list': ' · ctrl+e で一覧を編集',
+  'Model list updated.': 'モデル一覧を更新しました。',
+  "'{{model}}' is the current model. Keep it in the list, or switch models with /model first.":
+    "'{{model}}' は現在のモデルです。一覧に残すか、先に /model でモデルを切り替えてください。",
   'Enter model IDs directly. Use commas to configure multiple models.':
     'モデル ID を直接入力してください。複数のモデルを設定するにはカンマで区切ります。',
   'Checked models are applied on submit but not copied into the input.':
     'チェックしたモデルは送信時に適用されますが、入力欄にはコピーされません。',
   'Checked recommended models are applied on submit but not copied into the input.':
     'チェックしたおすすめモデルは送信時に適用されますが、入力欄にはコピーされません。',
-  'Models · from the provider · {{count}} checked':
-    'モデル · プロバイダーから取得 · {{count}} 件選択中',
+  'Models from the provider · {{count}} checked':
+    'プロバイダーのモデル · {{count}} 件選択中',
   'Recommended models': 'おすすめモデル',
   ' · provider list unavailable, showing built-ins':
     ' · プロバイダーの一覧を利用できないため、組み込みモデルを表示中',

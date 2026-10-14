@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useRef } from 'react';
 import {
   AuthType,
   shouldShowStep,
@@ -140,6 +140,13 @@ export interface ProviderSetupState {
 // Hook
 // ---------------------------------------------------------------------------
 
+export interface ProviderStartOptions {
+  /** Opens the wizard on this step, with the earlier ones out of the flow. */
+  startAt?: SetupStep;
+  /** Submit-time check on the edited IDs; a message blocks the submit. */
+  validateModelIds?: (modelIds: string[]) => string | null;
+}
+
 export function useProviderSetupFlow(
   onSubmit: (
     config: ProviderConfig,
@@ -178,6 +185,8 @@ export function useProviderSetupFlow(
   const [focusedConfigIndex, setFocusedConfigIndex] = useState(0);
 
   const currentStep = visibleSteps[stepIndex] ?? null;
+  const validateModelIdsRef =
+    useRef<ProviderStartOptions['validateModelIds']>(undefined);
 
   // -- Lifecycle ------------------------------------------------------------
 
@@ -187,10 +196,12 @@ export function useProviderSetupFlow(
       initialProtocol?: AuthType,
       existingEnv?: Record<string, string>,
       existingModelIds?: string[],
+      options?: ProviderStartOptions,
     ) => {
       setProvider(config);
       setKeyCheck(undefined);
       setCredentialExtras(undefined);
+      validateModelIdsRef.current = options?.validateModelIds;
       // Callers pass the saved extra IDs, an empty list when only built-in
       // models were saved, and nothing when the provider was never set up.
       setFirstSetup(existingModelIds === undefined);
@@ -200,7 +211,10 @@ export function useProviderSetupFlow(
           ? AuthType.USE_OPENAI
           : initial;
       const steps = getVisibleSteps(config, proto);
-      setVisibleSteps(steps);
+      const startIndex = options?.startAt
+        ? Math.max(0, steps.indexOf(options.startAt))
+        : 0;
+      setVisibleSteps(steps.slice(startIndex));
       setStepIndex(0);
 
       setProtocol(proto);
@@ -529,6 +543,11 @@ export function useProviderSetupFlow(
       const normalized = overrides?.modelIds ?? normalizeModelIds(modelIds);
       if (normalized.length === 0) {
         setModelIdsError(t('Model IDs cannot be empty.'));
+        return false;
+      }
+      const refusal = validateModelIdsRef.current?.(normalized) ?? null;
+      if (refusal) {
+        setModelIdsError(refusal);
         return false;
       }
       setModelIds(normalized.join(', '));

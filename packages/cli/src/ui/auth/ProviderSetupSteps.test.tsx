@@ -725,12 +725,9 @@ describe('ProviderSetupSteps', () => {
     );
 
     const frame = lastFrame() ?? '';
-    expect(frame).toContain('Enter model IDs directly');
+    expect(frame).toContain('model-id');
     expect(frame).toContain('Recommended models');
     expect(frame).not.toContain('Other models from the provider');
-    expect(frame).toContain(
-      'Checked recommended models are applied on submit but not copied into the input.',
-    );
     expect(frame).toContain('●');
     expect(frame).toContain('○');
     expect(frame).not.toContain('›');
@@ -743,9 +740,8 @@ describe('ProviderSetupSteps', () => {
     expect(frame).not.toContain('Edit raw / custom model IDs');
     expect(frame).not.toContain('Tab for custom IDs');
     expect(frame).toContain('Search');
-    expect(frame).toContain(
-      '↑↓/Tab to switch input, search, and recommendations',
-    );
+    expect(frame).toContain('↑↓/Tab navigate · Space toggle');
+    expect(frame).toContain('Enter confirm · Esc back');
     expect(frame).not.toContain('Enter model IDs separated by commas');
     unmount();
   });
@@ -893,6 +889,30 @@ describe('ProviderSetupSteps', () => {
     unmount();
   });
 
+  it('ends the checking spinner when the provider refuses the key on the models step', async () => {
+    checkProviderKeyMock.mockResolvedValue({
+      status: 'rejected',
+      httpStatus: 401,
+    });
+    const flow = createModelIdsFlow({ modelIds: '' });
+    enableDiscovery(flow);
+    flow.rejectApiKey = vi.fn();
+
+    const { lastFrame, unmount } = renderWithProviders(
+      <ProviderSetupSteps flow={flow} />,
+    );
+    await act(async () => {
+      await Promise.resolve();
+    });
+
+    // A flow with no key step to return to must leave the spinner behind and
+    // open on the built-in list, whatever the key step does with the refusal.
+    const frame = lastFrame() ?? '';
+    expect(frame).not.toContain('checking the key');
+    expect(frame).toContain('MiniMax-M3');
+    unmount();
+  });
+
   it('confirms the key and checks the served built-in models on a first setup', async () => {
     checkProviderKeyMock.mockResolvedValue({
       status: 'ok',
@@ -964,6 +984,33 @@ describe('ProviderSetupSteps', () => {
     const frame = lastFrame() ?? '';
     expect(frame).toContain('MiniMax-M2.7');
     expect(frame).toMatch(/○\uFE0E?\s+served-extra/);
+    unmount();
+  });
+
+  it('checks a saved model the provider still serves, built-in or not', async () => {
+    checkProviderKeyMock.mockResolvedValue({
+      status: 'ok',
+      models: [{ id: 'MiniMax-M3' }, { id: 'served-extra' }],
+    });
+    // Saved before on a provider whose list has no built-ins: every served
+    // model the person kept opens checked, ready to toggle off.
+    const flow = createModelIdsFlow({
+      modelIds: 'MiniMax-M3, served-extra',
+    });
+    enableDiscovery(flow);
+    flow.state.provider = { ...flow.state.provider!, models: [] };
+    flow.state.firstSetup = false;
+
+    const { lastFrame, unmount } = renderWithProviders(
+      <ProviderSetupSteps flow={flow} />,
+    );
+    await act(async () => {
+      await Promise.resolve();
+    });
+
+    const frame = lastFrame() ?? '';
+    expect(frame).toMatch(/●\uFE0E?\s+MiniMax-M3/);
+    expect(frame).toMatch(/●\uFE0E?\s+served-extra/);
     unmount();
   });
 
@@ -1319,7 +1366,7 @@ describe('ProviderSetupSteps', () => {
     });
 
     const frame = lastFrame() ?? '';
-    expect(frame).toContain('Models · from the provider');
+    expect(frame).toContain('Models from the provider');
     expect(frame).not.toContain('Other models from the provider');
     expect(frame).toContain('custom-model');
     expect(frame).toContain('MiniMax-M3');
@@ -1329,11 +1376,14 @@ describe('ProviderSetupSteps', () => {
     expect(frame).not.toMatch(/[●○]\uFE0E\s+MiniMax-M2\.7/);
     const inputLine = frame
       .split('\n')
-      .find((line) => line.includes('custom-model'));
-    expect(inputLine).toContain('custom-model, MiniMax-M2.7');
+      .find((line) => line.includes('MiniMax-M2.7'));
+    expect(inputLine).toContain('MiniMax-M2.7');
+    // A served model already chosen is a choice like any other: it opens
+    // checked, ready to be toggled off, and is not copied into the input.
+    expect(inputLine).not.toContain('custom-model');
     expect(frame).toMatch(/●\uFE0E\s+MiniMax-M3/);
     expect(frame).toMatch(/○\uFE0E\s+MiniMax-M4/);
-    expect(frame).toMatch(/○\uFE0E\s+custom-model/);
+    expect(frame).toMatch(/●\uFE0E\s+custom-model/);
     const modelRows = frame.split('\n');
     expect(
       modelRows.findIndex((line) => /●\uFE0E\s+MiniMax-M3/.test(line)),
@@ -1343,22 +1393,17 @@ describe('ProviderSetupSteps', () => {
     expect(
       modelRows.findIndex((line) => /○\uFE0E\s+MiniMax-M4/.test(line)),
     ).toBeLessThan(
-      modelRows.findIndex((line) => /○\uFE0E\s+custom-model/.test(line)),
+      modelRows.findIndex((line) => /●\uFE0E\s+custom-model/.test(line)),
     );
-    expect(frame).toContain(
-      'Checked models are applied on submit but not copied into the input.',
-    );
-    expect(frame).toContain(
-      '↑↓/Tab to switch input, search, and models, Space to toggle models',
-    );
+    expect(frame).toContain('↑↓/Tab navigate · Space toggle');
     await act(async () => {
       pressLatestKey('x', 'x');
     });
-    expect(lastFrame()).toContain('xcustom-model, MiniMax-M2.7');
+    expect(lastFrame()).toContain('xMiniMax-M2.7');
     expect(flow.changeModelIds).not.toHaveBeenCalled();
     pressKey('return', '\r');
     expect(submitModelIds).toHaveBeenCalledWith({
-      modelIds: ['MiniMax-M3', 'xcustom-model', 'MiniMax-M2.7'],
+      modelIds: ['MiniMax-M3', 'custom-model', 'xMiniMax-M2.7'],
     });
     unmount();
   });
@@ -1377,7 +1422,7 @@ describe('ProviderSetupSteps', () => {
     await act(async () => {});
 
     const frame = lastFrame() ?? '';
-    expect(frame).toContain('Models · from the provider');
+    expect(frame).toContain('Models from the provider');
     expect(frame).not.toContain('Other models from the provider');
     expect(frame).toMatch(/○\uFE0E\s+served-unknown-a/);
     expect(frame).toMatch(/○\uFE0E\s+served-unknown-b/);
@@ -1403,7 +1448,7 @@ describe('ProviderSetupSteps', () => {
     await act(async () => {});
 
     const frame = lastFrame() ?? '';
-    expect(frame).toContain('Models · from the provider · 2 checked');
+    expect(frame).toContain('Models from the provider · 2 checked');
     expect(frame).toMatch(/●\uFE0E\s+MiniMax-M2\.7/);
     expect(frame).toMatch(/●\uFE0E\s+MiniMax-M3/);
     expect(frame.indexOf('MiniMax-M2.7')).toBeLessThan(
@@ -1473,7 +1518,7 @@ describe('ProviderSetupSteps', () => {
     await act(async () => {});
 
     const frame = lastFrame() ?? '';
-    expect(frame).toContain('Models · from the provider · 2 checked');
+    expect(frame).toContain('Models from the provider · 2 checked');
     expect(frame).not.toContain('MiniMax-M3');
     expect(frame).not.toContain('MiniMax-M2.7');
     unmount();
@@ -1630,7 +1675,7 @@ describe('ProviderSetupSteps', () => {
     });
 
     expect(lastFrame()).toMatch(/●\uFE0E\s+MiniMax-M4/);
-    expect(lastFrame()).toContain('Models · from the provider · 2 checked');
+    expect(lastFrame()).toContain('Models from the provider · 2 checked');
 
     pressKey('return', '\r');
     expect(submitModelIds).toHaveBeenCalledWith({
@@ -1692,7 +1737,7 @@ describe('ProviderSetupSteps', () => {
       resolveDiscovery([{ id: 'MiniMax-M3', contextWindowSize: 1000000 }]);
     });
 
-    expect(lastFrame()).toContain('Enter model IDs directly');
+    expect(lastFrame()).toContain('MiniMax-M2.7');
 
     pressKey('return', '\r');
 
@@ -1737,7 +1782,7 @@ describe('ProviderSetupSteps', () => {
     });
     await act(async () => {});
 
-    expect(lastFrame()).toContain('Enter model IDs directly');
+    expect(lastFrame()).toContain('model-id');
 
     await act(async () => {
       pressLatestKey('return', '\r');

@@ -2964,14 +2964,19 @@ export default {
   'The provider list could not be read · ctrl+r fetches the models again':
     'Die Anbieterliste konnte nicht gelesen werden · ctrl+r ruft die Modelle erneut ab',
   'ctrl+r fetches the models again': 'ctrl+r ruft die Modelle erneut ab',
+  'Edit model list': 'Modelliste bearbeiten',
+  ' · ctrl+e edit list': ' · ctrl+e bearbeitet die Liste',
+  'Model list updated.': 'Modellliste aktualisiert.',
+  "'{{model}}' is the current model. Keep it in the list, or switch models with /model first.":
+    "'{{model}}' ist das aktuelle Modell. Belassen Sie es in der Liste oder wechseln Sie zuerst mit /model das Modell.",
   'Enter model IDs directly. Use commas to configure multiple models.':
     'Geben Sie Modell-IDs direkt ein. Verwenden Sie Kommas, um mehrere Modelle zu konfigurieren.',
   'Checked models are applied on submit but not copied into the input.':
     'Markierte Modelle werden beim Absenden übernommen, aber nicht in die Eingabe kopiert.',
   'Checked recommended models are applied on submit but not copied into the input.':
     'Markierte empfohlene Modelle werden beim Absenden übernommen, aber nicht in die Eingabe kopiert.',
-  'Models · from the provider · {{count}} checked':
-    'Modelle · vom Anbieter · {{count}} markiert',
+  'Models from the provider · {{count}} checked':
+    'Modelle vom Anbieter · {{count}} markiert',
   'Recommended models': 'Empfohlene Modelle',
   ' · provider list unavailable, showing built-ins':
     ' · Anbieterliste nicht verfügbar, zeige integrierte Modelle',

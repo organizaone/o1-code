@@ -16,13 +16,9 @@ import type { ContentGeneratorConfig } from '@organizaone/o1-code-core/core/cont
 import { findProviderByCredentials } from '@organizaone/o1-code-core/providers/all-providers.js';
 import {
   isOrganizaOneBaseUrl,
-  organizaoneLoginProvider,
   organizaoneProvider,
 } from '@organizaone/o1-code-core/providers/presets/organizaone.js';
-import {
-  credentialIdForProvider,
-  readCredential,
-} from '@organizaone/o1-code-core/providers/credential-store.js';
+import { isOrganizaOneAccountLogin } from '../auth/organizaone-account.js';
 
 function formatConnectionType(
   connection: ContentGeneratorConfig | undefined,
@@ -47,20 +43,11 @@ function formatConnectionType(
     return format(organizaoneProvider.label, 'o1-gateway / o1-connect');
   }
   if (isOrganizaOneBaseUrl(connection.baseUrl)) {
-    const credential = connection.apiKey
-      ? readCredential(
-          credentialIdForProvider(
-            organizaoneLoginProvider.credentialId ??
-              organizaoneLoginProvider.id,
-          ),
-        )
-      : undefined;
-    const isAccountLogin =
-      credential?.apiKey === connection.apiKey &&
-      credential?.expiresAt !== undefined;
     return format(
       organizaoneProvider.label,
-      isAccountLogin ? t('Account login (browser)') : authentication,
+      isOrganizaOneAccountLogin(connection.apiKey)
+        ? t('Account login (browser)')
+        : authentication,
     );
   }
   const provider = findProviderByCredentials(

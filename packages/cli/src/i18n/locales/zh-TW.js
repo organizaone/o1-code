@@ -2642,14 +2642,19 @@ export default {
   'The provider list could not be read · ctrl+r fetches the models again':
     '無法讀取提供商清單 · ctrl+r 重新取得模型',
   'ctrl+r fetches the models again': 'ctrl+r 重新取得模型',
+  'Edit model list': '編輯模型清單',
+  ' · ctrl+e edit list': ' · ctrl+e 編輯清單',
+  'Model list updated.': '模型清單已更新。',
+  "'{{model}}' is the current model. Keep it in the list, or switch models with /model first.":
+    "'{{model}}' 是目前模型。請將其保留在清單中，或先用 /model 切換模型。",
   'Enter model IDs directly. Use commas to configure multiple models.':
     '直接輸入模型 ID。使用逗號配置多個模型。',
   'Checked models are applied on submit but not copied into the input.':
     '勾選的模型會在提交時套用，但不會複製到輸入框中。',
   'Checked recommended models are applied on submit but not copied into the input.':
     '勾選的推薦模型會在提交時套用，但不會複製到輸入框中。',
-  'Models · from the provider · {{count}} checked':
-    '模型 · 來自提供商 · 已勾選 {{count}} 個',
+  'Models from the provider · {{count}} checked':
+    '提供商模型 · 已勾選 {{count}} 個',
   'Recommended models': '推薦模型',
   ' · provider list unavailable, showing built-ins':
     ' · 提供商清單無法使用，顯示內建模型',

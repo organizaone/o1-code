@@ -2927,14 +2927,19 @@ export default {
   'The provider list could not be read · ctrl+r fetches the models again':
     'Не удалось прочитать список провайдеров · ctrl+r повторно загружает модели',
   'ctrl+r fetches the models again': 'ctrl+r повторно загружает модели',
+  'Edit model list': 'Изменить список моделей',
+  ' · ctrl+e edit list': ' · ctrl+e изменяет список',
+  'Model list updated.': 'Список моделей обновлён.',
+  "'{{model}}' is the current model. Keep it in the list, or switch models with /model first.":
+    "'{{model}}' — текущая модель. Оставьте её в списке или сначала смените модель через /model.",
   'Enter model IDs directly. Use commas to configure multiple models.':
     'Введите ID моделей напрямую. Используйте запятые для нескольких моделей.',
   'Checked models are applied on submit but not copied into the input.':
     'Отмеченные модели применяются при отправке, но не копируются в поле ввода.',
   'Checked recommended models are applied on submit but not copied into the input.':
     'Отмеченные рекомендованные модели применяются при отправке, но не копируются в поле ввода.',
-  'Models · from the provider · {{count}} checked':
-    'Модели · от провайдера · отмечено: {{count}}',
+  'Models from the provider · {{count}} checked':
+    'Модели от провайдера · отмечено: {{count}}',
   'Recommended models': 'Рекомендованные модели',
   ' · provider list unavailable, showing built-ins':
     ' · список провайдера недоступен, показаны встроенные',

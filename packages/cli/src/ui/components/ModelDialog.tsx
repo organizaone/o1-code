@@ -47,6 +47,8 @@ import {
   formatUnsupportedVoiceModelMessage,
   isSelectableVoiceModel,
 } from '../voice/voice-model.js';
+import { isOrganizaOneAccountLogin } from '../auth/organizaone-account.js';
+import { ModelListEditDialog } from '../auth/ModelListEditDialog.js';
 import type { HistoryItemWithoutId } from '../types.js';
 
 function formatModalities(modalities?: InputModalities): string {
@@ -311,10 +313,16 @@ export function ModelDialog({
   // Local error state for displaying errors within the dialog
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [highlightedValue, setHighlightedValue] = useState<string | null>(null);
+  // The account's model list is edited in place of the picker; the revision
+  // makes the picker re-read what was saved when the editor returns.
+  const [editingModelList, setEditingModelList] = useState(false);
+  const [modelListRevision, setModelListRevision] = useState(0);
 
   const authType = config?.getAuthType();
 
   const availableModelEntries = useMemo(() => {
+    // Bumping the revision re-reads the list the editor just saved.
+    void modelListRevision;
     const allModels = config ? config.getAllConfiguredModels() : [];
 
     // Separate runtime models from registry models
@@ -395,6 +403,7 @@ export function ModelDialog({
     isImageModelMode,
     isVoiceModelMode,
     isVisionModelMode,
+    modelListRevision,
   ]);
 
   const MODEL_OPTIONS = useMemo(
@@ -521,6 +530,14 @@ export function ModelDialog({
     isVisionModelMode ||
     isCompactionModelMode ||
     isImageModelMode;
+  // The signed-in OrganizaOne account owns its model list; only the main
+  // picker offers to edit it.
+  const canEditModelList = useMemo(
+    () =>
+      !isAuxiliaryModelMode &&
+      isOrganizaOneAccountLogin(config?.getContentGeneratorConfig?.()?.apiKey),
+    [config, isAuxiliaryModelMode],
+  );
   // Check if current model is a runtime model
   // Runtime snapshot ID is already in $runtime|${authType}|${modelId} format
   const activeRuntimeSnapshot = isAuxiliaryModelMode
@@ -697,6 +714,12 @@ export function ModelDialog({
 
   useKeypress(
     (key) => {
+      // The editor owns its keys while it replaces the picker.
+      if (editingModelList) return;
+      if (canEditModelList && key.ctrl && key.name === 'e') {
+        setEditingModelList(true);
+        return;
+      }
       if (
         key.name === 'escape' ||
         (key.name === 'left' && isAuxiliaryModelMode)
@@ -1107,6 +1130,22 @@ export function ModelDialog({
     (option) => option.value === preferredKey,
   );
 
+  if (editingModelList) {
+    return (
+      <ModelListEditDialog
+        onClose={() => setEditingModelList(false)}
+        onSaved={() => {
+          setEditingModelList(false);
+          setModelListRevision((revision) => revision + 1);
+          reportAuxiliaryModelSelection({
+            type: 'success',
+            text: t('Model list updated.'),
+          });
+        }}
+      />
+    );
+  }
+
   return (
     <Box
       borderStyle={glyphs().borderStyle}
@@ -1201,23 +1240,25 @@ export function ModelDialog({
             value={highlightedEntry.model.envKey ?? t('(not set)')}
           />
           {shownEffort !== undefined && (
-            <DetailRow
-              label={t('Effort')}
-              value={effortOptions.map((option, index) => (
-                <Text key={option}>
-                  {index > 0 && (
-                    <Text color={extendedTheme.ui.separator}>{' · '}</Text>
-                  )}
-                  {option === shownEffort ? (
-                    <Text color={extendedTheme.ui.brand} bold>
-                      {`‹ ${option} ›`}
-                    </Text>
-                  ) : (
-                    <Text color={theme.text.secondary}>{option}</Text>
-                  )}
-                </Text>
-              ))}
-            />
+            <Box marginTop={1}>
+              <DetailRow
+                label={t('Effort')}
+                value={effortOptions.map((option, index) => (
+                  <Text key={option}>
+                    {index > 0 && (
+                      <Text color={extendedTheme.ui.separator}>{' · '}</Text>
+                    )}
+                    {option === shownEffort ? (
+                      <Text color={extendedTheme.ui.brand} bold>
+                        {`‹ ${option} ›`}
+                      </Text>
+                    ) : (
+                      <Text color={theme.text.secondary}>{option}</Text>
+                    )}
+                  </Text>
+                ))}
+              />
+            </Box>
           )}
         </Box>
       )}
@@ -1232,9 +1273,10 @@ export function ModelDialog({
 
       <Box marginTop={1} flexDirection="column">
         <Text color={theme.text.secondary}>
-          {effortOptions.length > 0
+          {(effortOptions.length > 0
             ? t('↑↓ navigate · ←→ effort · enter select · esc close')
-            : t('↑↓ navigate · enter select · esc close')}
+            : t('↑↓ navigate · enter select · esc close')) +
+            (canEditModelList ? t(' · ctrl+e edit list') : '')}
         </Text>
       </Box>
     </Box>

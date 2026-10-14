@@ -2960,14 +2960,19 @@ export default {
   'The provider list could not be read · ctrl+r fetches the models again':
     "La liste des fournisseurs n'a pas pu être lue · ctrl+r récupère à nouveau les modèles",
   'ctrl+r fetches the models again': 'ctrl+r récupère à nouveau les modèles',
+  'Edit model list': 'Modifier la liste des modèles',
+  ' · ctrl+e edit list': ' · ctrl+e modifie la liste',
+  'Model list updated.': 'Liste des modèles mise à jour.',
+  "'{{model}}' is the current model. Keep it in the list, or switch models with /model first.":
+    "'{{model}}' est le modèle actuel. Gardez-le dans la liste ou changez de modèle avec /model d'abord.",
   'Enter model IDs directly. Use commas to configure multiple models.':
     'Entrez directement les identifiants de modèle. Utilisez des virgules pour configurer plusieurs modèles.',
   'Checked models are applied on submit but not copied into the input.':
     'Les modèles cochés sont appliqués à la soumission mais ne sont pas copiés dans le champ de saisie.',
   'Checked recommended models are applied on submit but not copied into the input.':
     'Les modèles recommandés cochés sont appliqués à la soumission mais ne sont pas copiés dans le champ de saisie.',
-  'Models · from the provider · {{count}} checked':
-    'Modèles · depuis le fournisseur · {{count}} cochés',
+  'Models from the provider · {{count}} checked':
+    'Modèles du fournisseur · {{count}} cochés',
   'Recommended models': 'Modèles recommandés',
   ' · provider list unavailable, showing built-ins':
     ' · liste des fournisseurs indisponible, affichage des modèles intégrés',

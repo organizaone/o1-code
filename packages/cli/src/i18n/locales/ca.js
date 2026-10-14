@@ -3087,14 +3087,19 @@ export default {
   'The provider list could not be read · ctrl+r fetches the models again':
     "No s'ha pogut llegir la llista del proveïdor · ctrl+r torna a obtenir els models",
   'ctrl+r fetches the models again': 'ctrl+r torna a obtenir els models',
+  'Edit model list': 'Editar la llista de models',
+  ' · ctrl+e edit list': ' · ctrl+e edita la llista',
+  'Model list updated.': 'Llista de models actualitzada.',
+  "'{{model}}' is the current model. Keep it in the list, or switch models with /model first.":
+    "'{{model}}' és el model actual. Manten-lo a la llista o canvieu de model amb /model abans.",
   'Enter model IDs directly. Use commas to configure multiple models.':
     'Introduïu identificadors de model directament. Useu comes per configurar diversos models.',
   'Checked models are applied on submit but not copied into the input.':
     "Els models marcats s'apliquen en confirmar, però no es copien al camp d'entrada.",
   'Checked recommended models are applied on submit but not copied into the input.':
     "Els models recomanats marcats s'apliquen en confirmar, però no es copien al camp d'entrada.",
-  'Models · from the provider · {{count}} checked':
-    'Models · del proveïdor · {{count}} marcats',
+  'Models from the provider · {{count}} checked':
+    'Models del proveïdor · {{count}} marcats',
   'Recommended models': 'Models recomanats',
   ' · provider list unavailable, showing built-ins':
     ' · llista del proveïdor no disponible, es mostren els integrats',
