@@ -74,6 +74,7 @@ import * as os from 'node:os';
 import * as path from 'node:path';
 import * as crypto from 'node:crypto';
 import { ToolCallStatus } from '../types.js';
+import { escapeShellArg } from '@organizaone/o1-code-core/utils/shell-utils.js';
 
 describe('useShellCommandProcessor', () => {
   let addItemToHistoryMock: Mock;
@@ -155,6 +156,72 @@ describe('useShellCommandProcessor', () => {
     ...overrides,
   });
 
+  it.each(['bash', 'powershell'] as const)(
+    'tracks Windows %s cwd with an escaped temporary path',
+    async (shell) => {
+      vi.mocked(os.platform).mockReturnValue('win32');
+      vi.mocked(os.tmpdir).mockReturnValue("/tmp/O'Brien $temp space");
+      mockConfig.getAgentShellConfiguration = () => ({
+        shell,
+        executable: 'selected',
+        argsPrefix: [],
+      });
+      vi.mocked(fs.existsSync).mockReturnValue(true);
+      vi.mocked(fs.readFileSync).mockReturnValue('C:\\Changed');
+      const { result } = renderProcessorHook();
+      act(() => {
+        result.current.handleShellCommand(
+          'echo test',
+          new AbortController().signal,
+        );
+      });
+      const command = mockShellExecutionService.mock.calls[0][0] as string;
+      const temporaryPath = path.join(os.tmpdir(), 'shell_pwd_abcdef.tmp');
+      expect(command).toContain(escapeShellArg(temporaryPath, shell));
+      expect(command).toContain(
+        shell === 'bash' ? 'pwd -W' : 'Set-Content -LiteralPath',
+      );
+      act(() => {
+        resolveExecutionPromise(createMockServiceResult());
+      });
+      await act(async () => {
+        await onExecMock.mock.calls[0][0];
+      });
+      expect(
+        addItemToHistoryMock.mock.calls[1][0].tools[0].resultDisplay,
+      ).toContain("directory change to 'C:\\Changed' will not persist");
+      expect(fs.unlinkSync).toHaveBeenCalledWith(temporaryPath);
+    },
+  );
+
+  it('compares Git Bash cwd output using Windows path semantics', async () => {
+    vi.mocked(os.platform).mockReturnValue('win32');
+    mockConfig.getAgentShellConfiguration = () => ({
+      shell: 'bash',
+      executable: 'bash.exe',
+      argsPrefix: [],
+    });
+    mockConfig.getTargetDir = () => 'C:\\Workspace\\Project';
+    vi.mocked(fs.existsSync).mockReturnValue(true);
+    vi.mocked(fs.readFileSync).mockReturnValue('c:/Workspace/Project\n');
+    const { result } = renderProcessorHook();
+    act(() => {
+      result.current.handleShellCommand(
+        'echo test',
+        new AbortController().signal,
+      );
+    });
+    act(() => {
+      resolveExecutionPromise(createMockServiceResult());
+    });
+    await act(async () => {
+      await onExecMock.mock.calls[0][0];
+    });
+    expect(
+      addItemToHistoryMock.mock.calls[1][0].tools[0].resultDisplay,
+    ).not.toContain('WARNING');
+  });
+
   it('binds sandboxed shell mode to its Config without a host pwd file', async () => {
     mockConfig.getShellExecutionSandbox = () =>
       ({ filesystem: 'read-only', network: 'closed' }) as ReturnType<
@@ -207,7 +274,7 @@ describe('useShellCommandProcessor', () => {
       isUserInitiated: true,
     });
     const tmpFile = path.join(os.tmpdir(), 'shell_pwd_abcdef.tmp');
-    const wrappedCommand = `{ ls -l;\n}; __code=$?; pwd > "${tmpFile}"; exit $__code`;
+    const wrappedCommand = `{ ls -l;\n}; __code=$?; pwd > ${escapeShellArg(tmpFile, 'bash')}; exit $__code`;
     expect(mockShellExecutionService).toHaveBeenCalledWith(
       wrappedCommand,
       '/test/dir',
@@ -232,7 +299,7 @@ describe('useShellCommandProcessor', () => {
     const tmpFile = path.join(os.tmpdir(), 'shell_pwd_abcdef.tmp');
     // The appended `;` must start its own line: a bare `;` right after the
     // backslash is escaped into a literal `;` argument (bash runs `ls ';'`).
-    const wrappedCommand = `{ echo hi \\\n;\n}; __code=$?; pwd > "${tmpFile}"; exit $__code`;
+    const wrappedCommand = `{ echo hi \\\n;\n}; __code=$?; pwd > ${escapeShellArg(tmpFile, 'bash')}; exit $__code`;
     expect(mockShellExecutionService).toHaveBeenCalledWith(
       wrappedCommand,
       '/test/dir',
@@ -407,10 +474,10 @@ describe('useShellCommandProcessor', () => {
       });
 
       // Verify it's using the non-pty shell
-      const wrappedCommand = `{ stream;\n}; __code=$?; pwd > "${path.join(
-        os.tmpdir(),
-        'shell_pwd_abcdef.tmp',
-      )}"; exit $__code`;
+      const wrappedCommand = `{ stream;\n}; __code=$?; pwd > ${escapeShellArg(
+        path.join(os.tmpdir(), 'shell_pwd_abcdef.tmp'),
+        'bash',
+      )}; exit $__code`;
       expect(mockShellExecutionService).toHaveBeenCalledWith(
         wrappedCommand,
         '/test/dir',

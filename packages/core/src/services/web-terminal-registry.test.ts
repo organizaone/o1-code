@@ -49,6 +49,30 @@ import {
 } from './web-terminal-registry.js';
 
 describe('WebTerminalRegistry', () => {
+  it.each([
+    ['bash' as const, ['--noprofile', '--norc']],
+    ['powershell' as const, ['-NoProfile']],
+    ['cmd' as const, ['/d']],
+  ])(
+    'uses the runtime %s executable with interactive arguments',
+    async (shell, args) => {
+      const registry = new WebTerminalRegistry();
+      await registry.create({
+        workspaceCwd: '/workspace',
+        shellConfiguration: {
+          shell,
+          executable: '/operator/shell',
+          argsPrefix: ['ignored', '-c'],
+        },
+      });
+      expect(spawn).toHaveBeenCalledWith(
+        '/operator/shell',
+        args,
+        expect.objectContaining({ cwd: '/workspace' }),
+      );
+      registry.dispose();
+    },
+  );
   let onData: (data: string) => void;
   let onExit: (event: { exitCode: number; signal?: number }) => void;
   let write: Mock<(data: string) => void>;
@@ -126,7 +150,15 @@ describe('WebTerminalRegistry', () => {
       file: 'ssh',
       args: ['-tt', 'host', 'cd /srv/project && exec sh -l'],
     };
-    await registry.create({ workspaceCwd: '/local/anchor', command });
+    await registry.create({
+      workspaceCwd: '/local/anchor',
+      command,
+      shellConfiguration: {
+        shell: 'bash',
+        executable: '/operator/bash',
+        argsPrefix: ['-c'],
+      },
+    });
     expect(spawn).toHaveBeenCalledWith(
       command.file,
       command.args,

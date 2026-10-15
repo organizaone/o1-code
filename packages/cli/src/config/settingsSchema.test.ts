@@ -33,6 +33,22 @@ import {
 } from '../serve/create-sub-session.js';
 
 describe('SettingsSchema', () => {
+  it('adds restart-required shell selection without replacing shell settings', () => {
+    const shell = getSettingsSchema().tools.properties.shell.properties;
+    expect(shell.type.default).toBe('auto');
+    expect(shell.type.options.map((option) => option.value)).toEqual([
+      'auto',
+      'git-bash',
+      'powershell',
+      'cmd',
+    ]);
+    expect(shell.type.requiresRestart).toBe(true);
+    expect(shell.executable.requiresRestart).toBe(true);
+    expect(shell.executable.default).toBeUndefined();
+    expect(shell.enableInteractiveShell).toBeDefined();
+    expect(shell.pager).toBeDefined();
+    expect(shell.defaultTimeoutMs).toBeDefined();
+  });
   describe('getSettingsSchema', () => {
     it('has no terminal banner customization', () => {
       const ui = getSettingsSchema().ui.properties as Record<string, unknown>;

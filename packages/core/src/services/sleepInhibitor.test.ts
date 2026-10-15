@@ -9,6 +9,25 @@ import type { ChildProcess, SpawnOptions } from 'node:child_process';
 import { describe, expect, it, vi } from 'vitest';
 import { acquireSleepInhibitor, SleepInhibitor } from './sleepInhibitor.js';
 import { PassThrough } from 'node:stream';
+import type { WindowsPowerRequest } from './windows-power-request.js';
+
+function createWindowsHarness(
+  acquireWindowsPowerRequest = vi.fn(
+    async (): Promise<WindowsPowerRequest> => ({
+      release: vi.fn(),
+    }),
+  ),
+) {
+  const spawn = vi.fn(() => createChild());
+  const logger = { debug: vi.fn(), warn: vi.fn() };
+  const inhibitor = new SleepInhibitor({
+    platform: 'win32',
+    spawn,
+    logger,
+    acquireWindowsPowerRequest,
+  });
+  return { inhibitor, spawn, logger, acquireWindowsPowerRequest };
+}
 
 function createChild(pid: number | undefined = 4242): ChildProcess {
   const child = new EventEmitter() as ChildProcess;
@@ -209,19 +228,119 @@ describe('SleepInhibitor', () => {
     handle.release();
   });
 
-  it('uses a PowerShell SetThreadExecutionState helper on Windows', () => {
-    const { inhibitor, spawn } = createHarness('win32');
+  it('holds one native Windows request until the final release without spawning a shell', async () => {
+    const release = vi.fn();
+    const { inhibitor, spawn, acquireWindowsPowerRequest } =
+      createWindowsHarness(vi.fn(async () => ({ release })));
+    const first = inhibitor.acquire('first');
+    const second = inhibitor.acquire('second');
+    await vi.waitFor(() => expect(inhibitor.isRunning()).toBe(true));
+    expect(acquireWindowsPowerRequest).toHaveBeenCalledExactlyOnceWith('first');
+    expect(spawn).not.toHaveBeenCalled();
+    first.release();
+    first.release();
+    expect(release).not.toHaveBeenCalled();
+    second.release();
+    expect(release).toHaveBeenCalledTimes(1);
+    expect(inhibitor.isRunning()).toBe(false);
+  });
 
+  it('releases a native request that finishes loading after its holders leave', async () => {
+    let resolve!: (request: WindowsPowerRequest) => void;
+    const release = vi.fn();
+    const { inhibitor, acquireWindowsPowerRequest } = createWindowsHarness(
+      vi.fn(
+        () =>
+          new Promise<WindowsPowerRequest>((done) => {
+            resolve = done;
+          }),
+      ),
+    );
     const handle = inhibitor.acquire();
-
-    expect(spawn).toHaveBeenCalledWith(
-      'powershell.exe',
-      expect.arrayContaining([
-        expect.stringContaining('SetThreadExecutionState'),
-      ]),
-      expect.any(Object),
+    await vi.waitFor(() =>
+      expect(acquireWindowsPowerRequest).toHaveBeenCalledTimes(1),
     );
     handle.release();
+    resolve({ release });
+    await vi.waitFor(() => expect(release).toHaveBeenCalledTimes(1));
+    expect(inhibitor.isRunning()).toBe(false);
+  });
+
+  it('does not let disposed handles release a later run', async () => {
+    const releases: Array<ReturnType<typeof vi.fn>> = [];
+    const { inhibitor } = createWindowsHarness(
+      vi.fn(async () => {
+        const release = vi.fn();
+        releases.push(release);
+        return { release };
+      }),
+    );
+    const old = inhibitor.acquire();
+    await vi.waitFor(() => expect(releases).toHaveLength(1));
+    inhibitor.dispose();
+    const current = inhibitor.acquire();
+    await vi.waitFor(() => expect(releases).toHaveLength(2));
+    old.release();
+    expect(inhibitor.getActiveCount()).toBe(1);
+    expect(releases[1]).not.toHaveBeenCalled();
+    current.release();
+    expect(releases[1]).toHaveBeenCalledTimes(1);
+  });
+
+  it('reports a failed native backend once per run and never falls back to a shell', async () => {
+    const { inhibitor, spawn, logger, acquireWindowsPowerRequest } =
+      createWindowsHarness(
+        vi.fn(async (): Promise<WindowsPowerRequest> => {
+          throw new Error('backend unavailable');
+        }),
+      );
+    const first = inhibitor.acquire();
+    await vi.waitFor(() => expect(logger.warn).toHaveBeenCalledTimes(1));
+    const second = inhibitor.acquire();
+    await Promise.resolve();
+    expect(acquireWindowsPowerRequest).toHaveBeenCalledTimes(1);
+    expect(spawn).not.toHaveBeenCalled();
+    expect(inhibitor.isRunning()).toBe(false);
+    first.release();
+    second.release();
+  });
+
+  it('handles native release failure without blocking shutdown', async () => {
+    const release = vi.fn(() => {
+      throw new Error('clear failed');
+    });
+    const { inhibitor, logger } = createWindowsHarness(
+      vi.fn(async () => ({ release })),
+    );
+    const handle = inhibitor.acquire();
+    await vi.waitFor(() => expect(inhibitor.isRunning()).toBe(true));
+    expect(() => handle.release()).not.toThrow();
+    expect(logger.warn).toHaveBeenCalledTimes(1);
+    expect(inhibitor.isRunning()).toBe(false);
+    expect(() => inhibitor.dispose()).not.toThrow();
+    expect(release).toHaveBeenCalledTimes(1);
+  });
+
+  it('cleans up a pending native request after disposal', async () => {
+    let resolve!: (request: WindowsPowerRequest) => void;
+    const release = vi.fn();
+    const { inhibitor, acquireWindowsPowerRequest } = createWindowsHarness(
+      vi.fn(
+        () =>
+          new Promise<WindowsPowerRequest>((done) => {
+            resolve = done;
+          }),
+      ),
+    );
+    inhibitor.acquire();
+    await vi.waitFor(() =>
+      expect(acquireWindowsPowerRequest).toHaveBeenCalledTimes(1),
+    );
+    inhibitor.dispose();
+    resolve({ release });
+    await vi.waitFor(() => expect(release).toHaveBeenCalledTimes(1));
+    expect(inhibitor.getActiveCount()).toBe(0);
+    expect(inhibitor.isRunning()).toBe(false);
   });
 
   it('ignores duplicate releases', async () => {

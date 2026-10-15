@@ -1406,6 +1406,20 @@
           "description": "Settings for shell execution.",
           "type": "object",
           "properties": {
+            "type": {
+              "description": "Shell used by the agent. On Windows, automatic selection prefers Git Bash when installed, then Command Prompt. Only honored from User, System, and SystemDefaults settings. Restart required. Options: auto, git-bash, powershell, cmd",
+              "enum": [
+                "auto",
+                "git-bash",
+                "powershell",
+                "cmd"
+              ],
+              "default": "auto"
+            },
+            "executable": {
+              "description": "Absolute executable path for an explicitly selected agent shell. Requires a shell other than Automatic. Only honored from User, System, and SystemDefaults settings. Restart required.",
+              "type": "string"
+            },
             "enableInteractiveShell": {
               "description": "Use node-pty for an interactive shell experience. Explicit one-shot prompts default to child_process when this setting is unset; interactive and input-driven modes default to PTY.",
               "type": "boolean"

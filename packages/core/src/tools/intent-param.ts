@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { Type, type FunctionDeclaration, type Schema } from '@google/genai';
+import type { FunctionDeclaration, Schema, Type } from '@google/genai';
 
 /**
  * Optional argument advertised on every declared tool. The model states the
@@ -66,7 +66,10 @@ export function withIntentParam(
       ...declaration.parameters,
       properties: {
         ...(declaration.parameters.properties ?? {}),
-        [INTENT_PARAM]: { type: Type.STRING, description: INTENT_DESCRIPTION },
+        [INTENT_PARAM]: {
+          type: 'STRING' as Type,
+          description: INTENT_DESCRIPTION,
+        },
       },
     };
     return { ...declaration, parameters };

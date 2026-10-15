@@ -37,7 +37,11 @@ export const dreamCommand: SlashCommand = {
 
       const prompt = config
         .getMemoryManager()
-        .buildConsolidationPrompt(memoryRoot, transcriptDir);
+        .buildConsolidationPrompt(
+          memoryRoot,
+          transcriptDir,
+          config.getAgentShellConfiguration?.(),
+        );
 
       const recordDream = async () =>
         config

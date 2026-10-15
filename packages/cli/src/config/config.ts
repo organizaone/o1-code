@@ -178,6 +178,8 @@ export function parseApprovalModeValue(value: string): ApprovalMode {
 }
 
 export interface CliArgs {
+  internalAgentShellType?: string;
+  internalAgentShellExecutable?: string;
   query: string | undefined;
   model: string | undefined;
   fallbackModel: string[] | undefined;
@@ -655,6 +657,15 @@ export async function parseArguments(): Promise<CliArgs> {
         .option('yolo', DEFAULT_COMMAND_OPTIONS.yolo)
         .option('approval-mode', DEFAULT_COMMAND_OPTIONS['approval-mode'])
         .option('acp', DEFAULT_COMMAND_OPTIONS.acp)
+        .option('internal-agent-shell-type', {
+          type: 'string',
+          hidden: true,
+          choices: ['git-bash', 'powershell', 'cmd'],
+        })
+        .option('internal-agent-shell-executable', {
+          type: 'string',
+          hidden: true,
+        })
         .option('experimental-acp', {
           type: 'boolean' as const,
           description:
@@ -1656,6 +1667,32 @@ export async function loadCliConfig(
   },
   enabledSkillNamesProvider?: () => ReadonlySet<string>,
 ): Promise<Config> {
+  let pinnedAgentShell: ConfigParameters['agentShell'];
+  const childShellType = argv.internalAgentShellType;
+  const childShellExecutable = argv.internalAgentShellExecutable;
+  if (childShellType !== undefined || childShellExecutable !== undefined) {
+    if (process.platform !== 'win32' || !(argv.acp || argv.experimentalAcp)) {
+      throw new FatalConfigError(
+        'Private agent shell options require a Windows ACP launch.',
+      );
+    }
+    if (
+      (childShellType !== 'git-bash' &&
+        childShellType !== 'powershell' &&
+        childShellType !== 'cmd') ||
+      typeof childShellExecutable !== 'string' ||
+      !path.win32.isAbsolute(childShellExecutable) ||
+      childShellExecutable.includes('\0')
+    ) {
+      throw new FatalConfigError(
+        'Private agent shell options require an explicit shell type and absolute executable path.',
+      );
+    }
+    pinnedAgentShell = {
+      type: childShellType,
+      executable: childShellExecutable,
+    };
+  }
   assertKnownOmniSettingKeys(settings);
   const sshWorkspace = readSshWorkspace(cwd);
   const provisionalWorkspace = hostPolicy?.provisionalWorkspace === true;
@@ -2661,6 +2698,10 @@ export async function loadCliConfig(
       settings.tools?.shell?.enableInteractiveShell ??
       (isExplicitOneShotPrompt ? false : undefined),
     shellDefaultTimeoutMs: settings.tools?.shell?.defaultTimeoutMs,
+    agentShell: pinnedAgentShell ?? {
+      type: settings.tools?.shell?.type,
+      executable: settings.tools?.shell?.executable,
+    },
     shellHeartbeatIntervalMs: settings.tools?.shell?.heartbeatIntervalMs,
     preventSystemSleep: settings.general?.preventSystemSleep ?? true,
     skipNextSpeakerCheck: settings.model?.skipNextSpeakerCheck,

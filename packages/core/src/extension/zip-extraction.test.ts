@@ -24,6 +24,34 @@ describe('extractZipArchive', () => {
     if (tempDir) await fs.rm(tempDir, { recursive: true, force: true });
   });
 
+  it('closes the archive when cancellation lands immediately after opening', async () => {
+    tempDir = await fs.mkdtemp(path.join(os.tmpdir(), 'zip-extraction-'));
+    const controller = new AbortController();
+    const reason = new Error('cancel extraction');
+    const zipFile = new EventEmitter() as ZipFile;
+    zipFile.close = vi.fn();
+    zipFile.readEntry = vi.fn();
+    mockOpen.mockImplementation(
+      (
+        _file: string,
+        _options: unknown,
+        callback: (error: Error | null, opened?: ZipFile) => void,
+      ) => {
+        callback(null, zipFile);
+        controller.abort(reason);
+      },
+    );
+    await expect(
+      extractZipArchive(
+        path.join(tempDir, 'archive.zip'),
+        path.join(tempDir, 'destination'),
+        controller.signal,
+      ),
+    ).rejects.toThrow(reason);
+    expect(zipFile.close).toHaveBeenCalledOnce();
+    expect(zipFile.readEntry).not.toHaveBeenCalled();
+  });
+
   it('rejects entries that escape the destination', async () => {
     tempDir = await fs.mkdtemp(path.join(os.tmpdir(), 'zip-extraction-'));
     const destination = path.join(tempDir, 'destination');

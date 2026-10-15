@@ -6,6 +6,7 @@
 
 import type { IncomingMessage } from 'node:http';
 import type { WebTerminalRegistry } from '@organizaone/o1-code-core';
+import type { ShellConfiguration } from '@organizaone/o1-code-core/utils/shell-utils.js';
 import type { WebSocket } from 'ws';
 import type { ExtraWsRoute } from '../acp-http/index.js';
 
@@ -20,6 +21,7 @@ export interface WebTerminalWorkspaceContext {
   workspaceCwd: string;
   env: Readonly<NodeJS.ProcessEnv>;
   command?: { file: string; args: string[] };
+  shellConfiguration?: ShellConfiguration;
 }
 
 type TerminalControl =
@@ -204,6 +206,9 @@ export function createTerminalWsHandler(
             workspaceCwd: workspace.workspaceCwd,
             env: workspace.env,
             command: workspace.command,
+            ...(workspace.shellConfiguration
+              ? { shellConfiguration: workspace.shellConfiguration }
+              : {}),
           });
         } catch {
           result = { error: 'Failed to create terminal' } as const;

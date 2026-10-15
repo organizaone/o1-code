@@ -10,6 +10,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { runInNewContext } from 'node:vm';
 import { HookRunner } from './hookRunner.js';
+import type { Config } from '../config/config.js';
 import {
   HookEventName,
   HookType,
@@ -3017,6 +3018,63 @@ describe('HookRunner', () => {
   });
 
   describe('shell configuration', () => {
+    it('uses the runtime shell snapshot for unspecified hooks', async () => {
+      const shell = {
+        shell: 'powershell' as const,
+        executable: '/selected/pwsh',
+        argsPrefix: ['-NoProfile', '-NonInteractive', '-Command'],
+      };
+      const config = {
+        getAllowPrivateNetworkHooks: () => false,
+        getAgentShellConfiguration: () => shell,
+      } as unknown as Config;
+      const runner = new HookRunner(undefined, config);
+      mockSpawn.mockImplementation(() =>
+        createMockProcess(0, '{"continue": true}'),
+      );
+      await runner.executeHook(
+        {
+          type: HookType.Command,
+          command: 'Write-Output test',
+          source: HooksConfigSource.Project,
+        },
+        HookEventName.PreToolUse,
+        createMockInput(),
+      );
+      expect(mockSpawn).toHaveBeenCalledWith(
+        '/selected/pwsh',
+        [...shell.argsPrefix, 'Write-Output test'],
+        expect.objectContaining({ shell: false }),
+      );
+    });
+
+    it('keeps an explicit Bash hook independent of the PowerShell agent shell', async () => {
+      const config = {
+        getAllowPrivateNetworkHooks: () => false,
+        getAgentShellConfiguration: () => ({
+          shell: 'powershell',
+          executable: '/selected/pwsh',
+          argsPrefix: ['-NoProfile', '-NonInteractive', '-Command'],
+        }),
+      } as unknown as Config;
+      const runner = new HookRunner(undefined, config);
+      mockSpawn.mockImplementation(() =>
+        createMockProcess(0, '{"continue": true}'),
+      );
+      await runner.executeHook(
+        {
+          type: HookType.Command,
+          command: 'echo test',
+          shell: 'bash',
+          source: HooksConfigSource.Project,
+        },
+        HookEventName.PreToolUse,
+        createMockInput(),
+      );
+      expect(mockSpawn.mock.calls[0][0]).toMatch(/bash/);
+      expect(mockSpawn.mock.calls[0][1]).toContain('-c');
+      expect(mockSpawn.mock.calls[0][2].env.PATH).toBe(process.env['PATH']);
+    });
     it('should use global shell configuration when hookConfig.shell is not specified', async () => {
       const mockProcess = createMockProcess(0, '{"continue": true}');
       mockSpawn.mockImplementation(() => mockProcess);
@@ -3081,6 +3139,9 @@ describe('HookRunner', () => {
       // Should use powershell executable
       expect(spawnArgs[0]).toBe('powershell');
       expect(spawnArgs[1]).toContain('-Command');
+      expect(spawnArgs[1]).toContain('-NoProfile');
+      expect(spawnArgs[1]).toContain('-NonInteractive');
+      expect(spawnArgs[1]).not.toContain('Bypass');
       expect(spawnArgs[2].shell).toBe(false);
     });
   });

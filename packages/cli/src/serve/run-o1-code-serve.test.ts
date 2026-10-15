@@ -5092,9 +5092,24 @@ describe('runO1CodeServe runtime startup failures', () => {
         const options = call[0] as { externalToolGuard?: unknown };
         expect(options.externalToolGuard).toEqual(expect.any(Function));
       }
+      expect(
+        new Set(
+          createBridge.mock.calls.map(([options]) => options.externalToolGuard),
+        ).size,
+      ).toBe(createBridge.mock.calls.length);
       const daemonGuard = bridgeOptions?.externalToolGuard as (
         request: Record<string, unknown>,
       ) => Promise<{ allowed: boolean; reason?: string }>;
+      await expect(
+        daemonGuard({
+          sessionId: 'session-1',
+          promptId: 'prompt-1',
+          toolCallId: 'safe-call',
+          toolName: 'run_shell_command',
+          arguments: { command: 'git status' },
+          effectiveCwd: tmpDir,
+        }),
+      ).resolves.toEqual({ allowed: true });
       await expect(
         daemonGuard({
           sessionId: 'session-1',

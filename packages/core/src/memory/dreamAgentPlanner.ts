@@ -17,7 +17,11 @@ import {
   getAutoMemoryRoot,
 } from './paths.js';
 import { ToolNames } from '../tools/tool-names.js';
-import { escapeShellArg, getShellConfiguration } from '../utils/shell-utils.js';
+import {
+  escapeShellArg,
+  getShellConfiguration,
+  type ShellConfiguration,
+} from '../utils/shell-utils.js';
 import { createMemoryScopedAgentConfig } from './memory-scoped-agent-config.js';
 
 const MAX_TURNS = 8;
@@ -41,16 +45,22 @@ export function getTranscriptDir(projectRoot: string): string {
   return path.join(new Storage(projectRoot).getProjectDir(), 'chats');
 }
 
-function quoteShellPathWithTrailingSeparator(dirPath: string): string {
-  return escapeShellArg(`${dirPath}${path.sep}`, getShellConfiguration().shell);
+function quoteShellPathWithTrailingSeparator(
+  dirPath: string,
+  shellConfiguration: ShellConfiguration,
+): string {
+  return escapeShellArg(`${dirPath}${path.sep}`, shellConfiguration.shell);
 }
 
 export function buildConsolidationTaskPrompt(
   memoryRoot: string,
   transcriptDir: string,
+  shellConfiguration: ShellConfiguration = getShellConfiguration(),
 ): string {
-  const quotedTranscriptDir =
-    quoteShellPathWithTrailingSeparator(transcriptDir);
+  const quotedTranscriptDir = quoteShellPathWithTrailingSeparator(
+    transcriptDir,
+    shellConfiguration,
+  );
 
   return [
     `Memory directory: \`${memoryRoot}\``,
@@ -115,7 +125,11 @@ export async function planManagedAutoMemoryDreamByAgent(
   const result = await runForkedAgent({
     name: 'managed-auto-memory-dreamer',
     config: scopedConfig,
-    taskPrompt: buildConsolidationTaskPrompt(memoryRoot, transcriptDir),
+    taskPrompt: buildConsolidationTaskPrompt(
+      memoryRoot,
+      transcriptDir,
+      config.getAgentShellConfiguration(),
+    ),
     systemPrompt: DREAM_AGENT_SYSTEM_PROMPT,
     maxTurns: config.getMemoryAgentMaxTurns() ?? MAX_TURNS,
     maxTimeMinutes: config.getMemoryAgentTimeoutMinutes() ?? MAX_TIME_MINUTES,

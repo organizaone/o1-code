@@ -2738,13 +2738,17 @@ describe('PermissionManager', () => {
     ] as const)(
       'handles comments conservatively for %s: %s',
       async (shell, command, expected) => {
-        shellTypeMock.value = shell;
-        pm = new PermissionManager(
-          makeConfig({
-            permissionsAllow: ['Bash(echo *)'],
-            permissionsDeny: ['Bash(rm *)'],
-          }),
-        );
+        shellTypeMock.value = shell === 'bash' ? 'cmd' : 'bash';
+        const configuration = makeConfig({
+          permissionsAllow: ['Bash(echo *)'],
+          permissionsDeny: ['Bash(rm *)'],
+        });
+        configuration.getAgentShellConfiguration = () => ({
+          executable: '/runtime/shell',
+          argsPrefix: [],
+          shell,
+        });
+        pm = new PermissionManager(configuration);
         pm.initialize();
         expect(
           await pm.evaluate({
@@ -5126,4 +5130,30 @@ describe('matchesRule — param matcher type guards', () => {
       ),
     ).toBe(true);
   });
+});
+
+describe('Windows runtime rule splitting', () => {
+  it.each(['cmd', 'powershell'] as const)(
+    'does not let Bash backslash escaping hide a denied command in %s',
+    async (shell) => {
+      const config: PermissionManagerConfig = {
+        getPermissionsAllow: () => ['Bash(echo *)'],
+        getPermissionsAsk: () => [],
+        getPermissionsDeny: () => ['Bash(rm *)'],
+        getAgentShellConfiguration: () => ({
+          executable: 'runtime.exe',
+          argsPrefix: [],
+          shell,
+        }),
+      };
+      const manager = new PermissionManager(config);
+      manager.initialize();
+      expect(
+        await manager.evaluate({
+          toolName: 'run_shell_command',
+          command: 'echo a \\& rm -rf target',
+        }),
+      ).toBe('deny');
+    },
+  );
 });

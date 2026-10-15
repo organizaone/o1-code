@@ -404,6 +404,49 @@ describe('standalone-update', () => {
       );
     });
 
+    it.each([
+      [
+        'UEsDBBQAAAAAAAAAIQBDv6ajAgAAAAIAAAAVAAAAbzEtY29kZS9tYW5pZmVzdC5qc29ue31QSwECFAMUAAAAAAAAACEAQ7+mowIAAAACAAAAFQAAAAAAAAAAAAAAgAEAAAAAbzEtY29kZS9tYW5pZmVzdC5qc29uUEsFBgAAAAABAAEAQwAAADUAAAAAAA==',
+        'Smoke test failed: node binary not found',
+      ],
+      [
+        'UEsDBBQAAAAAAAAAIQD7OSuCAwAAAAMAAAARAAAALi4vLi4vZXNjYXBlZC50eHRiYWRQSwECFAMUAAAAAAAAACEA+zkrggMAAAADAAAAEQAAAAAAAAAAAAAAgAEAAAAALi4vLi4vZXNjYXBlZC50eHRQSwUGAAAAAAEAAQA/AAAAMgAAAAAA',
+        'invalid relative path',
+      ],
+      [
+        'UEsDBBQAAAAAAAAAIQC9u+2WDQAAAA0AAAAMAAAAbzEtY29kZS9saW5rLi4vLi4vZXNjYXBlZFBLAQIUAxQAAAAAAAAAIQC9u+2WDQAAAA0AAAAMAAAAAAAAAAAAAAD/oQAAAABvMS1jb2RlL2xpbmtQSwUGAAAAAAEAAQA6AAAANwAAAAAA',
+        'unsupported symbolic link entry',
+      ],
+    ])(
+      'extracts verified Windows ZIP files with Node and preserves the installation on failure (%#)',
+      async (encoded, failure) => {
+        const archive = Buffer.from(encoded, 'base64');
+        vi.stubEnv('O1CODE_UPDATE_BASE_URL', baseUrl);
+        originalManifest = JSON.stringify({
+          target: 'win-x64',
+          version: '0.1.0',
+        });
+        fs.writeFileSync(
+          path.join(standaloneDir, 'manifest.json'),
+          originalManifest,
+        );
+        const zipFilename = 'o1-code-win-x64.zip';
+        const checksum = createHash('sha256').update(archive).digest('hex');
+        mockFetch.mockImplementation(async (url: string) => {
+          if (url.endsWith(`/${zipFilename}`))
+            return new Response(new Uint8Array(archive));
+          if (url.endsWith('/SHA256SUMS'))
+            return new Response(`${checksum}  ${zipFilename}\n`);
+          return new Response('', { status: 404 });
+        });
+        await expect(
+          performStandaloneUpdate(standaloneDir, '1.2.3'),
+        ).rejects.toThrow(failure);
+        expectInstallationPreserved();
+        expect(fs.existsSync(path.join(tempDir, 'escaped.txt'))).toBe(false);
+      },
+    );
+
     function expectInstallationPreserved() {
       expect(
         fs.readFileSync(path.join(standaloneDir, 'manifest.json'), 'utf8'),

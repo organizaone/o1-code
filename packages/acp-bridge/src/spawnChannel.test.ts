@@ -277,6 +277,21 @@ describe('createSpawnChannelFactory env policy', () => {
     expect(args?.slice(-2)).toEqual(['--acp', '--experimental-lsp']);
   });
 
+  it('keeps pinned child shell arguments intact at a delayed spawn', async () => {
+    mockSpawn.mockReturnValue(createFakeChildProcess());
+    const executable = 'C:\\Tools\\Git Bash ação\\bin\\bash.exe';
+    const args = [
+      '--internal-agent-shell-type',
+      'git-bash',
+      '--internal-agent-shell-executable',
+      executable,
+    ];
+    const factory = createSpawnChannelFactory({ extraArgs: args });
+    await factory('/tmp/project');
+    const spawnedArgs = mockSpawn.mock.calls[0]?.[1] as string[] | undefined;
+    expect(spawnedArgs?.slice(-5)).toEqual(['--acp', ...args]);
+  });
+
   it('builds child env and cli entry from sourceEnv when provided', async () => {
     mockSpawn.mockReturnValue(createFakeChildProcess());
     process.env['O1CODE_CLI_ENTRY'] = '/process/o1-code.js';

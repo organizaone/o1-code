@@ -79,6 +79,7 @@ import {
 } from './prompt.js';
 import { writeDreamManualRunToMetadata } from './dream.js';
 import { buildConsolidationTaskPrompt } from './dreamAgentPlanner.js';
+import type { ShellConfiguration } from '../utils/shell-utils.js';
 import {
   runSkillReviewByAgent,
   listExistingSkillDirNames,
@@ -1527,8 +1528,16 @@ export class MemoryManager {
    * Build the consolidation task prompt used by the dream slash command.
    * Returns a prompt string describing what the agent should do.
    */
-  buildConsolidationPrompt(memoryRoot: string, transcriptDir: string): string {
-    return buildConsolidationTaskPrompt(memoryRoot, transcriptDir);
+  buildConsolidationPrompt(
+    memoryRoot: string,
+    transcriptDir: string,
+    shellConfiguration?: ShellConfiguration,
+  ): string {
+    return buildConsolidationTaskPrompt(
+      memoryRoot,
+      transcriptDir,
+      shellConfiguration,
+    );
   }
 
   // ─── Test helpers ─────────────────────────────────────────────────────────────

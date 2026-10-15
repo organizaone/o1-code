@@ -38,7 +38,11 @@ export function executeRuntimeShell(
       signal,
       usePty,
       config,
-      options,
+      {
+        ...options,
+        shellConfiguration:
+          runtime.getAgentShellConfiguration?.() ?? options.shellConfiguration,
+      },
     );
   }
   try {

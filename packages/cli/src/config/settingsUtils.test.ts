@@ -51,6 +51,11 @@ function makeMockSettings(settings: unknown): Settings {
 }
 
 describe('SettingsUtils', () => {
+  it('restricts both shell selection fields at Workspace scope', () => {
+    expect(WORKSPACE_RESTRICTED_SETTING_KEYS).toEqual(
+      expect.arrayContaining(['tools.shell.type', 'tools.shell.executable']),
+    );
+  });
   beforeEach(() => {
     const SETTINGS_SCHEMA = {
       mcpServers: {
@@ -420,64 +425,83 @@ describe('SettingsUtils', () => {
       // R4-2: Workspace scope strips these before the merge, so listing them
       // there lets a user toggle a setting that silently never takes effect
       // and writes a dead entry into the repo's .o1-code/settings.json.
-      describe('workspace-restricted filtering', () => {
-        const restrictedKey = WORKSPACE_RESTRICTED_SETTING_KEYS[0]!;
-        const [section, leaf] = restrictedKey.split('.') as [string, string];
+      describe.each(WORKSPACE_RESTRICTED_SETTING_KEYS)(
+        'workspace-restricted filtering for %s',
+        (restrictedKey) => {
+          const [section, ...path] = restrictedKey.split('.');
+          const leaf = path.at(-1)!;
 
-        beforeEach(() => {
-          vi.mocked(getSettingsSchema).mockReturnValue({
-            [section]: {
-              type: 'object',
-              label: section,
-              category: 'General',
-              requiresRestart: false,
-              default: {},
-              description: 'section',
-              showInDialog: false,
-              properties: {
-                [leaf]: {
-                  type: 'boolean',
-                  label: leaf,
-                  category: 'General',
-                  requiresRestart: true,
-                  default: false,
-                  description: 'restricted',
-                  showInDialog: true,
-                },
-                unrestricted: {
-                  type: 'boolean',
-                  label: 'Unrestricted',
+          beforeEach(() => {
+            let restrictedProperties: Record<string, unknown> = {
+              [leaf]: {
+                type: 'boolean',
+                label: leaf,
+                category: 'General',
+                requiresRestart: true,
+                default: false,
+                description: 'restricted',
+                showInDialog: true,
+              },
+            };
+            for (const parent of path.slice(0, -1).reverse()) {
+              restrictedProperties = {
+                [parent]: {
+                  type: 'object',
+                  label: parent,
                   category: 'General',
                   requiresRestart: false,
-                  default: false,
-                  description: 'plain',
-                  showInDialog: true,
+                  default: {},
+                  showInDialog: false,
+                  properties: restrictedProperties,
+                },
+              };
+            }
+            vi.mocked(getSettingsSchema).mockReturnValue({
+              [section]: {
+                type: 'object',
+                label: section,
+                category: 'General',
+                requiresRestart: false,
+                default: {},
+                description: 'section',
+                showInDialog: false,
+                properties: {
+                  ...restrictedProperties,
+                  unrestricted: {
+                    type: 'boolean',
+                    label: 'Unrestricted',
+                    category: 'General',
+                    requiresRestart: false,
+                    default: false,
+                    description: 'plain',
+                    showInDialog: true,
+                  },
                 },
               },
-            },
-          } as unknown as ReturnType<typeof getSettingsSchema>);
-        });
-
-        it('drops the restricted key when asked to, and nothing else', () => {
-          // Guard against a vacuous pass: it must be dialog-visible first.
-          expect(getDialogSettingKeys()).toContain(restrictedKey);
-
-          const workspaceKeys = getDialogSettingKeys({
-            excludeWorkspaceRestricted: true,
+            } as unknown as ReturnType<typeof getSettingsSchema>);
           });
-          expect(workspaceKeys).not.toContain(restrictedKey);
-          expect(workspaceKeys).toContain(`${section}.unrestricted`);
-        });
 
-        it('keeps it when the option is absent or false', () => {
-          const allKeys = getDialogSettingKeys();
-          expect(getDialogSettingKeys({})).toEqual(allKeys);
-          expect(
-            getDialogSettingKeys({ excludeWorkspaceRestricted: false }),
-          ).toEqual(allKeys);
-          expect(allKeys).toContain(restrictedKey);
-        });
-      });
+          it('drops the restricted key when asked to, and nothing else', () => {
+            // Guard against a vacuous pass: it must be dialog-visible first.
+            expect(getDialogSettingKeys()).toContain(restrictedKey);
+
+            const workspaceKeys = getDialogSettingKeys({
+              excludeWorkspaceRestricted: true,
+            });
+            expect(workspaceKeys).not.toContain(restrictedKey);
+            expect(workspaceKeys).toContain(`${section}.unrestricted`);
+          });
+
+          it('keeps it when the option is absent or false', () => {
+            const allKeys = getDialogSettingKeys();
+            expect(getDialogSettingKeys({})).toEqual(allKeys);
+            expect(
+              getDialogSettingKeys({ excludeWorkspaceRestricted: false }),
+            ).toEqual(allKeys);
+            expect(allKeys).toContain(restrictedKey);
+          });
+        },
+      );
 
       it('should return only settings marked for dialog display', () => {
         const dialogKeys = getDialogSettingKeys();

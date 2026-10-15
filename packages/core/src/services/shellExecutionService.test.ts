@@ -368,6 +368,27 @@ describe('ShellExecutionService', () => {
     });
   });
 
+  it('uses the supplied shell snapshot for PTY execution', async () => {
+    const shellConfiguration = Object.freeze({
+      executable: 'C:\\Git\\bin\\bash.exe',
+      argsPrefix: Object.freeze(['--noprofile', '--norc', '-c']),
+      shell: 'bash' as const,
+    });
+    await simulateExecution(
+      'echo ok',
+      (pty) => {
+        expect(mockPtySpawn).toHaveBeenCalledWith(
+          shellConfiguration.executable,
+          [...shellConfiguration.argsPrefix, 'echo ok'],
+          expect.any(Object),
+        );
+        pty.onExit.mock.calls[0][0]({ exitCode: 0, signal: null });
+      },
+      {},
+      { shellConfiguration },
+    );
+  });
+
   describe('structured launch', () => {
     const launch = () => ({
       executable: '/trusted/program',

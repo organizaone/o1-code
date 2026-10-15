@@ -22,7 +22,10 @@ import {
 } from '../utils/shellAstParser.js';
 import {
   getShellConfiguration,
+  type ShellConfiguration,
+  type ShellType,
   normalizeMonitorCommand,
+  splitCommands,
 } from '../utils/shell-utils.js';
 import { createDebugLogger } from '../utils/debugLogger.js';
 import {
@@ -94,10 +97,15 @@ const DECISION_PRIORITY: Readonly<Record<PermissionDecision, number>> = {
  * therefore keeps the conservative splitter, and stays covered by `Bash(...)`
  * rules through it.
  */
-function splitCommandForRules(command: string, toolName: string): string[] {
+function splitCommandForRules(
+  command: string,
+  toolName: string,
+  shell: ShellType,
+): string[] {
+  if (shell !== 'bash') return splitCommands(command, shell);
   if (
     toolName !== 'run_shell_command' ||
-    getShellConfiguration().shell !== 'bash' ||
+    shell !== 'bash' ||
     command.includes('\n') ||
     command.includes('\r')
   ) {
@@ -147,6 +155,7 @@ function splitCommandForRules(command: string, toolName: string): string[] {
  * PermissionManager therefore only needs these three getters.
  */
 export interface PermissionManagerConfig {
+  getAgentShellConfiguration?(): ShellConfiguration;
   getShellExecutionSandbox?(): unknown;
   /** Merged allow-rules (settings + coreTools + allowedTools). */
   getPermissionsAllow(): string[] | undefined;
@@ -410,7 +419,12 @@ export class PermissionManager {
     // most restrictive result. Priority: deny > ask > allow.
     let bashDecision: PermissionDecision;
     if (command !== undefined) {
-      const subCommands = splitCommandForRules(command, toolName);
+      const subCommands = splitCommandForRules(
+        command,
+        toolName,
+        this.config.getAgentShellConfiguration?.().shell ??
+          getShellConfiguration().shell,
+      );
       if (subCommands.length > 1) {
         bashDecision = await this.evaluateCompoundCommand(ctx, subCommands);
       } else {
@@ -696,6 +710,12 @@ export class PermissionManager {
     cwd?: string,
   ): Promise<'allow' | 'ask'> {
     if (this.config.getShellExecutionSandbox?.()) return 'ask';
+    // The read-only AST models Bash syntax, so it cannot approve another interpreter.
+    if (
+      (this.config.getAgentShellConfiguration?.().shell ??
+        getShellConfiguration().shell) !== 'bash'
+    )
+      return 'ask';
     if (
       cwd &&
       this.config.isPathWithinWorkspace &&
@@ -1038,7 +1058,12 @@ export class PermissionManager {
     // rule matching any segment is the deciding rule. Recurse per segment so
     // nested compounds and per-segment virtual ops are covered.
     if (SHELL_TOOL_NAMES.has(toolName) && command !== undefined) {
-      const subCommands = splitCommandForRules(command, toolName);
+      const subCommands = splitCommandForRules(
+        command,
+        toolName,
+        this.config.getAgentShellConfiguration?.().shell ??
+          getShellConfiguration().shell,
+      );
       if (subCommands.length > 1) {
         for (const subCmd of subCommands) {
           const rule = this.findMatchingDenyRule({ ...ctx, command: subCmd });
@@ -1218,7 +1243,12 @@ export class PermissionManager {
     }
 
     if (SHELL_TOOL_NAMES.has(ctx.toolName) && command !== undefined) {
-      const subCommands = splitCommandForRules(command, toolName);
+      const subCommands = splitCommandForRules(
+        command,
+        toolName,
+        this.config.getAgentShellConfiguration?.().shell ??
+          getShellConfiguration().shell,
+      );
       if (subCommands.length > 1) {
         return subCommands.some((subCmd) =>
           this.hasRelevantRules({ ...ctx, command: subCmd }),
@@ -1316,7 +1346,12 @@ export class PermissionManager {
     }
 
     if (SHELL_TOOL_NAMES.has(ctx.toolName) && command !== undefined) {
-      const subCommands = splitCommandForRules(command, toolName);
+      const subCommands = splitCommandForRules(
+        command,
+        toolName,
+        this.config.getAgentShellConfiguration?.().shell ??
+          getShellConfiguration().shell,
+      );
       if (subCommands.length > 1) {
         return subCommands.some((subCmd) =>
           this.hasMatchingAskRule({ ...ctx, command: subCmd }),

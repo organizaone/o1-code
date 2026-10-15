@@ -7,7 +7,7 @@
 import { execFile, spawn, type ChildProcess } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
 import { rmSync, writeFileSync } from 'node:fs';
-import { tmpdir } from 'node:os';
+import { platform, tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { createHookOutput, HookEventName, HookType } from './types.js';
 import { resolveCommandHookTimeoutMs } from './hook-timeout.js';
@@ -31,6 +31,7 @@ import {
   type ShellType,
   type ShellConfiguration,
 } from '../utils/shell-utils.js';
+import { resolveAgentShell } from '../utils/agent-shell.js';
 import { HttpHookRunner } from './httpHookRunner.js';
 import { FunctionHookRunner } from './functionHookRunner.js';
 import { PromptHookRunner } from './promptHookRunner.js';
@@ -627,7 +628,10 @@ export class HookRunner {
   private readonly promptRunner: PromptHookRunner | null;
   private readonly asyncRegistry: AsyncHookRegistry;
 
-  constructor(allowedHttpUrls?: string[], config?: Config) {
+  constructor(
+    allowedHttpUrls?: string[],
+    private readonly config?: Config,
+  ) {
     this.httpRunner = new HttpHookRunner(
       allowedHttpUrls,
       config?.getAllowPrivateNetworkHooks(),
@@ -798,19 +802,27 @@ export class HookRunner {
   private getShellConfigForHook(
     hookConfig: CommandHookConfig,
   ): ShellConfiguration {
-    const globalConfig = getShellConfiguration();
+    const globalConfig =
+      this.config?.getAgentShellConfiguration?.() ?? getShellConfiguration();
 
     // If hook specifies a shell, use it
     if (hookConfig.shell) {
       const shellType: ShellType =
         hookConfig.shell === 'powershell' ? 'powershell' : 'bash';
 
+      if (platform() === 'win32') {
+        if (globalConfig.shell === shellType) return globalConfig;
+        return resolveAgentShell({
+          type: shellType === 'bash' ? 'git-bash' : 'powershell',
+        });
+      }
+
       // Return configuration for the specified shell type
       if (shellType === 'powershell') {
         return {
           shell: 'powershell',
           executable: 'powershell',
-          argsPrefix: ['-Command'],
+          argsPrefix: ['-NoProfile', '-NonInteractive', '-Command'],
         };
       }
 
@@ -819,7 +831,7 @@ export class HookRunner {
         shell: 'bash',
         executable:
           globalConfig.shell === 'bash' ? globalConfig.executable : 'bash',
-        argsPrefix: ['-c'],
+        argsPrefix: ['--noprofile', '--norc', '-c'],
       };
     }
 

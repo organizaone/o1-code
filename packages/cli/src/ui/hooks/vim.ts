@@ -15,6 +15,7 @@ import {
 import { execFile, execFileSync } from 'child_process';
 import { cpLen, cpSlice } from '../utils/textUtils.js';
 import { writeOsc52 } from '../utils/clipboardUtils.js';
+import { readWindowsClipboardText } from '../utils/clipboard-text.js';
 
 export type VimMode = 'NORMAL' | 'INSERT';
 
@@ -166,7 +167,7 @@ let linuxReadCmd: string[] | null | undefined;
 let linuxWriteCmd: string[] | null | undefined;
 
 /** Read system clipboard */
-function readClipboard(): string {
+function readClipboard(): string | undefined {
   try {
     const platform = process.platform;
     if (platform === 'darwin') {
@@ -177,11 +178,7 @@ function readClipboard(): string {
       }).toString();
     }
     if (platform === 'win32') {
-      return execFileSync('powershell', ['-c', 'Get-Clipboard'], {
-        encoding: 'utf-8',
-        timeout: 200,
-        stdio: ['pipe', 'pipe', 'ignore'],
-      }).toString();
+      return readWindowsClipboardText();
     }
     // Linux: probe once, then use cached tool
     if (linuxReadCmd === undefined) {
@@ -1720,7 +1717,7 @@ export function useVim(buffer: TextBuffer, onSubmit?: (value: string) => void) {
             let text = s.yankRegister;
             let isLinewise = s.yankLinewise;
             if (!text) {
-              text = readClipboard();
+              text = readClipboard() ?? '';
               isLinewise = text.includes('\n');
             }
             if (text) {
@@ -1768,7 +1765,7 @@ export function useVim(buffer: TextBuffer, onSubmit?: (value: string) => void) {
             let text = s.yankRegister;
             let isLinewise = s.yankLinewise;
             if (!text) {
-              text = readClipboard();
+              text = readClipboard() ?? '';
               isLinewise = text.includes('\n');
             }
             if (text) {

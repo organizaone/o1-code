@@ -9,6 +9,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import * as os from 'node:os';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
+import * as agentShell from '@organizaone/o1-code-core/utils/agent-shell.js';
 import {
   GOAL_DEFAULT_TOKEN_BUDGET,
   GOAL_MAX_ACTIVE_MINUTES_CAP,
@@ -1830,6 +1831,104 @@ describe('loadCliConfig', () => {
     );
 
     expect(config.getShellDefaultTimeoutMs()).toBe(300000);
+  });
+
+  it('passes operator shell selection alongside existing shell settings', async () => {
+    vi.spyOn(agentShell, 'resolveAgentShell').mockReturnValue({
+      shell: 'powershell',
+      executable: 'C:\\Tools\\pwsh.exe',
+      argsPrefix: ['-NoProfile', '-NonInteractive', '-Command'],
+    });
+    process.argv = ['node', 'script.js'];
+    const argv = await parseArguments();
+    await loadCliConfig(
+      {
+        tools: {
+          shell: {
+            type: 'powershell',
+            executable: 'C:\\Tools\\pwsh.exe',
+            enableInteractiveShell: false,
+            pager: '',
+            defaultTimeoutMs: 1234,
+          },
+        },
+      },
+      argv,
+    );
+    expect(mockConfigConstructorParams).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        agentShell: { type: 'powershell', executable: 'C:\\Tools\\pwsh.exe' },
+        shouldUseNodePtyShell: false,
+        shellDefaultTimeoutMs: 1234,
+      }),
+    );
+  });
+
+  it('keeps a pending ACP launch on its pinned shell after operator settings change', async () => {
+    vi.spyOn(process, 'platform', 'get').mockReturnValue('win32');
+    vi.spyOn(agentShell, 'resolveAgentShell').mockReturnValue({
+      shell: 'bash',
+      executable: 'C:\\Git\\bash.exe',
+      argsPrefix: ['--noprofile', '--norc', '-c'],
+    });
+    process.argv = [
+      'node',
+      'script.js',
+      '--acp',
+      '--internal-agent-shell-type',
+      'git-bash',
+      '--internal-agent-shell-executable',
+      'C:\\Git\\bash.exe',
+    ];
+    const argv = await parseArguments();
+    await loadCliConfig(
+      {
+        tools: {
+          shell: { type: 'powershell', executable: 'C:\\Changed\\pwsh.exe' },
+        },
+      },
+      argv,
+    );
+    expect(mockConfigConstructorParams).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        agentShell: { type: 'git-bash', executable: 'C:\\Git\\bash.exe' },
+      }),
+    );
+  });
+
+  it('rejects private child shell options outside Windows ACP launches', async () => {
+    process.argv = ['node', 'script.js'];
+    const argv = await parseArguments();
+    await expect(
+      loadCliConfig(
+        {},
+        {
+          ...argv,
+          internalAgentShellType: 'cmd',
+          internalAgentShellExecutable: 'C:\\Windows\\System32\\cmd.exe',
+        },
+      ),
+    ).rejects.toThrow('Windows ACP');
+  });
+
+  it.each([
+    {
+      internalAgentShellType: 'auto',
+      internalAgentShellExecutable: 'C:\\Windows\\cmd.exe',
+    },
+    { internalAgentShellType: 'cmd' },
+    { internalAgentShellExecutable: 'C:\\Windows\\cmd.exe' },
+    {
+      internalAgentShellType: 'cmd',
+      internalAgentShellExecutable: '.\\cmd.exe',
+    },
+  ])('rejects malformed pinned child shell options: %j', async (options) => {
+    vi.spyOn(process, 'platform', 'get').mockReturnValue('win32');
+    process.argv = ['node', 'script.js', '--acp'];
+    const argv = await parseArguments();
+    await expect(loadCliConfig({}, { ...argv, ...options })).rejects.toThrow(
+      'explicit shell type and absolute executable path',
+    );
   });
 
   it('passes agents.builtin.exploreModel from settings to core config', async () => {

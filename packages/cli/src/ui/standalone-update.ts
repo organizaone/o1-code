@@ -17,6 +17,7 @@ import type { Response as UndiciResponse } from 'undici';
 import * as tar from 'tar';
 import type { ReadEntry } from 'tar';
 import { createDebugLogger } from '@organizaone/o1-code-core';
+import { extractZipArchive } from '@organizaone/o1-code-core/extension/zip-extraction.js';
 import { loadUndici } from '../utils/load-undici.js';
 import { verifySignature } from '../utils/standalone-update-verify.js';
 import { updateEventEmitter } from '../utils/updateEventEmitter.js';
@@ -55,10 +56,6 @@ function validateTarget(target: string): void {
 function archiveFilename(target: string): string {
   const ext = target.startsWith('win') ? 'zip' : 'tar.gz';
   return `o1-code-${target}.${ext}`;
-}
-
-function escapePS(s: string): string {
-  return s.replace(/'/g, "''");
 }
 
 function resolveUpdateBaseUrl(): string | undefined {
@@ -381,28 +378,9 @@ async function extractArchive(
   fs.mkdirSync(destDir, { recursive: true });
 
   if (target.startsWith('win')) {
-    await new Promise<void>((resolve, reject) => {
-      const ps = spawn(
-        'powershell.exe',
-        [
-          '-NoProfile',
-          '-Command',
-          `Expand-Archive -Path '${escapePS(archivePath)}' -DestinationPath '${escapePS(destDir)}' -Force`,
-        ],
-        { stdio: 'ignore' },
-      );
-      ps.on('close', (code) =>
-        code === 0
-          ? resolve()
-          : reject(new Error(`Expand-Archive exited with code ${code}`)),
-      );
-      ps.on('error', reject);
-    });
+    await extractZipArchive(archivePath, destDir);
     const resolvedDest = fs.realpathSync(destDir);
-    // Windows Expand-Archive has no pre-extraction filter like tar.extract,
-    // so keep the full post-extraction traversal scan here. The Unix/tar path
-    // can limit its defense-in-depth scan to symlinks because isSafeTarEntry
-    // validates regular entry paths and rejects hardlinks before extraction.
+    // Keep the full post-extraction scan as defense in depth for updates.
     validateExtractedPaths(resolvedDest);
   } else {
     const resolvedDest = fs.realpathSync(destDir);

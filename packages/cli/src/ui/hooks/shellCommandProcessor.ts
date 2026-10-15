@@ -28,6 +28,7 @@ import type { UseHistoryManagerReturn } from './useHistoryManager.js';
 import { SHELL_COMMAND_NAME } from '../constants.js';
 import { formatMemoryUsage } from '../utils/formatters.js';
 import { executeRuntimeShell } from '@organizaone/o1-code-core/sandbox/runtime-shell.js';
+import { escapeShellArg } from '@organizaone/o1-code-core/utils/shell-utils.js';
 import crypto from 'node:crypto';
 import path from 'node:path';
 import os from 'node:os';
@@ -103,31 +104,39 @@ export const useShellCommandProcessor = (
       );
 
       const isWindows = os.platform() === 'win32';
+      const selectedShell =
+        config.getAgentShellConfiguration?.().shell ??
+        (isWindows ? 'cmd' : 'bash');
       const targetDir = config.getTargetDir();
       let commandToExecute = rawQuery;
       let pwdFilePath: string | undefined;
 
-      // On non-windows, wrap the command to capture the final working directory.
-      if (!isWindows && !config.getShellExecutionSandbox?.()) {
+      if (selectedShell !== 'cmd' && !config.getShellExecutionSandbox?.()) {
         let command = rawQuery.trim();
         const pwdFileName = `shell_pwd_${crypto.randomBytes(6).toString('hex')}.tmp`;
         pwdFilePath = path.join(os.tmpdir(), pwdFileName);
-        // A command ending in an odd run of backslashes leaves a dangling
-        // line continuation; the `;` appended below would be escaped into a
-        // literal argument (`ls \` would run `ls ';'`). Close the continuation
-        // first so the terminator ends the user's own command (R6-8).
-        const trailingBackslashes = /\\+$/.exec(command)?.[0].length ?? 0;
-        if (trailingBackslashes % 2 === 1) {
-          command += '\n';
+        const quotedPwdPath = escapeShellArg(pwdFilePath, selectedShell);
+        if (selectedShell === 'powershell') {
+          // Save command status before the bookkeeping cmdlets can overwrite it.
+          commandToExecute = `& { ${command}\n}; $__o1Success = $?; $__o1ExitCode = $LASTEXITCODE; (Get-Location).ProviderPath | Set-Content -LiteralPath ${quotedPwdPath} -Encoding UTF8; if (-not $__o1Success) { if ($__o1ExitCode) { exit $__o1ExitCode }; exit 1 }; exit 0`;
+        } else {
+          // A command ending in an odd run of backslashes leaves a dangling
+          // line continuation; the `;` appended below would be escaped into a
+          // literal argument (`ls \` would run `ls ';'`). Close the continuation
+          // first so the terminator ends the user's own command (R6-8).
+          const trailingBackslashes = /\\+$/.exec(command)?.[0].length ?? 0;
+          if (trailingBackslashes % 2 === 1) {
+            command += '\n';
+          }
+          // Ensure command ends with a separator before adding our own.
+          if (!command.endsWith(';') && !command.endsWith('&')) {
+            command += ';';
+          }
+          // The brace group closes on its own line: a one-line `{ ... #comment; };`
+          // lets a trailing comment swallow the wrapper tail and the shell dies
+          // on a syntax error before the user's command runs at all.
+          commandToExecute = `{ ${command}\n}; __code=$?; ${isWindows ? 'pwd -W' : 'pwd'} > ${quotedPwdPath}; exit $__code`;
         }
-        // Ensure command ends with a separator before adding our own.
-        if (!command.endsWith(';') && !command.endsWith('&')) {
-          command += ';';
-        }
-        // The brace group closes on its own line: a one-line `{ ... #comment; };`
-        // lets a trailing comment swallow the wrapper tail and the shell dies
-        // on a syntax error before the user's command runs at all.
-        commandToExecute = `{ ${command}\n}; __code=$?; pwd > "${pwdFilePath}"; exit $__code`;
       }
 
       const executeCommand = async (
@@ -323,7 +332,11 @@ export const useShellCommandProcessor = (
 
               if (pwdFilePath && fs.existsSync(pwdFilePath)) {
                 const finalPwd = fs.readFileSync(pwdFilePath, 'utf8').trim();
-                if (finalPwd && finalPwd !== targetDir) {
+                const sameDirectory = isWindows
+                  ? path.win32.normalize(finalPwd).toLowerCase() ===
+                    path.win32.normalize(targetDir).toLowerCase()
+                  : finalPwd === targetDir;
+                if (finalPwd && !sameDirectory) {
                   const warning = `WARNING: shell mode is stateless; the directory change to '${finalPwd}' will not persist.`;
                   finalOutput = `${warning}\n\n${finalOutput}`;
                 }

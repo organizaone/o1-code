@@ -2195,6 +2195,11 @@ export class ShellToolInvocation extends BaseToolInvocation<
    */
   override async getDefaultPermission(): Promise<PermissionDecision> {
     if (this.config.getShellExecutionSandbox?.()) return 'ask';
+    if (
+      (this.config.getAgentShellConfiguration?.() ?? getShellConfiguration())
+        .shell !== 'bash'
+    )
+      return 'ask';
     // Outside the workspace even a read-only command is asked for, as a read
     // outside the workspace is. (Mirrored in
     // PermissionManager.resolveDefaultPermission.)
@@ -5027,6 +5032,7 @@ export class ShellToolInvocation extends BaseToolInvocation<
         AbortSignal.timeout(5000),
         false,
         {},
+        { shellConfiguration: this.config.getAgentShellConfiguration?.() },
       );
       const r = await handle.result;
       return r.exitCode === 0 ? r.output : null;
@@ -5253,7 +5259,10 @@ export class ShellToolInvocation extends BaseToolInvocation<
     // wrong for cmd/PowerShell. Gating on the active shell rather than
     // the OS platform keeps Windows + Git Bash users (where
     // getShellConfiguration() reports shell:'bash') working.
-    if (getShellConfiguration().shell !== 'bash') {
+    if (
+      (this.config.getAgentShellConfiguration?.() ?? getShellConfiguration())
+        .shell !== 'bash'
+    ) {
       return command;
     }
 
@@ -5414,7 +5423,10 @@ export class ShellToolInvocation extends BaseToolInvocation<
     // Gate on shell type rather than OS platform: bash escaping is
     // invalid under cmd/PowerShell but works fine under Windows +
     // Git Bash, which `getShellConfiguration()` reports as `'bash'`.
-    if (getShellConfiguration().shell !== 'bash') {
+    if (
+      (this.config.getAgentShellConfiguration?.() ?? getShellConfiguration())
+        .shell !== 'bash'
+    ) {
       return command;
     }
 
@@ -5735,7 +5747,7 @@ export class ShellTool extends BaseDeclarativeTool<
     const shellConfiguration: ShellConfiguration =
       config.getExecutionEnvironment?.() instanceof SshExecutionEnvironment
         ? { executable: 'bash', argsPrefix: ['-c'], shell: 'bash' }
-        : getShellConfiguration();
+        : (config.getAgentShellConfiguration?.() ?? getShellConfiguration());
     super(
       ShellTool.Name,
       ToolDisplayNames.SHELL,

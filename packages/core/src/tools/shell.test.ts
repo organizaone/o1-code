@@ -8811,6 +8811,19 @@ describe('ShellTool', () => {
   });
 
   describe('getDefaultPermission and getConfirmationDetails', () => {
+    it('does not use the Bash AST to approve a PowerShell command', async () => {
+      mockConfig.getAgentShellConfiguration = () => ({
+        executable: 'powershell.exe',
+        argsPrefix: [],
+        shell: 'powershell',
+      });
+      const invocation = shellTool.build({
+        command: 'ls',
+        is_background: false,
+      });
+      expect(await invocation.getDefaultPermission()).toBe('ask');
+    });
+
     it('should not request confirmation for read-only commands', async () => {
       const invocation = shellTool.build({
         command: 'ls -la',
@@ -9053,8 +9066,43 @@ describe('ShellTool', () => {
     });
   });
 
+  it('uses the runtime shell even when ambient selection disagrees', () => {
+    vi.mocked(os.platform).mockReturnValue('win32');
+    mockConfig.getAgentShellConfiguration = () => ({
+      executable: 'C:\\Git\\bin\\bash.exe',
+      argsPrefix: ['--noprofile', '--norc', '-c'],
+      shell: 'bash',
+    });
+    process.env['ComSpec'] = 'C:\\Windows\\System32\\cmd.exe';
+    const tool = new ShellTool(mockConfig);
+    expect(tool.description).toContain('The active shell is Bash.');
+    expect(getCommandParameterDescription(tool)).toContain(
+      'bash --noprofile --norc -c',
+    );
+  });
+
   describe('getDescription', () => {
     const originalEnv = { ...process.env };
+
+    function setSnapshotFromFixture() {
+      const executable = process.env['ComSpec'] || 'cmd.exe';
+      const shell =
+        os.platform() !== 'win32' || process.env['MSYSTEM'] === 'MINGW64'
+          ? 'bash'
+          : /(?:powershell|pwsh)\.exe$/i.test(executable)
+            ? 'powershell'
+            : 'cmd';
+      mockConfig.getAgentShellConfiguration = () => ({
+        executable: shell === 'bash' ? 'bash' : executable,
+        shell,
+        argsPrefix:
+          shell === 'bash'
+            ? ['-c']
+            : shell === 'powershell'
+              ? ['-NoProfile', '-NonInteractive', '-Command']
+              : ['/d', '/s', '/c'],
+      });
+    }
 
     afterEach(() => {
       process.env = { ...originalEnv };
@@ -9065,6 +9113,7 @@ describe('ShellTool', () => {
       delete process.env['ComSpec'];
       delete process.env['MSYSTEM'];
       delete process.env['TERM'];
+      setSnapshotFromFixture();
       const shellTool = new ShellTool(mockConfig);
       expect(shellTool.description).toMatchSnapshot();
       expect(shellTool.description).toContain(
@@ -9085,6 +9134,7 @@ describe('ShellTool', () => {
         process.env['ComSpec'] = localShell;
         delete process.env['MSYSTEM'];
         delete process.env['TERM'];
+        setSnapshotFromFixture();
         const local = new ShellTool(mockConfig);
         expect(getCommandParameterDescription(local)).not.toContain('bash -c');
         const remote = new SshExecutionEnvironment(
@@ -9111,6 +9161,7 @@ describe('ShellTool', () => {
 
     it('should return the non-windows description when not on windows', async () => {
       vi.mocked(os.platform).mockReturnValue('linux');
+      setSnapshotFromFixture();
       const shellTool = new ShellTool(mockConfig);
       expect(shellTool.description).toMatchSnapshot();
       expect(getCommandParameterDescription(shellTool)).toBe(
@@ -9118,17 +9169,18 @@ describe('ShellTool', () => {
       );
     });
 
-    it('should describe PowerShell when ComSpec points to powershell.exe', async () => {
+    it('describes an explicitly selected Windows PowerShell', async () => {
       vi.mocked(os.platform).mockReturnValue('win32');
       process.env['ComSpec'] =
         'C:\\WINDOWS\\System32\\WindowsPowerShell\\v1.0\\powershell.exe';
       delete process.env['MSYSTEM'];
       delete process.env['TERM'];
 
+      setSnapshotFromFixture();
       const shellTool = new ShellTool(mockConfig);
 
       expect(shellTool.description).toContain(
-        '`powershell.exe -NoProfile -Command <command>`',
+        '`powershell.exe -NoProfile -NonInteractive -Command <command>`',
       );
       expect(shellTool.description).toContain(
         'The active shell is PowerShell.',
@@ -9143,26 +9195,27 @@ describe('ShellTool', () => {
         "use a single run_shell_command call with '&&'",
       );
       expect(getCommandParameterDescription(shellTool)).toBe(
-        'Exact PowerShell command to execute as `powershell.exe -NoProfile -Command <command>`',
+        'Exact PowerShell command to execute as `powershell.exe -NoProfile -NonInteractive -Command <command>`',
       );
     });
 
-    it('should describe pwsh when ComSpec points to pwsh.exe', async () => {
+    it('describes an explicitly selected PowerShell 7', async () => {
       vi.mocked(os.platform).mockReturnValue('win32');
       process.env['ComSpec'] = 'C:\\Program Files\\PowerShell\\7\\pwsh.exe';
       delete process.env['MSYSTEM'];
       delete process.env['TERM'];
 
+      setSnapshotFromFixture();
       const shellTool = new ShellTool(mockConfig);
 
       expect(shellTool.description).toContain(
-        '`pwsh.exe -NoProfile -Command <command>`',
+        '`pwsh.exe -NoProfile -NonInteractive -Command <command>`',
       );
       expect(shellTool.description).toContain(
         "use a single run_shell_command call with '&&'",
       );
       expect(getCommandParameterDescription(shellTool)).toBe(
-        'Exact PowerShell command to execute as `pwsh.exe -NoProfile -Command <command>`',
+        'Exact PowerShell command to execute as `pwsh.exe -NoProfile -NonInteractive -Command <command>`',
       );
     });
 
@@ -9172,6 +9225,7 @@ describe('ShellTool', () => {
       process.env['MSYSTEM'] = 'MINGW64';
       delete process.env['TERM'];
 
+      setSnapshotFromFixture();
       const shellTool = new ShellTool(mockConfig);
 
       expect(shellTool.description).toContain('`bash -c <command>`');
@@ -9216,6 +9270,7 @@ describe('ShellTool', () => {
       delete process.env['TERM'];
       if (comSpec) process.env['ComSpec'] = comSpec;
       if (msystem) process.env['MSYSTEM'] = msystem;
+      setSnapshotFromFixture();
       return new ShellTool(mockConfig);
     }
 

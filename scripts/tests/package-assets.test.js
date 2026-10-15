@@ -1237,6 +1237,35 @@ describe('package asset scripts', () => {
     ).toEqual(pins);
   });
 
+  it('publishes the exact optional Windows power binding pin from core', () => {
+    const rootDir = createFixtureRoot();
+    const corePath = path.join(rootDir, 'packages/core/package.json');
+    const core = JSON.parse(readFileSync(corePath, 'utf8'));
+    core.optionalDependencies = { koffi: '3.3.2' };
+    writeFileSync(corePath, JSON.stringify(core));
+    createBundleArtifacts(rootDir);
+    stubConsole();
+    preparePackage({ rootDir, requireNativeAudioCapture: false });
+    const published = JSON.parse(
+      readFileSync(path.join(rootDir, 'dist/package.json'), 'utf8'),
+    );
+    expect(published.optionalDependencies.koffi).toBe('3.3.2');
+    expect(published.dependencies).not.toHaveProperty('koffi');
+  });
+
+  it('rejects an unpinned optional Windows power binding', () => {
+    const rootDir = createFixtureRoot();
+    const corePath = path.join(rootDir, 'packages/core/package.json');
+    const core = JSON.parse(readFileSync(corePath, 'utf8'));
+    core.optionalDependencies = { koffi: '^3.3.2' };
+    writeFileSync(corePath, JSON.stringify(core));
+    createBundleArtifacts(rootDir);
+    stubConsole();
+    expect(() =>
+      preparePackage({ rootDir, requireNativeAudioCapture: false }),
+    ).toThrow('koffi must use an exact version');
+  });
+
   it('rejects a locked sharp version outside the core declaration', () => {
     const rootDir = createFixtureRoot();
     writeFile(

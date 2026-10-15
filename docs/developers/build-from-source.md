@@ -70,3 +70,7 @@ cd dist && npm pack
 
 The release workflow (`.github/workflows/release.yml`) builds a `vX.Y.Z` tag this way, installs
 the tarball in a clean prefix, runs it, and only then publishes.
+
+Windows sleep prevention and browser opening load the optional, exactly pinned `koffi` dependency at runtime. The npm package keeps this dependency external to the JavaScript bundle, so a normal installation selects its matching prebuilt native binding. Installing with `--omit=optional` leaves the CLI usable but disables sleep prevention on Windows; the diagnostic log reports its absence during active work. Automatic browser opening then shows the URL for manual opening.
+
+The Windows standalone target is `win-x64`. When building it on another platform, provide `--native-modules-dir` with the pinned `koffi` loader and matching `@koromix/koffi-win32-x64` package, alongside the other native dependencies. The packager checks their versions and includes the binding in `lib/node_modules`; the installed CLI does not download it at runtime. Test the resulting archive in a clean Windows directory, separate from the checkout.

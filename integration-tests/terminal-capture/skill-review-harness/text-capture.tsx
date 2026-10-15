@@ -246,6 +246,8 @@ async function main() {
     import { existsSync } from 'node:fs';
     const prefix = '@organizaone/o1-code-core/';
     const named = new Map([
+      ['utils/agent-shell.js', 'utils/agent-shell.ts'],
+      ['utils/shell-utils.js', 'utils/shell-utils.ts'],
       ['omni', 'omni/index.ts'], ['omniPolicyCollection', 'omni/policy/model-call-collection.ts'],
       ['transcriptRecords', 'utils/transcript-records.ts'], ['envVarResolver', 'utils/envVarResolver.ts'],
       ['shellResult', 'utils/shell-result.ts'],

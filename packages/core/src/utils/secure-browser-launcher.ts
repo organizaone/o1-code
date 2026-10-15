@@ -9,6 +9,7 @@ import { promisify } from 'node:util';
 import { platform } from 'node:os';
 import { resolve } from 'node:path';
 import { URL, fileURLToPath } from 'node:url';
+import { openWindowsUrl } from './windows-open-url.js';
 import {
   isBrowserCommandBlocked,
   shouldAttemptBrowserLaunch,
@@ -122,26 +123,25 @@ export async function openBrowserSecurely(
     return;
   }
 
+  if (platformName === 'win32') {
+    try {
+      await openWindowsUrl(url);
+    } catch {
+      // Optional native support may be unavailable; preserve the manual-open contract.
+      // eslint-disable-next-line no-console
+      console.warn(
+        `Failed to open browser automatically. Please open this URL manually: ${url}`,
+      );
+    }
+    return;
+  }
+
   {
     switch (platformName) {
       case 'darwin':
         // macOS
         command = 'open';
         args = [url];
-        break;
-
-      case 'win32':
-        // Windows - use PowerShell with Start-Process
-        // This avoids the cmd.exe shell which is vulnerable to injection
-        command = 'powershell.exe';
-        args = [
-          '-NoProfile',
-          '-NonInteractive',
-          '-WindowStyle',
-          'Hidden',
-          '-Command',
-          `Start-Process '${url.replace(/'/g, "''")}'`,
-        ];
         break;
 
       case 'linux':

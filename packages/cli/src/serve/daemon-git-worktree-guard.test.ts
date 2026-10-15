@@ -23,14 +23,34 @@ import {
   splitCommands,
   ToolNames,
 } from '@organizaone/o1-code-core';
-import type { ExternalToolGuardPrepareRequest } from '@organizaone/o1-code-acp-bridge/bridgeOptions';
+import type {
+  ExternalToolGuardPrepareRequest,
+  ExternalToolGuardHandler,
+} from '@organizaone/o1-code-acp-bridge/bridgeOptions';
 import { SHELL_EXECUTING_TOOL_NAMES } from '@organizaone/o1-code-acp-bridge/externalToolGuard';
 import {
   containsCmdRewriteSyntax,
   containsUnmodelledWindowsSyntax,
-  createDaemonToolGuard,
+  createDaemonToolGuard as createRuntimeDaemonToolGuard,
   preserveWindowsPathSeparators,
 } from './daemon-git-worktree-guard.js';
+import type { ShellConfiguration } from '@organizaone/o1-code-core/utils/shell-utils.js';
+
+function createDaemonToolGuard(
+  externalGuard?: ExternalToolGuardHandler,
+  selectedShell?: ShellConfiguration,
+): ExternalToolGuardHandler {
+  const shell =
+    process.platform !== 'win32' || process.env['MSYSTEM']
+      ? 'bash'
+      : process.env['ComSpec']?.includes('powershell')
+        ? 'powershell'
+        : 'cmd';
+  return createRuntimeDaemonToolGuard(
+    externalGuard,
+    selectedShell ?? { shell, executable: shell, argsPrefix: [] },
+  );
+}
 
 const temporaryRoot = mkdtempSync(path.join(os.tmpdir(), 'daemon-guard-'));
 const effectiveCwd = path.join(temporaryRoot, 'workspace', 'worktree');
@@ -77,6 +97,49 @@ afterAll(async () => {
 });
 
 describe('createDaemonToolGuard', () => {
+  it('fails closed without a trusted runtime shell snapshot', async () => {
+    await expect(
+      createRuntimeDaemonToolGuard()(request('git status')),
+    ).resolves.toMatchObject({
+      allowed: false,
+      reason: expect.stringContaining('runtime shell configuration'),
+    });
+  });
+  it('keeps concurrent runtime grammars independent of the ambient shell', async () => {
+    vi.spyOn(process, 'platform', 'get').mockReturnValue('win32');
+    try {
+      const bash = createDaemonToolGuard(undefined, {
+        shell: 'bash',
+        executable: 'C:\\Git\\bash.exe',
+        argsPrefix: ['--noprofile', '--norc', '-c'],
+      });
+      const powershell = createDaemonToolGuard(undefined, {
+        shell: 'powershell',
+        executable: 'C:\\Windows\\powershell.exe',
+        argsPrefix: ['-NoProfile', '-NonInteractive', '-Command'],
+      });
+      const command = 'echo ok & git status';
+      const results = await Promise.all([
+        bash(request(command)),
+        powershell(request(command)),
+      ]);
+      expect(results[0]).toEqual({ allowed: true });
+      expect(results[1]).toMatchObject({
+        allowed: false,
+        reason: expect.stringContaining('Windows shell syntax'),
+      });
+      await expect(
+        bash(request(`bash -c 'git -C ${cmdPath(outsideRepo)} reset --hard'`)),
+      ).resolves.toMatchObject({ allowed: false });
+      await expect(
+        powershell(
+          request(`bash -c 'git -C ${cmdPath(outsideRepo)} reset --hard'`),
+        ),
+      ).resolves.toMatchObject({ allowed: false });
+    } finally {
+      vi.restoreAllMocks();
+    }
+  });
   it.each([
     () => `git -C ${cmdPath(outsideRepo)} reset --hard`,
     () => `git -C${cmdPath(outsideRepo)} checkout -- .`,

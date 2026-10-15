@@ -8,13 +8,15 @@ import { realpath, readFile, stat } from 'node:fs/promises';
 import path from 'node:path';
 import { parse } from 'shell-quote';
 import {
-  getShellConfiguration,
   GitWorktreeService,
   isWithinRoot,
   realpathNearestExistingAsync,
   splitCommands,
 } from '@organizaone/o1-code-core';
-import type { ShellType } from '@organizaone/o1-code-core';
+import type {
+  ShellType,
+  ShellConfiguration,
+} from '@organizaone/o1-code-core/utils/shell-utils.js';
 import {
   EXTERNAL_TOOL_GUARD_MAX_DENIAL_REASON_CHARS,
   SHELL_EXECUTING_TOOL_NAMES as SHELL_EXECUTING_TOOLS,
@@ -456,7 +458,7 @@ interface TokenizedSegment {
 
 // On Windows a backslash is a path separator, not a shell escape, when the
 // session executes through cmd.exe or PowerShell — the shell
-// getShellConfiguration() selects from the environment — so
+// selected for this runtime — so
 // `git -C C:\repo\sub` must reach the analysis with its separators intact.
 // POSIX tokenisation would consume each unquoted `\x` as an escape for `x`,
 // mangling the path into a relative word. Escape the backslash itself and
@@ -492,7 +494,7 @@ const WINDOWS_CMD_BOUNDARY_CHARS = new Set([
 export function preserveWindowsPathSeparators(
   segment: string,
   platform: string = process.platform,
-  shell: ShellType = getShellConfiguration().shell,
+  shell: ShellType = 'bash',
 ): string {
   if (platform !== 'win32' || shell === 'bash') return segment;
   let single = false;
@@ -554,7 +556,7 @@ export function preserveWindowsPathSeparators(
 export function containsCmdRewriteSyntax(
   segment: string,
   platform: string = process.platform,
-  shell: ShellType = getShellConfiguration().shell,
+  shell: ShellType = 'bash',
 ): boolean {
   if (platform !== 'win32' || shell !== 'cmd') return false;
   let doubleQuoted = false;
@@ -598,7 +600,7 @@ export function containsCmdRewriteSyntax(
 export function containsUnmodelledWindowsSyntax(
   command: string,
   platform: string = process.platform,
-  shell: ShellType = getShellConfiguration().shell,
+  shell: ShellType = 'bash',
 ): boolean {
   if (platform !== 'win32' || shell === 'bash') return false;
   const trimmed = command.trim();
@@ -865,7 +867,11 @@ const TEXT_RELOCATION_MARKER_PATTERN =
 // binary itself is chosen by the command, that reasoning proves nothing.
 const GIT_PROGRAM_ENV_KEYS = new Set(['GIT_EXEC_PATH', 'PATH']);
 
-function recordEnvAssignment(token: GuardToken, state: PrefixState): void {
+function recordEnvAssignment(
+  token: GuardToken,
+  state: PrefixState,
+  shell: ShellType,
+): void {
   const rawKey = leadingEnvAssignmentKey(token.text);
   if (rawKey === null) return;
   // Environment variable names are case-insensitive to cmd.exe and
@@ -873,7 +879,7 @@ function recordEnvAssignment(token: GuardToken, state: PrefixState): void {
   // the uppercase spelling — so fold before matching. POSIX lanes keep
   // case: there `git_dir` names no variable git reads.
   const key =
-    process.platform === 'win32' && getShellConfiguration().shell !== 'bash'
+    process.platform === 'win32' && shell !== 'bash'
       ? rawKey.toUpperCase()
       : rawKey;
   if (
@@ -943,6 +949,7 @@ function consumeEnvWrapper(
   run: GuardToken[],
   start: number,
   state: PrefixState,
+  shell: ShellType,
 ): WrapperScan {
   let index = start + 1;
   while (index < run.length) {
@@ -1038,7 +1045,7 @@ function consumeEnvWrapper(
       continue;
     }
     if (leadingEnvAssignmentKey(token.text) !== null) {
-      recordEnvAssignment(token, state);
+      recordEnvAssignment(token, state, shell);
       index++;
       continue;
     }
@@ -1058,6 +1065,7 @@ function consumeSudoWrapper(
   run: GuardToken[],
   start: number,
   state: PrefixState,
+  shell: ShellType,
 ): WrapperScan {
   let index = start + 1;
   while (index < run.length) {
@@ -1068,7 +1076,7 @@ function consumeSudoWrapper(
       continue;
     }
     if (leadingEnvAssignmentKey(token.text) !== null) {
-      recordEnvAssignment(token, state);
+      recordEnvAssignment(token, state, shell);
       index++;
       continue;
     }
@@ -1202,6 +1210,7 @@ type RunAnalysis =
       payload: string;
       state: PrefixState;
       propagatesCwd: boolean;
+      shell: ShellType;
       // Only bash imports functions marked with `export -f`; dash/sh/zsh/ksh
       // resolve the external program instead.
       importsExportedFunctions?: boolean;
@@ -1439,9 +1448,10 @@ function readDefinition(
 
 function analyzeRun(
   run: GuardToken[],
+  shell: ShellType,
   platform: string = process.platform,
 ): RunAnalysis {
-  if (platform === 'win32' && getShellConfiguration().shell !== 'bash') {
+  if (platform === 'win32' && shell !== 'bash') {
     run = splitFusedWindowsChdirs(run);
   }
   const state: PrefixState = { relocations: [], unresolved: false };
@@ -1453,7 +1463,7 @@ function analyzeRun(
   while (index < run.length) {
     const token = run[index]!;
     if (leadingEnvAssignmentKey(token.text) !== null) {
-      recordEnvAssignment(token, state);
+      recordEnvAssignment(token, state, shell);
       assignments++;
       index++;
       continue;
@@ -1471,12 +1481,13 @@ function analyzeRun(
     }
     if (EXPORT_BUILTINS.has(program)) {
       const operands = run.slice(index + 1);
-      for (const operand of operands) recordEnvAssignment(operand, state);
+      for (const operand of operands)
+        recordEnvAssignment(operand, state, shell);
       return { kind: 'export', state, operands };
     }
     if (
       platform === 'win32' &&
-      getShellConfiguration().shell !== 'bash' &&
+      shell !== 'bash' &&
       (program === 'path' || program === 'doskey')
     ) {
       // cmd.exe builtins that change how every later chained command
@@ -1487,14 +1498,11 @@ function analyzeRun(
     }
     if (
       platform === 'win32' &&
-      getShellConfiguration().shell !== 'bash' &&
+      shell !== 'bash' &&
       (program === 'set' || program === 'setx')
     ) {
       const operands = run.slice(index + 1);
-      if (
-        program === 'setx' ||
-        getShellConfiguration().shell === 'powershell'
-      ) {
+      if (program === 'setx' || shell === 'powershell') {
         // setx writes the registry for FUTURE sessions, and PowerShell's
         // `set` is the Set-Variable alias: neither touches the process
         // environment the later `&&`-chained children execute under.
@@ -1516,7 +1524,7 @@ function analyzeRun(
           state.unresolved = true;
           return { kind: 'export', state, operands: [] };
         }
-        recordEnvAssignment(operand, state);
+        recordEnvAssignment(operand, state, shell);
       }
       return { kind: 'export', state, operands };
     }
@@ -1529,11 +1537,12 @@ function analyzeRun(
       }
     }
     if (program === 'env') {
-      const scan = consumeEnvWrapper(run, index, state);
+      const scan = consumeEnvWrapper(run, index, state, shell);
       if (scan.undecidable) return { kind: 'undecidable' };
       if (scan.payload !== undefined) {
         return {
           kind: 'payload',
+          shell,
           payload: scan.payload,
           state,
           propagatesCwd: false,
@@ -1543,7 +1552,7 @@ function analyzeRun(
       continue;
     }
     if (program === 'sudo') {
-      index = consumeSudoWrapper(run, index, state).next;
+      index = consumeSudoWrapper(run, index, state, shell).next;
       continue;
     }
     if (program === 'timeout') {
@@ -1561,6 +1570,7 @@ function analyzeRun(
       }
       return {
         kind: 'payload',
+        shell,
         payload: joinTokenTexts(payloadTokens),
         state,
         // `eval` runs in the current shell, so a `cd` inside the payload
@@ -1581,6 +1591,7 @@ function analyzeRun(
       if (scan.kind === 'dynamic') return { kind: 'undecidable' };
       return {
         kind: 'payload',
+        shell: 'bash',
         payload: scan.payload,
         state,
         propagatesCwd: false,
@@ -1603,7 +1614,7 @@ function analyzeRun(
       program === 'popd' ||
       (platform === 'win32' && program === 'chdir') ||
       (platform === 'win32' &&
-        getShellConfiguration().shell === 'powershell' &&
+        shell === 'powershell' &&
         POWERSHELL_LOCATION_PROGRAMS.has(program))
     ) {
       const variant: 'cd' | 'popd' | 'pushd' =
@@ -1899,6 +1910,7 @@ async function resolveDiscoveredRepository(
 }
 
 interface GuardEvaluationContext {
+  readonly shell: ShellType;
   readonly canonicalEffectiveCwd: string;
   readonly ambientRelocations: readonly GitEnvRelocation[];
   readonly ambientUnresolved: boolean;
@@ -2412,6 +2424,7 @@ async function evaluateCommandWithCwd(
     exported.relocations.length > 0 || exported.unresolved
       ? {
           canonicalEffectiveCwd: context.canonicalEffectiveCwd,
+          shell: context.shell,
           ambientRelocations: [
             ...context.ambientRelocations,
             ...exported.relocations,
@@ -2473,7 +2486,7 @@ async function evaluateCommandWithCwd(
     const prefix: PrefixState = { relocations: [], unresolved: false };
     for (const token of run.slice(0, programIndex)) {
       if (leadingEnvAssignmentKey(token.text) !== null) {
-        recordEnvAssignment(token, prefix);
+        recordEnvAssignment(token, prefix, context.shell);
       }
     }
     const base = activeContext();
@@ -2481,6 +2494,7 @@ async function evaluateCommandWithCwd(
       prefix.relocations.length > 0 || prefix.unresolved
         ? {
             canonicalEffectiveCwd: base.canonicalEffectiveCwd,
+            shell: base.shell,
             ambientRelocations: [
               ...base.ambientRelocations,
               ...prefix.relocations,
@@ -2520,7 +2534,7 @@ async function evaluateCommandWithCwd(
   // A cmd rewrite pair can straddle a command separator (`%A && git -C %B`
   // pairs across the `&&`), so the whole text is checked before splitting.
   const platformNow = process.platform;
-  const shellNow = getShellConfiguration().shell;
+  const shellNow = context.shell;
   const windowsNative = platformNow === 'win32' && shellNow !== 'bash';
   // Heredocs are a POSIX shell construct: on the Windows lanes the marker
   // line's body lines are separate commands, so stripping them would hide
@@ -2797,7 +2811,7 @@ async function evaluateCommandWithCwd(
         if (denial) return { denial, cwdAfter: trackedCwd };
         continue;
       }
-      const analysis = analyzeRun(run, platformNow);
+      const analysis = analyzeRun(run, shellNow, platformNow);
       switch (analysis.kind) {
         case 'cd': {
           const target =
@@ -2841,6 +2855,7 @@ async function evaluateCommandWithCwd(
           const inherited = activeContext();
           const ambient: GuardEvaluationContext = {
             canonicalEffectiveCwd: inherited.canonicalEffectiveCwd,
+            shell: analysis.shell,
             ambientRelocations: [
               ...inherited.ambientRelocations,
               ...analysis.state.relocations,
@@ -3041,7 +3056,7 @@ async function evaluateCommandWithCwd(
               continue;
             }
             const pending = shellLocals.get(operand.text);
-            if (pending) recordEnvAssignment(pending, exported);
+            if (pending) recordEnvAssignment(pending, exported, shellNow);
             if (
               GIT_DIR_ENV_KEYS.has(operand.text) ||
               GIT_WORK_TREE_ENV_KEYS.has(operand.text) ||
@@ -3179,7 +3194,7 @@ async function evaluateCommandWithCwd(
                 const key = leadingEnvAssignmentKey(token.text);
                 if (key === null) continue;
                 if (exportedNames.has(key)) {
-                  recordEnvAssignment(token, exported);
+                  recordEnvAssignment(token, exported, shellNow);
                   continue;
                 }
                 const previous = shellLocals.get(key);
@@ -3258,6 +3273,7 @@ async function evaluateCommandWithCwd(
 
 async function evaluateBuiltInGuard(
   request: TrustedDaemonToolGuardRequest,
+  shell: ShellType,
 ): Promise<ExternalToolGuardPrepareResult> {
   if (!SHELL_EXECUTING_TOOLS.has(request.toolName)) return { allowed: true };
   const command = request.arguments['command'];
@@ -3340,6 +3356,7 @@ async function evaluateBuiltInGuard(
     startDirectory,
     {
       canonicalEffectiveCwd,
+      shell,
       ambientRelocations: [],
       ambientUnresolved: false,
     },
@@ -3350,13 +3367,22 @@ async function evaluateBuiltInGuard(
 
 export function createDaemonToolGuard(
   externalGuard?: ExternalToolGuardHandler,
+  shellConfiguration?: ShellConfiguration,
 ): ExternalToolGuardHandler {
   return async (request) => {
     const trusted = request as TrustedDaemonToolGuardRequest;
     if (typeof trusted.effectiveCwd !== 'string') {
       throw new Error('Daemon tool guard requires trusted workspace context.');
     }
-    const builtInDecision = await evaluateBuiltInGuard(trusted);
+    if (!shellConfiguration)
+      return {
+        allowed: false,
+        reason: 'Daemon tool guard requires a runtime shell configuration.',
+      };
+    const builtInDecision = await evaluateBuiltInGuard(
+      trusted,
+      shellConfiguration.shell,
+    );
     if (!builtInDecision.allowed || !externalGuard) return builtInDecision;
     if (trusted.promptId === undefined) {
       // Context-less shell checks carry only the built-in policy; the

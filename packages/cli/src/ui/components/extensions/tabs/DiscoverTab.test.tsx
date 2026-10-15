@@ -14,6 +14,10 @@ import type { Key } from '../../../hooks/useKeypress.js';
 import { DiscoverTab } from './DiscoverTab.js';
 
 const mockUseKeypress = vi.hoisted(() => vi.fn());
+const mockOpenBrowser = vi.hoisted(() => vi.fn().mockResolvedValue(undefined));
+vi.mock('@organizaone/o1-code-core/utils/secure-browser-launcher.js', () => ({
+  openBrowserSecurely: mockOpenBrowser,
+}));
 const mockRadioButtonSelect = vi.hoisted(() =>
   vi.fn((_props: unknown) => null),
 );
@@ -53,6 +57,50 @@ function activeKeypress(): (key: Key) => void {
 describe('DiscoverTab', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+  });
+
+  it.each([
+    'https://example.com/?a=1&b=%25',
+    'file:///private/report',
+    'custom:launch',
+  ])('validates homepage %s through the shared opener', async (homepage) => {
+    const plugin = {
+      name: 'demo',
+      marketplaceName: 'market',
+      installSource: 'owner/demo',
+      installed: false,
+      homepage,
+    } as DiscoveredPlugin;
+    const manager = { discoverPlugins: vi.fn().mockResolvedValue([plugin]) };
+    const onStatus = vi.fn();
+    render(
+      <DiscoverTab
+        config={{ getExtensionManager: () => manager } as unknown as Config}
+        isActive
+        onLockChange={vi.fn()}
+        onStatus={onStatus}
+        onInstalled={vi.fn()}
+        reloadSignal={0}
+      />,
+    );
+    await waitFor(() => expect(manager.discoverPlugins).toHaveBeenCalled());
+    await act(async () => {
+      activeKeypress()({ name: 'return' } as Key);
+    });
+    const select = mockRadioButtonSelect.mock.calls.at(
+      -1,
+    )?.[0] as SelectProps<'homepage'>;
+    await act(async () => {
+      select.onSelect('homepage');
+    });
+    if (homepage.startsWith('https:')) {
+      expect(mockOpenBrowser).toHaveBeenCalledWith(homepage);
+    } else {
+      expect(mockOpenBrowser).not.toHaveBeenCalled();
+      expect(onStatus).toHaveBeenCalledWith(
+        expect.objectContaining({ type: 'error' }),
+      );
+    }
   });
 
   it('installs the selected extension with workspace activation', async () => {

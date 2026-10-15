@@ -8,6 +8,7 @@ import { existsSync, realpathSync, promises as fsp } from 'node:fs';
 import { createServer, type ServerResponse } from 'node:http';
 import type { AddressInfo } from 'node:net';
 import * as os from 'node:os';
+import * as terminalRoutes from './routes/terminal.js';
 import {
   loadSettings as loadModelSettings,
   resetHomeEnvBootstrapForTesting,
@@ -4795,6 +4796,54 @@ describe('createServeApp', () => {
   });
 
   describe('GET /capabilities', () => {
+    it('binds terminal shell selection to the selected workspace runtime', () => {
+      const primary = {
+        ...makeWorkspaceRuntimeForTest({
+          workspaceId: 'primary-shell',
+          workspaceCwd: WS_BOUND,
+          primary: true,
+          bridge: fakeBridge(),
+        }),
+        shellConfiguration: {
+          shell: 'bash' as const,
+          executable: '/operator/bash',
+          argsPrefix: ['-c'],
+        },
+      };
+      const secondary = {
+        ...makeWorkspaceRuntimeForTest({
+          workspaceId: 'secondary-shell',
+          workspaceCwd: '/workspace/secondary-shell',
+          primary: false,
+          bridge: fakeBridge(),
+        }),
+        shellConfiguration: {
+          shell: 'powershell' as const,
+          executable: '/operator/pwsh',
+          argsPrefix: ['-Command'],
+        },
+      };
+      const terminalHandler = vi.spyOn(
+        terminalRoutes,
+        'createTerminalWsHandler',
+      );
+      try {
+        createServeApp(baseOpts, undefined, {
+          bridge: primary.bridge,
+          workspaceRegistry: createWorkspaceRegistry([primary, secondary]),
+        });
+        const resolveWorkspace = terminalHandler.mock.calls.at(-1)?.[1];
+        expect(
+          resolveWorkspace?.(secondary.workspaceCwd)?.shellConfiguration,
+        ).toBe(secondary.shellConfiguration);
+        expect(
+          resolveWorkspace?.(primary.workspaceCwd)?.shellConfiguration,
+        ).toBe(primary.shellConfiguration);
+        expect(resolveWorkspace?.('/workspace/unknown')).toBeUndefined();
+      } finally {
+        terminalHandler.mockRestore();
+      }
+    });
     it('advertises the SSH descriptor and disables its workflow while keeping anchor ownership', async () => {
       const primary = makeWorkspaceRuntimeForTest({
         workspaceId: 'primary-id',

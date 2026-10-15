@@ -99,7 +99,8 @@ export class ShellProcessor implements IPromptProcessor {
       ];
     }
 
-    const { shell } = getShellConfiguration();
+    const { shell } =
+      config.getAgentShellConfiguration?.() ?? getShellConfiguration();
     const userArgsEscaped = escapeShellArg(userArgsRaw, shell);
 
     // Check safety of the value that will be used for $ARGUMENTS (after removing outer quotes)

@@ -7,7 +7,7 @@
 import type { AnyDeclarativeTool, AnyToolInvocation } from '../tools/tools.js';
 import type { Config } from '../config/config.js';
 import os from 'node:os';
-import path from 'node:path';
+import { resolveAgentShell } from './agent-shell.js';
 import { parse, quote } from 'shell-quote';
 import { isTool } from './is-tool.js';
 import { isShellCommandReadOnly } from './shellReadOnlyChecker.js';
@@ -96,139 +96,19 @@ export type ShellType = 'cmd' | 'powershell' | 'bash';
  */
 export interface ShellConfiguration {
   /** The path or name of the shell executable (e.g., 'bash', 'cmd.exe'). */
-  executable: string;
+  readonly executable: string;
   /**
    * The arguments required by the shell to execute a subsequent string argument.
    */
-  argsPrefix: string[];
+  readonly argsPrefix: readonly string[];
   /** An identifier for the shell type. */
-  shell: ShellType;
+  readonly shell: ShellType;
 }
 
-let cachedBashPath: string | undefined;
 const ENV_ASSIGNMENT_REGEX = /^[A-Za-z_][A-Za-z0-9_]*=/;
 
-/**
- * Attempts to find the Git Bash executable path on Windows.
- * Checks common installation locations and PATH.
- * @returns The path to bash.exe if found, or 'bash' as fallback.
- */
-function findGitBashPath(): string {
-  // Return cached result if available
-  if (cachedBashPath) {
-    return cachedBashPath;
-  }
-
-  // Search in PATH directories
-  const pathEnv = process.env['PATH'] || '';
-  const pathDirs = pathEnv.split(path.delimiter).filter(Boolean);
-
-  for (const dir of pathDirs) {
-    const bashPath = path.join(dir, 'bash.exe');
-    try {
-      accessSync(bashPath, fsConstants.X_OK);
-      cachedBashPath = bashPath;
-      return bashPath;
-    } catch {
-      // Continue searching
-    }
-  }
-
-  // Check common Git Bash installation locations
-  const commonPaths = [
-    path.join('C:', 'Program Files', 'Git', 'bin', 'bash.exe'),
-    path.join('C:', 'Program Files', 'Git', 'usr', 'bin', 'bash.exe'),
-    path.join('C:', 'Program Files (x86)', 'Git', 'bin', 'bash.exe'),
-    path.join('C:', 'Program Files (x86)', 'Git', 'usr', 'bin', 'bash.exe'),
-    path.join(
-      process.env['ProgramFiles'] || path.join('C:', 'Program Files'),
-      'Git',
-      'bin',
-      'bash.exe',
-    ),
-    path.join(
-      process.env['ProgramFiles(x86)'] ||
-        path.join('C:', 'Program Files (x86)'),
-      'Git',
-      'bin',
-      'bash.exe',
-    ),
-  ];
-
-  for (const bashPath of commonPaths) {
-    try {
-      accessSync(bashPath, fsConstants.X_OK);
-      cachedBashPath = bashPath;
-      return bashPath;
-    } catch {
-      // Continue searching
-    }
-  }
-
-  // Fallback to 'bash' and let the system handle it
-  cachedBashPath = 'bash';
-  return 'bash';
-}
-
-/**
- * Determines the appropriate shell configuration for the current platform.
- *
- * This ensures we can execute command strings predictably and securely across platforms
- * using the `spawn(executable, [...argsPrefix, commandString], { shell: false })` pattern.
- *
- * @returns The ShellConfiguration for the current environment.
- */
 export function getShellConfiguration(): ShellConfiguration {
-  if (isWindows()) {
-    // Detect Git Bash / MSYS2 / MinTTY environments
-    // These environments should use bash instead of cmd/PowerShell
-    const msystem = process.env['MSYSTEM'];
-    const term = process.env['TERM'] || '';
-    const isGitBash =
-      msystem?.startsWith('MINGW') ||
-      msystem?.startsWith('MSYS') ||
-      term.includes('msys') ||
-      term.includes('cygwin');
-
-    if (isGitBash) {
-      return {
-        executable: findGitBashPath(),
-        argsPrefix: ['-c'],
-        shell: 'bash',
-      };
-    }
-
-    const comSpec = process.env['ComSpec'] || 'cmd.exe';
-    const executable = comSpec.toLowerCase();
-
-    if (
-      executable.endsWith('powershell.exe') ||
-      executable.endsWith('pwsh.exe')
-    ) {
-      // For PowerShell, the arguments are different.
-      // -NoProfile: Speeds up startup.
-      // -Command: Executes the following command.
-      return {
-        executable: comSpec,
-        argsPrefix: ['-NoProfile', '-Command'],
-        shell: 'powershell',
-      };
-    }
-
-    // Default to cmd.exe for anything else on Windows.
-    // Flags for CMD:
-    // /d: Skip execution of AutoRun commands.
-    // /s: Modifies the treatment of the command string (important for quoting).
-    // /c: Carries out the command specified by the string and then terminates.
-    return {
-      executable: comSpec,
-      argsPrefix: ['/d', '/s', '/c'],
-      shell: 'cmd',
-    };
-  }
-
-  // Unix-like systems (Linux, macOS)
-  return { executable: 'bash', argsPrefix: ['-c'], shell: 'bash' };
+  return resolveAgentShell({}, { platform: os.platform(), env: process.env });
 }
 
 /**
@@ -269,7 +149,47 @@ export function escapeShellArg(arg: string, shell: ShellType): string {
  * @param command The shell command string to parse
  * @returns An array of individual command strings
  */
-export function splitCommands(command: string): string[] {
+function splitWindowsCommands(
+  command: string,
+  shell: 'cmd' | 'powershell',
+): string[] {
+  const result: string[] = [];
+  let quote: "'" | '"' | undefined;
+  let start = 0;
+  for (let i = 0; i < command.length; i++) {
+    const char = command[i];
+    if (
+      (shell === 'cmd' && char === '^' && !quote) ||
+      (shell === 'powershell' && char === '`' && quote !== "'")
+    ) {
+      i++;
+      continue;
+    }
+    if (char === quote) {
+      if (shell === 'powershell' && char === "'" && command[i + 1] === "'") i++;
+      else quote = undefined;
+      continue;
+    }
+    if (!quote && (char === '"' || (char === "'" && shell === 'powershell'))) {
+      quote = char;
+      continue;
+    }
+    if (!quote && char && ';&|\r\n'.includes(char)) {
+      const segment = command.slice(start, i).trim();
+      if (segment) result.push(segment);
+      start = i + 1;
+    }
+  }
+  const tail = command.slice(start).trim();
+  if (tail) result.push(tail);
+  return result.length ? result : [command];
+}
+
+export function splitCommands(
+  command: string,
+  shell: ShellType = 'bash',
+): string[] {
+  if (shell !== 'bash') return splitWindowsCommands(command, shell);
   const commands: string[] = [];
   let currentCommand = '';
   let inSingleQuotes = false;
@@ -2126,7 +2046,11 @@ export async function checkCommandPermissions(
   }
 
   const normalize = (cmd: string): string => cmd.trim().replace(/\s+/g, ' ');
-  const commandsToValidate = splitCommands(command).map(normalize);
+  const commandsToValidate = splitCommands(
+    command,
+    config.getAgentShellConfiguration?.().shell ??
+      getShellConfiguration().shell,
+  ).map(normalize);
   const invocation: AnyToolInvocation & { params: { command: string } } = {
     params: { command: '' },
   } as AnyToolInvocation & { params: { command: string } };

@@ -57,6 +57,19 @@ describe('createMemoryScopedAgentConfig', () => {
     return pm;
   }
 
+  it('inherits the exact parent runtime shell snapshot', () => {
+    const shell = Object.freeze({
+      shell: 'powershell' as const,
+      executable: 'C:\\Program Files\\PowerShell\\7\\pwsh.exe',
+      argsPrefix: Object.freeze(['-NoProfile', '-NonInteractive', '-Command']),
+    });
+    const parent = {
+      getAgentShellConfiguration: () => shell,
+    } as unknown as Config;
+    const child = createMemoryScopedAgentConfig(parent, projectRoot);
+    expect(child.getAgentShellConfiguration()).toBe(shell);
+  });
+
   it('restricts reads to memory paths only when requested', async () => {
     const unrestricted = permissionManager(
       createMemoryScopedAgentConfig({} as Config, projectRoot),

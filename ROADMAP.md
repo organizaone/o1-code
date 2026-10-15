@@ -30,6 +30,44 @@ the release workflow publishes the npm package and GitHub release only.
 
 In this order.
 
+### Remaining Windows process helpers
+
+Windows sleep requests and browser opening use optional native bindings, text clipboard reads
+reuse the native clipboard module, and standalone updates extract ZIP files in Node. These changes
+do not make every Windows feature independent of PowerShell. The following fixed helpers remain
+until equivalent native behavior is demonstrated in supported Windows environments:
+
+| Consumer                                             | Retained helper                                                         | Required parity before migration                                                                                                                         |
+| ---------------------------------------------------- | ----------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `packages/core/src/tools/pid-descendants.ts`         | CIM process snapshot and per-PID start-time queries                     | Preserve descendant cleanup and PID reuse protection across exited or inaccessible processes; never treat a failed snapshot as an empty successful tree. |
+| `packages/core/src/services/session-writer-lease.ts` | `Get-Process` UTC start ticks                                           | Preserve persisted `win32:<ticks>` identities and deny uncertain ownership so a recycled PID cannot create simultaneous session writers.                 |
+| `packages/core/src/ide/process-utils.ts`             | CIM `CommandLine` query                                                 | Toolhelp snapshots provide names and parent PIDs, but cannot supply the command lines used by IDE discovery.                                             |
+| `packages/cli/src/serve/native-directory-picker.ts`  | STA Windows Forms folder dialog                                         | Preserve interactive selection and cancellation; a new dialog/COM subsystem requires its own parity evaluation.                                          |
+| `packages/cli/src/serve/local-path-open.ts`          | Fixed `Start-Process` terminal fallback when Windows Terminal is absent | Preserve existing-directory validation, bounded execution and passing the directory as environment data.                                                 |
+
+Explicit PowerShell agent/hook selections and saved custom status commands remain supported.
+Build-time Windows archive creation may still use fixed PowerShell helpers; it is separate from
+the installed updater. Functional validation on ARM64 or x64 emulation does not establish native
+Windows 10 x64 compatibility or compatibility with a corporate endpoint security policy.
+
+### Windows release validation
+
+The Windows execution changes have been exercised in the O1-Code Parallels guest on Windows 11
+ARM64, including x64 Node under emulation. Installed npm and standalone packages acquired and
+released native power requests without a PowerShell subprocess. Native Windows 10 x64 and a
+corporate endpoint policy remain separate validation requirements.
+
+Headless local-provider runs with Node 24.18.0 in this guest return the response and then fail at
+shutdown with Node's `UV_HANDLE_CLOSING` assertion. The same failure reproduces with the pre-change
+bundle and with optional native dependencies omitted; the matching x64 cases exit normally with
+Node 22.23.3. Investigate shutdown and retain the Node 24 case as a failing smoke result until
+fixed; a successful response alone does not establish a clean exit. PowerShell discovery allows
+ten seconds for startup after two-second probes rejected a runnable installation in the guest.
+Git Bash also retains normal
+MSYS native argument conversion, so `/flag` can become a path; no global conversion override was
+introduced. PowerShell 7, UNC, npm.cmd and cancellation still need dedicated installed-artifact
+coverage beyond the checked-in smoke runner.
+
 ### Connect a provider: the new login
 
 The terminal and Web Shell provider dialogs have shipped, with four entry groups, a credential
