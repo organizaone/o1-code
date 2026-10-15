@@ -8,6 +8,7 @@ import { describe, it, expect, vi } from 'vitest';
 import { EOL } from 'node:os';
 import { promises as fsp } from 'node:fs';
 import { Box } from 'ink';
+import { setGlyphMode } from '../../glyphs.js';
 
 // Capture launches of the external editor so the full-plan viewer
 // can be asserted without spawning a real editor process.
@@ -51,6 +52,74 @@ describe('ToolConfirmationMessage', () => {
     isTrustedFolder: () => true,
     getIdeMode: () => false,
   } as unknown as Config;
+
+  it.each(['full', 'compat'] as const)(
+    'renders one-cell ASCII warning markers in %s mode',
+    (mode) => {
+      setGlyphMode(mode);
+      try {
+        for (const type of ['exec', 'edit'] as const) {
+          const details: ToolCallConfirmationDetails =
+            type === 'exec'
+              ? {
+                  type,
+                  title: 'Confirm',
+                  command: 'echo check',
+                  rootCommand: 'echo',
+                  warnings: ['Review this action'],
+                  onConfirm: vi.fn(),
+                }
+              : {
+                  type,
+                  title: 'Confirm',
+                  fileName: 'file.ts',
+                  filePath: '/tmp/file.ts',
+                  fileDiff: 'diff',
+                  originalContent: 'before',
+                  newContent: 'after',
+                  warnings: ['Review this action'],
+                  onConfirm: vi.fn(),
+                };
+          const view = renderWithProviders(
+            <Box width={60}>
+              <ToolConfirmationMessage
+                confirmationDetails={details}
+                config={mockConfig}
+                availableTerminalHeight={16}
+                contentWidth={56}
+              />
+            </Box>,
+          );
+          expect(view.lastFrame()).toContain('! Review this action');
+          expect(view.lastFrame()).not.toContain('⚠');
+          view.unmount();
+        }
+        const fallback = renderWithProviders(
+          <ToolConfirmationMessage
+            confirmationDetails={{
+              type: 'exec',
+              title: 'Confirm',
+              command: 'echo check',
+              rootCommand: 'echo',
+              autoModeFallback: {
+                reason: 'classifier_unavailable',
+                message: 'Review classification',
+              },
+              onConfirm: vi.fn(),
+            }}
+            config={mockConfig}
+            availableTerminalHeight={12}
+            contentWidth={60}
+            compactMode
+          />,
+        );
+        expect(fallback.lastFrame()).toContain('! Review classification');
+        fallback.unmount();
+      } finally {
+        setGlyphMode('full');
+      }
+    },
+  );
 
   it('should not display urls if prompt and url are the same', () => {
     const confirmationDetails: ToolCallConfirmationDetails = {

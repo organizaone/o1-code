@@ -270,10 +270,14 @@ export const ToolConfirmationMessage: React.FC<
       ? 2 + (offersSwitchToDefault ? 1 : 0) + (hidesAlwaysAllow ? 0 : 1)
       : options.length + (offersSwitchToDefault ? 1 : 0);
     const AUTO_MODE_FALLBACK_HEIGHT = autoModeFallback
-      ? wrapAnsi(`⚠ ${autoModeFallback.message}`, warningContentWidth, {
-          trim: false,
-          hard: true,
-        }).split('\n').length + 1
+      ? wrapAnsi(
+          `${glyphs().warning} ${autoModeFallback.message}`,
+          warningContentWidth,
+          {
+            trim: false,
+            hard: true,
+          },
+        ).split('\n').length + 1
       : 0;
 
     const surroundingElementsHeight =
@@ -298,7 +302,7 @@ export const ToolConfirmationMessage: React.FC<
     const wrappedRows = warnings.reduce(
       (sum, warning) =>
         sum +
-        wrapAnsi(`⚠ ${warning}`, warningContentWidth, {
+        wrapAnsi(`${glyphs().warning} ${warning}`, warningContentWidth, {
           trim: false,
           hard: true,
         }).split('\n').length,
@@ -450,7 +454,8 @@ export const ToolConfirmationMessage: React.FC<
           >
             {constrainWarnings && warningMaxHeight === 1 ? (
               <Text color={theme.status.warning} wrap="truncate">
-                ⚠ {warnings.at(-1)?.replace(/\r\n?|\n/g, ' ↵ ')}
+                {glyphs().warning}{' '}
+                {warnings.at(-1)?.replace(/\r\n?|\n/g, ' ↵ ')}
               </Text>
             ) : constrainWarnings ? (
               <MaxSizedBox
@@ -461,7 +466,7 @@ export const ToolConfirmationMessage: React.FC<
                 {warnings.map((warning, idx) => (
                   <Box key={idx}>
                     <Text color={theme.status.warning} wrap="truncate">
-                      ⚠ {warning.replace(/\r\n?|\n/g, ' ↵ ')}
+                      {glyphs().warning} {warning.replace(/\r\n?|\n/g, ' ↵ ')}
                     </Text>
                   </Box>
                 ))}
@@ -469,7 +474,7 @@ export const ToolConfirmationMessage: React.FC<
             ) : (
               warnings.map((warning, idx) => (
                 <Text key={idx} color={theme.status.warning}>
-                  ⚠ {warning}
+                  {glyphs().warning} {warning}
                 </Text>
               ))
             )}
@@ -580,7 +585,7 @@ export const ToolConfirmationMessage: React.FC<
           <Box flexDirection="column" paddingX={1} marginLeft={1} marginTop={1}>
             {warnings.map((warning, idx) => (
               <Text key={idx} color={theme.status.warning}>
-                ⚠ {warning}
+                {glyphs().warning} {warning}
               </Text>
             ))}
           </Box>
@@ -747,6 +752,7 @@ export const ToolConfirmationMessage: React.FC<
         confirmationDetails={confirmationDetails}
         isFocused={isFocused}
         availableWidth={contentWidth}
+        availableHeight={availableTerminalHeight}
         onConfirm={onConfirm}
       />
     );
@@ -828,7 +834,7 @@ export const ToolConfirmationMessage: React.FC<
       <Box flexDirection="column">
         <Box paddingX={1} marginLeft={1} marginBottom={1}>
           <Text color={theme.status.warning}>
-            ⚠ {autoModeFallback.message}
+            {glyphs().warning} {autoModeFallback.message}
           </Text>
         </Box>
         {bodyContent}

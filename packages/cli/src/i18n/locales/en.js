@@ -8,6 +8,10 @@
 // The key serves as both the translation key and the default English text
 
 export default {
+  'PgUp/PgDn: Scroll': 'PgUp/PgDn: Scroll',
+  'PgUp/PgDn scroll description': 'PgUp/PgDn scroll description',
+  '↑↓ navigate · Enter select · Escape cancel · PgUp/PgDn description':
+    '↑↓ navigate · Enter select · Escape cancel · PgUp/PgDn description',
   '↑↓/Tab navigate · Space toggle': '↑↓/Tab navigate · Space toggle',
   'Enter confirm · Esc back': 'Enter confirm · Esc back',
   'Model IDs cannot be empty.': 'Model IDs cannot be empty.',

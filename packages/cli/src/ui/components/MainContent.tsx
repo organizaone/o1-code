@@ -5,10 +5,12 @@
  */
 
 import { Box, Static, type DOMElement } from 'ink';
+import type { AgentResultDisplay } from '@organizaone/o1-code-core/tools/tools.js';
 import {
   memo,
   useCallback,
   useEffect,
+  useLayoutEffect,
   useMemo,
   useRef,
   useState,
@@ -484,6 +486,30 @@ export const MainContent = ({
           tool.confirmationDetails.renderPromptAsPlainText === true,
       ),
   );
+  const hasPendingQuestion = pendingHistoryItems.some(
+    (item) =>
+      item.type === 'tool_group' &&
+      item.tools.some((tool) => {
+        if (
+          tool.status === ToolCallStatus.Confirming &&
+          tool.confirmationDetails?.type === 'ask_user_question'
+        )
+          return true;
+        const result = tool.resultDisplay;
+        return (
+          typeof result === 'object' &&
+          result !== null &&
+          'type' in result &&
+          result.type === 'task_execution' &&
+          (result as AgentResultDisplay).pendingConfirmation?.type ===
+            'ask_user_question'
+        );
+      }),
+  );
+  useLayoutEffect(() => {
+    if (useVirtualScroll && hasPendingQuestion)
+      scrollRef.current?.scrollToEnd();
+  }, [useVirtualScroll, hasPendingQuestion]);
   const pendingSourceCopyOffsetsRef = useRef(pendingSourceCopyOffsetsByIndex);
   pendingSourceCopyOffsetsRef.current = pendingSourceCopyOffsetsByIndex;
 
@@ -588,7 +614,9 @@ export const MainContent = ({
     // selection — the menu's Copy Selection offers it — and clearing it the
     // instant the menu opens would hide what is about to be copied).
     const viewportInteractive =
-      !uiState.dialogsVisible && contextMenuOpen === null;
+      !uiState.dialogsVisible &&
+      !hasPendingQuestion &&
+      contextMenuOpen === null;
 
     return (
       <OverflowProvider>

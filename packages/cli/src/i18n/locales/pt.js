@@ -7,6 +7,10 @@
 // Portuguese translations for O1-Code CLI (pt-BR)
 
 export default {
+  'PgUp/PgDn: Scroll': 'PgUp/PgDn: Rolar',
+  'PgUp/PgDn scroll description': 'PgUp/PgDn rolar descrição',
+  '↑↓ navigate · Enter select · Escape cancel · PgUp/PgDn description':
+    '↑↓ navegar · Enter selecionar · Escape cancelar · PgUp/PgDn descrição',
   '↑↓/Tab navigate · Space toggle': '↑↓/Tab navegar · Espaço marcar',
   'Enter confirm · Esc back': 'Enter confirmar · Esc voltar',
   'Model IDs cannot be empty.': 'Os IDs de modelo não podem estar vazios.',

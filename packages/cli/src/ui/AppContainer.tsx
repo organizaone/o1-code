@@ -816,10 +816,8 @@ interface AppContainerProps {
   initialUseVirtualViewport?: boolean;
   extensionRefreshState?: ExtensionRefreshState;
   /**
-   * VP wake/SIGCONT repaint: clear the viewport and replay the last frame
-   * (Ink skips unchanged-output redraws, so a bare clear would blank the
-   * screen). Absent under O1CODE_LEGACY_RESIZE_ERASE: the VP wake path
-   * stays write-free (static remount bump only), matching pre-PR behavior.
+   * Ask Ink to invalidate its diff cache and rebuild the alternate viewport.
+   * Without a renderer callback, wake recovery leaves the viewport untouched.
    */
   repaintViewport?: () => void;
 }
@@ -1662,14 +1660,8 @@ export const AppContainer = (props: AppContainerProps) => {
     remountStaticHistory();
   }, [useTerminalBuffer, remountStaticHistory, stdout]);
 
-  // Wake/SIGCONT: the terminal buffer may be stale or rearranged, and Ink
-  // both erases with a stale relative count and skips redraws whose output
-  // is unchanged — so VP repaints by replaying the last frame over a clean
-  // viewport (viewport-only: clearTerminal's 3J would destroy scrollback /
-  // Warp history) and bumps the static remount key so one-shot <Static>
-  // history (agent tabs) is re-emitted over the clear. Static mode uses the
-  // ordinary refreshStatic. Selection extracted (buildWakeRepaint) for unit
-  // coverage.
+  // Wake recovery must invalidate Ink's diff cache before repainting. Remount
+  // one-shot static history too; scrollback mode keeps its existing refresh.
   const wakeRepaint = useMemo(
     () =>
       buildWakeRepaint({
@@ -4336,6 +4328,7 @@ export const AppContainer = (props: AppContainerProps) => {
     terminalHeight,
     btwItem,
     dialogsVisible,
+    isFeedbackDialogOpen,
     stickyTodosLayoutKey,
     liveAgentPanelLayoutKey,
     // Composer and update notification height also shift with these; without

@@ -7,6 +7,13 @@ follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Fixed
+
+- Terminal wake recovery now redraws the complete current interface, preserving borders and input when incremental rendering is enabled.
+- The optional session feedback survey reserves its own space instead of pushing the header out of the terminal.
+- Long questions, answer reviews and plugin descriptions scroll within the available terminal height while keeping selection and submission accessible.
+- Approval warnings use a consistent ASCII marker to avoid ambiguous symbol widths in Windows terminals.
+
 ## [0.19.2] - 2026-10-15
 
 ### Added

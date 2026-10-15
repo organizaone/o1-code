@@ -157,6 +157,11 @@ conversation frame, including on unauthenticated startup. Closing authentication
 restores the transcript and queue. In scrollback mode and screen-reader mode
 the header is not pinned, and the update notice renders as its own box above the input.
 
+Feedback visibility participates in composer-height measurement: opening or closing the
+optional survey reserves or releases its rows before the conversation settles. Wake recovery
+asks Ink to invalidate its incremental cache and render the current tree over a clean viewport;
+replaying captured terminal writes cannot reconstruct a frame from partial row updates.
+
 ### Header
 
 Each row has an independent left and right side: a long item on the right never squeezes the left.
@@ -477,9 +482,20 @@ never leaves; it only shortens from the start.
   and [private marketplace editing](../images/tui-marketplace-source-edit.png).
 - **Slash/@ suggestions:** name in a 28-column column, detail in muted, footer
   `↑↓ navigate · tab complete · enter select · esc close`. Lists filter on every key.
-- **Question custom answers** (`messages/AskUserQuestionDialog.tsx`): the input
+- **Plugin choices** (`components/PluginChoicePrompt.tsx`): the dialog receives its available
+  row budget from its caller. The visible names and selected description share that budget;
+  PgUp/PgDn scroll the complete description while arrows select another plugin. Short terminals
+  compact the title, spacing and frame before losing access to content or selection controls.
+- **Question custom answers** (`messages/AskUserQuestionDialog.tsx`): questions, option
+  descriptions and answer reviews scroll with PgUp/PgDn within the available message height.
+  The question header, active choice or custom input, and navigation remain pinned when space
+  permits. The question owns scrolling while awaiting an answer, so paging its contents does not
+  move the surrounding transcript. An arriving question brings the transcript to its latest turn
+  before taking scroll focus, including when the user was reading earlier messages. Full-detail
+  mode expands results but retains the height budget
+  for direct and subagent questions. The input
   uses the available message width after padding, numbering, and the input
-  prefix. Up to three wrapped lines stay visible; longer answers show the
+  prefix. Up to three wrapped lines stay visible when space permits; longer answers show the
   visible line range and arrows for hidden text. Enter submits the complete
   answer once; wrapping and scrolling never discard its contents.
 - **Exit summary** (`QuittingDisplay.tsx`): default five-second countdown, with
@@ -530,6 +546,7 @@ Lucida Console lacks many of them, so a compat set replaces them with glyphs fro
 | `▰` `▱`           | `█` `░`                              |
 | `↳`               | `→`                                  |
 | `✗`               | `x`                                  |
+| `!` (warning)     | `!`                                  |
 | `✓`               | `√`                                  |
 | `◆` (assistant)   | `*`                                  |
 | braille spinner   | `\|` `/` `-` `\`                     |
@@ -563,6 +580,21 @@ space that follows. `✅` and `❌` have no text presentation, so the selector w
   to the English key.
 - Names shown to the user come from `brand.json` (through `generated/brand.ts`), never from a
   literal. `node scripts/o1/brand-lint.mjs` is the gate.
+
+## Layout regression checks
+
+After building and bundling, run the real CLI against a local fake provider with:
+
+```bash
+node --import tsx integration-tests/terminal-capture/terminal-layout-regression.ts feedback
+node --import tsx integration-tests/terminal-capture/terminal-layout-regression.ts question
+```
+
+These checks require the installed Playwright Chromium browser. They use temporary settings and
+six conversation turns, assert the visible terminal contents, and save screenshots and raw output.
+The question scenario pages down and back up, sends mouse-wheel events, and toggles full-detail
+mode. `O1CODE_TUI_E2E_OUT` selects the capture directory. Renderer composition, dialog row budgets,
+custom answers and plugin navigation also have collocated CLI tests.
 
 ## See also
 

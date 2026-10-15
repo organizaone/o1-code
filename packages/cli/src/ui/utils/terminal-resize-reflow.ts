@@ -81,9 +81,8 @@ function lineCharWidths(line: string): number[] {
 
 interface FrameModel {
   // Raw content of the last frame that reached the terminal; rows are
-  // packed lazily (the model is only consumed on shrink/wake).
+  // packed lazily (the model is only consumed on shrink).
   content: string;
-  columns: number;
   // Ink counts the cursor-below line for non-fullscreen frames (the trailing
   // '\n' it appends); the amplification target must include it.
   trailingNewline: boolean;
@@ -107,19 +106,13 @@ function reflowModel(model: FrameModel, columns: number): number {
 export interface ResizeReflowOptions {
   /** VP / alternate-screen mode: the shrink clear may blank the viewport. */
   virtualViewport?: boolean;
+  /** Rebuild the viewport from the renderer after invalidating its caches. */
+  repaint?: () => void;
 }
 
 export interface TerminalResizeReflowHandle {
   restore: () => void;
-  /**
-   * Clear the viewport and replay the last frame that reached the terminal.
-   * Ink skips redraws whose output is unchanged, so a wake/SIGCONT repaint
-   * cannot rely on React alone after an external clear. Only the wake path
-   * may call this — ordinary refreshStatic callers must stay write-free in
-   * VP (replaying the pre-change frame would flash stale content). Absent
-   * under O1CODE_LEGACY_RESIZE_ERASE: the VP wake path then stays
-   * write-free (static remount bump only), matching pre-PR behavior.
-   */
+  /** Wake recovery is owned by the renderer, which also owns its diff cache. */
   repaint?: () => void;
 }
 
@@ -131,14 +124,8 @@ export interface WakeRepaintDeps {
 }
 
 /**
- * Wake/SIGCONT selection, extracted for unit coverage: VP repaints by
- * replaying the last frame over a clean viewport (Ink skips unchanged-output
- * redraws) and bumps the static remount key so one-shot <Static> history
- * (agent tabs) is re-emitted over the clear. Without a repaint (the legacy
- * escape hatch) VP wake stays write-free — a bare viewport clear would blank
- * the screen, since Ink then writes zero bytes for byte-identical output —
- * matching pre-PR behavior (stale but visible). Static mode uses the
- * ordinary refreshStatic.
+ * Wake/SIGCONT asks the renderer to rebuild the alternate viewport and remounts
+ * one-shot static history. Scrollback mode uses the ordinary static refresh.
  */
 export function buildWakeRepaint(deps: WakeRepaintDeps): () => void {
   return () => {
@@ -180,7 +167,6 @@ export function installTerminalResizeReflow(
   let lastWidth = stdout.columns ?? 0;
   const model: FrameModel = {
     content: '',
-    columns: lastWidth,
     trailingNewline: false,
   };
   let pendingAmplify = 0;
@@ -206,7 +192,6 @@ export function installTerminalResizeReflow(
   const modelFrame = (content: string, bypassMin = false) => {
     if (!bypassMin && content.split('\n').length < MIN_FRAME_LINES) return;
     model.content = content;
-    model.columns = stdout.columns ?? lastWidth;
     // Ink appends the cursor suffix AFTER the frame's trailing newline, so
     // detect the newline on the ANSI-stripped content (the suffix is either
     // pure control bytes or a one-cell cursor block, never a '\n').
@@ -343,14 +328,6 @@ export function installTerminalResizeReflow(
       }
       stdout.off('resize', onResize);
     },
-    repaint: () => {
-      const columns = stdout.columns ?? lastWidth;
-      originalWrite.call(
-        stdout,
-        model.columns === columns && model.content
-          ? CLEAR_VIEWPORT + model.content
-          : CLEAR_VIEWPORT,
-      );
-    },
+    repaint: options.repaint,
   };
 }

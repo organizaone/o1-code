@@ -330,48 +330,37 @@ describe('installTerminalResizeReflow', () => {
     }
   });
 
-  it('repaint replays the last frame over a clean viewport', () => {
+  it('wake delegates to the renderer instead of replaying modeled writes', () => {
     const stdout = new FakeStdout();
     const { restore, repaint } = installTerminalResizeReflow(
       stdout as unknown as NodeJS.WriteStream,
-      { virtualViewport: true },
-    );
-    try {
-      stdout.write(eraseLines(10) + frame(60, 10));
-      stdout.written.length = 0;
-      repaint!();
-      expect(stdout.written).toEqual([`${ESC}2J${ESC}H` + frame(60, 10)]);
-    } finally {
-      restore();
-    }
-  });
-
-  it('repaint falls back to a bare clear when the width changed', () => {
-    const stdout = new FakeStdout();
-    const { restore, repaint } = installTerminalResizeReflow(
-      stdout as unknown as NodeJS.WriteStream,
-      { virtualViewport: true },
+      {
+        virtualViewport: true,
+        repaint: () => stdout.write('authoritative renderer frame'),
+      },
     );
     try {
       stdout.write(eraseLines(10) + frame(60, 10));
       stdout.columns = 80;
       stdout.written.length = 0;
-      repaint!();
-      expect(stdout.written).toEqual([`${ESC}2J${ESC}H`]);
+      repaint?.();
+      expect(stdout.written).toEqual(['authoritative renderer frame']);
     } finally {
       restore();
     }
   });
 
-  it('repaint before any frame is a bare clear', () => {
+  it('wake stays write-free without an authoritative renderer', () => {
     const stdout = new FakeStdout();
     const { restore, repaint } = installTerminalResizeReflow(
       stdout as unknown as NodeJS.WriteStream,
       { virtualViewport: true },
     );
     try {
-      repaint!();
-      expect(stdout.written).toEqual([`${ESC}2J${ESC}H`]);
+      stdout.write(eraseLines(10) + frame(60, 10));
+      stdout.written.length = 0;
+      repaint?.();
+      expect(stdout.written).toEqual([]);
     } finally {
       restore();
     }

@@ -614,19 +614,16 @@ export const ToolGroupMessage: React.FC<ToolGroupMessageProps> = ({
   }
   const countOneLineToolCalls =
     nonCollapsibleTools.length - countToolCallsWithResults;
-  // In full-detail mode, lift the per-tool height truncation so
-  // each tool's output renders in full (combined with forceShowResult below).
-  const availableTerminalHeightPerToolMessage = fullDetail
-    ? undefined
-    : availableTerminalHeight
-      ? Math.max(
-          Math.floor(
-            (availableTerminalHeight - staticHeight - countOneLineToolCalls) /
-              Math.max(1, countToolCallsWithResults),
-          ),
-          1,
-        )
-      : undefined;
+  // Full detail expands result previews; live confirmations keep their row budget.
+  const availableTerminalHeightPerToolMessage = availableTerminalHeight
+    ? Math.max(
+        Math.floor(
+          (availableTerminalHeight - staticHeight - countOneLineToolCalls) /
+            Math.max(1, countToolCallsWithResults),
+        ),
+        1,
+      )
+    : undefined;
 
   return (
     <Box flexDirection="column" width={contentWidth} gap={0}>
@@ -649,7 +646,13 @@ export const ToolGroupMessage: React.FC<ToolGroupMessageProps> = ({
             <Box flexDirection="row" alignItems="center">
               <ToolMessage
                 {...tool}
-                availableTerminalHeight={availableTerminalHeightPerToolMessage}
+                availableTerminalHeight={
+                  fullDetail &&
+                  !isAgentWithPendingConfirmation(tool.resultDisplay) &&
+                  tool.confirmationDetails?.type !== 'ask_user_question'
+                    ? undefined
+                    : availableTerminalHeightPerToolMessage
+                }
                 contentWidth={contentWidth}
                 emphasis={
                   isConfirming

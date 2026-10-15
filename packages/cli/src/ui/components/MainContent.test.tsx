@@ -1305,6 +1305,68 @@ describe('<MainContent />', () => {
       expect(lastVpDataIds()).toEqual([Number.MIN_SAFE_INTEGER, 2, -1]);
     });
 
+    it.each([false, true])(
+      'yields transcript scrolling to a pending question (subagent=%s)',
+      (subagent) => {
+        scrollableListPropsSpy.mockClear();
+        const confirmation = {
+          type: 'ask_user_question' as const,
+          title: 'Question',
+          questions: [
+            {
+              header: 'Next',
+              question: 'Choose',
+              options: [
+                { label: 'First', description: '' },
+                { label: 'Second', description: '' },
+              ],
+            },
+          ],
+          onConfirm: vi.fn(async () => {}),
+        };
+        const pendingItem = {
+          type: 'tool_group' as const,
+          tools: [
+            {
+              callId: 'question',
+              name: subagent ? 'Task' : 'AskUserQuestion',
+              description: 'Choose the next step',
+              status: subagent
+                ? ToolCallStatus.Executing
+                : ToolCallStatus.Confirming,
+              confirmationDetails: subagent ? undefined : confirmation,
+              resultDisplay: subagent
+                ? {
+                    type: 'task_execution' as const,
+                    subagentName: 'reviewer',
+                    status: 'running' as const,
+                    taskDescription: 'Review',
+                    taskPrompt: 'Review the code',
+                    pendingConfirmation: confirmation,
+                  }
+                : undefined,
+            },
+          ],
+        };
+        renderMainContent(
+          createUIState({
+            useTerminalBuffer: true,
+            pendingHistoryItems: [pendingItem],
+          }),
+        );
+        expect(scrollableListPropsSpy.mock.calls.at(-1)?.[0].hasFocus).toBe(
+          false,
+        );
+        scrollableListPropsSpy.mockClear();
+        renderMainContent(
+          createUIState({ useTerminalBuffer: true, pendingHistoryItems: [] }),
+        );
+        expect(scrollableListPropsSpy.mock.calls.at(-1)?.[0].hasFocus).toBe(
+          true,
+        );
+      },
+    );
+
     it('requests a full-height measurement only for pending plain-text confirmations', () => {
       scrollableListPropsSpy.mockClear();
 

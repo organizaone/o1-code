@@ -22,6 +22,7 @@ const singles = (set: GlyphSet): string[] => [
   set.queued,
   set.agent,
   set.failed,
+  set.warning,
   set.done,
   set.dot,
   set.hollow,

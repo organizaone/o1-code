@@ -11,6 +11,8 @@
 // re-laid them out.
 
 import { EventEmitter } from 'node:events';
+import { createRequire } from 'node:module';
+import { installTerminalResizeReflow } from './terminal-resize-reflow.js';
 import { afterEach, describe, expect, it } from 'vitest';
 import { Box, render, Text } from 'ink';
 
@@ -114,4 +116,96 @@ describe('Ink alternate-screen resize repaint (patched)', () => {
     await settle();
     expect(stdout.writes.join('')).toContain('hello resize');
   });
+});
+
+describe('wake recovery with the real renderer and terminal', () => {
+  const { Terminal } = createRequire(import.meta.url)(
+    '@xterm/headless',
+  ) as typeof import('@xterm/headless');
+
+  it.each([true, false])(
+    'preserves the current frame across wake and unchanged updates (incremental=%s)',
+    async (incrementalRendering) => {
+      const stdout = new FakeStdout();
+      stdout.columns = 30;
+      stdout.rows = 12;
+      const terminal = new Terminal({
+        cols: 30,
+        rows: 12,
+        allowProposedApi: true,
+        convertEol: true,
+      });
+      let instance: ReturnType<typeof render> | undefined;
+      const reflow = installTerminalResizeReflow(
+        stdout as unknown as NodeJS.WriteStream,
+        {
+          virtualViewport: true,
+          repaint: () => instance?.repaint(),
+        },
+      );
+      let consumed = 0;
+      const flush = async () => {
+        await instance?.waitUntilRenderFlush();
+        for (const output of stdout.writes.slice(consumed)) {
+          await new Promise<void>((resolve) => terminal.write(output, resolve));
+        }
+        consumed = stdout.writes.length;
+      };
+      const snapshot = () =>
+        Array.from(
+          { length: terminal.rows },
+          (_, row) =>
+            terminal.buffer.active.getLine(row)?.translateToString(true) ?? '',
+        );
+      const frame = (label: string) => (
+        <Box width="100%" height={12} borderStyle="single">
+          <Text>{label}</Text>
+        </Box>
+      );
+      try {
+        instance = render(frame('initial'), {
+          stdout: stdout as unknown as NodeJS.WriteStream,
+          stdin: new FakeStdin() as unknown as NodeJS.ReadStream,
+          stderr: new FakeStdout() as unknown as NodeJS.WriteStream,
+          exitOnCtrlC: false,
+          patchConsole: false,
+          interactive: true,
+          alternateScreen: true,
+          incrementalRendering,
+        });
+        await flush();
+        for (const label of ['initial', 'second choice', 'current choice']) {
+          instance.rerender(frame(label));
+          await flush();
+          const before = snapshot();
+          expect(before[0]).toBe('┌' + '─'.repeat(28) + '┐');
+          expect(before[1]).toBe('│' + label.padEnd(28) + '│');
+          reflow.repaint?.();
+          await flush();
+          expect(snapshot()).toEqual(before);
+          instance.rerender(frame(label));
+          await flush();
+          expect(snapshot()).toEqual(before);
+        }
+        for (const columns of [24, 40, 30]) {
+          terminal.resize(columns, 12);
+          stdout.columns = columns;
+          // Wake can arrive before the queued terminal resize notification.
+          reflow.repaint?.();
+          await flush();
+          expect(snapshot()[0]).toBe('┌' + '─'.repeat(columns - 2) + '┐');
+          expect(snapshot()[1]).toBe(
+            '│' + 'current choice'.padEnd(columns - 2) + '│',
+          );
+          stdout.emit('resize');
+          await flush();
+          expect(snapshot()[0]).toBe('┌' + '─'.repeat(columns - 2) + '┐');
+        }
+      } finally {
+        instance?.unmount();
+        reflow.restore();
+        terminal.dispose();
+      }
+    },
+  );
 });

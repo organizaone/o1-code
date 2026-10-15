@@ -16,6 +16,7 @@ import { theme } from '../../semantic-colors.js';
 import { useKeypress } from '../../hooks/useKeypress.js';
 import { keyMatchers, Command } from '../../keyMatchers.js';
 import { TextInput } from '../shared/TextInput.js';
+import { ScrollableList } from '../shared/ScrollableList.js';
 import {
   getCachedStringWidth,
   truncateToWidth,
@@ -50,6 +51,8 @@ interface AskUserQuestionDialogProps {
   /** Width (cells) of the box the dialog is rendered into; sizes the header
    * tab row. */
   availableWidth: number;
+  /** Rows reserved for the dialog, excluding its parent's border and title. */
+  availableHeight?: number;
   onConfirm: (
     outcome: ToolConfirmationOutcome,
     payload?: ToolConfirmationPayload,
@@ -60,6 +63,7 @@ export const AskUserQuestionDialog: React.FC<AskUserQuestionDialogProps> = ({
   confirmationDetails,
   isFocused = true,
   availableWidth,
+  availableHeight,
   onConfirm,
 }) => {
   const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
@@ -71,6 +75,7 @@ export const AskUserQuestionDialog: React.FC<AskUserQuestionDialogProps> = ({
   >({});
   const customInputValuesRef = useRef<Record<number, string>>({});
   const [selectedIndex, setSelectedIndex] = useState(0);
+  const [isCompactContentVisible, setIsCompactContentVisible] = useState(false);
   const [multiSelectedOptions, setMultiSelectedOptions] = useState<
     Record<number, string[]>
   >({});
@@ -106,6 +111,10 @@ export const AskUserQuestionDialog: React.FC<AskUserQuestionDialogProps> = ({
   const customInputWidth = Math.max(
     1,
     availableWidth - 2 - customInputPrefixWidth - 2 - 1,
+  );
+  const boundedInputHeight = Math.min(
+    3,
+    Math.max(1, (availableHeight ?? 10) - 7),
   );
   const isCustomInputAnswer =
     !isSubmitTab &&
@@ -225,6 +234,16 @@ export const AskUserQuestionDialog: React.FC<AskUserQuestionDialogProps> = ({
   // Handle navigation and selection
   useKeypress(
     (key) => {
+      if (availableHeight !== undefined && availableHeight < 2) {
+        if (
+          keyMatchers[Command.PAGE_UP](key) ||
+          keyMatchers[Command.PAGE_DOWN](key)
+        ) {
+          setIsCompactContentVisible(true);
+          return;
+        }
+        setIsCompactContentVisible(false);
+      }
       // When the custom-input TextInput is focused, we must NOT match bare
       // letter keys (k/j) for option navigation — those characters are being
       // typed into the input. Only honor unambiguous shortcuts: arrow keys
@@ -359,6 +378,241 @@ export const AskUserQuestionDialog: React.FC<AskUserQuestionDialogProps> = ({
     },
     { isActive: isFocused },
   );
+
+  const customInputElement = (
+    <Box>
+      <Box flexShrink={0}>
+        <Text color={theme.text.accent} bold>
+          ❯{' '}
+          {isMultiSelect
+            ? customInputChecked[currentQuestionIndex]
+              ? '[✓] '
+              : '[ ] '
+            : ''}
+          {(currentQuestion?.options.length ?? 0) + 1}.{' '}
+        </Text>
+      </Box>
+      <TextInput
+        value={currentCustomInputValue}
+        initialCursorOffset={cpLen(currentCustomInputValue)}
+        onChange={(value: string) => {
+          const oldValue =
+            customInputValuesRef.current[currentQuestionIndex] ??
+            customInputValues[currentQuestionIndex] ??
+            '';
+          customInputValuesRef.current = {
+            ...customInputValuesRef.current,
+            [currentQuestionIndex]: value,
+          };
+          if (isMultiSelect && value !== oldValue) {
+            setCustomInputChecked((prevChecked) => ({
+              ...prevChecked,
+              [currentQuestionIndex]: value.trim().length > 0,
+            }));
+          }
+          setCustomInputValues((prev) => ({
+            ...prev,
+            [currentQuestionIndex]: value,
+          }));
+        }}
+        onSubmit={handleCustomInputSubmit}
+        placeholder={t('Type something...')}
+        isActive={isFocused}
+        inputWidth={customInputWidth}
+        height={availableHeight === undefined ? 3 : boundedInputHeight}
+        showScrollIndicator={
+          availableHeight === undefined || availableHeight >= 7
+        }
+      />
+    </Box>
+  );
+
+  if (availableHeight !== undefined) {
+    const height = Math.max(1, Math.floor(availableHeight));
+    const width = Math.max(1, availableWidth - 2);
+    const showHeader = height >= 3;
+    const showNavigationHint = height >= 4;
+    const showScrollHint = height >= 6;
+    const showBody = height > 1 || isCompactContentVisible;
+    const showControls = height > 1 || !isCompactContentVisible;
+    const controlHeight = isSubmitTab
+      ? height >= 6
+        ? 2
+        : 1
+      : isCustomInputSelected
+        ? boundedInputHeight + (height >= 7 ? 2 : 0)
+        : 1;
+    const bodyHeight = Math.max(
+      1,
+      height -
+        controlHeight -
+        Number(showHeader) -
+        Number(showNavigationHint) -
+        Number(showScrollHint),
+    );
+    const navigationHint = hasMultipleQuestions
+      ? isMultiSelect
+        ? t(
+            '↑/↓: Navigate | ←/→: Switch tabs | Space: Toggle | Enter: Confirm | Esc: Cancel',
+          )
+        : t('↑/↓: Navigate | ←/→: Switch tabs | Enter: Select | Esc: Cancel')
+      : isMultiSelect
+        ? t('↑/↓: Navigate | Space: Toggle | Enter: Confirm | Esc: Cancel')
+        : t('↑/↓: Navigate | Enter: Select | Esc: Cancel');
+    const body = (
+      <Box flexDirection="column" flexShrink={0}>
+        {isSubmitTab ? (
+          <>
+            <Text bold>{t('Your answers:')}</Text>
+            {confirmationDetails.questions.map((question, index) => (
+              <Text key={index}>
+                {question.header}:{' '}
+                {getAnswerForQuestion(index) ?? t('(not answered)')}
+              </Text>
+            ))}
+            <Text>{t('Ready to submit your answers?')}</Text>
+          </>
+        ) : (
+          <>
+            {(!showHeader ||
+              /[\r\n]/.test(currentQuestion!.header) ||
+              getCachedStringWidth(currentQuestion!.header) >
+                Math.min(width, hasMultipleQuestions ? headerCap : width)) && (
+              <Text>{currentQuestion!.header}</Text>
+            )}
+            <Text>{currentQuestion!.question}</Text>
+            {currentQuestion!.options.map((option, index) => (
+              <Box key={index} flexDirection="column" marginTop={1}>
+                <Text
+                  color={
+                    selectedIndex === index
+                      ? theme.text.accent
+                      : theme.text.primary
+                  }
+                >
+                  {index + 1}.{' '}
+                  {isMultiSelect
+                    ? (
+                        multiSelectedOptions[currentQuestionIndex] ?? []
+                      ).includes(option.label)
+                      ? '[✓] '
+                      : '[ ] '
+                    : ''}
+                  {option.label}
+                </Text>
+                {option.description && (
+                  <Text dimColor>{option.description}</Text>
+                )}
+              </Box>
+            ))}
+            <Text>
+              {totalOptions}.{' '}
+              {currentCustomInputValue || t('Type something...')}
+            </Text>
+          </>
+        )}
+      </Box>
+    );
+    return (
+      <Box
+        width={availableWidth}
+        height={height}
+        flexDirection="column"
+        paddingX={1}
+      >
+        {showHeader && (
+          <Box height={1} flexShrink={0}>
+            <Text color={theme.text.accent} bold wrap="truncate-end">
+              {hasMultipleQuestions
+                ? confirmationDetails.questions
+                    .map(
+                      (question, index) =>
+                        `${index === currentQuestionIndex ? '▸ ' : ''}${truncateToWidth(question.header.replace(/[\r\n]/g, ' '), headerCap)}${getAnswerForQuestion(index) !== undefined ? ' ✓' : ''}`,
+                    )
+                    .concat(`${isSubmitTab ? '▸ ' : ''}${t('Submit')}`)
+                    .join(' ')
+                : currentQuestion!.header.replace(/[\r\n]/g, ' ')}
+            </Text>
+          </Box>
+        )}
+        {/* Keep the viewport mounted when one row must alternate content and controls. */}
+        <Box
+          height={showBody ? bodyHeight : 0}
+          flexShrink={0}
+          overflow="hidden"
+        >
+          <ScrollableList
+            key={currentQuestionIndex}
+            hasFocus={isFocused}
+            data={[body]}
+            renderItem={({ item }) => item}
+            keyExtractor={() => 'question-body'}
+            // Avoid the transcript list's bottom-follow threshold before measurement.
+            estimatedItemHeight={() => bodyHeight + 2}
+            initialScrollIndex={0}
+            containerHeight={bodyHeight}
+            width={width}
+            measureAtFullHeight
+          />
+        </Box>
+        <Box
+          flexDirection="column"
+          flexShrink={0}
+          height={showControls ? controlHeight : 0}
+          overflow="hidden"
+        >
+          {isSubmitTab ? (
+            [t('Submit answers'), t('Cancel')].map((label, index) =>
+              height < 6 && index !== selectedIndex ? null : (
+                <Text
+                  key={index}
+                  color={
+                    selectedIndex === index
+                      ? theme.text.accent
+                      : theme.text.primary
+                  }
+                  wrap="truncate-end"
+                >
+                  {selectedIndex === index ? '❯ ' : '  '}
+                  {index + 1}. {label}
+                </Text>
+              ),
+            )
+          ) : isCustomInputSelected ? (
+            customInputElement
+          ) : (
+            <Text color={theme.text.accent} bold wrap="truncate-end">
+              ❯{' '}
+              {isMultiSelect
+                ? (multiSelectedOptions[currentQuestionIndex] ?? []).includes(
+                    currentQuestion!.options[selectedIndex]?.label ?? '',
+                  )
+                  ? '[✓] '
+                  : '[ ] '
+                : ''}
+              {selectedIndex + 1}.{' '}
+              {currentQuestion!.options[selectedIndex]?.label.replace(
+                /[\r\n]/g,
+                ' ',
+              )}
+            </Text>
+          )}
+        </Box>
+        <Box flexDirection="column" flexShrink={0}>
+          {showNavigationHint && (
+            <Text dimColor wrap="truncate-end">
+              {navigationHint}
+            </Text>
+          )}
+          {showScrollHint && (
+            <Text dimColor wrap="truncate-end">
+              {t('PgUp/PgDn: Scroll')}
+            </Text>
+          )}
+        </Box>
+      </Box>
+    );
+  }
 
   // Submit tab (for multiple questions)
   if (isSubmitTab) {
@@ -528,50 +782,7 @@ export const AskUserQuestionDialog: React.FC<AskUserQuestionDialogProps> = ({
         {/* Type something option/input */}
         <Box flexDirection="column">
           {isCustomInputSelected ? (
-            // Inline TextInput replaces the option text
-            <Box>
-              <Box flexShrink={0}>
-                <Text color={theme.text.accent} bold>
-                  ❯{' '}
-                  {isMultiSelect
-                    ? customInputChecked[currentQuestionIndex]
-                      ? '[✓] '
-                      : '[ ] '
-                    : ''}
-                  {currentQuestion!.options.length + 1}.{' '}
-                </Text>
-              </Box>
-              <TextInput
-                value={currentCustomInputValue}
-                initialCursorOffset={cpLen(currentCustomInputValue)}
-                onChange={(value: string) => {
-                  const oldValue =
-                    customInputValuesRef.current[currentQuestionIndex] ??
-                    customInputValues[currentQuestionIndex] ??
-                    '';
-                  customInputValuesRef.current = {
-                    ...customInputValuesRef.current,
-                    [currentQuestionIndex]: value,
-                  };
-                  if (isMultiSelect && value !== oldValue) {
-                    setCustomInputChecked((prevChecked) => ({
-                      ...prevChecked,
-                      [currentQuestionIndex]: value.trim().length > 0,
-                    }));
-                  }
-                  setCustomInputValues((prev) => ({
-                    ...prev,
-                    [currentQuestionIndex]: value,
-                  }));
-                }}
-                onSubmit={handleCustomInputSubmit}
-                placeholder={t('Type something...')}
-                isActive={isFocused}
-                inputWidth={customInputWidth}
-                height={3}
-                showScrollIndicator
-              />
-            </Box>
+            customInputElement
           ) : (
             // Show typed value or placeholder when not selected
             <Box>

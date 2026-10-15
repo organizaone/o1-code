@@ -28,6 +28,7 @@ export interface GlyphSet {
   queued: string;
   agent: string;
   failed: string;
+  warning: string;
   done: string;
   dot: string;
   hollow: string;
@@ -45,6 +46,7 @@ export const FULL_GLYPHS: GlyphSet = {
   queued: '↳',
   agent: `◆${VS15}`,
   failed: '✗',
+  warning: '!',
   done: '✓',
   dot: `●${VS15}`,
   hollow: `○${VS15}`,
@@ -62,6 +64,7 @@ export const COMPAT_GLYPHS: GlyphSet = {
   queued: `→${VS15}`,
   agent: '*',
   failed: 'x',
+  warning: '!',
   done: '√',
   dot: `●${VS15}`,
   hollow: `○${VS15}`,
