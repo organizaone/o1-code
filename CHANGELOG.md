@@ -7,6 +7,8 @@ follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.18.0] - 2026-10-14
+
 ### Enhanced
 
 - The `/model` editor (`Ctrl+E`) now works with every OrganizaOne authentication method: account sign-in, API key and pinned tunnel, over Anthropic or either OpenAI API. Catalog refresh uses the active connection; saving preserves credentials, the protocol and other configured providers.
@@ -598,7 +600,8 @@ The first release of o1-code, a coding agent for the terminal.
 - `o1-code serve` runs a local daemon with a REST API and the Web Shell, a browser interface.
 - Editor companions for VS Code and Zed.
 
-[Unreleased]: https://github.com/organizaone/o1-code/compare/v0.17.0...HEAD
+[Unreleased]: https://github.com/organizaone/o1-code/compare/v0.18.0...HEAD
+[0.18.0]: https://github.com/organizaone/o1-code/compare/v0.17.0...v0.18.0
 [0.17.0]: https://github.com/organizaone/o1-code/compare/v0.16.0...v0.17.0
 [0.16.0]: https://github.com/organizaone/o1-code/compare/v0.15.1...v0.16.0
 [0.15.1]: https://github.com/organizaone/o1-code/compare/v0.15.0...v0.15.1
