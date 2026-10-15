@@ -16,6 +16,12 @@ follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - Windows sleep prevention now uses a native system power request during active work, replacing the PowerShell subprocess. If the optional native binding is unavailable, work continues with a diagnostic and without sleep prevention.
 - Windows clipboard reads, browser opening and standalone update extraction use native or Node APIs. Fixed status-line PR queries run without a command shell; custom commands retain their configured behavior.
 
+### Fixed
+
+- Cancelling a shell command with Esc preserves its captured output in the next conversation turn, including process IDs, without automatically retrying the command.
+- Explicit PowerShell selection discovers registered Store installations even when their execution alias cannot be inspected directly.
+- CMD commands in UNC working directories fail before execution instead of silently running in the Windows directory. PowerShell and Git Bash remain available for UNC projects.
+
 ## [0.18.0] - 2026-10-14
 
 ### Enhanced
