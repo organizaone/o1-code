@@ -63,10 +63,21 @@ bundle and with optional native dependencies omitted; the matching x64 cases exi
 Node 22.23.3. Investigate shutdown and retain the Node 24 case as a failing smoke result until
 fixed; a successful response alone does not establish a clean exit. PowerShell discovery allows
 ten seconds for startup after two-second probes rejected a runnable installation in the guest.
-Git Bash also retains normal
-MSYS native argument conversion, so `/flag` can become a path; no global conversion override was
-introduced. PowerShell 7, UNC, npm.cmd and cancellation still need dedicated installed-artifact
-coverage beyond the checked-in smoke runner.
+Git Bash retains normal MSYS native argument conversion, so `/flag` can become a path. Local
+Windows Bash guidance and the smoke runner cover per-command `MSYS_NO_PATHCONV=1`; no global
+conversion override is introduced. The runner also accepts a PowerShell 7 executable or its
+registered Store alias. Test isolation preserves startup `USERPROFILE`, since changing it can
+cause Store activation to fail even when the executable itself is runnable.
+
+Core and terminal regression tests cover interrupted shell output in cancellation history,
+paired tool responses after Esc, discarded completed outputs, and no automatic continuation.
+Store discovery tests cover canonical package executables and workspace/module junction
+exclusions. Installed 0.19.1 guest checks on Node 22 x64 confirmed registered Store alias and
+type-only PowerShell 7 selection, scoped MSYS argument preservation, and Esc cancellation with
+retained output and terminated fixture descendants in Bash, PowerShell 5.1 and PowerShell 7.6.7.
+The native power acquire/release checks also exited cleanly. UNC and npm.cmd still need dedicated
+fixtures; the guest's ARM64 emulation does not replace native Windows 10 x64 or corporate-policy
+validation.
 
 ### Connect a provider: the new login
 

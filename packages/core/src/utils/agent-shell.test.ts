@@ -199,6 +199,113 @@ describe('agent shell discovery', () => {
       expect.objectContaining({ timeout: 10000, shell: false }),
     );
   });
+  it.each([false, true])(
+    'discovers registered Store PowerShell when its execution alias cannot be resolved (explicit executable: %s)',
+    (explicit) => {
+      const alias =
+        'C:\\Users\\operator\\AppData\\Local\\Microsoft\\WindowsApps\\pwsh.exe';
+      const legacy =
+        'C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe';
+      const module =
+        'C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\Modules\\Appx\\Appx.psd1';
+      const location =
+        'C:\\Program Files\\WindowsApps\\Microsoft.PowerShell_7.6.7.0_arm64__8wekyb3d8bbwe';
+      install(legacy);
+      install(module);
+      install(`${location}\\pwsh.exe`);
+      native.realpath.mockImplementation((file) => {
+        if (file === alias)
+          throw Object.assign(new Error('alias denied'), { code: 'EACCES' });
+        return file;
+      });
+      native.probe.mockImplementation((file: string, args: string[]) => {
+        if (args.at(-1)?.includes('Get-AppxPackage')) {
+          if (
+            !args
+              .at(-1)
+              ?.includes(
+                "$env:PSModulePath = 'C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\Modules'",
+              )
+          )
+            throw new Error('module search path must exclude user modules');
+          return `${location}\r\n`;
+        }
+        return file === legacy ? '5.1.19041' : '7.6.7';
+      });
+      expect(
+        resolveAgentShell(
+          { type: 'powershell', ...(explicit ? { executable: alias } : {}) },
+          windows({ PATH: path.win32.dirname(alias) }),
+        ).executable,
+      ).toBe(`${location}\\pwsh.exe`);
+    },
+  );
+  it.each([
+    'candidate',
+    'alias parent',
+    'module',
+    'external module',
+    'relative metadata',
+    'failed metadata',
+    'arbitrary alias',
+  ])('retains legacy PowerShell for unsafe Store discovery: %s', (failure) => {
+    const alias =
+      'C:\\Users\\operator\\AppData\\Local\\Microsoft\\WindowsApps\\pwsh.exe';
+    const legacy =
+      'C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe';
+    const module =
+      'C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\Modules\\Appx\\Appx.psd1';
+    const location =
+      'C:\\Program Files\\WindowsApps\\Microsoft.PowerShell_7.6.7.0_arm64__8wekyb3d8bbwe';
+    install(legacy);
+    install(module);
+    install('D:\\workspace\\pwsh.exe');
+    install('D:\\workspace\\Appx.psd1');
+    install('D:\\custom\\Appx.psd1');
+    install(`${location}\\pwsh.exe`);
+    native.realpath.mockImplementation((file) => {
+      if (
+        file === alias ||
+        (failure === 'arbitrary alias' && file === 'D:\\custom\\pwsh.exe')
+      )
+        throw Object.assign(new Error('alias denied'), { code: 'EACCES' });
+      if (failure === 'candidate' && file === `${location}\\pwsh.exe`)
+        return 'D:\\workspace\\pwsh.exe';
+      if (failure === 'alias parent' && file === path.win32.dirname(alias))
+        return 'D:\\workspace';
+      if (failure === 'module' && file === module)
+        return 'D:\\workspace\\Appx.psd1';
+      if (failure === 'external module' && file === module)
+        return 'D:\\custom\\Appx.psd1';
+      return file;
+    });
+    native.probe.mockImplementation((file: string, args: string[]) => {
+      if (args.at(-1)?.includes('Get-AppxPackage')) {
+        if (failure === 'failed metadata')
+          throw new Error('package query denied');
+        return failure === 'relative metadata' ? 'relative' : location;
+      }
+      if (file === 'D:\\workspace\\pwsh.exe')
+        throw new Error('must not execute workspace file');
+      return '5.1.19041';
+    });
+    expect(
+      resolveAgentShell(
+        { type: 'powershell' },
+        windows({
+          PATH:
+            failure === 'arbitrary alias'
+              ? 'D:\\custom'
+              : path.win32.dirname(alias),
+        }),
+      ).executable,
+    ).toBe(legacy);
+    expect(
+      native.probe.mock.calls.every(
+        ([file]) => file !== 'D:\\workspace\\pwsh.exe',
+      ),
+    ).toBe(true);
+  });
   it('preserves automatic Unix behavior and rejects Windows selections there', () => {
     expect(resolveAgentShell({}, { platform: 'darwin', env: {} })).toEqual({
       executable: 'bash',

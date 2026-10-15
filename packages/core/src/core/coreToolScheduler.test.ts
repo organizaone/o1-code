@@ -14999,6 +14999,60 @@ describe('CoreToolScheduler telemetry spans', () => {
     expect(responseText).not.toContain('had already completed');
   });
 
+  it.each([
+    { toolName: ToolNames.SHELL, outcome: 'cancelled', preserveOutput: true },
+    { toolName: ToolNames.SHELL, outcome: 'completed', preserveOutput: false },
+    { toolName: 'mockTool', outcome: 'cancelled', preserveOutput: false },
+  ] as const)(
+    'preserves interrupted shell output only for $toolName with outcome $outcome',
+    async ({ toolName, outcome, preserveOutput }) => {
+      const abortController = new AbortController();
+      const shellTool = new MockTool({
+        name: toolName,
+        execute: async () => {
+          abortController.abort();
+          return {
+            llmContent:
+              'Command was cancelled by user before it could complete.\nO1_CANCEL_TEST PID=8088',
+            returnDisplay: {
+              type: 'shell_result',
+              version: 1,
+              text: 'O1_CANCEL_TEST PID=8088',
+              output: 'O1_CANCEL_TEST PID=8088',
+              directory: '/tmp',
+              exitCode: null,
+              signal: null,
+              pid: 8088,
+              error: null,
+              outcome,
+              notices: [],
+              truncated: false,
+              outputFiles: [],
+            },
+          };
+        },
+      });
+      const { completedCalls } = await runSingleTool({
+        abortController,
+        tools: [shellTool],
+        toolName,
+      });
+
+      const completedCall = completedCalls[0] as CompletedToolCall;
+      expect(completedCall.status).toBe('cancelled');
+      expect(completedCall.response.executionStatus).toBe('cancelled');
+      const responseText = JSON.stringify(completedCall.response.responseParts);
+      expect(responseText).toContain('do not retry');
+      if (preserveOutput) {
+        expect(responseText).toContain('O1_CANCEL_TEST PID=8088');
+        expect(responseText).not.toContain('had already completed');
+      } else {
+        expect(responseText).not.toContain('O1_CANCEL_TEST PID=8088');
+        expect(responseText).toContain('had already completed');
+      }
+    },
+  );
+
   it('tells the model a post-completion cancellation discarded finished work', async () => {
     const abortController = new AbortController();
     const { completedCalls } = await runSingleTool({

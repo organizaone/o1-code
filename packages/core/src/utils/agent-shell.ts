@@ -100,6 +100,13 @@ export function resolveAgentShell(
     file
       .toLowerCase()
       .startsWith(`${win.join(systemRoot, 'Sysnative').toLowerCase()}\\`);
+  const localAppData =
+    env('LOCALAPPDATA') ||
+    (profile ? win.join(profile, 'AppData', 'Local') : undefined);
+  const storeAlias = localAppData
+    ? win.join(localAppData, 'Microsoft', 'WindowsApps', 'pwsh.exe')
+    : undefined;
+  let storeAliasDenied = false;
   const usable = (
     file: string,
     shell: 'bash' | 'powershell' | 'cmd',
@@ -111,7 +118,7 @@ export function resolveAgentShell(
       if (
         !statSync(canonical).isFile() ||
         (shell === 'bash' && isWsl(canonical)) ||
-        (!options.executable && inWorkspace(canonical))
+        (file !== options.executable && inWorkspace(canonical))
       )
         return undefined;
       const output = execFileSync(
@@ -144,9 +151,76 @@ export function resolveAgentShell(
       )
         return undefined;
       return canonical;
-    } catch {
+    } catch (error) {
+      if (
+        shell === 'powershell' &&
+        file.toLowerCase() === storeAlias?.toLowerCase() &&
+        error instanceof Error &&
+        'code' in error &&
+        (error.code === 'EACCES' || error.code === 'EPERM')
+      )
+        storeAliasDenied = true;
       return undefined;
     }
+  };
+  const legacyPowerShell = win.join(
+    systemRoot,
+    'System32',
+    'WindowsPowerShell',
+    'v1.0',
+    'powershell.exe',
+  );
+  const discoverStorePowerShell = (host: string): string | undefined => {
+    if (!storeAliasDenied || !storeAlias) return undefined;
+    try {
+      if (
+        !options.executable &&
+        (inWorkspace(storeAlias) ||
+          inWorkspace(realpathSync(win.dirname(storeAlias))))
+      )
+        return undefined;
+      const modules = realpathSync(win.join(win.dirname(host), 'Modules'));
+      const manifest = realpathSync(win.join(modules, 'Appx', 'Appx.psd1'));
+      if (
+        !win.isAbsolute(modules) ||
+        win.relative(modules.toLowerCase(), manifest.toLowerCase()) !==
+          'appx\\appx.psd1' ||
+        inWorkspace(modules) ||
+        inWorkspace(manifest) ||
+        !statSync(manifest).isFile()
+      )
+        return undefined;
+      const literal = (value: string) => `'${value.replaceAll("'", "''")}'`;
+      // Restrict dependency loading as well as the Appx import to OS modules.
+      const locations = execFileSync(
+        host,
+        [
+          '-NoProfile',
+          '-NonInteractive',
+          '-Command',
+          `$env:PSModulePath = ${literal(modules)}; Import-Module -Name ${literal(manifest)} -ErrorAction Stop; (Appx\\Get-AppxPackage -Name Microsoft.PowerShell -ErrorAction Stop).InstallLocation`,
+        ],
+        {
+          encoding: 'utf8',
+          timeout: 10000,
+          windowsHide: true,
+          shell: false,
+          stdio: ['ignore', 'pipe', 'ignore'],
+          maxBuffer: 64 * 1024,
+        },
+      );
+      for (const location of locations.split(/\r?\n/)) {
+        if (!win.isAbsolute(location.trim())) continue;
+        const executable = usable(
+          win.join(location.trim(), 'pwsh.exe'),
+          'powershell',
+        );
+        if (executable) return executable;
+      }
+    } catch {
+      // Package metadata is optional; retain the validated legacy fallback.
+    }
+    return undefined;
   };
   if (options.executable) {
     if (!win.isAbsolute(options.executable))
@@ -157,7 +231,11 @@ export function resolveAgentShell(
         : type === 'powershell'
           ? 'powershell'
           : 'cmd';
-    const executable = usable(options.executable, shell);
+    let executable = usable(options.executable, shell);
+    if (!executable && shell === 'powershell' && storeAliasDenied) {
+      const host = usable(legacyPowerShell, 'powershell');
+      if (host) executable = discoverStorePowerShell(host);
+    }
     if (executable) return snapshot(executable, shell);
     throw new Error(
       `Selected agent shell is unavailable: ${options.executable}`,
@@ -218,17 +296,15 @@ export function resolveAgentShell(
         '7',
         'pwsh.exe',
       ),
-      win.join(
-        systemRoot,
-        'System32',
-        'WindowsPowerShell',
-        'v1.0',
-        'powershell.exe',
-      ),
     ];
     for (const file of new Set(candidates)) {
       const executable = usable(file, 'powershell');
       if (executable) return snapshot(executable, 'powershell');
+    }
+    const host = usable(legacyPowerShell, 'powershell');
+    if (host) {
+      const executable = discoverStorePowerShell(host) || host;
+      return snapshot(executable, 'powershell');
     }
     throw new Error('Selected PowerShell shell is unavailable');
   }

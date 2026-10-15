@@ -64,6 +64,11 @@ Each one is an observed failure, not a hypothesis.
   the editing tools, or a script file.
 - Resolve the interpreter's real path when a version manager is involved: the fnm shim is per shell
   and dies with the terminal.
+- Local Git Bash retains MSYS path conversion. Preserve native Windows slash switches per command
+  when needed, for example `MSYS_NO_PATHCONV=1 tasklist.exe /FI "PID eq 123"`; never export this globally.
+- Windows test harnesses isolate settings with `HOME` and `O1CODE_HOME`, preserving the real
+  `USERPROFILE`. Replacing `USERPROFILE` before Node startup can make registered Store executables
+  fail to launch with `EPERM`, even when the same executable works from the user's terminal.
 - No East Asian Ambiguous glyph (`△`, `⚠`, `✔`, …) in a TUI row that can reach the full terminal
   width, even with VS15: Windows Terminal draws some of them two columns wide, the row wraps where
   Ink counts one, and every later repaint is off by a line (a stale bottom border when a dialog

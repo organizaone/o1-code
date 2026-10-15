@@ -5664,9 +5664,14 @@ function getShellCommandSequencingGuidance({
 
 function getShellToolDescription(
   shellConfiguration: ShellConfiguration,
+  isLocalExecution: boolean,
 ): string {
   const executionWrapper = getShellExecutionWrapper(shellConfiguration);
   const isWindows = os.platform() === 'win32';
+  const nativeArgumentGuidance =
+    isWindows && isLocalExecution && shellConfiguration.shell === 'bash'
+      ? '\n- MSYS may convert native Windows arguments starting with `/` into paths. Scope suppression to one native command: `MSYS_NO_PATHCONV=1 tasklist.exe /FI "PID eq 123"`. Keep POSIX path conversion enabled otherwise; do not export this globally.'
+      : '';
   const processGroupNote = isWindows
     ? ''
     : '\n  - Command is executed as a subprocess that leads its own process group. Command process group can be terminated as `kill -- -PGID` or signaled as `kill -s SIGNAL -- -PGID`.';
@@ -5689,7 +5694,7 @@ IMPORTANT: This tool is for terminal operations like git, npm, docker, etc. DO N
   - Edit files: Use ${ToolNames.EDIT} (NOT sed/awk)
   - Write files: Use ${ToolNames.WRITE_FILE} (NOT echo >/cat <<EOF)
   - Communication: Output text directly (NOT echo/printf)
-${getShellQuotingGuidance(shellConfiguration.shell)}
+${getShellQuotingGuidance(shellConfiguration.shell)}${nativeArgumentGuidance}
 ${getShellCommandSequencingGuidance(shellConfiguration)}
 - Try to maintain your current working directory throughout the session by using absolute paths and avoiding usage of \`cd\`. You may use \`cd\` if the User explicitly requests it.
   <good-example>
@@ -5751,7 +5756,10 @@ export class ShellTool extends BaseDeclarativeTool<
     super(
       ShellTool.Name,
       ToolDisplayNames.SHELL,
-      getShellToolDescription(shellConfiguration),
+      getShellToolDescription(
+        shellConfiguration,
+        !config.getExecutionEnvironment?.(),
+      ),
       Kind.Execute,
       {
         type: 'object',

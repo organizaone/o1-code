@@ -416,6 +416,10 @@ explicit selection fails with a configuration error. Automatic behavior on
 macOS and Linux is unchanged; explicit Windows shell choices apply only on
 Windows.
 
+If the registered PowerShell Store alias cannot be inspected as a regular file,
+PowerShell selection resolves its installed package location and validates the
+physical executable. Automatic Git Bash selection does not perform this lookup.
+
 `tools.shell.executable` optionally sets an absolute path for the explicitly
 selected shell; it cannot be combined with `"auto"`. Both options are available
 in `/settings`, require a restart, and are honored only from User,
@@ -431,8 +435,16 @@ user settings.
 
 Git Bash retains its normal MSYS argument conversion for native Windows programs.
 For example, a native `/flag` argument may be rewritten as a path. Check the
-program's arguments when switching shells; no process-wide conversion override is
-applied. Bash and CMD availability probes have a two-second limit; PowerShell
+program's arguments when switching shells. To preserve slash switches for one
+native command, use `MSYS_NO_PATHCONV=1 tasklist.exe /FI "PID eq 123"`. Do not export
+this variable globally: other commands may need POSIX path conversion. The agent's
+shell guidance includes this distinction for local Windows Bash only.
+
+Cancelling an active shell command retains its captured partial output with the
+cancellation result in conversation history. The cancelled turn does not resume
+automatically.
+
+Bash and CMD availability probes have a two-second limit; PowerShell
 probes allow ten seconds for startup. A slower or restricted executable can still
 be reported as unavailable.
 

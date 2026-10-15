@@ -23,7 +23,7 @@ test('isolated settings preserve an existing Scoop installation for shell discov
       PATH: 'original-shims',
     });
     assert.equal(environment.SCOOP, path.join(profile, 'scoop'));
-    assert.equal(environment.USERPROFILE, home);
+    assert.equal(environment.USERPROFILE, profile);
     assert.equal(environment.HOME, home);
     assert.equal(environment.O1CODE_HOME, path.join(home, '.o1-code'));
     assert.equal(environment.PATH, 'original-shims');

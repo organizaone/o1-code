@@ -22,8 +22,8 @@ export function createSmokeEnvironment(home, environment = process.env) {
     ...(environment.SCOOP || !scoop || !existsSync(scoop)
       ? {}
       : { SCOOP: scoop }),
+    // Store activation depends on the real USERPROFILE when Node starts.
     HOME: home,
-    USERPROFILE: home,
     O1CODE_HOME: path.join(home, '.o1-code'),
     O1CODE_NO_RELAUNCH: 'true',
     O1CODE_SANDBOX: 'false',
@@ -94,7 +94,7 @@ function reply(res, model, toolCall) {
   res.end('data: [DONE]\n\n');
 }
 
-async function runCase(cli, selection, label) {
+async function runCase(cli, selection, label, preserveNativeArguments = false) {
   const home = mkdtempSync(path.join(tmpdir(), 'o1-shell-smoke-'));
   const fixture = path.join(home, 'space ação');
   mkdirSync(fixture);
@@ -118,7 +118,13 @@ async function runCase(cli, selection, label) {
       : selection.type === 'cmd'
         ? 'cmd'
         : 'bash';
-  const command = `${shell === 'powershell' ? '& ' : ''}${[process.execPath, script, ...args].map((value) => quoteArgument(value, shell)).join(' ')}`;
+  const prefix =
+    shell === 'powershell'
+      ? '& '
+      : shell === 'bash' && preserveNativeArguments
+        ? 'MSYS_NO_PATHCONV=1 '
+        : '';
+  const command = `${prefix}${[process.execPath, script, ...args].map((value) => quoteArgument(value, shell)).join(' ')}`;
   const trace = path.join(home, 'children.jsonl');
   writeFileSync(trace, '');
   const preloader = path.join(home, 'trace.mjs');
@@ -263,6 +269,11 @@ async function main() {
     [{ type: 'auto' }, 'auto Git Bash'],
     [{ type: 'git-bash' }, 'explicit Git Bash'],
     [
+      { type: 'git-bash' },
+      'Git Bash with scoped native argument preservation',
+      true,
+    ],
+    [
       {
         type: 'powershell',
         executable: path.join(
@@ -287,8 +298,16 @@ async function main() {
       'UNVERIFIED PowerShell 7: set O1_SHELL_SMOKE_PWSH to a runnable absolute executable',
     );
   let failed = false;
-  for (const [selection, label] of cases)
-    if ((await runCase(cli, selection, label)).status === 'fail') failed = true;
+  for (const [selection, label, preserveNativeArguments] of cases) {
+    const { status } = await runCase(
+      cli,
+      selection,
+      label,
+      preserveNativeArguments,
+    );
+    if (status === 'fail' || (preserveNativeArguments && status !== 'pass'))
+      failed = true;
+  }
   console.log(
     'UNVERIFIED UNC, npm.cmd and cancellation: dedicated Windows fixtures are still required',
   );

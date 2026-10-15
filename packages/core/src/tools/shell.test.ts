@@ -9239,6 +9239,71 @@ describe('ShellTool', () => {
       );
     });
 
+    it('scopes native Windows slash-argument guidance to the selected local Bash shell', () => {
+      vi.mocked(os.platform).mockReturnValue('win32');
+      process.env['ComSpec'] = 'C:\\Windows\\System32\\cmd.exe';
+      delete process.env['MSYSTEM'];
+      mockConfig.getAgentShellConfiguration = () => ({
+        executable: 'C:\\Git\\bin\\bash.exe',
+        argsPrefix: ['--noprofile', '--norc', '-c'],
+        shell: 'bash',
+      });
+
+      const { description } = new ShellTool(mockConfig);
+
+      expect(description).toContain(
+        'MSYS may convert native Windows arguments',
+      );
+      expect(description).toContain(
+        'MSYS_NO_PATHCONV=1 tasklist.exe /FI "PID eq 123"',
+      );
+      expect(description).toContain(
+        'Keep POSIX path conversion enabled otherwise',
+      );
+      expect(description).toContain('do not export this globally');
+    });
+
+    it.each([
+      ['darwin', 'bash'],
+      ['linux', 'bash'],
+      ['win32', 'powershell'],
+      ['win32', 'cmd'],
+    ] as const)(
+      'omits MSYS guidance for %s with selected %s',
+      (platform, shell) => {
+        vi.mocked(os.platform).mockReturnValue(platform);
+        process.env['MSYSTEM'] = 'MINGW64';
+        mockConfig.getAgentShellConfiguration = () => ({
+          executable: `${shell}.exe`,
+          argsPrefix: [],
+          shell,
+        });
+
+        expect(new ShellTool(mockConfig).description).not.toContain(
+          'MSYS_NO_PATHCONV',
+        );
+      },
+    );
+
+    it('omits MSYS guidance for SSH Bash on a Windows host', () => {
+      vi.mocked(os.platform).mockReturnValue('win32');
+      mockConfig.getAgentShellConfiguration = () => ({
+        executable: 'C:\\Git\\bin\\bash.exe',
+        argsPrefix: ['-c'],
+        shell: 'bash',
+      });
+      mockConfig.getExecutionEnvironment = () =>
+        new SshExecutionEnvironment(
+          { host: 'test-host', directory: '/remote' },
+          'C:\\ssh-anchor',
+        );
+
+      const { description } = new ShellTool(mockConfig);
+
+      expect(description).toContain('The active shell is Bash.');
+      expect(description).not.toContain('MSYS_NO_PATHCONV');
+    });
+
     /**
      * Per-turn size budgets, the same discipline `workflow.test.ts` applies
      * to the Workflow tool and `agent-description-budget.test.ts` to Agent.
