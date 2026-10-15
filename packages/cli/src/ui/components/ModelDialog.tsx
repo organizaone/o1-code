@@ -47,7 +47,7 @@ import {
   formatUnsupportedVoiceModelMessage,
   isSelectableVoiceModel,
 } from '../voice/voice-model.js';
-import { isOrganizaOneAccountLogin } from '../auth/organizaone-account.js';
+import { reachesOrganizaOne } from '@organizaone/o1-code-core/providers/presets/organizaone.js';
 import { ModelListEditDialog } from '../auth/ModelListEditDialog.js';
 import type { HistoryItemWithoutId } from '../types.js';
 
@@ -530,12 +530,11 @@ export function ModelDialog({
     isVisionModelMode ||
     isCompactionModelMode ||
     isImageModelMode;
-  // The signed-in OrganizaOne account owns its model list; only the main
-  // picker offers to edit it.
+  // Only the main picker edits the active OrganizaOne connection's catalog.
   const canEditModelList = useMemo(
     () =>
       !isAuxiliaryModelMode &&
-      isOrganizaOneAccountLogin(config?.getContentGeneratorConfig?.()?.apiKey),
+      reachesOrganizaOne(config?.getContentGeneratorConfig?.() ?? {}),
     [config, isAuxiliaryModelMode],
   );
   // Check if current model is a runtime model

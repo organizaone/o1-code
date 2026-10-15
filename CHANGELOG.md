@@ -7,6 +7,10 @@ follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Enhanced
+
+- The `/model` editor (`Ctrl+E`) now works with every OrganizaOne authentication method: account sign-in, API key and pinned tunnel, over Anthropic or either OpenAI API. Catalog refresh uses the active connection; saving preserves credentials, the protocol and other configured providers.
+
 ## [0.17.0] - 2026-10-14
 
 ### Added

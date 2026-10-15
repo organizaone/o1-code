@@ -189,6 +189,8 @@ function applyModelProvidersPatch(
 // ---------------------------------------------------------------------------
 
 export interface ApplyProviderInstallPlanOptions {
+  /** Catalog edits retain conversation models configured for other providers. */
+  keepOtherProviders?: boolean;
   settings: ProviderSettingsAdapter;
   /** Callback to reload model providers config in the runtime. */
   reloadModelProviders?: (mp: ModelProvidersConfig) => void;
@@ -551,7 +553,11 @@ export async function applyProviderInstallPlan(
     const installedModels = (plan.modelProviders ?? []).flatMap(
       (patch) => patch.models,
     );
-    if (!preserveSelection && installedModels.some(isConversationModel)) {
+    if (
+      !options.keepOtherProviders &&
+      !preserveSelection &&
+      installedModels.some(isConversationModel)
+    ) {
       // The same model and endpoint reached through the tunnel instead of a
       // key, or the reverse, belongs to the replaced login, not this one.
       const keeps = (model: ModelConfig) =>
@@ -771,7 +777,11 @@ export async function applyProviderInstallPlan(
     settings.cleanupBackup?.();
 
     // Only once nothing can roll back: a failed install keeps the old login.
-    if (!preserveSelection && installedModels.some(isConversationModel)) {
+    if (
+      !options.keepOtherProviders &&
+      !preserveSelection &&
+      installedModels.some(isConversationModel)
+    ) {
       await retireReplacedLogins(
         previousRuntimeProviders,
         updatedModelProviders,

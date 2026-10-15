@@ -99,6 +99,36 @@ function createAdapter(
 }
 
 describe('applyProviderInstallPlan', () => {
+  it('keeps other conversation providers and their credentials during a catalog edit', async () => {
+    const other = {
+      id: 'other-chat',
+      baseUrl: 'https://other.example/v1',
+      credential: 'other-key',
+    };
+    const original = { openai: [other] };
+    const credentials = createCredentialStore({ 'other-key': 'secret' });
+    const adapter = createAdapter(original, credentials);
+    const plan = buildInstallPlan(organizaoneProvider, {
+      protocol: AuthType.USE_ANTHROPIC,
+      baseUrl: ORGANIZAONE_ANTHROPIC_BASE_URL,
+      apiKey: '',
+      modelIds: ['model-a'],
+    });
+    const forgetO1Connect = vi.fn();
+    const refreshAuth = vi.fn();
+    const result = await applyProviderInstallPlan(plan, {
+      settings: adapter,
+      keepOtherProviders: true,
+      doRefreshAuth: false,
+      forgetO1Connect,
+      refreshAuth,
+    });
+    expect(result.updatedModelProviders['openai']).toEqual([other]);
+    expect(credentials.remove).not.toHaveBeenCalled();
+    expect(credentials.write).not.toHaveBeenCalled();
+    expect(forgetO1Connect).not.toHaveBeenCalled();
+    expect(refreshAuth).not.toHaveBeenCalled();
+  });
   it('rolls back a provider write shadowed by a higher-precedence scope before selecting it', async () => {
     const original = { openai: [{ id: 'workspace-chat' }] };
     const adapter = createAdapter(original);
