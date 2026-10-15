@@ -427,6 +427,8 @@ SystemDefaults, and System settings. Workspace settings cannot select the
 agent's executable. Existing `tools.shell` options, including PTY, pager and
 timeout settings, remain independent.
 
+![Agent shell selection in the settings dialog](../../images/tui-agent-shell-settings.png)
+
 Automatic discovery excludes executables inside the current workspace, including
 paths reached through junctions. If your shell installation is under that
 directory (for example, Scoop when the workspace is your whole home directory),
