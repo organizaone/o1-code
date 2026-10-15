@@ -177,6 +177,11 @@ class MonitorToolInvocation extends BaseToolInvocation<
 
   override async getDefaultPermission(): Promise<PermissionDecision> {
     if (this.config.getShellExecutionSandbox?.()) return 'ask';
+    if (
+      (this.config.getAgentShellConfiguration?.() ?? getShellConfiguration())
+        .shell !== 'bash'
+    )
+      return 'ask';
     // Outside the workspace even a read-only command is asked for, as a read
     // outside the workspace is.
     if (isOutsideWorkspaceDirectory(this.config, this.params.directory)) {
@@ -381,7 +386,8 @@ class MonitorToolInvocation extends BaseToolInvocation<
     };
 
     // Spawn the process
-    const { executable, argsPrefix } = getShellConfiguration();
+    const { executable, argsPrefix } =
+      this.config.getAgentShellConfiguration?.() ?? getShellConfiguration();
     const sandboxed = Boolean(this.config.getShellExecutionSandbox?.());
     let child: ChildProcess | undefined;
     try {

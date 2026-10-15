@@ -9,6 +9,7 @@ import os from 'node:os';
 import type { Terminal } from '@xterm/headless';
 import { loadPty, type PtyLoadResult } from '../utils/getPty.js';
 import { getErrorMessage } from '../utils/errors.js';
+import type { ShellConfiguration } from '../utils/shell-utils.js';
 import { loadXtermHeadless } from '../utils/load-xterm-headless.js';
 import {
   disposeConoutWorker,
@@ -49,6 +50,7 @@ export interface CreateWebTerminalOptions {
   workspaceCwd: string;
   env?: Readonly<NodeJS.ProcessEnv>;
   command?: { file: string; args: string[] };
+  shellConfiguration?: ShellConfiguration;
 }
 
 export interface CreateWebTerminalResult {
@@ -247,8 +249,20 @@ export class WebTerminalRegistry {
     const ptyImpl = ptyLoad.impl;
 
     const env = { ...(options.env ?? process.env) };
+    const selectedShell = options.shellConfiguration;
     const { file, args } =
-      options.command ?? resolveWebTerminalShell(process.platform, env);
+      options.command ??
+      (selectedShell
+        ? {
+            file: selectedShell.executable,
+            args:
+              selectedShell.shell === 'bash'
+                ? ['--noprofile', '--norc']
+                : selectedShell.shell === 'powershell'
+                  ? ['-NoProfile']
+                  : ['/d'],
+          }
+        : resolveWebTerminalShell(process.platform, env));
     delete env['NO_COLOR'];
     delete env['FORCE_COLOR'];
     delete env['npm_config_prefix'];

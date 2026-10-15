@@ -352,6 +352,12 @@ function writeDistPackageJson(rootDir, distDir, { includeAudioCapture } = {}) {
         `packages/core declares ${declared ?? 'none'})`,
     );
   }
+  const koffiVersion = coreManifest.optionalDependencies?.koffi;
+  if (koffiVersion !== undefined && !semver.valid(koffiVersion)) {
+    throw new Error(
+      'koffi must use an exact version in core optionalDependencies',
+    );
+  }
   // The six `@lydell/node-pty*` platform pins ship in the tarball's
   // optionalDependencies and decide which bundled ConPTY `conpty.dll` /
   // `OpenConsole.exe` real Windows users get. Derive them from
@@ -429,6 +435,7 @@ function writeDistPackageJson(rootDir, distDir, { includeAudioCapture } = {}) {
     config: rootPackageJson.config,
     dependencies: {},
     optionalDependencies: {
+      ...(koffiVersion ? { koffi: koffiVersion } : {}),
       ...(includeAudioCapture
         ? { '@organizaone/o1-code-audio-capture': rootPackageJson.version }
         : {}),

@@ -45,6 +45,12 @@
       // (`../../packages/cli/src/...`), so those files get checked here too
       // and must resolve their own imports.
       "@organizaone/o1-code-core": ["../packages/core/src/index.ts"],
+      "@organizaone/o1-code-core/utils/agent-shell.js": [
+        "../packages/core/src/utils/agent-shell.ts"
+      ],
+      "@organizaone/o1-code-core/utils/shell-utils.js": [
+        "../packages/core/src/utils/shell-utils.ts"
+      ],
       "@organizaone/o1-code-core/omni": ["../packages/core/src/omni/index.ts"],
       "@organizaone/o1-code-core/omniPolicyCollection": [
         "../packages/core/src/omni/policy/model-call-collection.ts"

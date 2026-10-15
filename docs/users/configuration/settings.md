@@ -141,6 +141,8 @@ Settings are organized into categories. Most settings should be placed within th
 | `general.preventSystemSleep`               | boolean | Prevent the system from sleeping while O1-Code is streaming a model response or executing tools. Idle prompt time and permission prompts do not inhibit sleep. Read once at startup, so changes take effect after restart.                                                                                                                                                                                                                                                                                                                                                                                                         | `true`      |
 | `general.chatRecording`                    | boolean | Save chat history to disk. Disabling this also prevents `--continue` and `--resume` from working. Requires restart.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                | `true`      |
 
+On Windows, sleep prevention uses a native system power request while work is active. It does not keep the display on or change the machine's power plan. If the optional native binding is missing or Windows rejects the request, processing continues without sleep prevention and the diagnostic log records the failure once per active run. There is no interpreter fallback. Operating system and organization policies still apply.
+
 #### output
 
 | Setting                 | Type    | Description                                                                                                                                                                                                                                                                                                               | Default  | Possible Values                     |
@@ -403,6 +405,62 @@ The `extra_body` field allows you to add custom parameters to the request body s
 | `context.clearContextOnIdle.toolResultsThresholdMinutes`    | number                     | Minutes of inactivity before clearing old tool result content. Use `-1` to disable the idle trigger.                                                                                                                                                                                                                                                                                                             | `60`                             |
 | `context.clearContextOnIdle.toolResultsNumToKeep`           | integer                    | Integer number of most-recent compactable tool results to preserve when clearing. Values below 1 are floored to 1.                                                                                                                                                                                                                                                                                               | `5`                              |
 | `context.clearContextOnIdle.toolResultsTotalCharsThreshold` | number                     | Total compactable tool result output characters allowed in history before clearing oldest results. When exceeded, oldest results are cleared down to half this threshold (best effort) so later turns keep reusing the provider prompt cache instead of rewriting history every turn. Use `-1` to disable the size trigger. This is a soft threshold: protected recent tool results may keep the total above it. | `500000`                         |
+
+#### Agent shell selection
+
+`tools.shell.type` defaults to `"auto"`. On Windows, automatic selection prefers
+an installed Git Bash and otherwise uses Command Prompt. Select `"powershell"`
+to prefer a runnable PowerShell 7 installation, falling back to Windows
+PowerShell 5.1, or select `"git-bash"` or `"cmd"` explicitly. An unavailable
+explicit selection fails with a configuration error. Automatic behavior on
+macOS and Linux is unchanged; explicit Windows shell choices apply only on
+Windows.
+
+If the registered PowerShell Store alias cannot be inspected as a regular file,
+PowerShell selection resolves its installed package location and validates the
+physical executable. Automatic Git Bash selection does not perform this lookup.
+
+`tools.shell.executable` optionally sets an absolute path for the explicitly
+selected shell; it cannot be combined with `"auto"`. Both options are available
+in `/settings`, require a restart, and are honored only from User,
+SystemDefaults, and System settings. Workspace settings cannot select the
+agent's executable. Existing `tools.shell` options, including PTY, pager and
+timeout settings, remain independent.
+
+![Agent shell selection in the settings dialog](../../images/tui-agent-shell-settings.png)
+
+Automatic discovery excludes executables inside the current workspace, including
+paths reached through junctions. If your shell installation is under that
+directory (for example, Scoop when the workspace is your whole home directory),
+start from your project directory or configure its explicit executable path in
+user settings.
+
+Git Bash retains its normal MSYS argument conversion for native Windows programs.
+For example, a native `/flag` argument may be rewritten as a path. Check the
+program's arguments when switching shells. To preserve slash switches for one
+native command, use `MSYS_NO_PATHCONV=1 tasklist.exe /FI "PID eq 123"`. Do not export
+this variable globally: other commands may need POSIX path conversion. The agent's
+shell guidance includes this distinction for local Windows Bash only.
+
+Cancelling an active shell command retains its captured partial output with the
+cancellation result in conversation history. The cancelled turn does not resume
+automatically.
+
+Bash and CMD availability probes have a two-second limit; PowerShell
+probes allow ten seconds for startup. A slower or restricted executable can still
+be reported as unavailable.
+
+For example, to use Windows PowerShell from your user settings:
+
+```json
+{
+  "tools": {
+    "shell": {
+      "type": "powershell"
+    }
+  }
+}
+```
 
 #### Troubleshooting File Search Performance
 

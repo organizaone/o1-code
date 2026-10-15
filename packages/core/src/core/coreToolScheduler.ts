@@ -5853,9 +5853,13 @@ export class CoreToolScheduler {
         });
       }
       if (aborted) {
-        // PostToolUseFailure Hook
-        // `execute()` returned a result here, so the tool's work did finish.
-        let cancelMessage = TOOL_CANCELLED_AFTER_COMPLETION_MESSAGE;
+        const interruptedShell =
+          canonicalName === ToolNames.SHELL &&
+          isShellResultDisplay(toolResult.returnDisplay) &&
+          toolResult.returnDisplay.outcome === 'cancelled';
+        let cancelMessage = interruptedShell
+          ? TOOL_CANCELLED_BEFORE_COMPLETION_MESSAGE
+          : TOOL_CANCELLED_AFTER_COMPLETION_MESSAGE;
         let failureHookArtifacts: ToolArtifact[] | undefined;
         if (hooksEnabled && messageBus) {
           const failureHookResult = await this.withHookSpan(
@@ -5885,6 +5889,9 @@ export class CoreToolScheduler {
             cancelMessage += `\n\n${failureHookResult.additionalContext}`;
           }
           failureHookArtifacts = failureHookResult.artifacts;
+        }
+        if (interruptedShell && typeof toolResult.llmContent === 'string') {
+          cancelMessage += `\n\n${toolResult.llmContent}`;
         }
         const cancelledResponse = createCancelledResponse(
           scheduledCall.request,

@@ -53,6 +53,9 @@ describe('dreamAgentPlanner', () => {
       getApprovalMode: vi.fn(),
       getMemoryAgentTimeoutMinutes: vi.fn().mockReturnValue(undefined),
       getMemoryAgentMaxTurns: vi.fn().mockReturnValue(undefined),
+      getAgentShellConfiguration: vi
+        .fn()
+        .mockReturnValue(getShellConfiguration()),
     } as unknown as Config;
     vi.mocked(runForkedAgent).mockReset();
   });
@@ -110,6 +113,44 @@ describe('dreamAgentPlanner', () => {
     );
     expect(prompt).not.toContain(
       `grep -rn "<narrow term>" ${transcriptDir}${path.sep} --include="*.jsonl" | tail -50`,
+    );
+  });
+
+  it.each(['bash', 'powershell', 'cmd'] as const)(
+    'quotes transcript paths with the selected %s shell',
+    (shell) => {
+      const transcriptDir = path.join(tempDir, "transcripts O'Brien & more");
+      const shellConfiguration = {
+        shell,
+        executable: 'selected-shell',
+        argsPrefix: [],
+      };
+      const prompt = buildConsolidationTaskPrompt(
+        path.join(tempDir, 'memory'),
+        transcriptDir,
+        shellConfiguration,
+      );
+      expect(prompt).toContain(
+        escapeShellArg(`${transcriptDir}${path.sep}`, shell),
+      );
+    },
+  );
+
+  it('passes the runtime shell snapshot into the managed dream prompt', async () => {
+    vi.mocked(config.getAgentShellConfiguration).mockReturnValue({
+      shell: 'powershell',
+      executable: 'pwsh',
+      argsPrefix: ['-NoProfile', '-NonInteractive', '-Command'],
+    });
+    vi.mocked(runForkedAgent).mockResolvedValue({
+      status: 'completed',
+    } as ForkedAgentResult);
+    await planManagedAutoMemoryDreamByAgent(config, projectRoot);
+    expect(vi.mocked(runForkedAgent).mock.calls[0][0].taskPrompt).toContain(
+      escapeShellArg(
+        `${getTranscriptDir(projectRoot)}${path.sep}`,
+        'powershell',
+      ),
     );
   });
 

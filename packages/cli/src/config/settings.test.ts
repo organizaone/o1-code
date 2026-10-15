@@ -74,6 +74,7 @@ import {
 import {
   WORKSPACE_RESTRICTED_SETTINGS,
   WORKSPACE_RESTRICTED_SETTING_KEYS,
+  setNestedPropertyForce,
 } from './settingsUtils.js';
 import { getModelProvidersOwnerScope } from './modelProvidersScope.js';
 import { needsMigration } from './migration/index.js';
@@ -3579,6 +3580,78 @@ describe('Settings Loading and Merging', () => {
     });
   });
 
+  describe('agent shell operator scope', () => {
+    it.each([
+      ['user', USER_SETTINGS_PATH],
+      ['system defaults', getSystemDefaultsPath()],
+      ['system', getSystemSettingsPath()],
+    ])(
+      'preserves %s shell selection and workspace sibling fields',
+      (_scope, settingsPath) => {
+        (mockFsExistsSync as Mock).mockReturnValue(true);
+        (fs.readFileSync as Mock).mockImplementation(
+          (p: fs.PathOrFileDescriptor) => {
+            if (p === settingsPath)
+              return JSON.stringify({
+                tools: {
+                  shell: {
+                    type: 'powershell',
+                    executable: 'C:\\Tools\\pwsh.exe',
+                  },
+                },
+              });
+            if (p === MOCK_WORKSPACE_SETTINGS_PATH)
+              return JSON.stringify({
+                tools: {
+                  shell: {
+                    type: 'cmd',
+                    executable: 'C:\\Untrusted\\cmd.exe',
+                    enableInteractiveShell: false,
+                    pager: '',
+                    defaultTimeoutMs: 1234,
+                  },
+                },
+              });
+            return '{}';
+          },
+        );
+        const settings = loadSettings(MOCK_WORKSPACE_DIR);
+        expect(settings.merged.tools?.shell).toEqual({
+          type: 'powershell',
+          executable: 'C:\\Tools\\pwsh.exe',
+          enableInteractiveShell: false,
+          pager: '',
+          defaultTimeoutMs: 1234,
+        });
+        expect(settings.workspace.originalSettings.tools?.shell?.type).toBe(
+          'cmd',
+        );
+        expect(getSettingsWarnings(settings)).toEqual(
+          expect.arrayContaining([
+            expect.stringContaining('tools.shell.type'),
+            expect.stringContaining('tools.shell.executable'),
+          ]),
+        );
+      },
+    );
+
+    it('lets System shell selection override User and SystemDefaults', () => {
+      (mockFsExistsSync as Mock).mockReturnValue(true);
+      (fs.readFileSync as Mock).mockImplementation(
+        (p: fs.PathOrFileDescriptor) => {
+          if (p === getSystemSettingsPath())
+            return JSON.stringify({ tools: { shell: { type: 'cmd' } } });
+          if (p === USER_SETTINGS_PATH || p === getSystemDefaultsPath())
+            return JSON.stringify({ tools: { shell: { type: 'powershell' } } });
+          return '{}';
+        },
+      );
+      expect(loadSettings(MOCK_WORKSPACE_DIR).merged.tools?.shell?.type).toBe(
+        'cmd',
+      );
+    });
+  });
+
   describe('workflowsEnabled scope handling', () => {
     it.each([
       ['system defaults', getSystemDefaultsPath()],
@@ -3697,10 +3770,13 @@ describe('Settings Loading and Merging', () => {
       const workspacePayload: Record<string, Record<string, unknown>> = {};
       for (const { section, key } of WORKSPACE_RESTRICTED_SETTINGS) {
         workspacePayload[section] ??= {};
-        workspacePayload[section][key] =
+        setNestedPropertyForce(
+          workspacePayload[section],
+          key,
           key === 'allowedInsecureVoiceBaseUrls'
             ? ['http://voice.example/v1']
-            : true;
+            : true,
+        );
       }
       (fs.readFileSync as Mock).mockImplementation(
         (p: fs.PathOrFileDescriptor) => {
@@ -3713,10 +3789,16 @@ describe('Settings Loading and Merging', () => {
       const settings = loadSettings(MOCK_WORKSPACE_DIR);
       const warnings = getSettingsWarnings(settings);
       for (const { section, key } of WORKSPACE_RESTRICTED_SETTINGS) {
-        const merged = settings.merged[section] as
-          | Record<string, unknown>
-          | undefined;
-        expect(merged?.[key]).toBeUndefined();
+        const value = key
+          .split('.')
+          .reduce<unknown>(
+            (current, part) =>
+              current && typeof current === 'object'
+                ? (current as Record<string, unknown>)[part]
+                : undefined,
+            settings.merged[section],
+          );
+        expect(value).toBeUndefined();
         expect(
           warnings.some((warning) => warning.includes(`${section}.${key}`)),
         ).toBe(true);

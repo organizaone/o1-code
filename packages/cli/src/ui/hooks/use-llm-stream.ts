@@ -5514,18 +5514,34 @@ export const useLlmStream = (
       });
 
       if (continuationWasCancelled()) {
-        // This is the branch a cancelled Goal tool batch actually takes: the
-        // controller retained across tool execution feeds the continuation
-        // owner's signal, so pressing Esc while tools run aborts it here
-        // rather than at either of the branches below. `markToolsAsSubmitted`
-        // stops these callIds ever being submitted, so unless the responses
-        // are written now the model's function calls stay unanswered and the
-        // next `/goal resume` sends a history with an unpaired call. The
-        // all-cancelled branch below writes them for the batch it handles;
-        // this branch owes its own batch the same pairing, whether or not
-        // every tool in it was cancelled.
-        if (toolGoalBinding && llmClient) {
-          llmClient.addHistory({ role: 'user', parts: responsesToSend });
+        // Pair every call before marking it submitted, without restarting the
+        // cancelled turn. Late completed outputs remain discarded outside Goals.
+        if (llmClient) {
+          const cancelledTurnParts = toolGoalBinding
+            ? responsesToSend
+            : finalizedResponses.flatMap((entry, index) =>
+                orderedResponses[index].status === 'cancelled'
+                  ? entry.responseParts
+                  : entry.responseParts.flatMap((part): Part[] =>
+                      part.functionResponse
+                        ? [
+                            {
+                              functionResponse: {
+                                id: part.functionResponse.id,
+                                name: part.functionResponse.name,
+                                response: {
+                                  error:
+                                    '[Operation Cancelled] User intentionally cancelled before this result was submitted; its output was discarded. Stop and await further instructions; do not retry.',
+                                },
+                              },
+                            },
+                          ]
+                        : [],
+                    ),
+              );
+          if (cancelledTurnParts.length > 0) {
+            llmClient.addHistory({ role: 'user', parts: cancelledTurnParts });
+          }
         }
         markToolsAsSubmitted(
           llmTools.map((toolCall) => toolCall.request.callId),

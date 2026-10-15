@@ -29,6 +29,11 @@ describe('dreamCommand', () => {
     const projectRoot = path.join('tmp', 'dream-project');
     const buildConsolidationPrompt = vi.fn().mockReturnValue('dream prompt');
     const writeDreamManualRun = vi.fn();
+    const shellConfiguration = {
+      shell: 'powershell' as const,
+      executable: 'pwsh',
+      argsPrefix: ['-NoProfile', '-NonInteractive', '-Command'],
+    };
     const context = createMockCommandContext({
       services: {
         config: {
@@ -38,6 +43,9 @@ describe('dreamCommand', () => {
             writeDreamManualRun,
           }),
           getSessionId: vi.fn().mockReturnValue('session-1'),
+          getAgentShellConfiguration: vi
+            .fn()
+            .mockReturnValue(shellConfiguration),
         },
       },
     });
@@ -56,6 +64,7 @@ describe('dreamCommand', () => {
     expect(buildConsolidationPrompt).toHaveBeenCalledWith(
       expect.any(String),
       expectedTranscriptDir,
+      shellConfiguration,
     );
     // In interactive mode, writeDreamManualRun is deferred to onComplete
     expect(writeDreamManualRun).not.toHaveBeenCalled();

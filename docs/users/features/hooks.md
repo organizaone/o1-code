@@ -95,6 +95,8 @@ Command hooks execute commands via child processes. Input JSON is passed through
 
 Migration: bash hooks used to have these variables replaced in the command text before the shell ran, and that replacement has been removed. A bash hook that leaves the variable unquoted in a project path containing spaces, or writes it inside single quotes such as `'$O1CODE_PROJECT_DIR/hook.sh'`, must now double-quote it: `"$O1CODE_PROJECT_DIR/hook.sh"`.
 
+Command hooks without a `shell` override use the agent's shell selected at startup. On Windows, automatic selection prefers an installed Git Bash; `tools.shell.type` in user or system settings can select PowerShell or CMD instead. An explicit hook `shell` still takes precedence for that hook. PowerShell hooks start with `-NoProfile -NonInteractive`; Bash hooks on Windows start without profile or rc files. Changing the agent shell requires a restart.
+
 ### HTTP Hooks
 
 HTTP hooks send hook input as POST requests to specified URLs. They support URL whitelists, DNS-level SSRF protection, environment variable interpolation, and other security features.

@@ -1,7 +1,7 @@
 {
   "name": "@organizaone/o1-code",
   "private": true,
-  "version": "0.18.0",
+  "version": "0.19.2",
   "description": "O1-Code",
   "repository": {
     "type": "git",
@@ -38,7 +38,7 @@
     "dist"
   ],
   "config": {
-    "sandboxImageUri": "ghcr.io/organizaone/o1-code:0.18.0"
+    "sandboxImageUri": "ghcr.io/organizaone/o1-code:0.19.2"
   },
   "dependencies": {
     "@agentclientprotocol/sdk": "^0.14.1",
@@ -70,7 +70,6 @@
     "jsonc-parser": "^3.3.1",
     "lowlight": "^3.3.0",
     "markdown-it": "^15.0.0",
-    "open": "^10.2.0",
     "p-limit": "^7.3.0",
     "prompts": "^2.4.2",
     "proper-lockfile": "^4.1.2",

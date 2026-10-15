@@ -30,6 +30,67 @@ the release workflow publishes the npm package and GitHub release only.
 
 In this order.
 
+### Remaining Windows process helpers
+
+Windows sleep requests and browser opening use optional native bindings, text clipboard reads
+reuse the native clipboard module, and standalone updates extract ZIP files in Node. These changes
+do not make every Windows feature independent of PowerShell. The following fixed helpers remain
+until equivalent native behavior is demonstrated in supported Windows environments:
+
+| Consumer                                             | Retained helper                                                         | Required parity before migration                                                                                                                         |
+| ---------------------------------------------------- | ----------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `packages/core/src/tools/pid-descendants.ts`         | CIM process snapshot and per-PID start-time queries                     | Preserve descendant cleanup and PID reuse protection across exited or inaccessible processes; never treat a failed snapshot as an empty successful tree. |
+| `packages/core/src/services/session-writer-lease.ts` | `Get-Process` UTC start ticks                                           | Preserve persisted `win32:<ticks>` identities and deny uncertain ownership so a recycled PID cannot create simultaneous session writers.                 |
+| `packages/core/src/ide/process-utils.ts`             | CIM `CommandLine` query                                                 | Toolhelp snapshots provide names and parent PIDs, but cannot supply the command lines used by IDE discovery.                                             |
+| `packages/cli/src/serve/native-directory-picker.ts`  | STA Windows Forms folder dialog                                         | Preserve interactive selection and cancellation; a new dialog/COM subsystem requires its own parity evaluation.                                          |
+| `packages/cli/src/serve/local-path-open.ts`          | Fixed `Start-Process` terminal fallback when Windows Terminal is absent | Preserve existing-directory validation, bounded execution and passing the directory as environment data.                                                 |
+
+Explicit PowerShell agent/hook selections and saved custom status commands remain supported.
+Build-time Windows archive creation may still use fixed PowerShell helpers; it is separate from
+the installed updater. Functional validation on ARM64 or x64 emulation does not establish native
+Windows 10 x64 compatibility or compatibility with a corporate endpoint security policy.
+
+### Windows release validation
+
+The Windows execution changes have been exercised in the O1-Code Parallels guest on Windows 11
+ARM64, including x64 Node under emulation. Installed npm and standalone packages acquired and
+released native power requests without a PowerShell subprocess. Native Windows 10 x64 and
+corporate endpoint-policy validation are deferred outside this task's acceptance scope.
+
+Headless local-provider runs with Node 24.18.0 in this guest return the response and then fail at
+shutdown with Node's `UV_HANDLE_CLOSING` assertion. The same failure reproduces with the pre-change
+bundle and with optional native dependencies omitted; the matching x64 cases exit normally with
+Node 22.23.3. Updating the guest through Scoop to Node 24.22.0 also restored clean headless
+shutdown across the installed 0.19.2 shell/npm fixtures and native power probe, without a product
+delay or exit workaround. Retain the older
+runtime failure as regression evidence; a successful response alone does not establish a clean exit.
+PowerShell discovery allows
+ten seconds for startup after two-second probes rejected a runnable installation in the guest.
+Git Bash retains normal MSYS native argument conversion, so `/flag` can become a path. Local
+Windows Bash guidance and the smoke runner cover per-command `MSYS_NO_PATHCONV=1`; no global
+conversion override is introduced. The runner also accepts a PowerShell 7 executable or its
+registered Store alias. Test isolation preserves startup `USERPROFILE`, since changing it can
+cause Store activation to fail even when the executable itself is runnable.
+
+Core and terminal regression tests cover interrupted shell output in cancellation history,
+paired tool responses after Esc, discarded completed outputs, and no automatic continuation.
+Store discovery tests cover canonical package executables and workspace/module junction
+exclusions. Installed 0.19.1 guest checks on Node 22 x64 confirmed registered Store alias and
+type-only PowerShell 7 selection, scoped MSYS argument preservation, and Esc cancellation with
+retained output and terminated fixture descendants in Bash, PowerShell 5.1 and PowerShell 7.6.7.
+The native power acquire/release checks also exited cleanly. Dedicated installed-artifact fixtures
+confirmed npm.cmd execution in all four shells and UNC working directories in PowerShell 5.1/7
+and Git Bash with relative file arguments. Absolute Windows UNC arguments in Bash can acquire a
+duplicated server/share prefix even with scoped MSYS conversion suppression; prefer relative paths.
+CMD silently replaces UNC working directories with the Windows directory, so the execution service
+now rejects those launches before PTY initialization or process creation, including structured CMD
+launches.
+
+Actual idle suspension could not be compared in this VM: a three-minute control without the CLI,
+with temporarily reduced AC idle timeouts, remained Active in SleepStudy because Parallels Tools
+held DISPLAY and SYSTEM requests. The original AC/DC settings were restored and verified. Native
+API success establishes request acquisition/release, not physical sleep prevention in this setup.
+
 ### Connect a provider: the new login
 
 The terminal and Web Shell provider dialogs have shipped, with four entry groups, a credential

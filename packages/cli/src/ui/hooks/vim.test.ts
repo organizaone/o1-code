@@ -5,7 +5,7 @@
  */
 // @vitest-environment jsdom
 
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import type { Mock } from 'vitest';
 import { renderHook, act } from '@testing-library/react';
 import type React from 'react';
@@ -13,10 +13,14 @@ import { useVim } from './vim.js';
 import type { Key } from './useKeypress.js';
 import type { TextBuffer } from '../components/shared/text-buffer.js';
 import { textBufferReducer } from '../components/shared/text-buffer.js';
+import { readWindowsClipboardText } from '../utils/clipboard-text.js';
 
 // Prevent real system clipboard commands (clip, pbpaste, xclip, etc.) from
 // spawning during tests — they hang or fail in headless CI environments.
 vi.mock('child_process');
+vi.mock('../utils/clipboard-text.js', () => ({
+  readWindowsClipboardText: vi.fn(),
+}));
 
 const makeKey = (sequence: string, name = ''): Key => ({
   sequence,
@@ -220,6 +224,24 @@ describe('useVim hook', () => {
     mockVimContext.toggleVimEnabled.mockClear();
     mockVimContext.setVimMode.mockClear();
   });
+
+  afterEach(() => vi.unstubAllGlobals());
+
+  it.each(['p', 'P'])(
+    'preserves the buffer when native clipboard is unavailable (%s)',
+    (key) => {
+      vi.stubGlobal('process', { ...process, platform: 'win32' });
+      vi.mocked(readWindowsClipboardText).mockReturnValue(undefined);
+      const { result } = renderVimHook();
+      act(() => {
+        result.current.handleInput(makeKey(key));
+      });
+      expect(readWindowsClipboardText).toHaveBeenCalledOnce();
+      expect(mockBuffer.replaceRange).not.toHaveBeenCalled();
+      expect(mockBuffer.setText).not.toHaveBeenCalled();
+      expect(mockBuffer.undo).not.toHaveBeenCalled();
+    },
+  );
 
   describe('Mode switching', () => {
     it('should start in NORMAL mode', () => {

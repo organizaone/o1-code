@@ -69,6 +69,8 @@ const DIST_REQUIRED_PATHS = [
   'bundled/qc-helper/docs',
 ];
 const DIST_ALLOWED_ENTRIES = new Set([
+  'NOTICE',
+  'release-notes.json',
   'cli.js',
   'execution-worker.js',
   // bin wrapper emitted by prepare-package.js. Standalone shims use it for
@@ -169,6 +171,7 @@ async function main() {
     copyNativeAddon(packageRoot, target);
     copyClipboardAddon(packageRoot, target, args.nativeModulesDir);
     copyNodePtyAddon(packageRoot, target, args.nativeModulesDir);
+    copyWindowsPowerBinding(packageRoot, target, args.nativeModulesDir);
     extractNodeArchive(nodeArchive, runtimeExtractDir);
     const nodeDir = path.join(packageRoot, 'node');
     copyExtractedNode(runtimeExtractDir, nodeDir);
@@ -436,6 +439,48 @@ function copyNativeAddon(packageRoot, target) {
   assertNoSymlinks(modulesDir, 'Bundled native addon still contains symlinks.');
 }
 
+export function copyWindowsPowerBinding(packageRoot, target, nativeModulesDir) {
+  if (target !== 'win-x64') return;
+  const modulesSrc = path.resolve(
+    nativeModulesDir || path.join(rootDir, 'node_modules'),
+  );
+  const names = ['koffi', '@koromix/koffi-win32-x64'];
+  const sources = names.map((name) => path.join(modulesSrc, name));
+  if (
+    !sources.every((source) =>
+      fs.existsSync(path.join(source, 'package.json')),
+    ) ||
+    !fs.existsSync(path.join(sources[1], 'win32_x64', 'koffi.node'))
+  ) {
+    fail(`Windows power binding is missing from ${modulesSrc}`);
+  }
+  const expected = JSON.parse(
+    fs.readFileSync(path.join(rootDir, 'packages/core/package.json'), 'utf8'),
+  ).optionalDependencies?.koffi;
+  if (
+    !expected ||
+    sources.some(
+      (source) =>
+        JSON.parse(fs.readFileSync(path.join(source, 'package.json'), 'utf8'))
+          .version !== expected,
+    )
+  ) {
+    fail('Windows power binding version does not match core');
+  }
+  const destination = path.join(packageRoot, 'lib', 'node_modules');
+  for (let index = 0; index < names.length; index++) {
+    fs.cpSync(sources[index], path.join(destination, names[index]), {
+      recursive: true,
+      dereference: true,
+      verbatimSymlinks: false,
+    });
+  }
+  assertNoSymlinks(
+    destination,
+    'Bundled Windows power binding still contains symlinks.',
+  );
+}
+
 function copyClipboardAddon(packageRoot, target, nativeModulesDir) {
   const modulesSrc = path.resolve(
     nativeModulesDir || path.join(rootDir, 'node_modules'),
@@ -607,8 +652,7 @@ function extractZipArchive(nodeArchive, extractDir) {
       'powershell',
       [
         '-NoProfile',
-        '-ExecutionPolicy',
-        'Bypass',
+        '-NonInteractive',
         '-Command',
         'Expand-Archive -LiteralPath $env:O1CODE_NODE_ARCHIVE -DestinationPath $env:O1CODE_EXTRACT_DIR -Force',
       ],
@@ -835,8 +879,7 @@ function createZipArchive(outputPath, cwd) {
       'powershell',
       [
         '-NoProfile',
-        '-ExecutionPolicy',
-        'Bypass',
+        '-NonInteractive',
         '-Command',
         'Compress-Archive -LiteralPath $env:O1CODE_PACKAGE_ROOT -DestinationPath $env:O1CODE_OUTPUT_PATH -Force',
       ],

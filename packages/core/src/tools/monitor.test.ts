@@ -595,6 +595,18 @@ describe('MonitorTool', () => {
   });
 
   describe('getDefaultPermission', () => {
+    it('does not use the Bash AST to approve a PowerShell command', async () => {
+      mockIsShellCommandReadOnlyAST.mockResolvedValue(true);
+      mockConfig.getAgentShellConfiguration = () => ({
+        executable: 'powershell.exe',
+        argsPrefix: [],
+        shell: 'powershell',
+      });
+      const invocation = monitorTool.build({ command: 'ls' });
+      expect(await invocation.getDefaultPermission()).toBe('ask');
+      expect(mockIsShellCommandReadOnlyAST).not.toHaveBeenCalled();
+    });
+
     // Command substitution previously returned 'deny' here. Now it
     // now falls through to 'ask' (matching ShellToolInvocation and
     // PermissionManager.resolveDefaultPermission); the substitution
@@ -817,6 +829,21 @@ describe('MonitorTool', () => {
   });
 
   describe('execute', () => {
+    it('spawns using the owning runtime shell snapshot', async () => {
+      mockConfig.getAgentShellConfiguration = () => ({
+        executable: 'C:\\Git\\bin\\bash.exe',
+        argsPrefix: ['--noprofile', '--norc', '-c'],
+        shell: 'bash',
+      });
+      const invocation = monitorTool.build({ command: 'echo monitoring' });
+      await invocation.execute(new AbortController().signal);
+      expect(mockSpawn).toHaveBeenCalledWith(
+        'C:\\Git\\bin\\bash.exe',
+        ['--noprofile', '--norc', '-c', 'echo monitoring'],
+        expect.any(Object),
+      );
+    });
+
     it('spawns a process and returns monitor ID', async () => {
       const invocation = createInvocation({
         command: 'tail -f /var/log/app.log',

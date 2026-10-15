@@ -2984,6 +2984,32 @@ const SETTINGS_SCHEMA = {
         description: 'Settings for shell execution.',
         showInDialog: false,
         properties: {
+          type: {
+            type: 'enum',
+            label: 'Agent Shell',
+            category: 'Tools',
+            requiresRestart: true,
+            default: 'auto' as 'auto' | 'git-bash' | 'powershell' | 'cmd',
+            description:
+              'Shell used by the agent. On Windows, automatic selection prefers Git Bash when installed, then Command Prompt. Only honored from User, System, and SystemDefaults settings. Restart required.',
+            showInDialog: true,
+            options: [
+              { value: 'auto', label: 'Automatic' },
+              { value: 'git-bash', label: 'Git Bash' },
+              { value: 'powershell', label: 'PowerShell' },
+              { value: 'cmd', label: 'Command Prompt' },
+            ],
+          },
+          executable: {
+            type: 'string',
+            label: 'Agent Shell Executable',
+            category: 'Tools',
+            requiresRestart: true,
+            default: undefined as string | undefined,
+            description:
+              'Absolute executable path for an explicitly selected agent shell. Requires a shell other than Automatic. Only honored from User, System, and SystemDefaults settings. Restart required.',
+            showInDialog: true,
+          },
           enableInteractiveShell: {
             type: 'boolean',
             label: 'Interactive Shell (PTY)',

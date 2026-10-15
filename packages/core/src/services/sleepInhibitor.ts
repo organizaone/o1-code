@@ -12,6 +12,11 @@ import {
 import { platform as defaultPlatform } from 'node:os';
 import type { Config } from '../config/config.js';
 import { createDebugLogger } from '../utils/debugLogger.js';
+import { BRAND } from '../generated/brand.js';
+import {
+  acquireWindowsPowerRequest,
+  type WindowsPowerRequest,
+} from './windows-power-request.js';
 
 const debugLogger = createDebugLogger('SLEEP_INHIBITOR');
 
@@ -28,6 +33,7 @@ export interface SleepInhibitorConfig {
     options?: SpawnOptions,
   ) => ChildProcess;
   logger?: Pick<ReturnType<typeof createDebugLogger>, 'debug' | 'warn'>;
+  acquireWindowsPowerRequest?: (reason: string) => Promise<WindowsPowerRequest>;
 }
 
 const NOOP_HANDLE: SleepInhibitorHandle = {
@@ -71,6 +77,13 @@ export class SleepInhibitor {
   private readonly logger: NonNullable<SleepInhibitorConfig['logger']>;
   private noAskPasswordSupported: boolean | undefined;
   private probing = false;
+  private nativeRequest: WindowsPowerRequest | undefined;
+  private nativePending = false;
+  private nativeGeneration = 0;
+  private runGeneration = 0;
+  private readonly acquireWindowsRequest: (
+    reason: string,
+  ) => Promise<WindowsPowerRequest>;
 
   constructor(config: SleepInhibitorConfig = {}) {
     this.platform = config.platform ?? defaultPlatform();
@@ -79,18 +92,22 @@ export class SleepInhibitor {
       config.spawn ??
       ((command, args, options) => defaultSpawn(command, args, options ?? {}));
     this.logger = config.logger ?? debugLogger;
+    this.acquireWindowsRequest =
+      config.acquireWindowsPowerRequest ?? acquireWindowsPowerRequest;
   }
 
   acquire(reason = 'O1-Code is processing a request'): SleepInhibitorHandle {
     this.activeCount += 1;
 
     if (this.activeCount === 1) {
+      this.runGeneration += 1;
       this.spawnFailedForCurrentRun = false;
       this.start(reason);
     } else if (!this.child && !this.spawnFailedForCurrentRun && !this.probing) {
       this.start(reason);
     }
 
+    const generation = this.runGeneration;
     let released = false;
     return {
       release: () => {
@@ -98,7 +115,7 @@ export class SleepInhibitor {
           return;
         }
         released = true;
-        this.release();
+        if (generation === this.runGeneration) this.release();
       },
     };
   }
@@ -108,7 +125,7 @@ export class SleepInhibitor {
   }
 
   isRunning(): boolean {
-    return this.child !== undefined;
+    return this.child !== undefined || this.nativeRequest !== undefined;
   }
 
   private release(): void {
@@ -125,7 +142,18 @@ export class SleepInhibitor {
   }
 
   private start(reason: string): void {
-    if (this.child || this.spawnFailedForCurrentRun || this.probing) {
+    if (
+      this.child ||
+      this.nativeRequest ||
+      this.nativePending ||
+      this.spawnFailedForCurrentRun ||
+      this.probing
+    ) {
+      return;
+    }
+
+    if (this.platform === 'win32') {
+      this.startWindows(reason);
       return;
     }
 
@@ -142,6 +170,39 @@ export class SleepInhibitor {
       }
     }
     this.doStart(reason);
+  }
+
+  private startWindows(reason: string): void {
+    const generation = ++this.nativeGeneration;
+    this.nativePending = true;
+    void Promise.resolve()
+      .then(() => this.acquireWindowsRequest(sanitizeInhibitorReason(reason)))
+      .then((request) => {
+        if (generation !== this.nativeGeneration || this.activeCount === 0) {
+          this.releaseWindowsRequest(request);
+          return;
+        }
+        this.nativePending = false;
+        this.nativeRequest = request;
+      })
+      .catch((error: unknown) => {
+        if (generation !== this.nativeGeneration) return;
+        this.nativePending = false;
+        this.spawnFailedForCurrentRun = true;
+        this.logger.warn(
+          `Windows sleep prevention is unavailable: ${error instanceof Error ? error.message : String(error)}`,
+        );
+      });
+  }
+
+  private releaseWindowsRequest(request: WindowsPowerRequest): void {
+    try {
+      request.release();
+    } catch (error) {
+      this.logger.warn(
+        `Failed to stop sleep inhibitor: ${error instanceof Error ? error.message : String(error)}`,
+      );
+    }
   }
 
   /**
@@ -238,6 +299,7 @@ export class SleepInhibitor {
    * subprocess.
    */
   dispose(): void {
+    this.runGeneration += 1;
     this.activeCount = 0;
     this.spawnFailedForCurrentRun = false;
     this.exitedWhileActiveLogged = false;
@@ -249,7 +311,6 @@ export class SleepInhibitor {
    * passing an empty env. An empty env strips PATH (so the command cannot be
    * resolved) and DBUS_SESSION_BUS_ADDRESS/XDG_RUNTIME_DIR (which
    * systemd-inhibit needs to reach the user's systemd over D-Bus on Linux).
-   * On Windows, PowerShell needs SYSTEMROOT/WINDIR.
    */
   private getSpawnEnv(): NodeJS.ProcessEnv {
     const allowList = [
@@ -272,6 +333,11 @@ export class SleepInhibitor {
   }
 
   private stop(): void {
+    this.nativeGeneration += 1;
+    this.nativePending = false;
+    const nativeRequest = this.nativeRequest;
+    this.nativeRequest = undefined;
+    if (nativeRequest) this.releaseWindowsRequest(nativeRequest);
     const child = this.child;
     this.child = undefined;
     // `child.pid` is undefined when the spawn failed (e.g. `systemd-inhibit`
@@ -316,7 +382,7 @@ export class SleepInhibitor {
         }
         args.push(
           '--what=sleep',
-          '--who=O1-Code',
+          `--who=${BRAND.displayName}`,
           `--why=${sanitizeInhibitorReason(reason)}`,
           '--mode=block',
           'sleep',
@@ -324,18 +390,6 @@ export class SleepInhibitor {
         );
         return { command: 'systemd-inhibit', args };
       }
-      case 'win32':
-        return {
-          command: 'powershell.exe',
-          args: [
-            '-NoProfile',
-            '-NonInteractive',
-            '-ExecutionPolicy',
-            'Bypass',
-            '-Command',
-            WINDOWS_INHIBIT_SCRIPT,
-          ],
-        };
       default:
         return undefined;
     }
@@ -349,20 +403,10 @@ export class SleepInhibitor {
   }
 }
 
-const WINDOWS_INHIBIT_SCRIPT = `
-Add-Type -Namespace O1Code -Name SleepUtil -MemberDefinition '[DllImport("kernel32.dll")] public static extern uint SetThreadExecutionState(uint esFlags);';
-[O1Code.SleepUtil]::SetThreadExecutionState(0x80000001) | Out-Null;
-try {
-  while ($true) { Start-Sleep -Seconds 3600 }
-} finally {
-  [O1Code.SleepUtil]::SetThreadExecutionState(0x80000000) | Out-Null;
-}
-`.trim();
-
 export const sleepInhibitor = new SleepInhibitor();
 
-// Kill the inhibitor subprocess if the parent process exits; otherwise an
-// orphaned `caffeinate`/`systemd-inhibit`/PowerShell process would keep
+// Release the native request or subprocess when the parent exits; an
+// orphaned `caffeinate`/`systemd-inhibit` process would keep
 // blocking system sleep indefinitely. Mirrors the exit handling in
 // shellExecutionService.
 process.on('exit', () => {

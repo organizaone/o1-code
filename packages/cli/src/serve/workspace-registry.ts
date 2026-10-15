@@ -14,6 +14,7 @@ import type { WorkspaceRuntimeProvenance } from './managed-scratch-workspace.js'
 import type { DaemonWorkspaceService } from './workspace-service/types.js';
 import type { WorkspaceRuntimeCoordinator } from './workspace-runtime-coordinator.js';
 import { isInternalWorkspaceRuntime } from './workspace-runtime-visibility.js';
+import type { ShellConfiguration } from '@organizaone/o1-code-core/utils/shell-utils.js';
 
 export interface WorkspaceRuntimeEnvMetadata {
   readonly mode: 'parent-process' | 'runtime-overlay';
@@ -44,6 +45,7 @@ export interface WorkspaceRuntime {
   /** Persistent registration ids that restore this runtime on daemon startup. */
   registrationIds?: string[];
   readonly env: WorkspaceRuntimeEnvMetadata;
+  readonly shellConfiguration?: ShellConfiguration;
   readonly bridge: AcpSessionBridge;
   readonly workspaceService: DaemonWorkspaceService;
   readonly routeFileSystemFactory: WorkspaceFileSystemFactory;

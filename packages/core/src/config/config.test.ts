@@ -925,6 +925,24 @@ describe('Server Config (config.ts)', () => {
     );
   });
 
+  describe('agent shell snapshot', () => {
+    it('owns an immutable shell inherited by derived configurations', () => {
+      const first = new Config({ ...baseParams });
+      const second = new Config({ ...baseParams });
+      const shell = first.getAgentShellConfiguration();
+      expect(shell.shell).toBe('bash');
+      expect(Object.isFrozen(shell)).toBe(true);
+      expect(Object.isFrozen(shell.argsPrefix)).toBe(true);
+      expect(second.getAgentShellConfiguration()).not.toBe(shell);
+      expect(deriveConfig(first, {}).getAgentShellConfiguration()).toBe(shell);
+    });
+    it('rejects a Windows-only explicit shell on this Unix host', () => {
+      expect(
+        () => new Config({ ...baseParams, agentShell: { type: 'cmd' } }),
+      ).toThrow(/Windows/);
+    });
+  });
+
   describe('setHooksFromSettings', () => {
     const systemHooks = {
       SessionStart: [{ hooks: [{ type: 'command', command: 'echo system' }] }],

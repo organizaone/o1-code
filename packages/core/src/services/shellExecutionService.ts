@@ -15,7 +15,11 @@ import type { IPty } from '@lydell/node-pty';
 import type { Terminal } from '@xterm/headless';
 import { getCachedEncodingForBuffer } from '../utils/systemEncoding.js';
 import { isBinary } from '../utils/textUtils.js';
-import { getShellConfiguration, type ShellType } from '../utils/shell-utils.js';
+import {
+  getShellConfiguration,
+  type ShellType,
+  type ShellConfiguration,
+} from '../utils/shell-utils.js';
 import {
   loadXtermHeadless,
   type XtermHeadlessModule,
@@ -184,7 +188,10 @@ export interface ProcessLaunch {
   inheritStdin?: boolean;
 }
 
-function launchCommand(input: string | ProcessLaunch) {
+function launchCommand(
+  input: string | ProcessLaunch,
+  shellConfiguration?: ShellConfiguration,
+) {
   if (typeof input !== 'string') {
     return {
       executable: input.executable,
@@ -192,7 +199,8 @@ function launchCommand(input: string | ProcessLaunch) {
       shell: undefined,
     };
   }
-  const { executable, argsPrefix, shell } = getShellConfiguration();
+  const { executable, argsPrefix, shell } =
+    shellConfiguration ?? getShellConfiguration();
   return {
     executable,
     args: [...argsPrefix, applyUtf8Prefix(input, shell)],
@@ -382,6 +390,7 @@ export interface ShellPostPromoteSettleInfo {
  * land without breaking signatures.
  */
 export interface ShellExecuteOptions {
+  shellConfiguration?: ShellConfiguration;
   streamStdout?: boolean;
   /** Stream byte-exact child output without text decoding or binary sniffing. */
   streamRawOutput?: boolean;
@@ -853,6 +862,28 @@ export class ShellExecutionService {
       return createPreSpawnAbortedHandle();
     }
 
+    const normalizedCwd = cwd.replaceAll('\\', '/');
+    if (
+      os.platform() === 'win32' &&
+      normalizedCwd.startsWith('//') &&
+      (!/^\/\/[?.]\//.test(normalizedCwd) ||
+        /^\/\/[?.]\/unc\//i.test(normalizedCwd))
+    ) {
+      const usesCmd =
+        typeof commandToExecute === 'string'
+          ? (options.shellConfiguration ?? getShellConfiguration()).shell ===
+            'cmd'
+          : /^cmd(?:\.exe)?$/i.test(
+              path.win32.basename(commandToExecute.executable),
+            );
+      // CMD silently replaces a UNC working directory with the Windows directory.
+      if (usesCmd) {
+        throw new Error(
+          'CMD cannot preserve a UNC working directory. Use PowerShell or Git Bash, or choose a mapped or local drive.',
+        );
+      }
+    }
+
     if (shouldUseNodePty) {
       let removeAbortListener: (() => void) | undefined;
       const ptyResult = Promise.resolve(getPty()).then(
@@ -895,6 +926,7 @@ export class ShellExecutionService {
             ptyInfo,
             Terminal,
             options.postPromote,
+            options.shellConfiguration,
           );
         } catch (_e) {
           // Fallback to child_process
@@ -914,6 +946,7 @@ export class ShellExecutionService {
       shellExecutionConfig.pager,
       options.postPromote,
       shellExecutionConfig.streamBufferedOutput,
+      options.shellConfiguration,
     );
   }
 
@@ -928,6 +961,7 @@ export class ShellExecutionService {
     pager: string | undefined,
     postPromote?: ShellPostPromoteHandlers,
     streamBufferedOutput = false,
+    shellConfiguration?: ShellConfiguration,
   ): ShellExecutionHandle {
     try {
       const isWindows = os.platform() === 'win32';
@@ -937,7 +971,7 @@ export class ShellExecutionService {
         executable,
         args: shellArgs,
         shell,
-      } = launchCommand(commandToExecute);
+      } = launchCommand(commandToExecute, shellConfiguration);
 
       // Note: CodeQL flags this as js/shell-command-injection-from-environment.
       // This is intentional - CLI tool executes user-provided shell commands.
@@ -1753,6 +1787,7 @@ export class ShellExecutionService {
     ptyInfo: PtyImplementation,
     Terminal: XtermHeadlessModule['Terminal'],
     postPromote?: ShellPostPromoteHandlers,
+    shellConfiguration?: ShellConfiguration,
   ): ShellExecutionHandle {
     if (!ptyInfo) {
       // This should not happen, but as a safeguard...
@@ -1773,7 +1808,7 @@ export class ShellExecutionService {
         executable,
         args: launchArgs,
         shell,
-      } = launchCommand(commandToExecute);
+      } = launchCommand(commandToExecute, shellConfiguration);
 
       // On Windows with cmd.exe, pass args as a single string instead of
       // an array. node-pty's argsToCommandLine re-quotes array elements

@@ -4,6 +4,12 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import {
+  resolveAgentShell,
+  type AgentShellOptions,
+} from '../utils/agent-shell.js';
+import type { ShellConfiguration } from '../utils/shell-utils.js';
+
 import type { SessionSourceService } from '../services/session-sources.js';
 
 import { resolveProviderProtocol } from '../models/modelRegistry.js';
@@ -969,6 +975,7 @@ export type ModelProposedGoalsMode = 'alwaysAsk' | 'disabled';
 export type UiDisplayMode = 'detailed' | 'summary';
 
 export interface ConfigParameters {
+  agentShell?: AgentShellOptions;
   agentExecutionBackend?: 'container';
   executionEnvironmentFactory?: ExecutionEnvironmentFactory;
   executionEnvironment?: ExecutionEnvironment;
@@ -3090,7 +3097,18 @@ export class Config {
   private readonly ownsModelEnvSlot: boolean = false;
   private readonly settingsWatcher?: { stopWatching(): void };
 
+  private readonly agentShellConfiguration: ShellConfiguration;
+
+  getAgentShellConfiguration(): ShellConfiguration {
+    return this.agentShellConfiguration;
+  }
+
   constructor(params: ConfigParameters) {
+    this.agentShellConfiguration = resolveAgentShell(params.agentShell, {
+      platform: process.platform,
+      env: process.env,
+      cwd: params.targetDir,
+    });
     this.executionEnvironment = params.executionEnvironment;
     if (params.executionEnvironment) {
       this.executionEnvironments = new Set([

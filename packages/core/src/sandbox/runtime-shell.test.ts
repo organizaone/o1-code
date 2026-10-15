@@ -30,6 +30,11 @@ describe('runtime shell dispatch', () => {
   };
   const runtime = (enabled = true, sessionId = 'runtime-session') =>
     ({
+      getAgentShellConfiguration: () => ({
+        executable: '/runtime/bash',
+        argsPrefix: ['-c'],
+        shell: 'bash',
+      }),
       getShellExecutionSandbox: () => (enabled ? policy : undefined),
       getTargetDir: () => '/workspace',
       getSessionId: () => sessionId,
@@ -65,7 +70,10 @@ describe('runtime shell dispatch', () => {
       signal,
       false,
       {},
-      options,
+      {
+        ...options,
+        shellConfiguration: runtime(false).getAgentShellConfiguration(),
+      },
     );
     expect(executeBwrap).not.toHaveBeenCalled();
   });

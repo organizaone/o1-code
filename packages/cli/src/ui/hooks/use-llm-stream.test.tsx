@@ -8586,6 +8586,152 @@ describe('useLlmStream', () => {
     });
   });
 
+  it.each([false, true])(
+    'pairs cancelled tool output into history after Esc without continuing the turn (mixed batch: %s)',
+    async (mixedBatch) => {
+      const responseParts: Part[] = [
+        {
+          functionResponse: {
+            id: 'cancelled-shell',
+            name: 'run_shell_command',
+            response: {
+              error: 'User cancelled. Output: PID=8088. Do not retry.',
+            },
+          },
+        },
+      ];
+      const cancelledCall = {
+        request: {
+          callId: 'cancelled-shell',
+          name: 'run_shell_command',
+          args: { command: 'node fixture.cjs' },
+          isClientInitiated: false,
+          prompt_id: 'cancelled-shell-prompt',
+        },
+        status: 'cancelled',
+        responseSubmittedToLlm: false,
+        response: {
+          callId: 'cancelled-shell',
+          responseParts,
+          errorType: undefined,
+        },
+        tool: { displayName: 'Shell' },
+        invocation: { getDescription: () => 'Run cancellation fixture' },
+      } as unknown as TrackedCancelledToolCall;
+      const completedCall = {
+        ...cancelledCall,
+        request: {
+          ...cancelledCall.request,
+          callId: 'completed-read',
+          name: 'read_file',
+          args: { path: '/tmp/secret.txt' },
+        },
+        status: 'success',
+        response: {
+          callId: 'completed-read',
+          responseParts: [
+            {
+              functionResponse: {
+                id: 'completed-read',
+                name: 'read_file',
+                response: { output: 'secret file contents' },
+              },
+            },
+          ],
+          errorType: undefined,
+        },
+      } as unknown as TrackedCompletedToolCall;
+      const completedCalls: TrackedToolCall[] = mixedBatch
+        ? [cancelledCall, completedCall]
+        : [cancelledCall];
+      const client = new MockedLlmClientClass(mockConfig);
+      let onComplete: ((calls: TrackedToolCall[]) => Promise<void>) | undefined;
+      mockUseReactToolScheduler.mockImplementation((callback) => {
+        onComplete = callback;
+        return [[], mockScheduleToolCalls, mockMarkToolsAsSubmitted];
+      });
+      let releaseStream!: () => void;
+      const holdStream = new Promise<void>((resolve) => {
+        releaseStream = resolve;
+      });
+      mockSendMessageStream.mockReturnValue(
+        (async function* () {
+          for (const call of completedCalls) {
+            yield {
+              type: ServerLlmEventType.ToolCallRequest,
+              value: call.request,
+            };
+          }
+          await holdStream;
+        })(),
+      );
+      const { result } = renderHook(() =>
+        useLlmStream(
+          client,
+          [],
+          mockAddItem,
+          mockConfig,
+          true,
+          mockLoadedSettings,
+          mockOnDebugMessage,
+          mockHandleSlashCommand,
+          false,
+          () => 'vscode' as EditorType,
+          () => {},
+          () => Promise.resolve(),
+          false,
+          () => {},
+          () => {},
+          () => {},
+          () => {},
+          80,
+          24,
+        ),
+      );
+      let submitPromise: Promise<unknown> | undefined;
+      act(() => {
+        submitPromise = result.current.submitQuery('Run cancellation fixture');
+      });
+      await waitFor(() => expect(mockSendMessageStream).toHaveBeenCalledOnce());
+      act(() => result.current.cancelOngoingRequest());
+      releaseStream();
+      await act(async () => {
+        await submitPromise;
+        await onComplete?.(completedCalls);
+      });
+
+      expect(client.addHistory).toHaveBeenCalledWith({
+        role: 'user',
+        parts: expect.arrayContaining(responseParts),
+      });
+      const history = client.addHistory.mock.calls.at(-1)?.[0];
+      expect(JSON.stringify(history)).not.toContain('secret file contents');
+      if (mixedBatch) {
+        expect(history.parts).toEqual(
+          expect.arrayContaining([
+            {
+              functionResponse: expect.objectContaining({
+                id: 'completed-read',
+                name: 'read_file',
+                response: {
+                  error: expect.stringContaining(
+                    'User intentionally cancelled',
+                  ),
+                },
+              }),
+            },
+          ]),
+        );
+      }
+      expect(mockMarkToolsAsSubmitted).toHaveBeenCalledWith(
+        mixedBatch
+          ? ['cancelled-shell', 'completed-read']
+          : ['cancelled-shell'],
+      );
+      expect(mockSendMessageStream).toHaveBeenCalledOnce();
+    },
+  );
+
   it('should group multiple cancelled tool call responses into a single history entry', async () => {
     const cancelledToolCall1: TrackedCancelledToolCall = {
       request: {

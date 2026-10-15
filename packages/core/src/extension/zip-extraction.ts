@@ -268,5 +268,7 @@ export async function extractZipArchive(
   } catch (error) {
     signal?.throwIfAborted();
     throw error;
+  } finally {
+    zipFile.close();
   }
 }

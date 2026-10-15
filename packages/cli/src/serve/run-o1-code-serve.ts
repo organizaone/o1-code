@@ -2716,9 +2716,23 @@ async function runO1CodeServeImpl(
   const { createDaemonToolGuard } = await import(
     './daemon-git-worktree-guard.js'
   );
-  const daemonToolGuardHandler = createDaemonToolGuard(
-    externalToolGuardHandler,
+  const { resolveAgentShell } = await import(
+    '@organizaone/o1-code-core/utils/agent-shell.js'
   );
+  const resolveRuntimeShell = (
+    settings: ReturnType<SettingsRuntime['loadSettings']> | undefined,
+    env: NodeJS.ProcessEnv,
+    cwd: string,
+  ) =>
+    settings
+      ? resolveAgentShell(
+          {
+            type: settings.merged.tools?.shell?.type,
+            executable: settings.merged.tools?.shell?.executable,
+          },
+          { platform: process.platform, env, cwd },
+        )
+      : undefined;
   const childEnvOverrides: Record<string, string | undefined> = {
     O1CODE_SERVE_MCP_CLIENT_BUDGET:
       opts.mcpClientBudget !== undefined
@@ -3215,6 +3229,11 @@ async function runO1CodeServeImpl(
       envFileReadFailed: runtimeEnvSnapshot.envFileReadFailed,
       envFileReadFailures: [...runtimeEnvSnapshot.envFileReadFailures],
     };
+    const primaryShellConfiguration = resolveRuntimeShell(
+      runtimeBootSettings,
+      runtimeEffectiveEnv,
+      boundWorkspace,
+    );
     const daemonWorkspaceHash = core.hashDaemonWorkspace(boundWorkspace);
     let daemonTelemetrySettings: TelemetrySettings;
     try {
@@ -3484,8 +3503,8 @@ async function runO1CodeServeImpl(
           }),
         onQueueSaturated: warnAcpQueueSaturated,
       },
-      ...(acpChildExtraArgs(opts)
-        ? { extraArgs: acpChildExtraArgs(opts) }
+      ...(acpChildExtraArgs(opts, primaryShellConfiguration)
+        ? { extraArgs: acpChildExtraArgs(opts, primaryShellConfiguration) }
         : {}),
     });
     const statusProvider = runtime.createDaemonStatusProvider({
@@ -4027,7 +4046,10 @@ async function runO1CodeServeImpl(
         sessionShellCommandEnabled,
         childEnvOverrides,
         channelFactory,
-        externalToolGuard: daemonToolGuardHandler,
+        externalToolGuard: createDaemonToolGuard(
+          externalToolGuardHandler,
+          primaryShellConfiguration,
+        ),
         onDiagnosticLine: diagnosticSink,
         telemetry: daemonTelemetry,
         ...(permissionPolicy !== undefined ? { permissionPolicy } : {}),
@@ -4201,6 +4223,7 @@ async function runO1CodeServeImpl(
         removable: false,
         registrationIds: workspaceInputs[0]?.registrationIds ?? [],
         env: primaryRuntimeEnv,
+        shellConfiguration: primaryShellConfiguration,
         bridge,
         workspaceService,
         routeFileSystemFactory: routeFsFactory,
@@ -4458,6 +4481,11 @@ async function runO1CodeServeImpl(
         secondarySettings,
         secondaryTrusted,
       );
+      const secondaryShellConfiguration = resolveRuntimeShell(
+        secondarySettings,
+        secondaryEnv.effectiveEnv,
+        workspaceInput.cwd,
+      );
       const secondaryCustomIgnoreFiles =
         secondarySettings?.merged.context?.fileFiltering?.customIgnoreFiles;
       const secondaryContextFilename =
@@ -4501,8 +4529,8 @@ async function runO1CodeServeImpl(
             }),
           onQueueSaturated: warnAcpQueueSaturated,
         },
-        ...(acpChildExtraArgs(opts)
-          ? { extraArgs: acpChildExtraArgs(opts) }
+        ...(acpChildExtraArgs(opts, secondaryShellConfiguration)
+          ? { extraArgs: acpChildExtraArgs(opts, secondaryShellConfiguration) }
           : {}),
       });
       const secondaryClientMcpSenderRegistry = new ClientMcpSenderRegistry();
@@ -4603,7 +4631,10 @@ async function runO1CodeServeImpl(
         sessionShellCommandEnabled,
         childEnvOverrides,
         channelFactory: secondaryChannelFactory,
-        externalToolGuard: daemonToolGuardHandler,
+        externalToolGuard: createDaemonToolGuard(
+          externalToolGuardHandler,
+          secondaryShellConfiguration,
+        ),
         onDiagnosticLine: diagnosticSink,
         telemetry: createRuntimeBridgeTelemetry(secondaryWorkspaceHash),
         ...(permissionPolicy !== undefined ? { permissionPolicy } : {}),
@@ -4791,6 +4822,7 @@ async function runO1CodeServeImpl(
         removable: workspaceInput.removable,
         registrationIds: workspaceInput.registrationIds,
         env: secondaryEnv.metadata,
+        shellConfiguration: secondaryShellConfiguration,
         bridge: secondaryBridge,
         workspaceService: secondaryWorkspaceService,
         routeFileSystemFactory: secondaryBridgeFsFactory,
@@ -5112,6 +5144,11 @@ async function runO1CodeServeImpl(
         'serve workspace runtimes',
       );
       const wsEnv = createRuntimeEnvMetadata(cwd, wsSettings, trusted);
+      const wsShellConfiguration = resolveRuntimeShell(
+        wsSettings,
+        wsEnv.effectiveEnv,
+        cwd,
+      );
       const wsCustomIgnoreFiles =
         wsSettings?.merged.context?.fileFiltering?.customIgnoreFiles;
       const wsContextFilename =
@@ -5166,8 +5203,8 @@ async function runO1CodeServeImpl(
             }),
           onQueueSaturated: warnAcpQueueSaturated,
         },
-        ...(acpChildExtraArgs(opts)
-          ? { extraArgs: acpChildExtraArgs(opts) }
+        ...(acpChildExtraArgs(opts, wsShellConfiguration)
+          ? { extraArgs: acpChildExtraArgs(opts, wsShellConfiguration) }
           : {}),
       });
       const wsClientMcpRegistry = new ClientMcpSenderRegistry();
@@ -5300,7 +5337,10 @@ async function runO1CodeServeImpl(
                 }
               : childEnvOverrides,
           channelFactory: wsChannelFactory,
-          externalToolGuard: daemonToolGuardHandler,
+          externalToolGuard: createDaemonToolGuard(
+            externalToolGuardHandler,
+            wsShellConfiguration,
+          ),
           onDiagnosticLine: diagnosticSink,
           telemetry: createRuntimeBridgeTelemetry(wsHash),
           ...(permissionPolicy !== undefined ? { permissionPolicy } : {}),
@@ -5536,6 +5576,7 @@ async function runO1CodeServeImpl(
           buildOptions?.removable ?? provenance !== 'live-conversation',
         registrationIds: [...(buildOptions?.registrationIds ?? [])],
         env: wsEnv.metadata,
+        shellConfiguration: wsShellConfiguration,
         bridge: wsBridge,
         workspaceService: wsService,
         routeFileSystemFactory: wsRouteFsFactory,

@@ -62,6 +62,23 @@ function registryWithSnapshot(
 }
 
 describe('terminal WebSocket route', () => {
+  it('forwards the owning runtime shell snapshot to terminal creation', async () => {
+    const registry = registryWithSnapshot(undefined);
+    const ws = new FakeWebSocket();
+    const shellConfiguration = {
+      shell: 'bash' as const,
+      executable: '/operator/bash',
+      argsPrefix: ['--noprofile', '--norc', '-c'],
+    };
+    await createTerminalWsHandler(registry, () => ({
+      ...context,
+      shellConfiguration,
+    })).onConnection(ws as unknown as WebSocket, request);
+    expect(registry.create).toHaveBeenCalledWith(
+      expect.objectContaining({ shellConfiguration }),
+    );
+    ws.emit('close');
+  });
   it('passes the selected SSH launch command through to the terminal registry', async () => {
     const registry = registryWithSnapshot(undefined);
     const ws = new FakeWebSocket();

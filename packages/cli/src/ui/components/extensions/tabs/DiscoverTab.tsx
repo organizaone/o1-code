@@ -6,7 +6,7 @@
 
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { Box, Text } from 'ink';
-import open from 'open';
+import { openBrowserSecurely } from '@organizaone/o1-code-core/utils/secure-browser-launcher.js';
 import { theme } from '../../../semantic-colors.js';
 import { useKeypress } from '../../../hooks/useKeypress.js';
 import { useTerminalSize } from '../../../hooks/useTerminalSize.js';
@@ -329,16 +329,7 @@ export const DiscoverTab = ({
         onStatus({ type: 'info', text: t('No homepage available.') });
         return;
       }
-      if (process.env['NODE_ENV'] === 'test') {
-        onStatus({
-          type: 'info',
-          text: t('Would open: {{url}}', { url: plugin.homepage }),
-        });
-        return;
-      }
-      // homepage comes from untrusted marketplace metadata; only follow web
-      // links. `open()` would otherwise launch file:// / other schemes in the
-      // OS default handler (e.g. file:///Users/victim/.ssh/id_rsa).
+      // Marketplace metadata must never opt into local-file handlers.
       let protocol: string;
       try {
         protocol = new URL(plugin.homepage).protocol;
@@ -353,7 +344,7 @@ export const DiscoverTab = ({
         return;
       }
       try {
-        await open(plugin.homepage);
+        await openBrowserSecurely(plugin.homepage);
       } catch {
         onStatus({
           type: 'error',

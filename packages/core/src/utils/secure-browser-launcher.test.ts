@@ -11,6 +11,10 @@ import { openBrowserSecurely } from './secure-browser-launcher.js';
 
 // Create mock function using vi.hoisted
 const mockExecFile = vi.hoisted(() => vi.fn());
+const mockOpenWindowsUrl = vi.hoisted(() => vi.fn());
+vi.mock('./windows-open-url.js', () => ({
+  openWindowsUrl: mockOpenWindowsUrl,
+}));
 const mockSpawn = vi.hoisted(() =>
   vi.fn(() => {
     const child: {
@@ -44,6 +48,7 @@ describe('secure-browser-launcher', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockExecFile.mockResolvedValue({ stdout: '', stderr: '' });
+    mockOpenWindowsUrl.mockResolvedValue(undefined);
     mockSpawn.mockImplementation(() => {
       const child: {
         once: ReturnType<typeof vi.fn>;
@@ -182,18 +187,8 @@ describe('secure-browser-launcher', () => {
 
       await openBrowserSecurely(maliciousUrl);
 
-      expect(mockExecFile).toHaveBeenCalledWith(
-        'powershell.exe',
-        [
-          '-NoProfile',
-          '-NonInteractive',
-          '-WindowStyle',
-          'Hidden',
-          '-Command',
-          `Start-Process '${maliciousUrl.replace(/'/g, "''")}'`,
-        ],
-        expect.any(Object),
-      );
+      expect(mockOpenWindowsUrl).toHaveBeenCalledWith(maliciousUrl);
+      expect(mockExecFile).not.toHaveBeenCalled();
     });
 
     it('should handle URLs with special shell characters safely', async () => {
@@ -225,22 +220,44 @@ describe('secure-browser-launcher', () => {
         "http://example.com/path?name=O'Brien&test='value'";
       await openBrowserSecurely(urlWithSingleQuotes);
 
-      expect(mockExecFile).toHaveBeenCalledWith(
-        'powershell.exe',
-        [
-          '-NoProfile',
-          '-NonInteractive',
-          '-WindowStyle',
-          'Hidden',
-          '-Command',
-          `Start-Process 'http://example.com/path?name=O''Brien&test=''value'''`,
-        ],
-        expect.any(Object),
-      );
+      expect(mockOpenWindowsUrl).toHaveBeenCalledWith(urlWithSingleQuotes);
+      expect(mockExecFile).not.toHaveBeenCalled();
     });
   });
 
   describe('Platform-specific behavior', () => {
+    it('preserves manual fallback when the native Windows opener fails', async () => {
+      setPlatform('win32');
+      mockOpenWindowsUrl.mockRejectedValue(
+        new Error('missing optional binding'),
+      );
+      const warn = vi
+        .spyOn(console, 'warn')
+        .mockImplementation(() => undefined);
+      await expect(
+        openBrowserSecurely('https://example.com'),
+      ).resolves.toBeUndefined();
+      expect(warn).toHaveBeenCalledWith(
+        expect.stringContaining('Please open this URL manually'),
+      );
+      expect(mockExecFile).not.toHaveBeenCalled();
+      expect(mockSpawn).not.toHaveBeenCalled();
+      warn.mockRestore();
+    });
+
+    it('passes only explicitly allowed Windows report files to the native opener', async () => {
+      setPlatform('win32');
+      const report = resolve('report.html');
+      const url = pathToFileURL(report).href;
+      await openBrowserSecurely(url, {
+        allowFile: true,
+        allowedFilePaths: [report],
+      });
+      expect(mockOpenWindowsUrl).toHaveBeenCalledWith(url);
+      mockOpenWindowsUrl.mockClear();
+      await expect(openBrowserSecurely(url)).rejects.toThrow('Unsafe protocol');
+      expect(mockOpenWindowsUrl).not.toHaveBeenCalled();
+    });
     it('should use correct command on macOS', async () => {
       setPlatform('darwin');
       await openBrowserSecurely('https://example.com');
@@ -251,17 +268,11 @@ describe('secure-browser-launcher', () => {
       );
     });
 
-    it('should use PowerShell on Windows', async () => {
+    it('should use the native opener on Windows', async () => {
       setPlatform('win32');
       await openBrowserSecurely('https://example.com');
-      expect(mockExecFile).toHaveBeenCalledWith(
-        'powershell.exe',
-        expect.arrayContaining([
-          '-Command',
-          `Start-Process 'https://example.com'`,
-        ]),
-        expect.any(Object),
-      );
+      expect(mockOpenWindowsUrl).toHaveBeenCalledWith('https://example.com');
+      expect(mockExecFile).not.toHaveBeenCalled();
     });
 
     it('should use xdg-open on Linux', async () => {
@@ -427,21 +438,15 @@ describe('secure-browser-launcher', () => {
       consoleSpy.mockRestore();
     });
 
-    it('should ignore BROWSER on Windows and keep the PowerShell opener', async () => {
+    it('should ignore BROWSER on Windows and keep the native opener', async () => {
       setPlatform('win32');
       vi.stubEnv('BROWSER', 'firefox --new-tab');
 
       await openBrowserSecurely('https://example.com');
 
       expect(mockSpawn).not.toHaveBeenCalled();
-      expect(mockExecFile).toHaveBeenCalledWith(
-        'powershell.exe',
-        expect.arrayContaining([
-          '-Command',
-          `Start-Process 'https://example.com'`,
-        ]),
-        expect.any(Object),
-      );
+      expect(mockOpenWindowsUrl).toHaveBeenCalledWith('https://example.com');
+      expect(mockExecFile).not.toHaveBeenCalled();
     });
 
     it('should ignore blocklisted BROWSER values on Windows', async () => {
@@ -451,14 +456,8 @@ describe('secure-browser-launcher', () => {
       await openBrowserSecurely('https://example.com');
 
       expect(mockSpawn).not.toHaveBeenCalled();
-      expect(mockExecFile).toHaveBeenCalledWith(
-        'powershell.exe',
-        expect.arrayContaining([
-          '-Command',
-          `Start-Process 'https://example.com'`,
-        ]),
-        expect.any(Object),
-      );
+      expect(mockOpenWindowsUrl).toHaveBeenCalledWith('https://example.com');
+      expect(mockExecFile).not.toHaveBeenCalled();
     });
 
     it('should fall back to the platform opener for invalid BROWSER values', async () => {

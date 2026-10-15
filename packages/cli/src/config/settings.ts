@@ -388,10 +388,8 @@ export function getSettingsWarnings(loadedSettings: LoadedSettings): string[] {
   const workspaceFile = loadedSettings.forScope(SettingScope.Workspace);
   if (workspaceFile.rawJson !== undefined) {
     for (const { section, key } of WORKSPACE_RESTRICTED_SETTINGS) {
-      const sectionValue = workspaceFile.originalSettings[section] as
-        | Record<string, unknown>
-        | undefined;
-      if (sectionValue?.[key] === undefined) continue;
+      if (!isSettingDefined(workspaceFile.originalSettings, { section, key }))
+        continue;
       warningSet.add(
         `Warning: ${section}.${key} in workspace settings (${workspaceFile.path}) is ignored. This setting is only honored from User, System, or SystemDefaults scope settings.`,
       );
@@ -468,8 +466,35 @@ function isSettingDefined(
   settings: Settings,
   { section, key }: SettingKeyRef,
 ): boolean {
-  const sectionValue = settings[section] as Record<string, unknown> | undefined;
-  return sectionValue?.[key] !== undefined;
+  const segments = safeSettingSegments(key);
+  if (!segments) return false;
+  let value: unknown = settings[section];
+  for (const segment of segments) {
+    if (
+      !value ||
+      typeof value !== 'object' ||
+      Array.isArray(value) ||
+      !Object.hasOwn(value, segment)
+    )
+      return false;
+    value = (value as Record<string, unknown>)[segment];
+  }
+  return value !== undefined;
+}
+
+function safeSettingSegments(key: string): string[] | undefined {
+  const segments = key.split('.');
+  if (
+    segments.some(
+      (segment) =>
+        !segment ||
+        segment === '__proto__' ||
+        segment === 'constructor' ||
+        segment === 'prototype',
+    )
+  )
+    return undefined;
+  return segments;
 }
 
 /**
@@ -482,11 +507,18 @@ function stripSettingKeys(
 ): Settings {
   let stripped: Settings | undefined;
   for (const { section, key } of keys) {
-    const source = (stripped ?? settings)[section] as
-      | Record<string, unknown>
-      | undefined;
-    if (source?.[key] === undefined) continue;
-    const { [key]: _removed, ...rest } = source;
+    const segments = safeSettingSegments(key);
+    if (!segments || !isSettingDefined(stripped ?? settings, { section, key }))
+      continue;
+    const source = (stripped ?? settings)[section] as Record<string, unknown>;
+    const rest = { ...source };
+    let target = rest;
+    for (const segment of segments.slice(0, -1)) {
+      const child = { ...(target[segment] as Record<string, unknown>) };
+      target[segment] = child;
+      target = child;
+    }
+    delete target[segments[segments.length - 1]];
     stripped = { ...(stripped ?? settings), [section]: rest } as Settings;
   }
   return stripped ?? settings;

@@ -2195,6 +2195,11 @@ export class ShellToolInvocation extends BaseToolInvocation<
    */
   override async getDefaultPermission(): Promise<PermissionDecision> {
     if (this.config.getShellExecutionSandbox?.()) return 'ask';
+    if (
+      (this.config.getAgentShellConfiguration?.() ?? getShellConfiguration())
+        .shell !== 'bash'
+    )
+      return 'ask';
     // Outside the workspace even a read-only command is asked for, as a read
     // outside the workspace is. (Mirrored in
     // PermissionManager.resolveDefaultPermission.)
@@ -5027,6 +5032,7 @@ export class ShellToolInvocation extends BaseToolInvocation<
         AbortSignal.timeout(5000),
         false,
         {},
+        { shellConfiguration: this.config.getAgentShellConfiguration?.() },
       );
       const r = await handle.result;
       return r.exitCode === 0 ? r.output : null;
@@ -5253,7 +5259,10 @@ export class ShellToolInvocation extends BaseToolInvocation<
     // wrong for cmd/PowerShell. Gating on the active shell rather than
     // the OS platform keeps Windows + Git Bash users (where
     // getShellConfiguration() reports shell:'bash') working.
-    if (getShellConfiguration().shell !== 'bash') {
+    if (
+      (this.config.getAgentShellConfiguration?.() ?? getShellConfiguration())
+        .shell !== 'bash'
+    ) {
       return command;
     }
 
@@ -5414,7 +5423,10 @@ export class ShellToolInvocation extends BaseToolInvocation<
     // Gate on shell type rather than OS platform: bash escaping is
     // invalid under cmd/PowerShell but works fine under Windows +
     // Git Bash, which `getShellConfiguration()` reports as `'bash'`.
-    if (getShellConfiguration().shell !== 'bash') {
+    if (
+      (this.config.getAgentShellConfiguration?.() ?? getShellConfiguration())
+        .shell !== 'bash'
+    ) {
       return command;
     }
 
@@ -5652,9 +5664,14 @@ function getShellCommandSequencingGuidance({
 
 function getShellToolDescription(
   shellConfiguration: ShellConfiguration,
+  isLocalExecution: boolean,
 ): string {
   const executionWrapper = getShellExecutionWrapper(shellConfiguration);
   const isWindows = os.platform() === 'win32';
+  const nativeArgumentGuidance =
+    isWindows && isLocalExecution && shellConfiguration.shell === 'bash'
+      ? '\n- MSYS may convert native Windows arguments starting with `/` into paths. Scope suppression to one native command: `MSYS_NO_PATHCONV=1 tasklist.exe /FI "PID eq 123"`. Keep POSIX path conversion enabled otherwise; do not export this globally.'
+      : '';
   const processGroupNote = isWindows
     ? ''
     : '\n  - Command is executed as a subprocess that leads its own process group. Command process group can be terminated as `kill -- -PGID` or signaled as `kill -s SIGNAL -- -PGID`.';
@@ -5677,7 +5694,7 @@ IMPORTANT: This tool is for terminal operations like git, npm, docker, etc. DO N
   - Edit files: Use ${ToolNames.EDIT} (NOT sed/awk)
   - Write files: Use ${ToolNames.WRITE_FILE} (NOT echo >/cat <<EOF)
   - Communication: Output text directly (NOT echo/printf)
-${getShellQuotingGuidance(shellConfiguration.shell)}
+${getShellQuotingGuidance(shellConfiguration.shell)}${nativeArgumentGuidance}
 ${getShellCommandSequencingGuidance(shellConfiguration)}
 - Try to maintain your current working directory throughout the session by using absolute paths and avoiding usage of \`cd\`. You may use \`cd\` if the User explicitly requests it.
   <good-example>
@@ -5735,11 +5752,14 @@ export class ShellTool extends BaseDeclarativeTool<
     const shellConfiguration: ShellConfiguration =
       config.getExecutionEnvironment?.() instanceof SshExecutionEnvironment
         ? { executable: 'bash', argsPrefix: ['-c'], shell: 'bash' }
-        : getShellConfiguration();
+        : (config.getAgentShellConfiguration?.() ?? getShellConfiguration());
     super(
       ShellTool.Name,
       ToolDisplayNames.SHELL,
-      getShellToolDescription(shellConfiguration),
+      getShellToolDescription(
+        shellConfiguration,
+        !config.getExecutionEnvironment?.(),
+      ),
       Kind.Execute,
       {
         type: 'object',

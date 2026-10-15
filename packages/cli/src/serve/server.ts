@@ -2780,8 +2780,15 @@ export function createServeApp(
         ) {
           return undefined;
         }
+        if (
+          process.platform === 'win32' &&
+          !runtime.shellConfiguration &&
+          !runtime.routeFileSystemFactory.sshWorkspace
+        )
+          return undefined;
         return {
           workspaceCwd: runtime.workspaceCwd,
+          shellConfiguration: runtime.shellConfiguration,
           env: getRuntimeEffectiveEnv(runtime.env) ?? daemonEnvAtBoot,
           ...(runtime.routeFileSystemFactory.sshWorkspace
             ? {

@@ -122,6 +122,29 @@ describe('ShellProcessor', () => {
     });
   });
 
+  it('quotes interpolation for the owning runtime PowerShell', async () => {
+    mockConfig.getAgentShellConfiguration = () => ({
+      executable: 'C:\\PowerShell\\pwsh.exe',
+      argsPrefix: ['-NoProfile', '-NonInteractive', '-Command'],
+      shell: 'powershell',
+    });
+    mockConfig.getApprovalMode = vi.fn().mockReturnValue(ApprovalMode.YOLO);
+    context.invocation!.args = "a'b & c";
+    const processor = new ShellProcessor('test');
+    await processor.process(
+      createPromptPipelineContent('!{echo {{args}}}'),
+      context,
+    );
+    expect(mockShellExecute).toHaveBeenCalledWith(
+      "echo 'a''b & c'",
+      expect.any(String),
+      expect.any(Function),
+      expect.any(AbortSignal),
+      expect.any(Boolean),
+      expect.any(Object),
+    );
+  });
+
   it('keeps YOLO prompt injections bound to the runtime sandbox', async () => {
     mockConfig.getShellExecutionSandbox = vi
       .fn()

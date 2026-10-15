@@ -946,6 +946,16 @@ export default {
   'Respect .o1-codeignore': 'Respect .o1-codeignore',
   'Enable Recursive File Search': 'Enable Recursive File Search',
   'Interactive Shell (PTY)': 'Interactive Shell (PTY)',
+  'Agent Shell': 'Agent Shell',
+  'Agent Shell Executable': 'Agent Shell Executable',
+  Automatic: 'Automatic',
+  'Git Bash': 'Git Bash',
+  PowerShell: 'PowerShell',
+  'Command Prompt': 'Command Prompt',
+  'Shell used by the agent. On Windows, automatic selection prefers Git Bash when installed, then Command Prompt. Only honored from User, System, and SystemDefaults settings. Restart required.':
+    'Shell used by the agent. On Windows, automatic selection prefers Git Bash when installed, then Command Prompt. Only honored from User, System, and SystemDefaults settings. Restart required.',
+  'Absolute executable path for an explicitly selected agent shell. Requires a shell other than Automatic. Only honored from User, System, and SystemDefaults settings. Restart required.':
+    'Absolute executable path for an explicitly selected agent shell. Requires a shell other than Automatic. Only honored from User, System, and SystemDefaults settings. Restart required.',
   'Show Color': 'Show Color',
   'Auto Accept': 'Auto Accept',
   'Use Ripgrep': 'Use Ripgrep',

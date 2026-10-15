@@ -169,6 +169,7 @@ const external = [
   '@teddyzhu/clipboard-win32-x64-msvc',
   '@teddyzhu/clipboard-win32-arm64-msvc',
   'sharp',
+  'koffi',
 ];
 
 // Name of the directory under `dist/` that esbuild emits shared chunks into.

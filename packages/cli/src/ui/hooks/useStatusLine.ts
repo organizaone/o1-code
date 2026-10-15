@@ -5,7 +5,7 @@
  */
 
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { exec, type ChildProcess } from 'child_process';
+import { exec, execFile, type ChildProcess } from 'child_process';
 import wrapAnsi from 'wrap-ansi';
 import { createDebugLogger } from '@organizaone/o1-code-core';
 import { getReasoningForDisplay } from '../../acp-integration/model-configuration.js';
@@ -144,7 +144,14 @@ const debugLog = createDebugLogger('STATUS_LINE');
 // Footer's bottom row (hint/mode indicator) occupies 1 line, so the status
 // line gets at most 2 to keep the total footer height at 3 rows max.
 export const MAX_STATUS_LINES = 2;
-const PULL_REQUEST_LOOKUP_COMMAND = 'gh pr view --json number --jq .number';
+const PULL_REQUEST_LOOKUP_ARGS = [
+  'pr',
+  'view',
+  '--json',
+  'number',
+  '--jq',
+  '.number',
+];
 
 function parsePullRequestNumber(stdout: string): string | undefined {
   const prNumber = stdout.trim();
@@ -399,8 +406,9 @@ export function useStatusLine(
       const generation = ++pullRequestLookupGenerationRef.current;
       let child: ChildProcess;
       try {
-        child = exec(
-          PULL_REQUEST_LOOKUP_COMMAND,
+        child = execFile(
+          'gh',
+          PULL_REQUEST_LOOKUP_ARGS,
           { cwd: currentDir, timeout: 2000, maxBuffer: 1024 },
           (error, stdout) => {
             if (

@@ -24,10 +24,12 @@ const debugLogMock = vi.hoisted(() => ({
 vi.mock('child_process', async (importOriginal) => {
   const actual = await importOriginal<typeof import('child_process')>();
   const exec = vi.fn<typeof actual.exec>();
+  const execFile = vi.fn<typeof actual.execFile>();
   return {
     ...actual,
     exec,
-    default: { ...actual, exec },
+    execFile,
+    default: { ...actual, exec, execFile },
   };
 });
 
@@ -197,6 +199,22 @@ describe('useStatusLine', () => {
         killed: false,
       };
     }) as unknown as typeof child_process.exec);
+
+    vi.mocked(child_process.execFile).mockImplementation(((
+      file: string,
+      _args: string[],
+      opts: unknown,
+      cb: ExecCallback,
+    ) => {
+      const implementation = vi
+        .mocked(child_process.exec)
+        .getMockImplementation() as unknown as (
+        command: string,
+        options: unknown,
+        callback: ExecCallback,
+      ) => child_process.ChildProcess;
+      return implementation(file, opts, cb);
+    }) as unknown as typeof child_process.execFile);
 
     // Reset mutable mock state
     setStatusLineConfig(undefined);
@@ -452,6 +470,38 @@ describe('useStatusLine', () => {
   });
 
   describe('preset status line', () => {
+    it('ignores stale PR callbacks and cancels the outstanding refresh on unmount', async () => {
+      setStatusLineConfig({ type: 'preset', items: ['pull-request-number'] });
+      const { result, rerender, unmount } = renderHook(() => useStatusLine());
+      const stale = execCallback;
+      mockUIState.branchName = 'another-branch';
+      rerender();
+      await act(async () => {
+        vi.advanceTimersByTime(300);
+      });
+      expect(child_process.execFile).toHaveBeenCalledTimes(2);
+      expect(mockKill).toHaveBeenCalledOnce();
+      await act(async () => {
+        stale(null, '123\n', '');
+      });
+      expect(result.current.lines).toEqual([]);
+      unmount();
+      expect(mockKill).toHaveBeenCalledTimes(2);
+    });
+
+    it('keeps a missing gh executable from breaking preset rendering', () => {
+      vi.mocked(child_process.execFile).mockImplementationOnce(() => {
+        throw new Error('ENOENT gh');
+      });
+      setStatusLineConfig({ type: 'preset', items: ['pull-request-number'] });
+      const { result } = renderHook(() => useStatusLine());
+      expect(result.current.lines).toEqual([]);
+      expect(debugLogMock.warn).toHaveBeenCalledWith(
+        'statusline: gh pr view failed:',
+        'ENOENT gh',
+      );
+      expect(child_process.exec).not.toHaveBeenCalled();
+    });
     it('returns the preset theme color preference', () => {
       setStatusLineConfig({
         type: 'preset',
@@ -472,8 +522,14 @@ describe('useStatusLine', () => {
       });
       const { result } = renderHook(() => useStatusLine());
 
-      expect(child_process.exec).toHaveBeenCalledOnce();
-      expect(lastExecCommand).toBe('gh pr view --json number --jq .number');
+      expect(child_process.exec).not.toHaveBeenCalled();
+      expect(child_process.execFile).toHaveBeenCalledWith(
+        'gh',
+        ['pr', 'view', '--json', 'number', '--jq', '.number'],
+        { cwd: '/test/dir', timeout: 2000, maxBuffer: 1024 },
+        expect.any(Function),
+      );
+      expect(lastExecCommand).toBe('gh');
       expect(result.current.lines).toEqual([]);
 
       await act(async () => {
@@ -534,8 +590,8 @@ describe('useStatusLine', () => {
       mockUIState.statusLineSettingsVersion += 1;
       rerender();
 
-      expect(child_process.exec).toHaveBeenCalledOnce();
-      expect(lastExecCommand).toBe('gh pr view --json number --jq .number');
+      expect(child_process.execFile).toHaveBeenCalledOnce();
+      expect(lastExecCommand).toBe('gh');
 
       await act(async () => {
         execCallback(null, '4118\n', '');
@@ -616,7 +672,7 @@ describe('useStatusLine', () => {
       });
       const { rerender } = renderHook(() => useStatusLine());
 
-      expect(child_process.exec).toHaveBeenCalledOnce();
+      expect(child_process.execFile).toHaveBeenCalledOnce();
 
       await act(async () => {
         execCallback(new Error('gh not authenticated'), '', '');
@@ -633,8 +689,8 @@ describe('useStatusLine', () => {
         vi.advanceTimersByTime(300);
       });
 
-      expect(child_process.exec).toHaveBeenCalledTimes(2);
-      expect(lastExecCommand).toBe('gh pr view --json number --jq .number');
+      expect(child_process.execFile).toHaveBeenCalledTimes(2);
+      expect(lastExecCommand).toBe('gh');
     });
   });
 
