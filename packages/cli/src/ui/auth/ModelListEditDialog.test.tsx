@@ -57,18 +57,40 @@ const savedModel = (id: string) => ({
 const renderDialog = ({
   onClose = vi.fn<() => void>(),
   onSaved = vi.fn<() => void>(),
+  authType = AuthType.USE_ANTHROPIC,
+  tunnel = false,
+  apiKey = 'device-token',
 }: {
   onClose?: () => void;
   onSaved?: () => void;
+  authType?: AuthType;
+  tunnel?: boolean;
+  apiKey?: string;
 } = {}) => {
+  const baseUrl =
+    authType === AuthType.USE_ANTHROPIC
+      ? 'https://api.organizaone.com'
+      : 'https://api.organizaone.com/v1';
+  const models = ['model-a', 'model-b'].map((id) => ({
+    ...savedModel(id),
+    baseUrl,
+    envKey: tunnel ? '' : 'ORGANIZAONE_API_KEY',
+    credential: tunnel ? 'organizaone-o1gw' : 'organizaone',
+    ...(tunnel ? { connection: 'o1-connect' } : {}),
+    ...(authType === AuthType.USE_OPENAI_RESPONSES
+      ? { wireApi: 'responses' }
+      : {}),
+  }));
   const mockSettings = {
     isTrusted: true,
     merged: {
       modelProviders: {
-        anthropic: [savedModel('model-a'), savedModel('model-b')],
+        [authType === AuthType.USE_OPENAI_RESPONSES
+          ? AuthType.USE_OPENAI
+          : authType]: models,
       },
-      security: { auth: { selectedType: AuthType.USE_ANTHROPIC } },
-      model: { name: 'model-b', baseUrl: 'https://api.organizaone.com' },
+      security: { auth: { selectedType: authType } },
+      model: { name: 'model-b', baseUrl },
     },
     setValue: vi.fn(),
   } as unknown as LoadedSettings;
@@ -76,10 +98,15 @@ const renderDialog = ({
   const mockConfig = {
     getModel: vi.fn(() => 'model-b'),
     getContentGeneratorConfig: vi.fn(() => ({
-      authType: AuthType.USE_ANTHROPIC,
+      authType,
       model: 'model-b',
-      apiKey: 'device-token',
-      baseUrl: 'https://api.organizaone.com',
+      apiKey,
+      baseUrl: tunnel
+        ? authType === AuthType.USE_ANTHROPIC
+          ? 'http://127.0.0.1:9876'
+          : 'http://127.0.0.1:9876/v1'
+        : baseUrl,
+      ...(tunnel ? { connection: 'o1-connect' } : {}),
     })),
     reloadModelProvidersConfig: vi.fn(),
     syncModelSelection: vi.fn(),
@@ -248,6 +275,74 @@ describe('ModelListEditDialog', () => {
     expect(onSaved).toHaveBeenCalledTimes(1);
     unmount();
   });
+
+  it.each(
+    [
+      AuthType.USE_ANTHROPIC,
+      AuthType.USE_OPENAI,
+      AuthType.USE_OPENAI_RESPONSES,
+    ].flatMap((authType) =>
+      [false, true].map((tunnel) => ({ authType, tunnel })),
+    ),
+  )(
+    'uses the active connection and preserves its authentication: $authType tunnel=$tunnel',
+    async ({ authType, tunnel }) => {
+      const apiKey = tunnel ? 'temporary-tunnel-key' : 'pasted-api-key';
+      const { onSaved, unmount } = renderDialog({ authType, tunnel, apiKey });
+      await act(async () => {
+        await Promise.resolve();
+      });
+      const expectedUrl = tunnel
+        ? `http://127.0.0.1:9876${authType === AuthType.USE_ANTHROPIC ? '' : '/v1'}`
+        : `https://api.organizaone.com${authType === AuthType.USE_ANTHROPIC ? '' : '/v1'}`;
+      expect(checkProviderKeyMock).toHaveBeenCalledWith(
+        expect.objectContaining({ baseUrl: expectedUrl, apiKey }),
+      );
+      await act(async () => {
+        pressKey('r', '\u0012', true);
+      });
+      await act(async () => {
+        await Promise.resolve();
+      });
+      expect(checkProviderKeyMock.mock.calls.at(-1)?.[0]).toMatchObject({
+        baseUrl: expectedUrl,
+        apiKey,
+      });
+      for (let index = 0; index < 4; index++) {
+        await act(async () => {
+          pressKey('down');
+        });
+      }
+      await act(async () => {
+        pressLatestKey('space', ' ');
+      });
+      await act(async () => {
+        pressLatestKey('return', '\r');
+      });
+      const [plan, options] = applyProviderInstallPlanMock.mock.calls[0]!;
+      expect(plan.authType).toBe(authType);
+      expect(plan.credential).toBeUndefined();
+      expect(plan.modelSelection.modelId).toBe('model-b');
+      expect(
+        plan.modelProviders[0].models.map((model: { id: string }) => model.id),
+      ).toEqual(['model-a', 'model-b', 'model-c']);
+      expect(options).toMatchObject({
+        keepOtherProviders: true,
+        doRefreshAuth: false,
+      });
+      for (const model of plan.modelProviders[0].models) {
+        expect(model.baseUrl).toBe(
+          `https://api.organizaone.com${authType === AuthType.USE_ANTHROPIC ? '' : '/v1'}`,
+        );
+        expect(model.connection).toBe(tunnel ? 'o1-connect' : undefined);
+        expect(model.credential).toBe(
+          tunnel ? 'organizaone-o1gw' : 'organizaone',
+        );
+      }
+      expect(onSaved).toHaveBeenCalledOnce();
+      unmount();
+    },
+  );
 
   it('goes back to the picker on esc', async () => {
     const { onClose, unmount } = renderDialog();

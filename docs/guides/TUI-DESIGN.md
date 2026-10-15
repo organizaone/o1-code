@@ -385,10 +385,13 @@ never leaves; it only shortens from the start.
   model, an `Effort` row lists `default` and the tiers the highlighted model takes, the chosen one
   as `‹ tier ›` in bold brand, the rest secondary; ←/→ move along it and the choice applies with the
   switch (`↑↓ navigate · ←→ effort · enter select · esc close`). A tier the next model lacks shows
-  as its nearest one. With a signed-in OrganizaOne account the footer adds
+  as its nearest one. With an OrganizaOne connection (account login, API key or
+  tunnel, using Anthropic or either OpenAI API), the footer adds
   `ctrl+e edit list`, which replaces the picker with the provider model catalog
   (`auth/ModelListEditDialog.tsx`): the list is fetched on open, ctrl+r fetches it
-  again, and the save refuses to drop the model in use.
+  again, and the save refuses to drop the model in use. Discovery uses the active
+  connection; saving preserves its authentication, protocol and other providers.
+  Tunnel endpoints and temporary keys are never saved by the editor.
 - **Effort** (`EffortDialog.tsx`): `default` first (the model/provider decides, and the saved tier
   is cleared), then the model's tiers; it opens on the current one.
 - **Slash categories** (`SlashCommandMenu.tsx`): bare `/` opens recent commands and

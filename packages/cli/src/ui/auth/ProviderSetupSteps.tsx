@@ -976,8 +976,10 @@ function DiscoveringModelIdsStep({
   } | null>(() =>
     reusableCheck ? snapshotOf(reusableCheck, config.models ?? []) : null,
   );
-  const baseUrl = flow.state.baseUrl;
-  const apiKey = flow.state.apiKey;
+  const baseUrl =
+    flow.state.modelDiscoveryConnection?.baseUrl ?? flow.state.baseUrl;
+  const apiKey =
+    flow.state.modelDiscoveryConnection?.apiKey ?? flow.state.apiKey;
   const protocol = protocolOf(flow.state.protocol);
   const clientVersion = useContext(AppContext)?.version;
   const requiresKey = requiresApiKey(config);

@@ -90,6 +90,8 @@ const routeProtocol = (proto: AuthType, wireApi: ModelWireApi): AuthType =>
 // ---------------------------------------------------------------------------
 
 export interface ProviderSetupState {
+  /** Runtime endpoint used only for catalog discovery, never persisted. */
+  modelDiscoveryConnection?: { baseUrl: string; apiKey: string };
   /** What the provider said about the key when it was submitted. */
   keyCheck?: ProviderKeyCheck;
   /** Nothing was saved for this provider before. */
@@ -141,6 +143,7 @@ export interface ProviderSetupState {
 // ---------------------------------------------------------------------------
 
 export interface ProviderStartOptions {
+  modelDiscoveryConnection?: ProviderSetupState['modelDiscoveryConnection'];
   /** Opens the wizard on this step, with the earlier ones out of the flow. */
   startAt?: SetupStep;
   /** Submit-time check on the edited IDs; a message blocks the submit. */
@@ -158,6 +161,8 @@ export function useProviderSetupFlow(
   rawModelProviders?: ModelProvidersConfig,
 ) {
   const [provider, setProvider] = useState<ProviderConfig | null>(null);
+  const [modelDiscoveryConnection, setModelDiscoveryConnection] =
+    useState<ProviderSetupState['modelDiscoveryConnection']>();
   const [visibleSteps, setVisibleSteps] = useState<SetupStep[]>([]);
   const [stepIndex, setStepIndex] = useState(0);
 
@@ -199,6 +204,7 @@ export function useProviderSetupFlow(
       options?: ProviderStartOptions,
     ) => {
       setProvider(config);
+      setModelDiscoveryConnection(options?.modelDiscoveryConnection);
       setKeyCheck(undefined);
       setCredentialExtras(undefined);
       validateModelIdsRef.current = options?.validateModelIds;
@@ -702,6 +708,7 @@ export function useProviderSetupFlow(
   // -- State ----------------------------------------------------------------
 
   const state: ProviderSetupState = {
+    modelDiscoveryConnection,
     provider,
     step: currentStep,
     stepIndex: stepIndex + 1, // 1-based for display

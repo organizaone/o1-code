@@ -10,13 +10,15 @@ import { Box, Text } from 'ink';
 import {
   buildInstallPlan,
   findExistingProviderModels,
-  getDefaultModelIds,
   getModelsForProviderProtocol,
 } from '@organizaone/o1-code-core/providers/provider-config.js';
 import { applyProviderInstallPlan } from '@organizaone/o1-code-core/providers/install.js';
+import { AuthType } from '@organizaone/o1-code-core/core/contentGenerator.js';
+import { resolveModelProtocol } from '@organizaone/o1-code-core/models/modelRegistry.js';
 import {
-  organizaoneLoginProvider,
+  organizaoneO1gwProvider,
   organizaoneProvider,
+  reachesOrganizaOne,
 } from '@organizaone/o1-code-core/providers/presets/organizaone.js';
 import type {
   ProviderConfig,
@@ -44,7 +46,7 @@ export interface ModelListEditDialogProps {
 }
 
 /**
- * The model list of the signed-in OrganizaOne account, edited the way the
+ * The model list of the active OrganizaOne connection, edited the way the
  * sign-in wizard edits it: the provider is asked for its list on open, ctrl+r
  * asks again, and models are added or removed by checkbox or by typing.
  */
@@ -59,11 +61,65 @@ export function ModelListEditDialog({
   // One keystroke can reach the dialog twice before the picker unmounts it.
   const closeLatchRef = useRef(false);
   const submitInFlightRef = useRef(false);
+  const [connection] = useState(() => {
+    const generator = config.getContentGeneratorConfig();
+    if (!generator || !reachesOrganizaOne(generator) || !generator.authType) {
+      throw new Error(
+        'The active model does not use an OrganizaOne connection.',
+      );
+    }
+    const authType = generator.authType;
+    const protocol =
+      authType === AuthType.USE_OPENAI_RESPONSES
+        ? AuthType.USE_OPENAI
+        : authType;
+    const models = getModelsForProviderProtocol(
+      settings.merged.modelProviders,
+      generator.authType,
+      settings.merged.providerProtocol,
+    );
+    const active = models.find(
+      (model) =>
+        model.id === config.getModel() &&
+        resolveModelProtocol(protocol, model) === authType &&
+        reachesOrganizaOne(model) &&
+        model.connection === generator.connection &&
+        (generator.connection || model.baseUrl === generator.baseUrl),
+    );
+    const preset = generator.connection
+      ? organizaoneO1gwProvider
+      : organizaoneProvider;
+    const envKey = active
+      ? (active.envKey ?? '')
+      : (generator.apiKeyEnvKey ?? preset.envKey);
+    const provider: ProviderConfig = {
+      ...preset,
+      protocolOptions: [protocol],
+      ...(active?.baseUrl
+        ? {
+            baseUrlByProtocol: {
+              ...preset.baseUrlByProtocol,
+              [protocol]: active.baseUrl,
+            },
+          }
+        : {}),
+      envKey,
+      ...(active?.credential ? { credentialId: active.credential } : {}),
+      ownsModel: (model) =>
+        reachesOrganizaOne(model) &&
+        resolveModelProtocol(protocol, model) === authType &&
+        (!active?.baseUrl || model.baseUrl === active.baseUrl) &&
+        model.connection === generator.connection &&
+        (model.envKey ?? '') === envKey &&
+        model.credential === active?.credential,
+    };
+    return { generator, active, provider };
+  });
 
   const selection = {
-    authType: settings.merged.security?.auth?.selectedType,
-    id: settings.merged.model?.name,
-    baseUrl: settings.merged.model?.baseUrl,
+    authType: connection.generator.authType,
+    id: config.getModel(),
+    baseUrl: connection.active?.baseUrl,
   };
 
   const submitEdit = useCallback(
@@ -75,7 +131,8 @@ export function ModelListEditDialog({
       const credential = organizaOneAccountCredential();
       const withTokenExtras: ProviderSetupInputs = {
         ...inputs,
-        ...(credential?.expiresAt !== undefined
+        ...(credential?.apiKey === connection.generator.apiKey &&
+        credential?.expiresAt !== undefined
           ? {
               credentialExtras: {
                 expiresAt: credential.expiresAt,
@@ -97,7 +154,23 @@ export function ModelListEditDialog({
           ),
           selection,
         );
+        // Editing a catalog must not rewrite an existing credential or save
+        // the tunnel's temporary endpoint key.
+        if (
+          connection.active?.credential ||
+          connection.active?.envKey ||
+          connection.generator.connection ||
+          connection.generator.apiKeyEnvKey
+        ) {
+          delete plan.credential;
+        }
+        plan.modelSelection = {
+          modelId: config.getModel(),
+          baseUrl: connection.active?.baseUrl ?? inputs.baseUrl,
+        };
         await applyProviderInstallPlan(plan, {
+          keepOtherProviders: true,
+          doRefreshAuth: false,
           settings: createLoadedSettingsAdapter(settings),
           reloadModelProviders: (mp) => config.reloadModelProvidersConfig(mp),
           syncAuthState: (authType, modelId, baseUrl) =>
@@ -112,7 +185,7 @@ export function ModelListEditDialog({
       onSaved();
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps -- selection is rebuilt from the same settings fields every render
-    [config, onSaved, settings],
+    [config, connection, onSaved, settings],
   );
 
   const flow = useProviderSetupFlow(
@@ -124,23 +197,22 @@ export function ModelListEditDialog({
 
   useEffect(() => {
     const saved = findExistingProviderModels(
-      organizaoneLoginProvider,
+      connection.provider,
       settings.merged.modelProviders,
       settings.merged.providerProtocol,
       selection,
     );
-    const builtInIds = new Set(getDefaultModelIds(organizaoneLoginProvider));
     flow.start(
-      organizaoneLoginProvider,
-      saved?.protocol ?? config.getContentGeneratorConfig?.()?.authType,
+      connection.provider,
+      connection.generator.authType,
       undefined,
-      saved
-        ? saved.models
-            .map((model) => model.id)
-            .filter((id) => !builtInIds.has(id))
-        : undefined,
+      saved?.models.map((model) => model.id),
       {
         startAt: 'models',
+        modelDiscoveryConnection: {
+          baseUrl: connection.generator.baseUrl ?? '',
+          apiKey: connection.generator.apiKey ?? '',
+        },
         validateModelIds: (ids) => {
           const active = config.getModel();
           return active && !ids.includes(active)
@@ -152,8 +224,9 @@ export function ModelListEditDialog({
         },
       },
     );
-    const credential = organizaOneAccountCredential();
-    if (credential?.apiKey) flow.changeApiKey(credential.apiKey);
+    if (!connection.generator.connection && connection.generator.apiKey) {
+      flow.changeApiKey(connection.generator.apiKey);
+    }
     // One flow per open: the account and its saved list are fixed here.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);

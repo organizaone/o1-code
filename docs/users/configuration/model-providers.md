@@ -31,6 +31,13 @@ Use `modelProviders` to declare models per provider id that the `/model` picker 
 >
 > **Hot reload vs. restart:** `modelProviders` edits in `settings.json` are picked up by a running interactive session without a restart (the file watcher debounces ~300ms; reopen `/model` to see new entries, the current selection is kept). Changing the active model's `wireApi` creates a different route; select that route explicitly or restart to use it. Invalid API edits leave the prior registry usable. `providerProtocol` is read once at startup and **requires a restart**.
 
+For an active OrganizaOne connection, open `/model` and press `Ctrl+E` to edit
+its model list. This works with account sign-in, an API key or the pinned tunnel,
+using Anthropic, OpenAI Chat Completions or OpenAI Responses. Select the models
+to keep, use `Ctrl+R` to refresh the catalog, then save to return to the updated
+picker. The active model must stay selected. Editing preserves authentication
+and other configured providers; tunnel addresses and temporary keys are not saved.
+
 ### Image generation routes
 
 Set `supportsImageGeneration: true` when a route can be used by the built-in
