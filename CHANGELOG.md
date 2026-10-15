@@ -7,6 +7,8 @@ follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.19.2] - 2026-10-15
+
 ### Added
 
 - Windows automatically selects installed Git Bash, with user and system settings to select PowerShell or CMD and an explicit executable. Each session keeps the same shell for execution, permission checks, hooks, memory and its Web Shell terminal; workspace settings cannot override this selection.
@@ -615,7 +617,8 @@ The first release of o1-code, a coding agent for the terminal.
 - `o1-code serve` runs a local daemon with a REST API and the Web Shell, a browser interface.
 - Editor companions for VS Code and Zed.
 
-[Unreleased]: https://github.com/organizaone/o1-code/compare/v0.18.0...HEAD
+[Unreleased]: https://github.com/organizaone/o1-code/compare/v0.19.2...HEAD
+[0.19.2]: https://github.com/organizaone/o1-code/compare/v0.18.0...v0.19.2
 [0.18.0]: https://github.com/organizaone/o1-code/compare/v0.17.0...v0.18.0
 [0.17.0]: https://github.com/organizaone/o1-code/compare/v0.16.0...v0.17.0
 [0.16.0]: https://github.com/organizaone/o1-code/compare/v0.15.1...v0.16.0
