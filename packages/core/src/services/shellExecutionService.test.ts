@@ -338,6 +338,118 @@ describe('ShellExecutionService', () => {
     return { result, handle, abortController };
   };
 
+  describe('CMD UNC working directories', () => {
+    beforeEach(() => {
+      mockCpSpawn.mockReturnValue(
+        Object.assign(new EventEmitter(), {
+          pid: 56789,
+          stdout: new EventEmitter(),
+          stderr: new EventEmitter(),
+          exitCode: null,
+          signalCode: null,
+        }),
+      );
+    });
+
+    it.each(
+      [false, true].flatMap((pty) =>
+        [
+          '\\\\server\\share\\workspace',
+          '//server/share/workspace',
+          '\\\\?\\UNC\\server\\share\\workspace',
+          '//?/unc/server/share/workspace',
+          '\\\\server/share\\workspace',
+          '\\\\.\\UNC\\server\\share\\workspace',
+        ].map((cwd) => ({ pty, cwd })),
+      ),
+    )(
+      'rejects $cwd before shell initialization with PTY=$pty',
+      async ({ pty, cwd }) => {
+        mockPlatform.mockReturnValue('win32');
+        await expect(
+          ShellExecutionService.execute(
+            'echo should-not-run',
+            cwd,
+            onOutputEventMock,
+            new AbortController().signal,
+            pty,
+            shellExecutionConfig,
+            {
+              shellConfiguration: {
+                executable: 'cmd.exe',
+                argsPrefix: ['/d', '/s', '/c'],
+                shell: 'cmd',
+              },
+            },
+          ),
+        ).rejects.toThrow(/CMD.*UNC.*PowerShell.*Git Bash.*mapped.*local/i);
+        expect(mockGetPty).not.toHaveBeenCalled();
+        expect(mockPtySpawn).not.toHaveBeenCalled();
+        expect(mockCpSpawn).not.toHaveBeenCalled();
+      },
+    );
+
+    it('rejects the default CMD shell for a UNC directory', async () => {
+      mockPlatform.mockReturnValue('win32');
+      mockGetShellConfiguration.mockReturnValueOnce({
+        executable: 'cmd.exe',
+        argsPrefix: ['/d', '/s', '/c'],
+        shell: 'cmd',
+      });
+      await expect(
+        ShellExecutionService.execute(
+          'echo should-not-run',
+          '\\\\server\\share',
+          onOutputEventMock,
+          new AbortController().signal,
+          false,
+          shellExecutionConfig,
+        ),
+      ).rejects.toThrow(/CMD.*UNC/i);
+      expect(mockCpSpawn).not.toHaveBeenCalled();
+    });
+
+    it.each([
+      { platform: 'win32', shell: 'cmd' as const, cwd: 'C:\\workspace' },
+      { platform: 'win32', shell: 'cmd' as const, cwd: '\\\\?\\C:\\workspace' },
+      { platform: 'win32', shell: 'cmd' as const, cwd: '\\\\.\\C:\\workspace' },
+      { platform: 'win32', shell: 'bash' as const, cwd: '\\\\server\\share' },
+      {
+        platform: 'win32',
+        shell: 'powershell' as const,
+        cwd: '\\\\server\\share',
+      },
+      { platform: 'linux', shell: 'cmd' as const, cwd: '//server/share' },
+    ])(
+      'preserves $shell execution in $cwd on $platform',
+      async ({ platform, shell, cwd }) => {
+        mockPlatform.mockReturnValue(platform);
+        const handle = await ShellExecutionService.execute(
+          'echo expected',
+          cwd,
+          onOutputEventMock,
+          new AbortController().signal,
+          true,
+          shellExecutionConfig,
+          {
+            shellConfiguration: {
+              executable: shell,
+              argsPrefix: ['-c'],
+              shell,
+            },
+          },
+        );
+        expect(mockPtySpawn).toHaveBeenCalledWith(
+          shell,
+          expect.anything(),
+          expect.objectContaining({ cwd }),
+        );
+        mockPtyProcess.onExit.mock.calls[0][0]({ exitCode: 0 });
+        expect((await handle.result).exitCode).toBe(0);
+      },
+    );
+  });
+
   describe('child environment sanitization', () => {
     it('strips internal daemon secrets from the pty child env while keeping user vars and third-party credentials', async () => {
       // Replace (not mutate in place): this file restores process.env by
@@ -408,6 +520,54 @@ describe('ShellExecutionService', () => {
       mockCpSpawn.mockReturnValue(child);
       return child;
     };
+
+    it.each([false, true])(
+      'rejects structured CMD UNC execution before PTY lookup with PTY=%s',
+      async (pty) => {
+        pipe();
+        mockPlatform.mockReturnValue('win32');
+        await expect(
+          ShellExecutionService.executeLaunch(
+            {
+              ...launch(),
+              executable: '/trusted/CMD.EXE',
+              cwd: '//server/share',
+            },
+            onOutputEventMock,
+            new AbortController().signal,
+            pty,
+            shellExecutionConfig,
+          ),
+        ).rejects.toThrow(/CMD.*UNC/i);
+        expect(mockGetPty).not.toHaveBeenCalled();
+        expect(mockCpSpawn).not.toHaveBeenCalled();
+        expect(mockPtySpawn).not.toHaveBeenCalled();
+      },
+    );
+
+    it.each([false, true])(
+      'allows structured native programs in UNC directories with PTY=%s',
+      async (pty) => {
+        mockPlatform.mockReturnValue('win32');
+        const child = pipe();
+        const input = { ...launch(), cwd: '//server/share' };
+        const handle = await ShellExecutionService.executeLaunch(
+          input,
+          onOutputEventMock,
+          new AbortController().signal,
+          pty,
+          shellExecutionConfig,
+        );
+        expect(pty ? mockPtySpawn : mockCpSpawn).toHaveBeenCalledWith(
+          input.executable,
+          input.args,
+          expect.objectContaining({ cwd: '//server/share' }),
+        );
+        if (pty) mockPtyProcess.onExit.mock.calls[0][0]({ exitCode: 0 });
+        else child.emit('exit', 0, null);
+        expect((await handle.result).exitCode).toBe(0);
+      },
+    );
 
     it.each([false, true])(
       'passes literal argv and exact env with PTY=%s',

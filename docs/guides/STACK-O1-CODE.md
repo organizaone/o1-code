@@ -66,6 +66,10 @@ Each one is an observed failure, not a hypothesis.
   and dies with the terminal.
 - Local Git Bash retains MSYS path conversion. Preserve native Windows slash switches per command
   when needed, for example `MSYS_NO_PATHCONV=1 tasklist.exe /FI "PID eq 123"`; never export this globally.
+- CMD shell execution rejects UNC working directories before starting a process: CMD otherwise
+  silently runs in the Windows directory. Select PowerShell or Git Bash, or use a mapped/local drive.
+  In Git Bash UNC projects, prefer relative file arguments: absolute Windows UNC arguments can
+  reach native programs with a duplicated server/share prefix even with scoped conversion suppression.
 - Windows test harnesses isolate settings with `HOME` and `O1CODE_HOME`, preserving the real
   `USERPROFILE`. Replacing `USERPROFILE` before Node startup can make registered Store executables
   fail to launch with `EPERM`, even when the same executable works from the user's terminal.

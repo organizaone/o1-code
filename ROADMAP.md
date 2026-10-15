@@ -54,14 +54,17 @@ Windows 10 x64 compatibility or compatibility with a corporate endpoint security
 
 The Windows execution changes have been exercised in the O1-Code Parallels guest on Windows 11
 ARM64, including x64 Node under emulation. Installed npm and standalone packages acquired and
-released native power requests without a PowerShell subprocess. Native Windows 10 x64 and a
-corporate endpoint policy remain separate validation requirements.
+released native power requests without a PowerShell subprocess. Native Windows 10 x64 and
+corporate endpoint-policy validation are deferred outside this task's acceptance scope.
 
 Headless local-provider runs with Node 24.18.0 in this guest return the response and then fail at
 shutdown with Node's `UV_HANDLE_CLOSING` assertion. The same failure reproduces with the pre-change
 bundle and with optional native dependencies omitted; the matching x64 cases exit normally with
-Node 22.23.3. Investigate shutdown and retain the Node 24 case as a failing smoke result until
-fixed; a successful response alone does not establish a clean exit. PowerShell discovery allows
+Node 22.23.3. Updating the guest through Scoop to Node 24.22.0 also restored clean headless
+shutdown across the installed 0.19.2 shell/npm fixtures and native power probe, without a product
+delay or exit workaround. Retain the older
+runtime failure as regression evidence; a successful response alone does not establish a clean exit.
+PowerShell discovery allows
 ten seconds for startup after two-second probes rejected a runnable installation in the guest.
 Git Bash retains normal MSYS native argument conversion, so `/flag` can become a path. Local
 Windows Bash guidance and the smoke runner cover per-command `MSYS_NO_PATHCONV=1`; no global
@@ -75,9 +78,18 @@ Store discovery tests cover canonical package executables and workspace/module j
 exclusions. Installed 0.19.1 guest checks on Node 22 x64 confirmed registered Store alias and
 type-only PowerShell 7 selection, scoped MSYS argument preservation, and Esc cancellation with
 retained output and terminated fixture descendants in Bash, PowerShell 5.1 and PowerShell 7.6.7.
-The native power acquire/release checks also exited cleanly. UNC and npm.cmd still need dedicated
-fixtures; the guest's ARM64 emulation does not replace native Windows 10 x64 or corporate-policy
-validation.
+The native power acquire/release checks also exited cleanly. Dedicated installed-artifact fixtures
+confirmed npm.cmd execution in all four shells and UNC working directories in PowerShell 5.1/7
+and Git Bash with relative file arguments. Absolute Windows UNC arguments in Bash can acquire a
+duplicated server/share prefix even with scoped MSYS conversion suppression; prefer relative paths.
+CMD silently replaces UNC working directories with the Windows directory, so the execution service
+now rejects those launches before PTY initialization or process creation, including structured CMD
+launches.
+
+Actual idle suspension could not be compared in this VM: a three-minute control without the CLI,
+with temporarily reduced AC idle timeouts, remained Active in SleepStudy because Parallels Tools
+held DISPLAY and SYSTEM requests. The original AC/DC settings were restored and verified. Native
+API success establishes request acquisition/release, not physical sleep prevention in this setup.
 
 ### Connect a provider: the new login
 

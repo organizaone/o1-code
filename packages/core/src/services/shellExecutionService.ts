@@ -862,6 +862,28 @@ export class ShellExecutionService {
       return createPreSpawnAbortedHandle();
     }
 
+    const normalizedCwd = cwd.replaceAll('\\', '/');
+    if (
+      os.platform() === 'win32' &&
+      normalizedCwd.startsWith('//') &&
+      (!/^\/\/[?.]\//.test(normalizedCwd) ||
+        /^\/\/[?.]\/unc\//i.test(normalizedCwd))
+    ) {
+      const usesCmd =
+        typeof commandToExecute === 'string'
+          ? (options.shellConfiguration ?? getShellConfiguration()).shell ===
+            'cmd'
+          : /^cmd(?:\.exe)?$/i.test(
+              path.win32.basename(commandToExecute.executable),
+            );
+      // CMD silently replaces a UNC working directory with the Windows directory.
+      if (usesCmd) {
+        throw new Error(
+          'CMD cannot preserve a UNC working directory. Use PowerShell or Git Bash, or choose a mapped or local drive.',
+        );
+      }
+    }
+
     if (shouldUseNodePty) {
       let removeAbortListener: (() => void) | undefined;
       const ptyResult = Promise.resolve(getPty()).then(
