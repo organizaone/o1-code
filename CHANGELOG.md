@@ -7,6 +7,14 @@ follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Enhanced
+
+- Background agents now have a responsive dashboard with a pinned roster, distinct active tabs, scrollable summaries, plans, activity and details, and direct review of pending approvals. Arrow keys preview tabs without leaving the agent list; Enter opens details and Esc returns to the list.
+
+### Added
+
+- Internal agents can report their own task steps through `report_progress`. The dashboard keeps these declared steps separate from tool activity and execution status, and compatible restored agents retain their last recorded plan.
+
 ## [0.19.4] - 2026-10-15
 
 ### Fixed

@@ -128,6 +128,7 @@ export function destructureAgentCoreCall(call: unknown[]) {
 /** Mock ToolRegistry covering the surface spawn paths exercise. */
 export function createMockToolRegistry() {
   return {
+    registerFactory: vi.fn(),
     getFunctionDeclarations: vi.fn().mockReturnValue([]),
     getAllTools: vi.fn().mockReturnValue([]),
     getAllToolNames: vi.fn().mockReturnValue([]),

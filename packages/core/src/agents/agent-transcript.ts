@@ -45,6 +45,7 @@ import { getCachedGitBranch } from '../utils/gitUtils.js';
 import { _recoverObjectsFromLine } from '../utils/jsonl-utils.js';
 import type { Content } from '@google/genai';
 import type { SubagentExecutorSpec } from '../subagents/types.js';
+import type { TodoItem } from '../hooks/types.js';
 import type {
   AgentCompletionStats,
   BackgroundActivity,
@@ -184,6 +185,8 @@ export interface AgentMeta {
   stats?: AgentCompletionStats;
   /** Capped terminal snapshot of the most recent tool activities. */
   recentActivities?: BackgroundActivity[];
+  /** Last successfully persisted plan for this agent, never its parent's plan. */
+  todoItems?: readonly TodoItem[];
 }
 
 export interface AgentTraceNode {

@@ -29,6 +29,7 @@ import { useKeypress } from '../../hooks/useKeypress.js';
 import { keyMatchers, Command } from '../../keyMatchers.js';
 import { MaxSizedBox } from '../shared/MaxSizedBox.js';
 import { theme } from '../../semantic-colors.js';
+import { glyphs } from '../../glyphs.js';
 import { useConfig } from '../../contexts/ConfigContext.js';
 import {
   buildBackgroundEntryLabel,
@@ -50,6 +51,14 @@ import type { MonitorTask } from '@organizaone/o1-code-core/services/monitorRegi
 import type { ToolCallConfirmationDetails } from '@organizaone/o1-code-core/tools/tools.js';
 import { ToolConfirmationMessage } from '../messages/ToolConfirmationMessage.js';
 import { WorkflowSaveOverlay } from './workflow-save-overlay.js';
+import { AgentDashboard } from './AgentDashboard.js';
+import {
+  dashboardSingleLine,
+  getAgentDashboardLayout,
+  getAgentDashboardLines,
+  nextAgentDashboardTab,
+  type AgentDashboardTab,
+} from './agent-dashboard-model.js';
 import { formatDuration, formatTokenCount } from '../../utils/formatters.js';
 import {
   escapeAnsiCtrlCodes,
@@ -1413,6 +1422,7 @@ export const BackgroundTasksDialog: React.FC<BackgroundTasksDialogProps> = ({
     moveSelectionUp,
     moveSelectionDown,
     closeDialog,
+    openDialog,
     enterDetail,
     exitDetail,
     cancelSelected,
@@ -1421,6 +1431,16 @@ export const BackgroundTasksDialog: React.FC<BackgroundTasksDialogProps> = ({
     setSelectedIndex,
   } = useBackgroundTaskViewActions();
   const config = useConfig();
+  const hasAgents = entries.some((entry) => entry.kind === 'agent');
+  const [agentTab, setAgentTab] = useState<AgentDashboardTab>('summary');
+  const [agentScrollOffset, setAgentScrollOffset] = useState(0);
+  const [reviewingApproval, setReviewingApproval] = useState<string | null>(
+    null,
+  );
+  const agentLayout = getAgentDashboardLayout(
+    terminalWidth,
+    availableTerminalHeight,
+  );
 
   // Progress (up to 10 rows + the wrapped live row), Transcript (3 rows:
   // spacer + label + path) and Prompt (5 rows) are each bounded inside
@@ -1522,6 +1542,12 @@ export const BackgroundTasksDialog: React.FC<BackgroundTasksDialogProps> = ({
   }, [entries, selectedIndex, config, activityTick]);
 
   const selectedEntryId = selectedEntry ? entryId(selectedEntry) : undefined;
+  useEffect(() => {
+    setAgentScrollOffset(0);
+  }, [selectedEntryId, agentTab, dialogOpen]);
+  useEffect(() => {
+    setReviewingApproval(null);
+  }, [selectedEntryId, dialogOpen]);
   // Activity callback is agent-only — shells don't emit per-tool events.
   const selectedAgentIdForActivity =
     selectedEntry?.kind === 'agent' ? selectedEntry.agentId : undefined;
@@ -1549,7 +1575,20 @@ export const BackgroundTasksDialog: React.FC<BackgroundTasksDialogProps> = ({
             ownerId: selectedEntry.runId,
           }
         : undefined;
-  const approvalActive = isDetailMode && Boolean(selectedApproval);
+  const agentApprovalKey =
+    selectedApproval?.kind === 'agent'
+      ? JSON.stringify([
+          selectedApproval.ownerId,
+          selectedApproval.approval.callId,
+          selectedApproval.approval.subagentId,
+          selectedApproval.approval.at,
+        ])
+      : undefined;
+  const approvalActive =
+    Boolean(selectedApproval) &&
+    (selectedApproval?.kind === 'agent'
+      ? reviewingApproval === agentApprovalKey
+      : isDetailMode);
   const approvalUsesQuestionDialog =
     selectedApproval?.approval.confirmationDetails.type === 'ask_user_question';
 
@@ -1593,7 +1632,12 @@ export const BackgroundTasksDialog: React.FC<BackgroundTasksDialogProps> = ({
         } as ToolCallConfirmationDetails)
       : undefined;
   useEffect(() => {
-    if (!dialogOpen || !isDetailMode || !selectedAgentIdForActivity) return;
+    if (
+      !dialogOpen ||
+      (!isDetailMode && !agentLayout.split) ||
+      !selectedAgentIdForActivity
+    )
+      return;
     const registry = config.getBackgroundTaskRegistry();
     const onActivity = (entry: AgentTask) => {
       if (entry.agentId !== selectedAgentIdForActivity) return;
@@ -1607,6 +1651,7 @@ export const BackgroundTasksDialog: React.FC<BackgroundTasksDialogProps> = ({
     isDetailMode,
     config,
     selectedAgentIdForActivity,
+    agentLayout.split,
   ]);
 
   // Wall-clock tick for the running agent's duration. Activity callbacks
@@ -1618,7 +1663,12 @@ export const BackgroundTasksDialog: React.FC<BackgroundTasksDialogProps> = ({
       ? isActiveWorkflowStatus(selectedEntry.status)
       : selectedStatus === 'running';
   useEffect(() => {
-    if (!dialogOpen || !isDetailMode || !selectedEntryId || !selectedShouldTick)
+    if (
+      !dialogOpen ||
+      (!isDetailMode && !agentLayout.split) ||
+      !selectedEntryId ||
+      !selectedShouldTick
+    )
       return;
     const id = setInterval(() => setActivityTick((n) => n + 1), 1000);
     return () => clearInterval(id);
@@ -1628,6 +1678,7 @@ export const BackgroundTasksDialog: React.FC<BackgroundTasksDialogProps> = ({
     isDetailMode,
     selectedEntryId,
     selectedShouldTick,
+    agentLayout.split,
   ]);
 
   // Auto-fallback to the list view when the selected entry reaches a
@@ -1763,6 +1814,7 @@ export const BackgroundTasksDialog: React.FC<BackgroundTasksDialogProps> = ({
       // double-fire against the confirmation's.
       if (approvalActive && !approvalUsesQuestionDialog) {
         if (key.name === 'left') {
+          setReviewingApproval(null);
           exitDetail();
           return;
         }
@@ -1774,6 +1826,70 @@ export const BackgroundTasksDialog: React.FC<BackgroundTasksDialogProps> = ({
       }
       if (approvalActive && approvalUsesQuestionDialog) {
         return;
+      }
+
+      if (
+        hasAgents &&
+        (dialogMode === 'list' || selectedEntry?.kind === 'agent')
+      ) {
+        if (
+          (key.name === 'left' || key.name === 'right' || key.name === 'tab') &&
+          !key.ctrl &&
+          !key.meta
+        ) {
+          if (selectedEntry?.kind === 'agent') {
+            setAgentTab((tab) =>
+              nextAgentDashboardTab(
+                tab,
+                key.name === 'left' || key.shift ? -1 : 1,
+              ),
+            );
+          }
+          return;
+        }
+        if (
+          key.sequence === 'a' &&
+          !key.ctrl &&
+          !key.meta &&
+          selectedApproval?.kind === 'agent'
+        ) {
+          if (isDetailMode || agentLayout.split)
+            setReviewingApproval(agentApprovalKey ?? null);
+          return;
+        }
+        if (isDetailMode && selectedEntry?.kind === 'agent') {
+          if (key.name === 'escape') {
+            if (pendingCancelEntryId) setPendingCancelEntryId(null);
+            else {
+              setReviewingApproval(null);
+              if (dialogMode === 'detail-from-panel') openDialog();
+              else exitDetail();
+            }
+            return;
+          }
+          if (key.name === 'return' || key.name === 'space') return;
+          const up = keyMatchers[Command.SELECTION_UP](key);
+          const down = keyMatchers[Command.SELECTION_DOWN](key);
+          const pageUp = key.name === 'pageup';
+          const pageDown = key.name === 'pagedown';
+          if (up || down || pageUp || pageDown) {
+            const maxOffset = Math.max(
+              0,
+              getAgentDashboardLines(
+                selectedEntry,
+                agentTab,
+                agentLayout.detailWidth,
+                entries,
+              ).length - agentLayout.pageSize,
+            );
+            const direction = up || pageUp ? -1 : 1;
+            const step = pageUp || pageDown ? agentLayout.pageSize : 1;
+            setAgentScrollOffset((offset) =>
+              Math.max(0, Math.min(maxOffset, offset + direction * step)),
+            );
+            return;
+          }
+        }
       }
 
       if (dialogMode === 'list') {
@@ -1935,6 +2051,117 @@ export const BackgroundTasksDialog: React.FC<BackgroundTasksDialogProps> = ({
       hints.push('x abandon');
     }
     if (workflowSaveTarget) hints.push('s save');
+  }
+
+  if (
+    approvalActive &&
+    selectedApproval?.kind === 'agent' &&
+    approvalConfirmationDetails &&
+    selectedEntry?.kind === 'agent'
+  ) {
+    const nestedOwner = selectedApproval.approval.subagentId;
+    const headingRows = nestedOwner ? 3 : 2;
+    return (
+      <Box
+        flexDirection="column"
+        width={terminalWidth}
+        height={availableTerminalHeight}
+        flexShrink={0}
+      >
+        <Box
+          flexDirection="column"
+          width={terminalWidth}
+          height={Math.max(1, availableTerminalHeight - 1)}
+          borderStyle={glyphs().borderStyle}
+          borderColor={theme.status.warning}
+          paddingX={1}
+          flexShrink={0}
+        >
+          <Text bold color={theme.status.warning} wrap="truncate-end">
+            {t('Background agent needs approval')}
+          </Text>
+          <Text wrap="truncate-end">
+            {dashboardSingleLine(
+              selectedEntry.description,
+              Math.max(1, terminalWidth - 4),
+            )}
+          </Text>
+          {nestedOwner && (
+            <Text color={theme.text.secondary} wrap="truncate-end">
+              {t('from nested agent')}:{' '}
+              {dashboardSingleLine(nestedOwner, Math.max(1, terminalWidth - 4))}
+            </Text>
+          )}
+          <ToolConfirmationMessage
+            confirmationDetails={approvalConfirmationDetails}
+            config={config}
+            isFocused
+            contentWidth={Math.max(1, terminalWidth - 4)}
+            availableTerminalHeight={Math.max(
+              1,
+              availableTerminalHeight - headingRows - 3,
+            )}
+            compactMode
+          />
+        </Box>
+        <Text color={theme.text.secondary} wrap="truncate-end">
+          {showCancelConfirmHint
+            ? t(
+                'Press x again to stop; this ends the blocking turn. Esc cancels.',
+              )
+            : approvalUsesQuestionDialog
+              ? t('Approve or deny the request above')
+              : t('← back · x stop')}
+        </Text>
+      </Box>
+    );
+  }
+
+  if (
+    hasAgents &&
+    (dialogMode === 'list' || selectedEntry?.kind === 'agent') &&
+    !approvalActive &&
+    !saveActive
+  ) {
+    const actionHints: string[] = [];
+    if (
+      selectedEntry?.kind === 'agent' &&
+      selectedEntry.pendingApprovals?.length
+    )
+      actionHints.push(t('a review approval'));
+    if (selectedEntry && isStoppableEntry(selectedEntry))
+      actionHints.push(t('x stop'));
+    if (selectedEntryAllowsResume) actionHints.push(t('r resume'));
+    if (selectedEntry?.kind === 'agent' && selectedEntry.status === 'paused')
+      actionHints.push(t('x abandon'));
+    if (selectedWorkflowPauseHint) actionHints.push(selectedWorkflowPauseHint);
+    return (
+      <AgentDashboard
+        entries={entries}
+        selectedEntry={selectedEntry}
+        selectedIndex={selectedIndex}
+        detailFocused={isDetailMode}
+        tab={agentTab}
+        scrollOffset={agentScrollOffset}
+        width={terminalWidth}
+        height={availableTerminalHeight}
+        actionHints={actionHints}
+        footerMessage={
+          showCancelConfirmHint
+            ? t(
+                'Press x again to stop; this ends the blocking turn. Esc cancels.',
+              )
+            : pauseRejected?.entryKey === selectedEntryKey
+              ? t(
+                  'Pause/resume was rejected; the workflow state changed. Try again.',
+                )
+              : undefined
+        }
+        renderOtherDetail={(entry, height, width) => (
+          <DetailBody entry={entry} maxHeight={height} maxWidth={width} />
+        )}
+      />
+    );
   }
 
   return (

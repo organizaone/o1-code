@@ -39,6 +39,7 @@ import {
   ContextState,
 } from '../../agents/runtime/agent-headless.js';
 import type { SubagentExecutor } from '../../agents/runtime/subagent-executor.js';
+import { registerAgentProgressTool } from '../report-progress.js';
 import { resolveAgentExecutionBackend } from '../../subagents/execution-backend.js';
 import type { AgentExternalInput } from '../../agents/runtime/agent-types.js';
 import type { Content } from '@google/genai';
@@ -604,6 +605,7 @@ export async function rebuildToolRegistryOnOverride(
     agentRegistry.copyDiscoveredToolsFrom(base.getToolRegistry());
   }
   ov.getToolRegistry = () => agentRegistry;
+  await registerAgentProgressTool(override);
   if (options?.markRebuilt !== false) {
     ov[TOOL_REGISTRY_REBUILT] = true;
   }

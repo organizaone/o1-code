@@ -99,6 +99,59 @@ function makeWaitingEvent(
   };
 }
 
+describe('agent plan snapshots', () => {
+  it('clones agent-local updates, emits activity changes and allows clearing', () => {
+    const registry = new BackgroundTaskRegistry();
+    registry.register(makeRegistration('a'));
+    registry.register(makeRegistration('b'));
+    const changed = vi.fn();
+    registry.setActivityChangeCallback(changed);
+    const todos = [{ id: '1', content: 'Inspect', status: 'pending' as const }];
+    registry.updateTodoItems('a', todos);
+    expect(registry.get('a')?.todoItems).toEqual(todos);
+    expect(registry.get('b')?.todoItems).toBeUndefined();
+    expect(changed).toHaveBeenCalledOnce();
+    todos[0]!.content = 'Changed elsewhere';
+    expect(registry.get('a')?.todoItems?.[0]?.content).toBe('Inspect');
+    registry.updateTodoItems('a', []);
+    expect(registry.get('a')?.todoItems).toEqual([]);
+  });
+
+  it.each(['completed', 'failed', 'cancelled'] as const)(
+    'retains truthful unfinished plan after %s',
+    (status) => {
+      const registry = new BackgroundTaskRegistry();
+      registry.register(makeRegistration('a'));
+      const todos = [
+        { id: '1', content: 'Still pending', status: 'in_progress' as const },
+      ];
+      registry.updateTodoItems('a', todos);
+      if (status === 'completed') registry.complete('a', 'done');
+      else if (status === 'failed') registry.fail('a', 'failed');
+      else registry.cancel('a');
+      registry.updateTodoItems('a', []);
+      expect(registry.get('a')?.todoItems).toEqual(todos);
+    },
+  );
+
+  it('validates restored registrations and clones their plan', () => {
+    const registry = new BackgroundTaskRegistry();
+    const todos = [
+      {
+        id: '1',
+        content: 'Inspect',
+        status: 'pending' as const,
+        blockedBy: [] as string[],
+      },
+    ];
+    registry.register(makeRegistration('a', { todoItems: todos }));
+    todos[0]!.blockedBy.push('other');
+    expect(registry.get('a')?.todoItems?.[0]?.blockedBy).toEqual([]);
+    registry.register(makeRegistration('b', { todoItems: [null] as never }));
+    expect(registry.get('b')?.todoItems).toBeUndefined();
+  });
+});
+
 describe('notification emission and agent context', () => {
   it('omits the internal agent type from the notification card label', () => {
     const registry = new BackgroundTaskRegistry();

@@ -16,7 +16,26 @@ import {
 import { useAgentViewState } from '../contexts/AgentViewContext.js';
 import { StreamingState } from '../types.js';
 
-const dialogManagerMockState = vi.hoisted(() => ({ lineCount: 1 }));
+const dialogManagerMockState = vi.hoisted(() => ({
+  lineCount: 1,
+  probe: false,
+  backgroundOpen: false,
+  columns: 80,
+}));
+vi.mock('../contexts/BackgroundTaskViewContext.js', async (importOriginal) => ({
+  ...(await importOriginal<
+    typeof import('../contexts/BackgroundTaskViewContext.js')
+  >()),
+  useBackgroundTaskViewState: () => ({
+    entries: [],
+    selectedIndex: 0,
+    dialogMode: dialogManagerMockState.backgroundOpen ? 'list' : 'closed',
+    dialogOpen: dialogManagerMockState.backgroundOpen,
+    pillFocused: false,
+    livePanelFocused: false,
+    livePanelSelectedIndex: 0,
+  }),
+}));
 
 vi.mock('../components/MainContent.js', () => ({
   MainContent: () => <Text>MainContent</Text>,
@@ -30,11 +49,13 @@ vi.mock('../components/UpdateNotification.js', () => ({
 
 vi.mock('../components/DialogManager.js', () => ({
   DialogManager: () => (
-    <Text>
-      {Array.from(
-        { length: dialogManagerMockState.lineCount },
-        (_, i) => `DialogManager ${i + 1}`,
-      ).join('\n')}
+    <Text wrap="truncate-end">
+      {dialogManagerMockState.probe
+        ? 'W'.repeat(106) + 'RIGHT_EDGE'
+        : Array.from(
+            { length: dialogManagerMockState.lineCount },
+            (_, i) => `DialogManager ${i + 1}`,
+          ).join('\n')}
     </Text>
   ),
 }));
@@ -68,7 +89,7 @@ vi.mock('../components/agent-view/AgentComposer.js', () => ({
 }));
 
 vi.mock('../hooks/useTerminalSize.js', () => ({
-  useTerminalSize: () => ({ columns: 80 }),
+  useTerminalSize: () => ({ columns: dialogManagerMockState.columns }),
 }));
 
 vi.mock('../components/AppHeader.js', () => ({
@@ -134,6 +155,26 @@ function frameHeight(frame: string): number {
 describe('DefaultAppLayout', () => {
   beforeEach(() => {
     dialogManagerMockState.lineCount = 1;
+    dialogManagerMockState.probe = false;
+    dialogManagerMockState.backgroundOpen = false;
+    dialogManagerMockState.columns = 80;
+  });
+
+  it('does not clip the right edge of the wide agent dashboard to the old 100-column cap', () => {
+    mockedUseAgentViewState.mockReturnValue({
+      activeView: 'main',
+      agents: new Map(),
+    });
+    dialogManagerMockState.probe = true;
+    dialogManagerMockState.backgroundOpen = true;
+    dialogManagerMockState.columns = 120;
+    const { lastFrame } = renderLayout({
+      ...baseUIState,
+      terminalWidth: 120,
+      mainAreaWidth: 100,
+      dialogsVisible: true,
+    });
+    expect(lastFrame()).toContain('RIGHT_EDGE');
   });
 
   it('renders sticky todo list before the composer in the main view', () => {

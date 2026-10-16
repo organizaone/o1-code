@@ -9,6 +9,8 @@ import type { Config, OutputStyleDefinition } from '@organizaone/o1-code-core';
 import { BUILT_IN_OUTPUT_STYLES } from '@organizaone/o1-code-core';
 import { renderWithProviders } from '../../test-utils/render.js';
 import { DialogManager } from './DialogManager.js';
+import { BackgroundTaskViewStateContext } from '../contexts/BackgroundTaskViewContext.js';
+import type { AgentTask } from '@organizaone/o1-code-core/agents/background-tasks.js';
 import { UIStateContext, type UIState } from '../contexts/UIStateContext.js';
 import {
   UIActionsContext,
@@ -50,6 +52,47 @@ const renderDialogManager = (
   );
 
 describe('DialogManager', () => {
+  it('lets the agent dashboard use the terminal width beyond the old dialog cap', () => {
+    const agent: AgentTask = {
+      id: 'agent-wide',
+      agentId: 'agent-wide',
+      kind: 'agent',
+      description: 'Wide agent preview',
+      status: 'running',
+      isBackgrounded: true,
+      startTime: Date.now(),
+      abortController: new AbortController(),
+      outputFile: '/tmp/agent.jsonl',
+      outputOffset: 0,
+      notified: false,
+    };
+    const registry = { get: () => agent, setActivityChangeCallback: vi.fn() };
+    const config = {
+      getBackgroundTaskRegistry: () => registry,
+    } as unknown as Config;
+    const { lastFrame } = renderWithProviders(
+      <UIStateContext.Provider value={createUIState({ terminalWidth: 120 })}>
+        <UIActionsContext.Provider value={{} as UIActions}>
+          <BackgroundTaskViewStateContext.Provider
+            value={{
+              entries: [agent],
+              selectedIndex: 0,
+              dialogMode: 'list',
+              dialogOpen: true,
+              pillFocused: false,
+              livePanelFocused: false,
+              livePanelSelectedIndex: 0,
+            }}
+          >
+            <DialogManager addItem={vi.fn()} terminalWidth={120} />
+          </BackgroundTaskViewStateContext.Provider>
+        </UIActionsContext.Provider>
+      </UIStateContext.Provider>,
+      { config },
+    );
+    expect(lastFrame()).toContain('No plan recorded');
+  });
+
   it.each([true, false])(
     'keeps plugin controls inside the reserved dialog area with constrained height %s',
     (constrainHeight) => {

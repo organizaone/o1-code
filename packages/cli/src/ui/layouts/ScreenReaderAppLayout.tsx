@@ -19,9 +19,13 @@ import { useUIState } from '../contexts/UIStateContext.js';
 import { StreamingState } from '../types.js';
 import { getStickyTodoMaxVisibleItemsForMode } from '../utils/todoSnapshot.js';
 import { getDialogMaxHeight } from '../utils/layoutUtils.js';
+import { getLayoutTier, sideMargin } from '../utils/layout-tier.js';
+import { useBackgroundTaskViewState } from '../contexts/BackgroundTaskViewContext.js';
 
 export const ScreenReaderAppLayout: React.FC = () => {
   const uiState = useUIState();
+  const { dialogOpen: backgroundDialogOpen } = useBackgroundTaskViewState();
+  const backgroundMargin = sideMargin(getLayoutTier(uiState.terminalWidth));
   const stickyTodoWidth = Math.min(uiState.mainAreaWidth, 64);
   const stickyTodoMaxVisibleItems = getStickyTodoMaxVisibleItemsForMode(
     uiState.terminalHeight,
@@ -39,7 +43,11 @@ export const ScreenReaderAppLayout: React.FC = () => {
     uiState.streamingState === StreamingState.Responding;
 
   return (
-    <Box flexDirection="column" width="90%" height="100%">
+    <Box
+      flexDirection="column"
+      width={backgroundDialogOpen ? uiState.terminalWidth : '90%'}
+      height="100%"
+    >
       {!uiState.dialogsVisible && uiState.updateInfo && (
         <UpdateNotification message={uiState.updateInfo.message} />
       )}
@@ -51,9 +59,13 @@ export const ScreenReaderAppLayout: React.FC = () => {
 
       {uiState.dialogsVisible ? (
         <Box
-          marginX={2}
+          marginX={backgroundDialogOpen ? backgroundMargin : 2}
           flexDirection="column"
-          width={uiState.mainAreaWidth}
+          width={
+            backgroundDialogOpen
+              ? Math.max(1, uiState.terminalWidth - backgroundMargin * 2)
+              : uiState.mainAreaWidth
+          }
           height={dialogHeight}
           overflow={uiState.constrainHeight ? 'hidden' : undefined}
         >

@@ -3637,6 +3637,7 @@ describe('WorkflowOrchestrator P3 — agentType / model / isolation / schema', (
     const fakeRegistry = {
       copyDiscoveredToolsFrom: () => {},
       registerTool: () => {},
+      registerFactory: () => {},
     };
     const cfg = {
       createToolRegistry: async () => fakeRegistry,

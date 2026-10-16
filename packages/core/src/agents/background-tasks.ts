@@ -31,6 +31,8 @@ import {
 import { getInvocationContext } from '../utils/invocation-context.js';
 import { escapeXml } from '../utils/xml.js';
 import { patchAgentMeta } from './agent-transcript.js';
+import { normalizeAgentTodoItems } from './agent-todos.js';
+import type { TodoItem } from '../hooks/types.js';
 import { runOutsideAgentContext } from './runtime/agent-context.js';
 import {
   AgentEventType,
@@ -350,6 +352,8 @@ export interface AgentTask extends TaskBase {
    * initializes the array lazily.
    */
   recentActivities?: readonly BackgroundActivity[];
+  /** Latest plan explicitly reported by this agent. */
+  todoItems?: readonly TodoItem[];
   /**
    * Tool calls this background agent has parked awaiting user approval
    * (permission bubbling). Empty/absent unless the agent opted into
@@ -702,6 +706,7 @@ export class BackgroundTaskRegistry {
     const entry = registration as AgentTask;
     entry.id = registration.agentId;
     entry.kind = 'agent';
+    entry.todoItems = normalizeAgentTodoItems(registration.todoItems);
     entry.outputOffset = options.preserveNotificationState
       ? ((registration as AgentTask).outputOffset ?? 0)
       : 0;
@@ -1070,6 +1075,18 @@ export class BackgroundTaskRegistry {
       next.splice(0, next.length - MAX_RECENT_ACTIVITIES);
     }
     entry.recentActivities = next;
+    this.emitActivityChange(entry);
+  }
+
+  updateTodoItems(agentId: string, todoItems: readonly TodoItem[]): void {
+    const entry = this.agents.get(agentId);
+    if (!entry || entry.status !== 'running') return;
+    const normalized = normalizeAgentTodoItems(todoItems);
+    if (!normalized) return;
+    entry.todoItems = normalized;
+    if (entry.metaPath) {
+      patchAgentMeta(entry.metaPath, { todoItems: normalized });
+    }
     this.emitActivityChange(entry);
   }
 

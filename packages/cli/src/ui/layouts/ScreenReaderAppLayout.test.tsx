@@ -11,7 +11,25 @@ import { ScreenReaderAppLayout } from './ScreenReaderAppLayout.js';
 import { UIStateContext, type UIState } from '../contexts/UIStateContext.js';
 import { StreamingState } from '../types.js';
 
-const dialogManagerMockState = vi.hoisted(() => ({ lineCount: 1 }));
+const dialogManagerMockState = vi.hoisted(() => ({
+  lineCount: 1,
+  probe: false,
+  backgroundOpen: false,
+}));
+vi.mock('../contexts/BackgroundTaskViewContext.js', async (importOriginal) => ({
+  ...(await importOriginal<
+    typeof import('../contexts/BackgroundTaskViewContext.js')
+  >()),
+  useBackgroundTaskViewState: () => ({
+    entries: [],
+    selectedIndex: 0,
+    dialogMode: dialogManagerMockState.backgroundOpen ? 'list' : 'closed',
+    dialogOpen: dialogManagerMockState.backgroundOpen,
+    pillFocused: false,
+    livePanelFocused: false,
+    livePanelSelectedIndex: 0,
+  }),
+}));
 
 vi.mock('../components/Notifications.js', () => ({
   Notifications: () => <Text>Notifications</Text>,
@@ -29,11 +47,13 @@ vi.mock('../components/UpdateNotification.js', () => ({
 
 vi.mock('../components/DialogManager.js', () => ({
   DialogManager: () => (
-    <Text>
-      {Array.from(
-        { length: dialogManagerMockState.lineCount },
-        (_, i) => `DialogManager ${i + 1}`,
-      ).join('\n')}
+    <Text wrap="truncate-end">
+      {dialogManagerMockState.probe
+        ? 'W'.repeat(106) + 'RIGHT_EDGE'
+        : Array.from(
+            { length: dialogManagerMockState.lineCount },
+            (_, i) => `DialogManager ${i + 1}`,
+          ).join('\n')}
     </Text>
   ),
 }));
@@ -100,6 +120,20 @@ function frameHeight(frame: string): number {
 describe('ScreenReaderAppLayout', () => {
   beforeEach(() => {
     dialogManagerMockState.lineCount = 1;
+    dialogManagerMockState.probe = false;
+    dialogManagerMockState.backgroundOpen = false;
+  });
+
+  it('does not clip the right edge of the wide agent dashboard in screen reader layout', () => {
+    dialogManagerMockState.probe = true;
+    dialogManagerMockState.backgroundOpen = true;
+    const { lastFrame } = renderLayout({
+      ...baseUIState,
+      terminalWidth: 120,
+      mainAreaWidth: 100,
+      dialogsVisible: true,
+    });
+    expect(lastFrame()).toContain('RIGHT_EDGE');
   });
 
   it('renders sticky todo list before the composer', () => {
