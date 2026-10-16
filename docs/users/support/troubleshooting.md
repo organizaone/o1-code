@@ -86,9 +86,9 @@ system sleep are separate behaviors. Maintainers use the
 
 ## Common error messages and solutions
 
-- **Error: `params must have required property 'file_path'`, sometimes accompanied by XML tool-call tags.**
+- **Error: `params must have required property 'file_path'` or `Model response mixed incompatible XML and structured tool calls.`, sometimes accompanied by XML tool-call tags.**
   - **Cause:** A model can emit tool instructions in the text channel instead of structured arguments, or send an empty structured call alongside those instructions. This is a protocol-format problem, not evidence that the file is missing.
-  - **Handling:** O1-Code recovers parameterized `<invoke name="...">` and `<tool_call><function=...>` calls outside fenced examples, keeps protocol tags out of the streamed conversation, and converts numeric and boolean arguments according to the tool schema. An accompanying empty structured call is reconciled with the XML once, preserving its call ID. Incomplete XML and invalid argument buffers have bounded retries; repeated tool calls also remain subject to loop detection and the per-turn tool-call cap. Keep those protections enabled when troubleshooting a model that repeats failed calls.
+  - **Handling:** O1-Code recovers parameterized `<invoke name="...">` and `<tool_call><function=...>` calls outside fenced examples, keeps protocol tags out of the streamed conversation, and converts numeric and boolean arguments according to the tool schema. An accompanying empty structured call is reconciled with the XML once, preserving its call ID. One empty placeholder can also represent multiple XML calls to the same tool when there are no populated native calls alongside it; the first recovered call retains the native ID and additional calls receive distinct IDs. Argument validation and permissions still apply. Ambiguous mixtures remain rejected. Incomplete XML and invalid argument buffers have bounded retries; repeated tool calls also remain subject to loop detection and the per-turn tool-call cap. Keep those protections enabled when troubleshooting a model that repeats failed calls.
 
 - **Error: `EADDRINUSE` (Address already in use) when starting an MCP server.**
   - **Cause:** Another process is already using the port that the MCP server is trying to bind to.
