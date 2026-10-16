@@ -7,6 +7,8 @@ follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.20.1] - 2026-10-16
+
 ### Fixed
 
 - Fresh Windows ARM64 installations include ripgrep and can use the bundled x64 executable when the native executable's runtime is unavailable. Search fallback diagnostics no longer appear as a technical startup warning.
