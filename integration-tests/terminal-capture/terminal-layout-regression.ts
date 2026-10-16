@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-// Run after build/bundle with either feedback or question as the scenario argument.
+// Run after build/bundle with feedback, question or resize as the scenario argument.
 import assert from 'node:assert/strict';
 import { mkdtempSync, mkdirSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -16,8 +16,8 @@ import { TerminalCapture } from './terminal-capture.js';
 const repo = resolve(dirname(fileURLToPath(import.meta.url)), '../..');
 const scenario = process.argv[2] ?? 'feedback';
 assert.ok(
-  ['feedback', 'question'].includes(scenario),
-  'scenario must be feedback or question',
+  ['feedback', 'question', 'resize'].includes(scenario),
+  'scenario must be feedback, question or resize',
 );
 const output =
   process.env['O1CODE_TUI_E2E_OUT'] ??
@@ -151,7 +151,40 @@ try {
     await waitForVisible(`LAYOUT_DONE_${turn}`);
     await terminal.idle(500, 5000);
   }
-  if (scenario === 'question') {
+  if (scenario === 'resize') {
+    const longInput =
+      'ação revisão '.repeat(20) + 'unbroken_path_segment_'.repeat(10);
+    await terminal.type('\u001b[200~' + longInput + '\u001b[201~');
+    for (const [cols, rows] of [
+      [80, 24],
+      [60, 18],
+      [100, 30],
+    ]) {
+      await terminal.resize(cols, rows);
+      await terminal.idle(800, 5000);
+      const frame = await terminal.getScreenText();
+      await terminal.capture(`resize-${cols}x${rows}.png`);
+      writeFileSync(join(output, `resize-${cols}x${rows}.txt`), frame);
+      assert.ok(frame.includes('ORGANIZAONE'), 'resize must preserve header');
+      assert.ok(
+        frame.includes('enter sends'),
+        'input actions must remain visible',
+      );
+      assert.equal(
+        (frame.match(/[╭╮╰╯]/g) ?? []).length,
+        8,
+        'history and input must retain complete borders',
+      );
+    }
+    await terminal.type('\r');
+    await waitForVisible('LAYOUT_DONE_startup');
+    const lastRequest = server.requests.at(-1)?.body;
+    assert.ok(
+      JSON.stringify(lastRequest).includes(longInput),
+      'resizing must submit the complete original input',
+    );
+    console.log(`Resize layout regression passed; captures: ${output}`);
+  } else if (scenario === 'question') {
     await terminal.type('OPEN_QUESTION', { slow: true, delay: 35 });
     await terminal.type('\r');
     await terminal.waitFor('OPEN_QUESTION', { timeout: 5000 });

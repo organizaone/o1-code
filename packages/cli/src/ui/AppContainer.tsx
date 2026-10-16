@@ -302,7 +302,10 @@ import {
   itemsAfterAreOnlySynthetic,
   realUserPromptTexts,
 } from './utils/historyUtils.js';
-import { MAIN_CONTENT_HEIGHT_RESERVATION } from './utils/layoutUtils.js';
+import {
+  getInputViewportHeight,
+  MAIN_CONTENT_HEIGHT_RESERVATION,
+} from './utils/layoutUtils.js';
 
 const CTRL_EXIT_PROMPT_DURATION_MS = 1000;
 // Startup gate for the goal runtime: under session-writer lease contention
@@ -1547,9 +1550,25 @@ export const AppContainer = (props: AppContainerProps) => {
     }
   }, []);
 
+  const [useTerminalBuffer] = useState(
+    () =>
+      initialUseVirtualViewport ??
+      shouldUseVirtualViewport(
+        settings.merged.ui?.useTerminalBuffer,
+        config.getScreenReader(),
+        isInteractiveTerminal(),
+      ),
+  );
+  const inputViewportHeight = useTerminalBuffer
+    ? getInputViewportHeight(
+        terminalHeight,
+        getFixedHeaderHeight(terminalWidth),
+        INPUT_MAX_VISIBLE_LINES,
+      )
+    : INPUT_MAX_VISIBLE_LINES;
   const buffer = useTextBuffer({
     initialText: '',
-    viewport: { height: INPUT_MAX_VISIBLE_LINES, width: inputWidth },
+    viewport: { height: inputViewportHeight, width: inputWidth },
     stdin,
     setRawMode,
     isValidPath,
@@ -1607,16 +1626,6 @@ export const AppContainer = (props: AppContainerProps) => {
   // a physical clear-and-replay, because there the terminal buffer may be
   // stale or rearranged while Ink both erases with a stale relative count
   // and skips redraws whose output is unchanged.
-  const [useTerminalBuffer] = useState(
-    () =>
-      initialUseVirtualViewport ??
-      shouldUseVirtualViewport(
-        settings.merged.ui?.useTerminalBuffer,
-        config.getScreenReader(),
-        isInteractiveTerminal(),
-      ),
-  );
-
   // The VP post-shrink clear window (terminal-resize-reflow) wipes one-shot
   // <Static> content from the viewport just like the wake path; pair it with
   // the same remount bump so keyed statics (agent tab history) re-emit. The

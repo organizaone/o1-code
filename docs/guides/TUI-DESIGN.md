@@ -486,6 +486,12 @@ never leaves; it only shortens from the start.
   row budget from its caller. The visible names and selected description share that budget;
   PgUp/PgDn scroll the complete description while arrows select another plugin. Short terminals
   compact the title, spacing and frame before losing access to content or selection controls.
+- **Long composer input:** the editable viewport uses at most six rows and shrinks with the
+  terminal height, reserving the pinned header, transcript frame and composer controls.
+  Resizing scrolls the visible text without discarding the complete input.
+- **Windows symbol widths:** plain status symbols omit variation selectors because ConPTY
+  advances extra columns for those sequences. Symbols with an emoji presentation retain their
+  text selector; macOS and Linux retain the selectors used for narrow rendering in CJK terminals.
 - **Question custom answers** (`messages/AskUserQuestionDialog.tsx`): questions, option
   descriptions and answer reviews scroll with PgUp/PgDn within the available message height.
   The question header, active choice or custom input, and navigation remain pinned when space

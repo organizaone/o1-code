@@ -2307,6 +2307,8 @@ export function resolveCommandPath(command: string): {
         result = execFileSync(checkCommand, checkArgs, {
           encoding: 'utf8',
           shell: false,
+          stdio: 'pipe',
+          windowsHide: true,
         }).trim();
       } catch {
         return { path: null, error: undefined };
@@ -2322,6 +2324,8 @@ export function resolveCommandPath(command: string): {
         result = execFileSync(shell, checkArgs, {
           encoding: 'utf8',
           shell: false,
+          stdio: 'pipe',
+          windowsHide: true,
         }).trim();
       } catch {
         return { path: null, error: undefined };

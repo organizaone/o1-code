@@ -10,9 +10,9 @@
  * in WGL4.
  */
 
-// East-Asian-Width "Ambiguous" glyphs get VS15 so CJK terminals draw them one
-// column wide, as Ink measures them (see ICON in constants.ts).
-const VS15 = '︎';
+// CJK terminals need VS15 for narrow ambiguous symbols. ConPTY advances an
+// extra cell for selectors on these plain text symbols, misaligning the frame.
+const VS15 = process.platform === 'win32' ? '' : '︎';
 
 export type GlyphMode = 'full' | 'compat';
 export type GlyphSetting = 'auto' | GlyphMode;
