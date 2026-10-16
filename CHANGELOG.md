@@ -7,6 +7,8 @@ follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.20.0] - 2026-10-16
+
 ### Enhanced
 
 - Background agents now have a responsive dashboard with a pinned roster, distinct active tabs, scrollable summaries, plans, activity and details, and direct review of pending approvals. Arrow keys preview tabs without leaving the agent list; Enter opens details and Esc returns to the list.
