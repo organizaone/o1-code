@@ -7,6 +7,8 @@ follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.20.2] - 2026-10-16
+
 ### Fixed
 
 - Responses containing one empty structured tool call and multiple XML calls to the same tool are recovered without an incompatible-format API error. The first call keeps the native ID; additional calls receive distinct IDs and retain normal argument validation and permissions.
