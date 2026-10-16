@@ -6436,10 +6436,22 @@ export class LlmChat {
                 recovery.functionCallParts[index]?.functionCall?.name &&
               Object.keys(part.functionCall?.args ?? {}).length === 0,
           );
+        // Some providers emit one empty native placeholder for a whole XML batch.
+        const canExpandEmptyBatch =
+          repairCandidates.length === 1 &&
+          recovery.functionCallParts.length > 1 &&
+          nativeCalls.every(
+            (part) => Object.keys(part.functionCall?.args ?? {}).length === 0,
+          ) &&
+          recovery.functionCallParts.every(
+            (part) =>
+              part.functionCall?.name ===
+              repairCandidates[0].functionCall?.name,
+          );
         const hasCompleteNativeCalls = nativeCalls.every(
           (part) => !hasEmptyRequiredArguments(part),
         );
-        if (!canRepair && !hasCompleteNativeCalls) {
+        if (!canRepair && !canExpandEmptyBatch && !hasCompleteNativeCalls) {
           throw new InvalidStreamError(
             'Model response mixed incompatible XML and structured tool calls.',
             'MALFORMED_TOOL_CALL',
@@ -6449,12 +6461,16 @@ export class LlmChat {
           recovery.functionCallParts = heldXmlCalls;
         } else {
           const recoveredCalls = recovery.functionCallParts;
-          recovery.functionCallParts = heldXmlCalls.map((part) => {
+          recovery.functionCallParts = heldXmlCalls.flatMap((part) => {
             const index = repairCandidates.indexOf(part);
-            if (index < 0) return part;
+            if (index < 0) return [part];
+            if (canExpandEmptyBatch) {
+              recoveredCalls[0]!.functionCall!.id = part.functionCall!.id;
+              return recoveredCalls;
+            }
             const recovered = recoveredCalls[index]!;
             recovered.functionCall!.id = part.functionCall!.id;
-            return recovered;
+            return [recovered];
           });
         }
         const heldIds = new Set(

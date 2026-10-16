@@ -22979,6 +22979,215 @@ describe('LlmChat', async () => {
     });
   });
   describe('XML tool call fallback integration', () => {
+    it.each([
+      ['before', false],
+      ['after', false],
+      ['before', true],
+      ['after', true],
+    ] as const)(
+      'expands one empty native placeholder into a same-tool XML batch (%s, no-argument companion: %s)',
+      async (position, withCompanion) => {
+        vi.useFakeTimers();
+        try {
+          vi.mocked(mockConfig.getToolRegistry().getTool).mockImplementation(
+            (name) =>
+              ({
+                schema: {
+                  parametersJsonSchema: {
+                    required: name === 'read_file' ? ['file_path'] : [],
+                    properties: {
+                      file_path: { type: 'string' },
+                      offset: { type: 'integer' },
+                      limit: { type: 'integer' },
+                    },
+                  },
+                },
+              }) as unknown as ReturnType<
+                ReturnType<Config['getToolRegistry']>['getTool']
+              >,
+          );
+          const native: Part = {
+            functionCall: { id: 'native-batch', name: 'read_file', args: {} },
+          };
+          const companion: Part = {
+            functionCall: { id: 'native-noargs', name: 'get_goal', args: {} },
+          };
+          const nativeChunk = () =>
+            ({
+              candidates: [
+                {
+                  content: {
+                    role: 'model',
+                    parts: [
+                      ...(withCompanion ? [structuredClone(companion)] : []),
+                      structuredClone(native),
+                    ],
+                  },
+                },
+              ],
+            }) as GenerateContentResponse;
+          vi.mocked(
+            mockContentGenerator.generateContentStream,
+          ).mockImplementation(async () =>
+            (async function* () {
+              const preparation = xmlChunk('');
+              setToolCallPreparations(preparation, [
+                { callId: 'native-batch', toolName: 'read_file' },
+              ]);
+              yield preparation;
+              if (position === 'before') yield nativeChunk();
+              yield xmlChunk('Reading files.\n<tool_');
+              yield xmlChunk(
+                'call><function=read_file><parameter=file_path>W:\\workspace\\a.ts</parameter><parameter=offset>44</parameter><parameter=limit>80</parameter></function></tool_call>',
+              );
+              yield xmlChunk(
+                '<tool_call><function=read_file><parameter=file_path>W:\\workspace\\b.ts</parameter><parameter=offset>124</parameter><parameter=limit>80</parameter></function></tool_call>',
+              );
+              if (position === 'after') yield nativeChunk();
+              yield xmlChunk('', 'STOP');
+            })(),
+          );
+          const stream = await chat.sendMessageStream(
+            'mimo-v2.6-pro',
+            { message: 'read both files' },
+            'collapsed-native-xml-batch',
+          );
+          const parts: Part[] = [];
+          const collecting = (async () => {
+            for await (const event of stream)
+              if (event.type === StreamEventType.CHUNK)
+                parts.push(
+                  ...(event.value.candidates?.[0]?.content?.parts ?? []),
+                );
+          })();
+          await Promise.all([
+            expect(collecting).resolves.toBeUndefined(),
+            vi.runAllTimersAsync(),
+          ]);
+          const calls = parts.filter((part) => part.functionCall);
+          const reads = calls.filter(
+            (part) => part.functionCall?.name === 'read_file',
+          );
+          expect(reads.map((part) => part.functionCall?.args)).toEqual([
+            { file_path: 'W:\\workspace\\a.ts', offset: 44, limit: 80 },
+            { file_path: 'W:\\workspace\\b.ts', offset: 124, limit: 80 },
+          ]);
+          expect(reads[0].functionCall?.id).toBe('native-batch');
+          expect(reads[1].functionCall?.id).toBeTruthy();
+          expect(new Set(calls.map((part) => part.functionCall?.id)).size).toBe(
+            calls.length,
+          );
+          expect(
+            calls.filter((part) => part.functionCall?.name === 'get_goal'),
+          ).toEqual(withCompanion ? [companion] : []);
+          expect(parts.some((part) => part.text?.includes('<tool_call>'))).toBe(
+            false,
+          );
+          expect(
+            chat
+              .getHistory()
+              .at(-1)
+              ?.parts?.filter((part) => part.functionCall),
+          ).toEqual(calls);
+          expect(
+            mockContentGenerator.generateContentStream,
+          ).toHaveBeenCalledTimes(1);
+        } finally {
+          vi.useRealTimers();
+        }
+      },
+    );
+
+    it.each([
+      'different-tool',
+      'populated-native',
+      'multiple-placeholders',
+    ] as const)(
+      'rejects an incompatible XML batch beside an empty native call (%s)',
+      async (kind) => {
+        vi.useFakeTimers();
+        try {
+          vi.mocked(mockConfig.getToolRegistry().getTool).mockImplementation(
+            (name) =>
+              ({
+                schema: {
+                  parametersJsonSchema: {
+                    required: name === 'read_file' ? ['file_path'] : [],
+                  },
+                },
+              }) as unknown as ReturnType<
+                ReturnType<Config['getToolRegistry']>['getTool']
+              >,
+          );
+          vi.mocked(
+            mockContentGenerator.generateContentStream,
+          ).mockImplementation(async () =>
+            (async function* () {
+              const parts: Part[] = [
+                {
+                  functionCall: {
+                    id: 'empty-read',
+                    name: 'read_file',
+                    args: {},
+                  },
+                },
+              ];
+              if (kind === 'populated-native')
+                parts.push({
+                  functionCall: {
+                    id: 'already-delivered',
+                    name: 'list_dir',
+                    args: { path: '.' },
+                  },
+                });
+              if (kind === 'multiple-placeholders')
+                parts.push({
+                  functionCall: {
+                    id: 'second-empty-read',
+                    name: 'read_file',
+                    args: {},
+                  },
+                });
+              yield {
+                candidates: [{ content: { role: 'model', parts } }],
+              } as GenerateContentResponse;
+              yield xmlChunk(
+                '<tool_call><function=read_file><parameter=file_path>a.ts</parameter></function></tool_call>',
+              );
+              yield xmlChunk(
+                kind === 'different-tool'
+                  ? '<tool_call><function=grep_search><parameter=pattern>needle</parameter></function></tool_call>'
+                  : '<tool_call><function=read_file><parameter=file_path>b.ts</parameter></function></tool_call>',
+              );
+              if (kind === 'multiple-placeholders')
+                yield xmlChunk(
+                  '<tool_call><function=read_file><parameter=file_path>c.ts</parameter></function></tool_call>',
+                );
+              yield xmlChunk('', 'STOP');
+            })(),
+          );
+          const stream = await chat.sendMessageStream(
+            'mimo-v2.6-pro',
+            { message: 'inspect files' },
+            'incompatible-native-xml-batch',
+          );
+          await expectStreamExhaustion(stream, {
+            type: 'MALFORMED_TOOL_CALL',
+            message:
+              'Model response mixed incompatible XML and structured tool calls.',
+          });
+          expect(
+            chat
+              .getHistory()
+              .flatMap((entry) => entry.parts ?? [])
+              .some((part) => part.functionCall?.name === 'read_file'),
+          ).toBe(false);
+        } finally {
+          vi.useRealTimers();
+        }
+      },
+    );
+
     it.each([false, true])(
       'preserves native no-argument calls beside stray XML (mixed batch: %s)',
       async (mixed) => {
@@ -23054,7 +23263,9 @@ describe('LlmChat', async () => {
                     role: 'model',
                     parts: [
                       {
-                        text: 'Reading now.\n<tool_call><function=read_file><parameter=file_path>a.ts</parameter></function></tool_call>',
+                        text:
+                          'Reading now.\n<tool_call><function=read_file><parameter=file_path>a.ts</parameter></function></tool_call>' +
+                          '<tool_call><function=read_file><parameter=file_path>b.ts</parameter></function></tool_call>',
                       },
                       {
                         functionCall: {

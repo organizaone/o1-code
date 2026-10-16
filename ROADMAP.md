@@ -159,6 +159,11 @@ Decisions so far.
 
 ## Known gaps
 
+- API response logging can lose withheld XML text and empty native tool calls because the logger
+  retains stream objects that the conversation validator later modifies. A Windows replay with
+  MiMo-v2.6-pro returned one empty native call and two XML calls in raw SSE, while
+  `--openai-logging` recorded neither. Preserve diagnostic snapshots before downstream mutation,
+  accounting for late usage metadata and avoiding unnecessary work when logging is disabled.
 - A few tests are load-sensitive and fail only when the full suites share the machine; each passes
   on its own: `server.test.ts` (organized session truncation), core `recall-scan-latency.test.ts`
   (a 50 ms budget) and `code-mode.test.ts`, Web Shell `BranchPickerPopover` (focus after a
