@@ -42,6 +42,20 @@ export const calculatePromptWidths = (terminalWidth: number) => {
 
 export const MAIN_CONTENT_HEIGHT_RESERVATION = 2;
 
+export const getInputViewportHeight = (
+  terminalHeight: number,
+  pinnedHeaderHeight: number,
+  maximumLines: number,
+): number => {
+  // Keep a three-row transcript, composer gap, activity legend, input borders,
+  // overflow indicator, line-count hint and footer outside the editable rows.
+  const chromeRows = 3 + 1 + 1 + 2 + 1 + 1 + 1;
+  return Math.max(
+    1,
+    Math.min(maximumLines, terminalHeight - pinnedHeaderHeight - chromeRows),
+  );
+};
+
 export const clampDialogHeight = (
   height: number | undefined,
 ): number | undefined =>

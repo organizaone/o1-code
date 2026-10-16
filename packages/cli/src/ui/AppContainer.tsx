@@ -302,7 +302,10 @@ import {
   itemsAfterAreOnlySynthetic,
   realUserPromptTexts,
 } from './utils/historyUtils.js';
-import { MAIN_CONTENT_HEIGHT_RESERVATION } from './utils/layoutUtils.js';
+import {
+  getInputViewportHeight,
+  MAIN_CONTENT_HEIGHT_RESERVATION,
+} from './utils/layoutUtils.js';
 
 const CTRL_EXIT_PROMPT_DURATION_MS = 1000;
 // Startup gate for the goal runtime: under session-writer lease contention
@@ -816,10 +819,8 @@ interface AppContainerProps {
   initialUseVirtualViewport?: boolean;
   extensionRefreshState?: ExtensionRefreshState;
   /**
-   * VP wake/SIGCONT repaint: clear the viewport and replay the last frame
-   * (Ink skips unchanged-output redraws, so a bare clear would blank the
-   * screen). Absent under O1CODE_LEGACY_RESIZE_ERASE: the VP wake path
-   * stays write-free (static remount bump only), matching pre-PR behavior.
+   * Ask Ink to invalidate its diff cache and rebuild the alternate viewport.
+   * Without a renderer callback, wake recovery leaves the viewport untouched.
    */
   repaintViewport?: () => void;
 }
@@ -1549,9 +1550,25 @@ export const AppContainer = (props: AppContainerProps) => {
     }
   }, []);
 
+  const [useTerminalBuffer] = useState(
+    () =>
+      initialUseVirtualViewport ??
+      shouldUseVirtualViewport(
+        settings.merged.ui?.useTerminalBuffer,
+        config.getScreenReader(),
+        isInteractiveTerminal(),
+      ),
+  );
+  const inputViewportHeight = useTerminalBuffer
+    ? getInputViewportHeight(
+        terminalHeight,
+        getFixedHeaderHeight(terminalWidth),
+        INPUT_MAX_VISIBLE_LINES,
+      )
+    : INPUT_MAX_VISIBLE_LINES;
   const buffer = useTextBuffer({
     initialText: '',
-    viewport: { height: INPUT_MAX_VISIBLE_LINES, width: inputWidth },
+    viewport: { height: inputViewportHeight, width: inputWidth },
     stdin,
     setRawMode,
     isValidPath,
@@ -1609,16 +1626,6 @@ export const AppContainer = (props: AppContainerProps) => {
   // a physical clear-and-replay, because there the terminal buffer may be
   // stale or rearranged while Ink both erases with a stale relative count
   // and skips redraws whose output is unchanged.
-  const [useTerminalBuffer] = useState(
-    () =>
-      initialUseVirtualViewport ??
-      shouldUseVirtualViewport(
-        settings.merged.ui?.useTerminalBuffer,
-        config.getScreenReader(),
-        isInteractiveTerminal(),
-      ),
-  );
-
   // The VP post-shrink clear window (terminal-resize-reflow) wipes one-shot
   // <Static> content from the viewport just like the wake path; pair it with
   // the same remount bump so keyed statics (agent tab history) re-emit. The
@@ -1662,14 +1669,8 @@ export const AppContainer = (props: AppContainerProps) => {
     remountStaticHistory();
   }, [useTerminalBuffer, remountStaticHistory, stdout]);
 
-  // Wake/SIGCONT: the terminal buffer may be stale or rearranged, and Ink
-  // both erases with a stale relative count and skips redraws whose output
-  // is unchanged — so VP repaints by replaying the last frame over a clean
-  // viewport (viewport-only: clearTerminal's 3J would destroy scrollback /
-  // Warp history) and bumps the static remount key so one-shot <Static>
-  // history (agent tabs) is re-emitted over the clear. Static mode uses the
-  // ordinary refreshStatic. Selection extracted (buildWakeRepaint) for unit
-  // coverage.
+  // Wake recovery must invalidate Ink's diff cache before repainting. Remount
+  // one-shot static history too; scrollback mode keeps its existing refresh.
   const wakeRepaint = useMemo(
     () =>
       buildWakeRepaint({
@@ -4336,6 +4337,7 @@ export const AppContainer = (props: AppContainerProps) => {
     terminalHeight,
     btwItem,
     dialogsVisible,
+    isFeedbackDialogOpen,
     stickyTodosLayoutKey,
     liveAgentPanelLayoutKey,
     // Composer and update notification height also shift with these; without

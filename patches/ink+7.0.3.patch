@@ -375,7 +375,7 @@ index cc849f0..25d6b33 100644
  //# sourceMappingURL=index.js.map
 \ No newline at end of file
 diff --git a/node_modules/ink/build/ink.d.ts b/node_modules/ink/build/ink.d.ts
-index 273dd13..09de1dc 100644
+index 273dd13..981e001 100644
 --- a/node_modules/ink/build/ink.d.ts
 +++ b/node_modules/ink/build/ink.d.ts
 @@ -89,6 +89,7 @@ export default class Ink {
@@ -386,8 +386,16 @@ index 273dd13..09de1dc 100644
      private readonly container;
      private readonly rootNode;
      private fullStaticOutput;
+@@ -109,6 +110,7 @@ export default class Ink {
+     unsubscribeExit: () => void;
+     handleAppExit: (errorOrResult?: unknown) => void;
+     setCursorPosition: (position: CursorPosition | undefined) => void;
++    repaint: () => void;
+     restoreLastOutput: () => void;
+     calculateLayout: () => void;
+     handleStaticChange: () => void;
 diff --git a/node_modules/ink/build/ink.js b/node_modules/ink/build/ink.js
-index ef659f3..159aea1 100644
+index ef659f3..56c9e14 100644
 --- a/node_modules/ink/build/ink.js
 +++ b/node_modules/ink/build/ink.js
 @@ -17,6 +17,7 @@ import { hideCursorEscape, showCursorEscape } from './cursor-helpers.js';
@@ -464,7 +472,31 @@ index ef659f3..159aea1 100644
      };
      resolveExitPromise = () => { };
      rejectExitPromise = () => { };
-@@ -317,7 +335,16 @@ export default class Ink {
+@@ -289,6 +307,23 @@ export default class Ink {
+         this.cursorPosition = position;
+         this.log.setCursorPosition(position);
+     };
++    repaint = () => {
++        if (!this.alternateScreen || this.isUnmounted || this.isUnmounting) {
++            return;
++        }
++        // Discard queued diffs before clearing; only a complete new frame can
++        // restore a viewport changed outside the renderer (wake/SIGCONT).
++        settleThrottle(this.throttledOnRender, false);
++        settleThrottle(this.throttledLog, false);
++        this.log.reset();
++        this.lastOutput = '';
++        this.lastOutputToRender = '';
++        this.lastOutputHeight = 0;
++        this.options.stdout.write(ansiEscapes.clearViewport);
++        this.calculateLayout();
++        this.onRender();
++        settleThrottle(this.throttledLog, true);
++    };
+     restoreLastOutput = () => {
+         if (!this.interactive) {
+             return;
+@@ -317,7 +352,16 @@ export default class Ink {
              this.nextRenderCommit = undefined;
          }
          const startTime = performance.now();
@@ -482,7 +514,7 @@ index ef659f3..159aea1 100644
          this.options.onRender?.({ renderTime: performance.now() - startTime });
          // If <Static> output isn't empty, it means new children have been added to it
          const hasStaticOutput = staticOutput && staticOutput !== '\n';
-@@ -642,6 +669,7 @@ export default class Ink {
+@@ -642,6 +686,7 @@ export default class Ink {
          this.alternateScreen = this.resolveAlternateScreenOption(enabled, this.interactive);
          if (this.alternateScreen) {
              this.writeBestEffort(this.options.stdout, ansiEscapes.enterAlternativeScreen);
@@ -490,7 +522,7 @@ index ef659f3..159aea1 100644
              this.writeBestEffort(this.options.stdout, hideCursorEscape);
          }
      }
-@@ -688,6 +716,7 @@ export default class Ink {
+@@ -688,6 +733,7 @@ export default class Ink {
          return this.nextRenderCommit.promise;
      }
      renderInteractiveFrame(output, outputHeight, staticOutput) {
@@ -498,7 +530,7 @@ index ef659f3..159aea1 100644
          const hasStaticOutput = staticOutput !== '';
          const isTty = this.options.stdout.isTTY;
          // Detect fullscreen: output fills or exceeds terminal height.
-@@ -707,7 +736,7 @@ export default class Ink {
+@@ -707,7 +753,7 @@ export default class Ink {
              if (sync) {
                  this.options.stdout.write(bsu);
              }
@@ -507,7 +539,7 @@ index ef659f3..159aea1 100644
              this.lastOutput = output;
              this.lastOutputToRender = outputToRender;
              this.lastOutputHeight = outputHeight;
-@@ -809,4 +838,4 @@ export default class Ink {
+@@ -809,4 +855,4 @@ export default class Ink {
          this.kittyProtocolEnabled = true;
      }
  }
@@ -1454,3 +1486,28 @@ index 51f696c..1f66ca0 100644
  export default wrapText;
  //# sourceMappingURL=wrap-text.js.map
 \ No newline at end of file
+diff --git a/node_modules/ink/build/render.d.ts b/node_modules/ink/build/render.d.ts
+index 867edca..a24d211 100644
+--- a/node_modules/ink/build/render.d.ts
++++ b/node_modules/ink/build/render.d.ts
+@@ -168,6 +168,8 @@ export type Instance = {
+     Clear output.
+     */
+     clear: () => void;
++    /** Rebuild alternate-screen output after an external viewport change. */
++    repaint: Ink['repaint'];
+ };
+ /**
+ Mount a component and render the output.
+diff --git a/node_modules/ink/build/render.js b/node_modules/ink/build/render.js
+index 6f185f6..faffcb3 100644
+--- a/node_modules/ink/build/render.js
++++ b/node_modules/ink/build/render.js
+@@ -32,6 +32,7 @@ const render = (node, options) => {
+             instance.unmount();
+         },
+         clear: instance.clear,
++        repaint: instance.repaint,
+     };
+ };
+ export default render;

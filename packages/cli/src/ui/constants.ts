@@ -28,14 +28,10 @@ export const TOOL_STATUS = {
   ERROR: 'x',
 } as const;
 
-// Variation Selector 15 (U+FE0E) is zero-width in string-width but forces
-// the terminal to render the preceding glyph in narrow (1-column) text
-// presentation. This ensures CJK terminals (which would otherwise render
-// East-Asian-Width "Ambiguous" glyphs as 2 columns) agree with Ink's
-// layout engine (which always measures them as 1 column).
-// Tool output and Markdown get the same selector on Windows after symbols
-// with an emoji presentation (\u2714 \u2716 \u2139 \u26A0 \u2611 \u25B6); see utils/text-presentation.ts.
-const _VS15 = '\uFE0E';
+// Keep ambiguous symbols narrow in CJK terminals. ConPTY advances an extra
+// cell for selectors on plain text symbols; only emoji variants retain the
+// selector on Windows. Tool output uses utils/text-presentation.ts.
+const _VS15 = process.platform === 'win32' ? '' : '\uFE0E';
 export const ICON = {
   DIAMOND: `◆${_VS15}`,
   CIRCLE_FILLED: `●${_VS15}`,
@@ -46,11 +42,11 @@ export const ICON = {
   THEREFORE: `∴${_VS15}`,
   BECAUSE: `∵${_VS15}`,
   STAR: `★${_VS15}`,
-  SPARKLE: `✳${_VS15}`,
+  SPARKLE: '✳\uFE0E',
   RADIO_FILLED: `◉${_VS15}`,
   CIRCLE_LEFT_HALF: `◐${_VS15}`,
   CHECK: `✓${_VS15}`,
-  CROSS: `✖${_VS15}`,
+  CROSS: '✖\uFE0E',
 } as const;
 
 // cli-spinners' `dots`, the frames ink's responding spinner animates. Shared so

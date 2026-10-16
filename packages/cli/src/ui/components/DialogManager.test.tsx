@@ -50,6 +50,41 @@ const renderDialogManager = (
   );
 
 describe('DialogManager', () => {
+  it.each([true, false])(
+    'keeps plugin controls inside the reserved dialog area with constrained height %s',
+    (constrainHeight) => {
+      const { lastFrame } = renderDialogManager(
+        createUIState({
+          constrainHeight,
+          terminalHeight: 16,
+          staticExtraHeight: 3,
+          pluginChoiceRequests: [
+            {
+              marketplaceName: 'catalog',
+              plugins: Array.from({ length: 8 }, (_, index) => ({
+                name: `plugin-${index + 1}`,
+                description: Array.from(
+                  { length: 20 },
+                  (_, line) => `Description line ${line + 1}`,
+                ).join('\n'),
+              })),
+              onSelect: vi.fn(),
+              onCancel: vi.fn(),
+            },
+          ],
+        }),
+        {},
+      );
+
+      const frame = lastFrame() ?? '';
+      expect(frame.split('\n').length).toBeLessThanOrEqual(11);
+      expect(frame).toContain('❯ plugin-1');
+      expect(frame).toContain('Enter');
+      expect(frame).toContain('Escape');
+      expect(frame).toContain('╰');
+    },
+  );
+
   // The picker's list comes from the hook, which re-reads the style
   // directories on every open; wiring it to the built-ins instead would hide
   // every custom style and mount the rows during the disk read.

@@ -234,7 +234,8 @@ export const DialogManager = ({
         plugins={request.plugins}
         onSelect={request.onSelect}
         onCancel={request.onCancel}
-        terminalWidth={terminalWidth}
+        terminalWidth={mainAreaWidth}
+        availableTerminalHeight={listDialogHeight}
       />
     );
   }

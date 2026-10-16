@@ -7,6 +7,16 @@ follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Fixed
+
+- Terminal wake recovery now redraws the complete current interface, preserving borders and input when incremental rendering is enabled.
+- The optional session feedback survey reserves its own space instead of pushing the header out of the terminal.
+- Long questions, answer reviews and plugin descriptions scroll within the available terminal height while keeping selection and submission accessible.
+- Approval warnings use a consistent ASCII marker to avoid ambiguous symbol widths in Windows terminals.
+- Command availability checks capture their diagnostics instead of writing over the interactive terminal when a command is missing on Windows.
+- Long input shrinks its visible text area when the terminal is shortened, preserving the pinned header and complete input borders.
+- Plain status symbols omit unnecessary text selectors on Windows, preventing ConPTY from advancing extra columns and wrapping footer or feedback controls over the frame.
+
 ## [0.19.2] - 2026-10-15
 
 ### Added

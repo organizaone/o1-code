@@ -223,6 +223,7 @@ export function ExtensionsManagerDialog({
           onSelect={pluginChoiceRequest.onSelect}
           onCancel={pluginChoiceRequest.onCancel}
           terminalWidth={boxWidth}
+          availableTerminalHeight={contentHeight}
         />
       ) : null}
       <Box

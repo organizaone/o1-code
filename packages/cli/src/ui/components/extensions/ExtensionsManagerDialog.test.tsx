@@ -907,6 +907,59 @@ describe('ExtensionsManagerDialog (tabbed)', () => {
     expect(lastFrame()).not.toContain('Discover extensions');
   });
 
+  it('keeps pending plugin choices within the manager content budget', () => {
+    const originalRows = Object.getOwnPropertyDescriptor(
+      process.stdout,
+      'rows',
+    );
+    Object.defineProperty(process.stdout, 'rows', {
+      value: 16,
+      configurable: true,
+    });
+    try {
+      const { lastFrame, unmount } = renderDialog(
+        createConfig(createManager()),
+        {
+          uiState: {
+            ...createUIState(),
+            constrainHeight: true,
+            staticExtraHeight: 3,
+            pluginChoiceRequests: [
+              {
+                marketplaceName: 'catalog',
+                plugins: Array.from({ length: 8 }, (_, index) => ({
+                  name: `plugin-${index + 1}`,
+                  description: Array.from(
+                    { length: 20 },
+                    (_, line) => `Detail line ${line + 1}.`,
+                  ).join('\n'),
+                })),
+                onSelect: vi.fn(),
+                onCancel: vi.fn(),
+              },
+            ],
+          } as UIState,
+        },
+      );
+      try {
+        const frame = lastFrame() ?? '';
+        expect(frame.split('\n').length).toBeLessThanOrEqual(7);
+        expect(frame).toContain('❯ plugin-1');
+        expect(frame).toContain('Detail line 1.');
+        expect(frame).toContain('Enter');
+        expect(frame).toContain('Escape');
+      } finally {
+        unmount();
+      }
+    } finally {
+      if (originalRows) {
+        Object.defineProperty(process.stdout, 'rows', originalRows);
+      } else {
+        Reflect.deleteProperty(process.stdout, 'rows');
+      }
+    }
+  });
+
   it('adopts the state a successful update settled on into the app-level map', async () => {
     const manager = createManager({ extensions: [mockExtension('alpha')] });
     manager.updateExtension = vi.fn(

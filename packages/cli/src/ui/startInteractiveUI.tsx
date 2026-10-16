@@ -205,9 +205,13 @@ export async function startInteractiveUI(
   // rows than Ink's stale erase count; amplify the clear to the
   // reflowed height. Installed before render() so the resize listener runs
   // ahead of Ink's resized().
+  const viewportRenderer: { repaint?: () => void } = {};
   const resizeReflow =
     process.stdout.isTTY && !config.getScreenReader()
-      ? installTerminalResizeReflow(process.stdout, { virtualViewport: useVP })
+      ? installTerminalResizeReflow(process.stdout, {
+          virtualViewport: useVP,
+          repaint: () => viewportRenderer.repaint?.(),
+        })
       : { restore: () => {}, repaint: () => {} };
 
   // Cross-session messaging (on by default; see peerMessaging/enabled.ts). The inbox is
@@ -365,6 +369,7 @@ export async function startInteractiveUI(
       ...(useVP ? { maxFps: 60 } : {}),
     },
   );
+  viewportRenderer.repaint = instance.repaint;
   if (useVP) {
     // Ink entered the alternate screen synchronously inside render() above.
     // The Kitty keyboard flags were pushed at startup on the main screen, and

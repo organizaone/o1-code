@@ -73,13 +73,26 @@ Each one is an observed failure, not a hypothesis.
 - Windows test harnesses isolate settings with `HOME` and `O1CODE_HOME`, preserving the real
   `USERPROFILE`. Replacing `USERPROFILE` before Node startup can make registered Store executables
   fail to launch with `EPERM`, even when the same executable works from the user's terminal.
+- Internal command discovery captures both stdout and stderr. A failed `where.exe` lookup must
+  not write diagnostics directly over Ink's screen. Noninteractive checks use `execFile` or
+  `execFileSync` with piped output and `windowsHide: true`, without a command shell.
+- Prefer Node or native Windows APIs for internal operations such as power requests, clipboard
+  access and opening URLs. The selected agent shell runs user commands; internal helpers do not
+  need to launch that shell for operations an existing API already handles.
 - No East Asian Ambiguous glyph (`△`, `⚠`, `✔`, …) in a TUI row that can reach the full terminal
   width, even with VS15: Windows Terminal draws some of them two columns wide, the row wraps where
   Ink counts one, and every later repaint is off by a line (a stale bottom border when a dialog
   shrinks). Use ASCII or a glyph from `glyphs()`, whose set is checked in the real terminal.
+- Plain status symbols omit VS15 on Windows because ConPTY can advance an extra column for the
+  selector. Emoji variants keep their text-presentation selector. The full rendering rules live
+  in [TUI design](TUI-DESIGN.md#glyphs-and-the-compatible-mode).
 - Some test failures are environmental on this machine and not defects: pt-BR number formatting
   (`12.000` for `12,000`), the Windows temp directory under `$HOME`, the drive root, git stash/force
   tests, TLS server names on Node 26. Re-run a failing file alone before judging it.
+
+Changes to these paths use the proportional native matrix in
+[Windows validation](WINDOWS-VALIDATION.md). Record the actual OS, architecture, Node executable,
+shell and terminal; a macOS capture or a shell-family label alone does not establish Windows behavior.
 
 ## Supply chain
 

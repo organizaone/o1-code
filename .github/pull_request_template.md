@@ -4,7 +4,7 @@
 
 ## How it was verified
 
-<!-- Commands run and what they showed. A TUI change carries a screenshot of the real app. -->
+<!-- Commands run and what they showed. Screenshots are optional; include one only when it helps review the change. -->
 
 - [ ] Tests for the changed behaviour, watched failing before the change
 - [ ] `npm run lint && npm run typecheck`

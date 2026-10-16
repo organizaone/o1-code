@@ -981,6 +981,10 @@ export const ToolMessage: React.FC<ToolMessageProps> = ({
           status={status}
           description={description}
           emphasis={emphasis}
+          truncate={
+            availableTerminalHeight !== undefined &&
+            confirmationDetails?.type === 'ask_user_question'
+          }
           hideDescription={
             status === ToolCallStatus.Confirming &&
             confirmationDetails?.type === 'info' &&
@@ -1328,6 +1332,7 @@ type ToolInfo = {
   status: ToolCallStatus;
   emphasis: TextEmphasis;
   hideDescription?: boolean;
+  truncate: boolean;
 };
 const ToolInfo: React.FC<ToolInfo> = ({
   name,
@@ -1335,6 +1340,7 @@ const ToolInfo: React.FC<ToolInfo> = ({
   status,
   emphasis,
   hideDescription,
+  truncate,
 }) => {
   const nameColor = React.useMemo<string>(() => {
     switch (emphasis) {
@@ -1352,14 +1358,19 @@ const ToolInfo: React.FC<ToolInfo> = ({
   }, [emphasis]);
   return (
     <Box flexGrow={1}>
-      <Text wrap="wrap" strikethrough={status === ToolCallStatus.Canceled}>
+      <Text
+        wrap={truncate ? 'truncate-end' : 'wrap'}
+        strikethrough={status === ToolCallStatus.Canceled}
+      >
         <Text color={nameColor} bold>
           {localizeToolDisplayName(name)}
         </Text>
         {!hideDescription && (
           <>
             {' '}
-            <Text color={theme.text.secondary}>{description}</Text>
+            <Text color={theme.text.secondary}>
+              {truncate ? description.replace(/[\r\n]/g, ' ') : description}
+            </Text>
           </>
         )}
       </Text>

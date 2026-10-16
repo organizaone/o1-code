@@ -157,6 +157,16 @@ conversation frame, including on unauthenticated startup. Closing authentication
 restores the transcript and queue. In scrollback mode and screen-reader mode
 the header is not pinned, and the update notice renders as its own box above the input.
 
+Feedback visibility participates in composer-height measurement: opening or closing the
+optional survey reserves or releases its rows before the conversation settles. Wake recovery
+asks Ink to invalidate its incremental cache and render the current tree over a clean viewport;
+replaying captured terminal writes cannot reconstruct a frame from partial row updates.
+
+Height budgets include the pinned header, frame, notices and controls before allocating scrollable
+content. Re-measure when an optional control appears or disappears. A pending question brings itself
+into view and owns keyboard and wheel scrolling until answered; the surrounding transcript must
+not consume those same events. Full-detail mode preserves the confirmation's finite height budget.
+
 ### Header
 
 Each row has an independent left and right side: a long item on the right never squeezes the left.
@@ -477,9 +487,26 @@ never leaves; it only shortens from the start.
   and [private marketplace editing](../images/tui-marketplace-source-edit.png).
 - **Slash/@ suggestions:** name in a 28-column column, detail in muted, footer
   `↑↓ navigate · tab complete · enter select · esc close`. Lists filter on every key.
-- **Question custom answers** (`messages/AskUserQuestionDialog.tsx`): the input
+- **Plugin choices** (`components/PluginChoicePrompt.tsx`): the dialog receives its available
+  row budget from its caller. The visible names and selected description share that budget;
+  PgUp/PgDn scroll the complete description while arrows select another plugin. Short terminals
+  compact the title, spacing and frame before losing access to content or selection controls.
+- **Long composer input:** the editable viewport uses at most six rows and shrinks with the
+  terminal height, reserving the pinned header, transcript frame and composer controls.
+  Resizing scrolls the visible text without discarding the complete input.
+- **Windows symbol widths:** plain status symbols omit variation selectors because ConPTY
+  advances extra columns for those sequences. Symbols with an emoji presentation retain their
+  text selector; macOS and Linux retain the selectors used for narrow rendering in CJK terminals.
+- **Question custom answers** (`messages/AskUserQuestionDialog.tsx`): questions, option
+  descriptions and answer reviews scroll with PgUp/PgDn within the available message height.
+  The question header, active choice or custom input, and navigation remain pinned when space
+  permits. The question owns scrolling while awaiting an answer, so paging its contents does not
+  move the surrounding transcript. An arriving question brings the transcript to its latest turn
+  before taking scroll focus, including when the user was reading earlier messages. Full-detail
+  mode expands results but retains the height budget
+  for direct and subagent questions. The input
   uses the available message width after padding, numbering, and the input
-  prefix. Up to three wrapped lines stay visible; longer answers show the
+  prefix. Up to three wrapped lines stay visible when space permits; longer answers show the
   visible line range and arrows for hidden text. Enter submits the complete
   answer once; wrapping and scrolling never discard its contents.
 - **Exit summary** (`QuittingDisplay.tsx`): default five-second countdown, with
@@ -530,6 +557,7 @@ Lucida Console lacks many of them, so a compat set replaces them with glyphs fro
 | `▰` `▱`           | `█` `░`                              |
 | `↳`               | `→`                                  |
 | `✗`               | `x`                                  |
+| `!` (warning)     | `!`                                  |
 | `✓`               | `√`                                  |
 | `◆` (assistant)   | `*`                                  |
 | braille spinner   | `\|` `/` `-` `\`                     |
@@ -544,8 +572,11 @@ Windows Terminal, VS Code and others do. Resolved once at startup (`llm.tsx`), r
 **Ambiguous-width rule** (also in `STACK-O1-CODE.md`): no East Asian Ambiguous glyph (`△`, `⚠`, `✔`,
 …) in a row that can reach the full terminal width, even with VS15. Windows Terminal draws some of
 them two columns wide, the row wraps where Ink counts one, and every later repaint is off by a line.
-Use ASCII or a glyph from `glyphs()`. The ambiguous glyphs the sets keep carry VS15 so CJK terminals
-draw them one column wide, as Ink measures them.
+Use ASCII or a glyph from `glyphs()`. On macOS and Linux, the ambiguous glyphs the sets keep carry
+VS15 so CJK terminals draw them one column wide, as Ink measures them. On Windows, plain symbols
+omit that selector: ConPTY can advance an extra column for these sequences, wrapping a footer and
+displacing the frame. Keep the text selector for symbols with an emoji presentation, including
+`ICON.CROSS` and `ICON.SPARKLE`; the plain-symbol exception does not replace the rule below.
 
 **Emoji-presentation rule:** on Windows, a symbol that has both a text and an emoji presentation
 (`ℹ`, `▶`, `☑`, `⚠`, `✔`, `✖`) in tool output and code blocks gets the text-presentation selector
@@ -564,7 +595,31 @@ space that follows. `✅` and `❌` have no text presentation, so the selector w
 - Names shown to the user come from `brand.json` (through `generated/brand.ts`), never from a
   literal. `node scripts/o1/brand-lint.mjs` is the gate.
 
+## Layout regression checks
+
+After building and bundling, run the real CLI against a local fake provider with:
+
+```bash
+node --import tsx integration-tests/terminal-capture/terminal-layout-regression.ts feedback
+node --import tsx integration-tests/terminal-capture/terminal-layout-regression.ts question
+node --import tsx integration-tests/terminal-capture/terminal-layout-regression.ts resize
+```
+
+These checks require the installed Playwright Chromium browser. They use temporary settings and
+six conversation turns, assert the visible terminal contents, and save screenshots and raw output.
+The question scenario pages down and back up, sends mouse-wheel events, and toggles full-detail
+mode. `O1CODE_TUI_E2E_OUT` selects the capture directory. Renderer composition, dialog row budgets,
+custom answers and plugin navigation also have collocated CLI tests. The resize scenario shrinks
+from 100×30 to 80×24 and 60×18, restores 100×30, and verifies that the complete original input is
+submitted. Verify border positions and controls as well as marker text: a frame can contain all
+expected words while still being misaligned.
+
+These captures render through xterm.js. They do not establish how a Windows terminal draws a glyph.
+Use the native execution and evidence procedure in [Windows validation](WINDOWS-VALIDATION.md)
+when changing Windows rendering, shells or process handling.
+
 ## See also
 
 - `STACK-O1-CODE.md` — Windows rules, including the ambiguous-width rule.
+- `WINDOWS-VALIDATION.md` — native test setup, scenario matrix and evidence requirements.
 - `../../README.md` (Principles) and `../../ROADMAP.md` — what the product is and what comes next.

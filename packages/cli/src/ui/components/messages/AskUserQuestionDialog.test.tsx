@@ -14,6 +14,7 @@ import { ToolConfirmationOutcome } from '@organizaone/o1-code-core';
 import { renderWithProviders } from '../../../test-utils/render.js';
 import stripAnsi from 'strip-ansi';
 import { act } from 'react';
+import { Box } from 'ink';
 
 const wait = (ms = 50) => new Promise((resolve) => setTimeout(resolve, ms));
 const writeText = async (
@@ -72,6 +73,270 @@ const createConfirmationDetails = (
   questions: [createSingleQuestion()],
   onConfirm: vi.fn(),
   ...overrides,
+});
+
+describe('bounded question layout', () => {
+  it.each([1, 2, 3, 4])(
+    'keeps choices and custom submission within %i available rows',
+    async (availableHeight) => {
+      const onConfirm = vi.fn();
+      const { stdin, lastFrame, unmount } = renderWithProviders(
+        <Box width={40} flexDirection="column">
+          <AskUserQuestionDialog
+            confirmationDetails={createConfirmationDetails()}
+            availableWidth={40}
+            availableHeight={availableHeight}
+            onConfirm={onConfirm}
+          />
+        </Box>,
+      );
+      await wait();
+      expect(clean(lastFrame()).split('\n').length).toBeLessThanOrEqual(
+        availableHeight,
+      );
+      expect(clean(lastFrame())).toContain('❯ 1. Red');
+      stdin.write('4');
+      await wait(100);
+      await writeText(stdin, 'A complete custom answer');
+      expect(clean(lastFrame()).split('\n').length).toBeLessThanOrEqual(
+        availableHeight,
+      );
+      expect(clean(lastFrame())).toContain('❯ 4.');
+      stdin.write('\r');
+      await wait();
+      expect(onConfirm).toHaveBeenCalledExactlyOnceWith(
+        ToolConfirmationOutcome.ProceedOnce,
+        { answers: { 0: 'A complete custom answer' } },
+      );
+      unmount();
+    },
+  );
+
+  it.each([1, 4])(
+    'makes every question, selected label and description line accessible in %i rows',
+    async (availableHeight) => {
+      const question = ['Question start', 'Question middle', 'Question end'];
+      const label = [
+        'Selected label start',
+        'Selected label middle',
+        'Selected label end',
+      ];
+      const description = [
+        'Description start',
+        'Description middle',
+        'Description end',
+      ];
+      const onConfirm = vi.fn();
+      const { stdin, lastFrame, unmount } = renderWithProviders(
+        <Box width={40} flexDirection="column">
+          <AskUserQuestionDialog
+            confirmationDetails={createConfirmationDetails({
+              questions: [
+                createSingleQuestion({
+                  question: question.join('\n'),
+                  options: [
+                    {
+                      label: label.join('\n'),
+                      description: description.join('\n'),
+                    },
+                  ],
+                }),
+              ],
+            })}
+            availableWidth={40}
+            availableHeight={availableHeight}
+            onConfirm={onConfirm}
+          />
+        </Box>,
+      );
+      await wait();
+      const seen = new Set<string>();
+      for (let page = 0; page < 18; page++) {
+        const frame = clean(lastFrame());
+        expect(frame.split('\n').length).toBeLessThanOrEqual(availableHeight);
+        for (const line of [...question, ...label, ...description]) {
+          if (frame.includes(line)) seen.add(line);
+        }
+        stdin.write('\u001B[6~');
+        await wait(100);
+      }
+      for (const line of [...question, ...label, ...description])
+        expect([...seen]).toContain(line);
+      stdin.write('\u001B[5~');
+      await wait(100);
+      expect(clean(lastFrame()).split('\n').length).toBeLessThanOrEqual(
+        availableHeight,
+      );
+      stdin.write('\r');
+      await wait();
+      expect(onConfirm).toHaveBeenCalledExactlyOnceWith(
+        ToolConfirmationOutcome.ProceedOnce,
+        { answers: { 0: label.join('\n') } },
+      );
+      unmount();
+    },
+  );
+
+  it('keeps a long custom answer within a short dialog and submits it intact', async () => {
+    const onConfirm = vi.fn();
+    const answer = 'An answer with wide 界 characters and extra words. '.repeat(
+      12,
+    );
+    const { stdin, lastFrame, unmount } = renderWithProviders(
+      <Box width={40} flexDirection="column">
+        <AskUserQuestionDialog
+          confirmationDetails={createConfirmationDetails()}
+          availableWidth={40}
+          availableHeight={7}
+          onConfirm={onConfirm}
+        />
+      </Box>,
+    );
+    await wait();
+    stdin.write('4');
+    await wait(100);
+    stdin.write(`\u001B[200~${answer}\u001B[201~`);
+    await wait(100);
+    expect(clean(lastFrame()).split('\n').length).toBeLessThanOrEqual(7);
+    expect(clean(lastFrame())).toContain('Navigate');
+    expect(clean(lastFrame())).toMatch(/\d+–\d+\/\d+/);
+    stdin.write('\r');
+    await wait();
+    expect(onConfirm).toHaveBeenCalledExactlyOnceWith(
+      ToolConfirmationOutcome.ProceedOnce,
+      { answers: { 0: answer.trim() } },
+    );
+    unmount();
+  });
+
+  it('keeps submit actions pinned while paging long answer reviews', async () => {
+    const onConfirm = vi.fn();
+    const answer = Array.from(
+      { length: 20 },
+      (_, index) => `Answer line ${index + 1}`,
+    ).join('\n');
+    const details = createConfirmationDetails({
+      questions: [
+        createSingleQuestion({
+          header: 'First',
+          options: [{ label: answer, description: '' }],
+        }),
+        createSingleQuestion({ header: 'Second' }),
+      ],
+    });
+    const { stdin, lastFrame, unmount } = renderWithProviders(
+      <Box width={80} flexDirection="column">
+        <AskUserQuestionDialog
+          confirmationDetails={details}
+          availableWidth={80}
+          availableHeight={12}
+          onConfirm={onConfirm}
+        />
+      </Box>,
+    );
+    await wait();
+    stdin.write('\r');
+    await wait(250);
+    stdin.write('\r');
+    await wait(250);
+    expect(clean(lastFrame())).toContain('Your answers:');
+    for (let page = 0; page < 4; page++) {
+      expect(clean(lastFrame()).split('\n').length).toBeLessThanOrEqual(12);
+      expect(clean(lastFrame())).toContain('❯ 1. Submit answers');
+      expect(clean(lastFrame())).toContain('2. Cancel');
+      stdin.write('\u001B[6~');
+      await wait(100);
+    }
+    expect(clean(lastFrame())).toContain('Answer line 20');
+    stdin.write('\r');
+    await wait();
+    expect(onConfirm).toHaveBeenCalledExactlyOnceWith(
+      ToolConfirmationOutcome.ProceedOnce,
+      { answers: { 0: answer, 1: 'Red' } },
+    );
+    unmount();
+  });
+
+  it('keeps the question start and active choice inside its physical height', async () => {
+    const details = createConfirmationDetails({
+      questions: [
+        createSingleQuestion({
+          question: Array.from(
+            { length: 35 },
+            (_, index) => `Question line ${index + 1}`,
+          ).join('\n'),
+        }),
+      ],
+    });
+    const { lastFrame, unmount } = renderWithProviders(
+      <Box width={80} flexDirection="column">
+        <AskUserQuestionDialog
+          confirmationDetails={details}
+          availableWidth={80}
+          availableHeight={14}
+          onConfirm={vi.fn()}
+        />
+      </Box>,
+    );
+    await wait();
+    const frame = clean(lastFrame());
+    expect(frame.split('\n').length).toBeLessThanOrEqual(14);
+    expect(frame).toContain('Color');
+    expect(frame).toContain('Question line 1');
+    expect(frame).toContain('❯ 1. Red');
+    expect(frame).toContain('Navigate');
+    unmount();
+  });
+
+  it('scrolls every question line while keeping the custom answer usable', async () => {
+    const onConfirm = vi.fn();
+    const details = createConfirmationDetails({
+      questions: [
+        createSingleQuestion({
+          question: Array.from(
+            { length: 35 },
+            (_, index) => `Question line ${index + 1}`,
+          ).join('\n'),
+        }),
+      ],
+    });
+    const { stdin, lastFrame, unmount } = renderWithProviders(
+      <Box width={80} flexDirection="column">
+        <AskUserQuestionDialog
+          confirmationDetails={details}
+          availableWidth={80}
+          availableHeight={14}
+          onConfirm={onConfirm}
+        />
+      </Box>,
+    );
+    await wait();
+    const seen = new Set<string>();
+    for (let page = 0; page < 10; page++) {
+      const frame = clean(lastFrame());
+      expect(frame.split('\n').length).toBeLessThanOrEqual(14);
+      expect(frame).toContain('Color');
+      expect(frame).toContain('❯ 1. Red');
+      for (const line of frame.matchAll(/Question line \d+/g))
+        seen.add(line[0]);
+      stdin.write('\u001B[6~');
+      await wait(100);
+    }
+    for (let index = 1; index <= 35; index++)
+      expect(seen.has(`Question line ${index}`)).toBe(true);
+    stdin.write('4');
+    await wait(100);
+    await writeText(stdin, 'A complete custom answer');
+    expect(clean(lastFrame())).toContain('A complete custom answer');
+    expect(clean(lastFrame()).split('\n').length).toBeLessThanOrEqual(14);
+    stdin.write('\r');
+    await wait();
+    expect(onConfirm).toHaveBeenCalledExactlyOnceWith(
+      ToolConfirmationOutcome.ProceedOnce,
+      { answers: { 0: 'A complete custom answer' } },
+    );
+    unmount();
+  });
 });
 
 describe('computeHeaderCap', () => {

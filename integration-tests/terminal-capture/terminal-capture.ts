@@ -208,8 +208,8 @@ export class TerminalCapture {
   private rawOutput = '';
   private lastFlushedLength = 0;
 
-  private readonly cols: number;
-  private readonly rows: number;
+  private cols: number;
+  private rows: number;
   private readonly cwd: string;
   private readonly env: NodeJS.ProcessEnv;
   private readonly theme: XtermTheme;
@@ -364,6 +364,24 @@ export class TerminalCapture {
   }
 
   // ── Input ────────────────────────────────
+
+  async resize(cols: number, rows: number): Promise<void> {
+    await this.flush();
+    await this.page!.evaluate(
+      ({ cols, rows }) => {
+        const term = (
+          window as unknown as {
+            term: { resize: (cols: number, rows: number) => void };
+          }
+        ).term;
+        term.resize(cols, rows);
+      },
+      { cols, rows },
+    );
+    this.ptyProcess?.resize(cols, rows);
+    this.cols = cols;
+    this.rows = rows;
+  }
 
   /**
    * Input text. Supports `\n` as Enter.

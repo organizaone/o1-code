@@ -9,9 +9,24 @@ import {
   calculatePromptWidths,
   clampDialogHeight,
   getDialogMaxHeight,
+  getInputViewportHeight,
 } from './layoutUtils.js';
 
 describe('layoutUtils', () => {
+  it.each([30, 24, 18])(
+    'keeps input and surrounding chrome within a %i-row viewport',
+    (rows) => {
+      const inputRows = getInputViewportHeight(rows, 6, 10);
+      expect(inputRows + 6 + 10).toBeLessThanOrEqual(rows);
+      expect(inputRows).toBeGreaterThanOrEqual(1);
+      expect(inputRows).toBeLessThanOrEqual(10);
+    },
+  );
+
+  it('retains one editable row when the terminal cannot fit all chrome', () => {
+    expect(getInputViewportHeight(4, 6, 10)).toBe(1);
+  });
+
   it('calculates prompt widths', () => {
     expect(calculatePromptWidths(100)).toEqual({
       inputWidth: 94,
