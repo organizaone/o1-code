@@ -110,6 +110,8 @@ export const TOOL_NAME_ALIASES: Readonly<Record<string, string>> = {
   // Legacy display name (renamed from "TodoWrite")
   TodoWrite: 'todo_write',
   TodoWriteTool: 'todo_write',
+  report_progress: 'report_progress',
+  Progress: 'report_progress',
 
   // WebFetch tool
   web_fetch: 'web_fetch',
@@ -607,6 +609,7 @@ const CANONICAL_TO_RULE_DISPLAY: Readonly<Record<string, string>> = {
   // Others
   save_memory: 'SaveMemory',
   todo_write: 'TodoList',
+  report_progress: 'Progress',
   lsp: 'Lsp',
   exit_plan_mode: 'ExitPlanMode',
   enter_plan_mode: 'EnterPlanMode',

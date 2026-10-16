@@ -62,6 +62,7 @@ import { useBackgroundTaskViewState } from '../contexts/BackgroundTaskViewContex
 import { t } from '../../i18n/index.js';
 import { getDialogMaxHeight } from '../utils/layoutUtils.js';
 import { getFixedHeaderHeight } from './Header.js';
+import { getLayoutTier, sideMargin } from '../utils/layout-tier.js';
 import { getReasoningEffortsForConfig } from '../../acp-integration/model-configuration.js';
 
 interface DialogManagerProps {
@@ -591,7 +592,10 @@ export const DialogManager = ({
     return (
       <BackgroundTasksDialog
         availableTerminalHeight={listDialogHeight}
-        terminalWidth={mainAreaWidth}
+        terminalWidth={Math.max(
+          1,
+          terminalWidth - sideMargin(getLayoutTier(terminalWidth)) * 2,
+        )}
       />
     );
   }

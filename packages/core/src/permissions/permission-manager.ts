@@ -794,6 +794,7 @@ export class PermissionManager {
     'web_fetch',
     'web_search',
     'todo_write',
+    ToolNames.REPORT_PROGRESS,
     'save_memory',
     'lsp',
     'cron_create',

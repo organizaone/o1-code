@@ -158,6 +158,35 @@ When a session is restored, compatible background agents are added back to the s
 
 Use continuation for related follow-up work. Launch a new agent when the task is unrelated or the previous agent cannot be resumed.
 
+## Monitoring subagents
+
+Open `/tasks` to follow background agents. Wide terminals show the agent list beside
+the selected agent's Summary, Plan, Activity and Details tabs. Narrow terminals
+show the list first; Enter opens the selected agent's details. The list count stays
+at the bottom, and long content scrolls within the panel.
+
+- In the list, Up/Down selects an agent. Left/Right or Tab changes the preview tab
+  without leaving the list. Enter moves into the details.
+- In details, Up/Down scrolls and Page Up/Page Down moves by a page. Left/Right or
+  Tab changes tabs. Esc returns to the list; Esc in the list closes the panel.
+- The filled purple tab marks the active view. Pending approvals appear in the
+  summary; `a` opens the original approval controls for that request.
+
+The Plan tab displays only steps explicitly reported by that agent through
+`report_progress`. It does not infer a plan from tool calls, and finishing an agent
+does not mark its steps complete. Agents without reported steps display an empty
+plan notice. Tool activity and execution status remain independent of declared
+progress.
+
+`report_progress` replaces the agent's own step list and accepts `todos` containing
+`id`, `content`, `status` (`pending`, `in_progress`, or `completed`) and optional
+`blockedBy` step ids. An empty list clears it. It cannot update the parent agent's
+todo list or another agent's plan. Tool permissions still apply; custom agents
+with a finite tool allowlist must include `report_progress` to use it. Restricted
+forks must also permit the tool for execution. External executors do not expose
+this internal progress tool. Retained agent metadata preserves the last reported
+steps on a best-effort basis for compatible restored sessions.
+
 ## Notification Queue
 
 In the interactive TUI and ACP session, completion notifications from background agents, shells, monitors and workflows share a queue that drains into a model turn once the session is idle. These queues hold at most 20 notifications so a noisy producer cannot accumulate an unbounded backlog. The headless CLI's local queue is not capped by this rule.

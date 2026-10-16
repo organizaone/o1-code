@@ -8,6 +8,54 @@
 // The key serves as both the translation key and the default English text
 
 export default {
+  '← back · x stop': '← back · x stop',
+  'Additional content omitted; inspect the transcript.':
+    'Additional content omitted; inspect the transcript.',
+  'Agent summary': 'Summary',
+  'Agent plan': 'Plan',
+  'Agent activity': 'Activity',
+  'Agent details': 'Details',
+  'Agents · main session': 'AGENTS · main session',
+  'No plan recorded': 'No plan recorded',
+  'No activity recorded': 'No activity recorded',
+  'No earlier activity recorded': 'No earlier activity recorded',
+  'Declared plan': 'Declared plan',
+  Now: 'Now',
+  'Recent activity': 'Recent activity',
+  'Current event': 'Current event',
+  'Your action is required': 'Your action is required',
+  'Press a to review the pending approval.':
+    'Press a to review the pending approval.',
+  'About progress': 'About progress',
+  'Plan items describe declared work, not estimated time remaining.':
+    'Plan items describe declared work, not estimated time remaining.',
+  'No instruction recorded': 'No instruction recorded',
+  'Main session': 'Main session',
+  'nested · level {{level}}': 'nested · level {{level}}',
+  'Depends on: {{ids}}': 'Depends on: {{ids}}',
+  '{{count}} more plan items': '{{count}} more plan items',
+  '{{count}} running': '{{count}} running',
+  '{{count}} awaiting approval': '{{count}} awaiting approval',
+  '{{count}} completed': '{{count}} completed',
+  '{{count}} failed': '{{count}} failed',
+  '{{count}} tasks · {{start}}–{{end}} visible':
+    '{{count}} tasks · {{start}}–{{end}} visible',
+  'lines {{start}}–{{end}}/{{total}}': 'lines {{start}}–{{end}}/{{total}}',
+  '←→ tabs': '←→ tabs',
+  'esc back': 'esc back',
+  'esc back to list': 'esc back to list',
+  '↑↓ scroll': '↑↓ scroll',
+  '↑↓ agents · enter view · esc close': '↑↓ agents · enter view · esc close',
+  '↑↓ agents · enter view · ←→ tabs · esc close':
+    '↑↓ agents · enter view · ←→ tabs · esc close',
+  'x stop': 'x stop',
+  'r resume': 'r resume',
+  'x abandon': 'x abandon',
+  'a review approval': 'a review approval',
+  'Press x again to stop; this ends the blocking turn. Esc cancels.':
+    'Press x again to stop; this ends the blocking turn. Esc cancels.',
+  'Enlarge the terminal to inspect agents. Esc closes.':
+    'Enlarge the terminal to inspect agents. Esc closes.',
   'PgUp/PgDn: Scroll': 'PgUp/PgDn: Scroll',
   'PgUp/PgDn scroll description': 'PgUp/PgDn scroll description',
   '↑↓ navigate · Enter select · Escape cancel · PgUp/PgDn description':

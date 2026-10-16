@@ -159,6 +159,7 @@ describe('BackgroundAgentResumeService', () => {
     const permissionManager = {
       stripDangerousRulesForAutoMode: vi.fn(),
       restoreDangerousRules: vi.fn(),
+      getToolRegistrationStatus: vi.fn().mockResolvedValue('registered'),
     };
     const monitorRegistry = {
       setAgentNotificationCallback: vi.fn(),
@@ -253,6 +254,9 @@ describe('BackgroundAgentResumeService', () => {
       isBackgrounded: true,
       subagentName: 'researcher',
       resolvedApprovalMode: 'auto-edit',
+      todoItems: [
+        { id: 'inspect', content: 'Inspect retries', status: 'in_progress' },
+      ],
     });
     writeAgentMeta(completedMetaPath, {
       agentId: completedAgentId,
@@ -331,6 +335,9 @@ describe('BackgroundAgentResumeService', () => {
       subagentType: 'researcher',
       prompt: 'Investigate retry handling',
       metaPath: runningMetaPath,
+      todoItems: [
+        { id: 'inspect', content: 'Inspect retries', status: 'in_progress' },
+      ],
       outputFile: getAgentJsonlPath(tempDir, sessionId, runningAgentId),
     });
     expect(recovered[1]).toMatchObject({
@@ -1437,10 +1444,36 @@ describe('BackgroundAgentResumeService', () => {
       metaPath,
     });
 
+    const planEmitter = new AgentEventEmitter();
+    const todoItems = [
+      {
+        id: 'verify',
+        content: 'Verify output',
+        status: 'in_progress' as const,
+      },
+    ];
     const subagent = {
-      execute: vi.fn(async () => undefined),
+      execute: vi.fn(async () => {
+        const factory = vi
+          .mocked(stubToolRegistry.registerFactory)
+          .mock.calls.find(
+            ([name]) => name === ToolNames.REPORT_PROGRESS,
+          )?.[1] as
+          | (() => Promise<import('../tools/tools.js').AnyDeclarativeTool>)
+          | undefined;
+        expect(factory).toBeDefined();
+        const progressTool = await factory!();
+        const result = await progressTool
+          .build({ todos: todoItems })
+          .execute(new AbortController().signal);
+        expect(result.error).toBeUndefined();
+        expect(registry.get(agentId)?.todoItems).toEqual(todoItems);
+      }),
       setExternalMessageProvider: vi.fn(),
-      getCore: () => ({ getEventEmitter: () => new AgentEventEmitter() }),
+      getCore: () => ({
+        subagentId: 'resume-runtime',
+        getEventEmitter: () => planEmitter,
+      }),
       getExecutionSummary: () => ({
         rounds: 0,
         totalToolCalls: 0,
@@ -1459,7 +1492,7 @@ describe('BackgroundAgentResumeService', () => {
       getFinalText: () => '<analysis>scratch only</analysis>',
     };
 
-    const { service, subagentManager } = createService();
+    const { service, subagentManager, stubToolRegistry } = createService();
     subagentManager.createAgentHeadless.mockResolvedValue({
       subagent,
       dispose: vi.fn().mockResolvedValue(undefined),
@@ -1474,6 +1507,8 @@ describe('BackgroundAgentResumeService', () => {
     expect(registry.get(agentId)?.result).toBe(
       '(subagent produced no model-visible output)',
     );
+    expect(registry.get(agentId)?.todoItems).toEqual(todoItems);
+    expect(readAgentMeta(metaPath)?.todoItems).toEqual(todoItems);
   });
 
   it('can resume into the final background concurrency slot', async () => {

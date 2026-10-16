@@ -7,6 +7,54 @@
 // Portuguese translations for O1-Code CLI (pt-BR)
 
 export default {
+  '← back · x stop': '← voltar · x parar',
+  'Additional content omitted; inspect the transcript.':
+    'Conteúdo adicional omitido; consulte a transcrição.',
+  'Agent summary': 'Resumo',
+  'Agent plan': 'Plano',
+  'Agent activity': 'Atividade',
+  'Agent details': 'Detalhes',
+  'Agents · main session': 'AGENTES · sessão principal',
+  'No plan recorded': 'Sem plano registrado',
+  'No activity recorded': 'Nenhuma atividade registrada',
+  'No earlier activity recorded': 'Nenhuma atividade anterior registrada',
+  'Declared plan': 'Plano declarado',
+  Now: 'Agora',
+  'Recent activity': 'Atividade recente',
+  'Current event': 'Evento atual',
+  'Your action is required': 'Sua ação é necessária',
+  'Press a to review the pending approval.':
+    'Pressione a para revisar a aprovação pendente.',
+  'About progress': 'Sobre o progresso',
+  'Plan items describe declared work, not estimated time remaining.':
+    'As etapas descrevem o plano registrado, sem estimar o tempo restante.',
+  'No instruction recorded': 'Nenhuma instrução registrada',
+  'Main session': 'Sessão principal',
+  'nested · level {{level}}': 'aninhado · nível {{level}}',
+  'Depends on: {{ids}}': 'Depende de: {{ids}}',
+  '{{count}} more plan items': 'Mais {{count}} etapas no plano',
+  '{{count}} running': '{{count}} executando',
+  '{{count}} awaiting approval': '{{count}} aguardando aprovação',
+  '{{count}} completed': '{{count}} concluídos',
+  '{{count}} failed': '{{count}} com falha',
+  '{{count}} tasks · {{start}}–{{end}} visible':
+    '{{count}} tarefas · {{start}}–{{end}} visíveis',
+  'lines {{start}}–{{end}}/{{total}}': 'linhas {{start}}–{{end}}/{{total}}',
+  '←→ tabs': '←→ abas',
+  'esc back': 'esc voltar',
+  'esc back to list': 'esc voltar à lista',
+  '↑↓ scroll': '↑↓ rolar',
+  '↑↓ agents · enter view · esc close': '↑↓ agentes · enter abrir · esc fechar',
+  '↑↓ agents · enter view · ←→ tabs · esc close':
+    '↑↓ agentes · enter abrir · ←→ abas · esc fechar',
+  'x stop': 'x parar',
+  'r resume': 'r retomar',
+  'x abandon': 'x abandonar',
+  'a review approval': 'a revisar aprovação',
+  'Press x again to stop; this ends the blocking turn. Esc cancels.':
+    'Pressione x novamente para parar e encerrar o turno em espera. Esc cancela.',
+  'Enlarge the terminal to inspect agents. Esc closes.':
+    'Amplie o terminal para inspecionar os agentes. Esc fecha.',
   'PgUp/PgDn: Scroll': 'PgUp/PgDn: Rolar',
   'PgUp/PgDn scroll description': 'PgUp/PgDn rolar descrição',
   '↑↓ navigate · Enter select · Escape cancel · PgUp/PgDn description':

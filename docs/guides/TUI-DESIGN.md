@@ -15,7 +15,8 @@ The Web Shell (`o1-code serve`) has its own interface and is not covered here.
   [Layout tiers](#layout-tiers)). No row may exceed the terminal width at any width.
 - **Full-screen layout** (`ui.useTerminalBuffer`, on by default): header pinned at the top, input and
   footer pinned at the bottom, the conversation scrolls in between and sticks to its last line.
-- The theme never paints a background. Everything draws on the terminal's own background.
+- Panels draw on the terminal's own background. A selected tab may use a filled
+  accent chip with contrasting text to identify the active view.
 - Colours come from theme tokens, never from literals in a component.
 
 ## Colour
@@ -51,7 +52,7 @@ unreadable on a light terminal. `#e6ecf5` is the design reference, not a painted
 
 **Chrome keeps a contrast floor of 1.8:1 against the backgrounds it can land on** (`separator` and
 `rule`, dark on `#0a1220`/`#212734`/`#1e1e1e`, light on `#f7f9fc`/white — pinned in
-`themes/o1-code-palette.test.ts`). The theme never paints a background, so a frame colour is
+`themes/o1-code-palette.test.ts`). Panels do not paint a background, so a frame colour is
 measured against the terminal's own: the first `rule`, `#2a3550`, was 1.2:1 on the dark navy
 profiles common on macOS and the conversation border disappeared.
 
@@ -362,6 +363,19 @@ never leaves; it only shortens from the start.
 
 ## Dialogs and selection
 
+- **Subagent dashboard** (`background-view/AgentDashboard.tsx`): `/tasks` uses the
+  terminal's available width and height, including its outer layout containers.
+  At 120 terminal columns, the roster and details appear side by side; narrower
+  panels show the roster until Enter opens details. Left/Right and Tab switch
+  Summary, Plan, Activity and Details without transferring focus from the roster.
+  Only Enter enters details; Esc returns to the roster. The roster count stays
+  pinned at its bottom. In details, arrows and paging scroll bounded content.
+  The active tab has an accent background, section titles and the roster heading
+  use bold accent, and a blank row separates tabs from content. The tabs and
+  back-to-list shortcuts share the same accent. Approval review uses the original
+  confirmation component in its own bounded panel and remains scoped to the exact
+  request. Plans come only from the owning agent's explicit `report_progress`
+  updates, independently of tool activity and task completion.
 - **Provider model catalog** (`auth/ProviderSetupSteps.tsx`): the list uses the
   actual dialog budget after the frame, title, inputs, notices and controls.
   Short terminals reduce gaps and secondary help; model rows stay on one line.
@@ -603,6 +617,7 @@ After building and bundling, run the real CLI against a local fake provider with
 node --import tsx integration-tests/terminal-capture/terminal-layout-regression.ts feedback
 node --import tsx integration-tests/terminal-capture/terminal-layout-regression.ts question
 node --import tsx integration-tests/terminal-capture/terminal-layout-regression.ts resize
+node --import tsx integration-tests/terminal-capture/subagent-dashboard-regression.ts
 ```
 
 These checks require the installed Playwright Chromium browser. They use temporary settings and
@@ -613,6 +628,13 @@ custom answers and plugin navigation also have collocated CLI tests. The resize 
 from 100×30 to 80×24 and 60×18, restores 100×30, and verifies that the complete original input is
 submitted. Verify border positions and controls as well as marker text: a frame can contain all
 expected words while still being misaligned.
+
+The subagent scenario uses two real background agents against the local provider,
+records their explicit progress, switches tabs and agents, enters and leaves
+details, and resizes between 120×40 and 70×24. It checks filled tab styling,
+shortcut colours, roster counts, tab spacing and complete frame edges. Its evidence
+defaults to ignored `ops/subagent-dashboard/terminal`; captures are not repository
+assets.
 
 These captures render through xterm.js. They do not establish how a Windows terminal draws a glyph.
 Use the native execution and evidence procedure in [Windows validation](WINDOWS-VALIDATION.md)

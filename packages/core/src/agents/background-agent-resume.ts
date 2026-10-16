@@ -589,6 +589,7 @@ export class BackgroundAgentResumeService {
           depth: meta.depth,
           model: meta.model ?? meta.persistedCliFlags?.model,
           ...persistedSummary,
+          todoItems: meta.todoItems,
         };
         if (meta.status === 'completed') {
           (registration as AgentTask).notified = true;

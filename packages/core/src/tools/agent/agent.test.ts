@@ -61,6 +61,7 @@ import * as os from 'node:os';
 import * as path from 'node:path';
 import { execFileSync } from 'node:child_process';
 import * as transcript from '../../agents/agent-transcript.js';
+import { BackgroundTaskRegistry } from '../../agents/background-tasks.js';
 import {
   ExecutionCleanupError,
   type ExecutionEnvironment,
@@ -253,6 +254,7 @@ describe('AgentTool', () => {
       }),
       getWorktreeSymlinkDirectories: vi.fn().mockReturnValue([]),
       getBackgroundTaskRegistry: vi.fn().mockReturnValue(stubRegistry),
+      getPermissionManager: vi.fn().mockReturnValue(null),
       getMonitorRegistry: vi.fn().mockReturnValue(stubMonitorRegistry),
       getToolRegistry: vi.fn().mockReturnValue(stubToolRegistry),
       createToolRegistry: vi.fn().mockResolvedValue(stubToolRegistry),
@@ -5854,6 +5856,7 @@ describe('AgentTool', () => {
         getAllTools: vi.fn().mockReturnValue([]),
         getAllToolNames: vi.fn().mockReturnValue([]),
         stop: stopSpy,
+        registerFactory: vi.fn(),
       };
       // The override Config built by `createApprovalModeOverride` calls
       // `createToolRegistry` (returns the override's own registry) and
@@ -6636,6 +6639,7 @@ describe('AgentTool', () => {
       // eventEmitter, simulating a real subagent lifecycle.
       mockAgent = {
         execute: vi.fn(),
+        setExternalMessageProvider: vi.fn(),
         result: 'Done',
         terminateMode: AgentTerminateMode.GOAL,
         getCore: vi.fn().mockReturnValue({
@@ -6737,6 +6741,60 @@ describe('AgentTool', () => {
         kinds: ['file'],
       });
     });
+
+    it.each([false, true])(
+      'tracks persisted plans during launch (background=%s)',
+      async (isBackgrounded) => {
+        const registry = new BackgroundTaskRegistry();
+        vi.mocked(config.getBackgroundTaskRegistry).mockReturnValue(registry);
+        const emitter = new AgentEventEmitter();
+        const todos = [
+          {
+            id: 'inspect',
+            content: 'Inspect source',
+            status: 'in_progress' as const,
+          },
+        ];
+        const invocation = createInvocationWithEventDrivenAgent(() => {});
+        invocation.params.run_in_background = isBackgrounded;
+        vi.mocked(mockAgent.getCore).mockReturnValue({
+          subagentId: 'plan-runtime',
+          modelConfig: { model: 'subagent-model' },
+          getEventEmitter: () => emitter,
+        } as ReturnType<AgentHeadless['getCore']>);
+        vi.mocked(mockAgent.execute).mockImplementation(async () => {
+          const childConfig = vi
+            .mocked(mockSubagentManager.createAgentHeadless)
+            .mock.calls.at(-1)![1];
+          const factory = vi
+            .mocked(childConfig.getToolRegistry().registerFactory)
+            .mock.calls.find(
+              ([name]) => name === ToolNames.REPORT_PROGRESS,
+            )?.[1];
+          expect(factory).toBeDefined();
+          const progressTool = await factory!();
+          const result = await progressTool
+            .build({ todos })
+            .execute(new AbortController().signal);
+          expect(result.error).toBeUndefined();
+          expect(registry.getAll()[0]?.todoItems).toEqual(todos);
+        });
+        const result = await invocation.execute();
+        expect(result.llmContent).not.toContain('Error');
+        if (isBackgrounded) {
+          expect(partToString(result.llmContent)).toContain(
+            'Background agent launched',
+          );
+          await vi.runAllTimersAsync();
+        }
+        await vi.waitFor(() =>
+          expect(mockAgent.execute).toHaveBeenCalledOnce(),
+        );
+        if (isBackgrounded)
+          expect(registry.getAll()[0]?.todoItems).toEqual(todos);
+        registry.reset();
+      },
+    );
 
     it('omits subagent protocol payloads from interactive display state', async () => {
       vi.mocked(config.isInteractive).mockReturnValue(true);

@@ -4,7 +4,16 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import {
+  describe,
+  it,
+  expect,
+  vi,
+  beforeAll,
+  beforeEach,
+  afterEach,
+} from 'vitest';
+import { initializeI18n } from '../../../i18n/index.js';
 import { useState } from 'react';
 import { act } from '@testing-library/react';
 import { render } from 'ink-testing-library';
@@ -132,6 +141,7 @@ interface Harness {
 function setup(
   initial: readonly DialogEntry[],
   availableTerminalHeight = 30,
+  terminalWidth = 80,
 ): Harness {
   const handlers: Array<(key: { name?: string; sequence?: string }) => void> =
     [];
@@ -208,7 +218,7 @@ function setup(
           <Probe entriesSetter={setEntries} />
           <BackgroundTasksDialog
             availableTerminalHeight={availableTerminalHeight}
-            terminalWidth={80}
+            terminalWidth={terminalWidth}
           />
         </BackgroundTaskViewProvider>
       </ConfigContext.Provider>
@@ -258,17 +268,23 @@ function setup(
       // accumulated handlers misses state updates that happened between
       // renders (the older closures see stale state) — the symptom looks
       // like a re-render race in production code that doesn't exist.
+      const previous = [...handlers];
+      const latest = handlers[handlers.length - 1];
+      handlers.length = 0;
       act(() => {
-        const latest = handlers[handlers.length - 1];
         if (latest) latest(key);
       });
+      if (handlers.length === 0) handlers.push(...previous);
     },
     pressKeyBroadcast(key) {
+      const previous = [...handlers];
+      handlers.length = 0;
       act(() => {
-        for (const handler of [...handlers]) {
+        for (const handler of previous) {
           handler(key);
         }
       });
+      if (handlers.length === 0) handlers.push(...previous);
     },
     call(fn) {
       handlers.length = 0;
@@ -280,12 +296,122 @@ function setup(
 }
 
 describe('BackgroundTasksDialog', () => {
+  beforeAll(async () => {
+    await initializeI18n('en');
+  });
   beforeEach(() => {
     vi.clearAllMocks();
   });
 
   afterEach(() => {
     vi.restoreAllMocks();
+  });
+
+  it('previews agent detail tabs beside the roster in a wide terminal', () => {
+    const h = setup([entry({ description: 'Investigate task' })], 35, 120);
+    h.call(() => h.probe.current!.actions.openDialog());
+    expect(h.lastFrame()).toContain('Summary');
+    expect(h.lastFrame()).toContain('Plan');
+    expect(h.lastFrame()).toContain('Activity');
+    expect(h.lastFrame()).toContain('Details');
+    expect(h.lastFrame()).toContain('No plan recorded');
+  });
+
+  it('changes tabs without taking arrow navigation away from the agent roster', () => {
+    const h = setup(
+      [entry(), entry({ id: 'b', agentId: 'b', description: 'Second task' })],
+      35,
+      120,
+    );
+    h.call(() => h.probe.current!.actions.openDialog());
+    h.pressKey({ name: 'right' });
+    expect(h.probe.current!.state.dialogMode).toBe('list');
+    h.pressKey({ name: 'down' });
+    expect(h.probe.current!.state.selectedIndex).toBe(1);
+    expect(h.lastFrame()).toContain('Declared plan');
+    h.pressKey({ name: 'left' });
+    expect(h.probe.current!.state.dialogMode).toBe('list');
+    expect(h.lastFrame()).toContain('Now');
+  });
+
+  it('returns from agent detail to its roster with Escape instead of closing', () => {
+    const h = setup([entry()]);
+    h.call(() => h.probe.current!.actions.openDialog());
+    h.pressKey({ name: 'return' });
+    h.pressKey({ name: 'escape' });
+    expect(h.probe.current!.state.dialogMode).toBe('list');
+  });
+
+  it('requires an explicit review when a different approval arrives for the same agent', () => {
+    const approval = (callId: string) => ({
+      callId,
+      name: 'run_shell_command',
+      description: callId,
+      confirmationDetails: {
+        type: 'exec' as const,
+        title: callId,
+        command: 'echo ' + callId,
+        rootCommand: 'echo',
+      },
+      respond: vi.fn(),
+      at: Date.now(),
+    });
+    const first = entry({ pendingApprovals: [approval('first-approval')] });
+    const h = setup([first]);
+    h.call(() => h.probe.current!.actions.openDialog());
+    h.pressKey({ name: 'return' });
+    h.pressKey({ sequence: 'a' });
+    expect(h.lastFrame()).toContain('echo first-approval');
+    h.setEntries([
+      { ...first, pendingApprovals: [approval('second-approval')] },
+    ]);
+    expect(h.lastFrame()).not.toContain('echo second-approval');
+    expect(h.lastFrame()).toContain('Press a to review');
+    h.pressKey({ sequence: 'a' });
+    expect(h.lastFrame()).toContain('echo second-approval');
+  });
+
+  it('keeps approval choices visible when reviewing from a crowded wide roster', () => {
+    const pending = entry({
+      description: Array.from({ length: 25 }, (_, i) => 'Task line ' + i).join(
+        '\n',
+      ),
+      pendingApprovals: [
+        {
+          callId: 'review-wide',
+          name: 'run_shell_command',
+          description: 'pending command',
+          confirmationDetails: {
+            type: 'exec',
+            title: 'Allow command',
+            command: 'echo pending',
+            rootCommand: 'echo',
+          },
+          respond: vi.fn(),
+          at: Date.now(),
+        },
+      ],
+    });
+    const h = setup(
+      [
+        pending,
+        ...Array.from({ length: 12 }, (_, i) =>
+          entry({
+            id: 'agent-' + i,
+            agentId: 'agent-' + i,
+            description: 'Extra task ' + i,
+          }),
+        ),
+      ],
+      18,
+      120,
+    );
+    h.call(() => h.probe.current!.actions.openDialog());
+    h.pressKey({ sequence: 'a' });
+    const frame = h.lastFrame() ?? '';
+    expect(frame).toContain('Yes, allow once');
+    expect(frame).toContain('Task line 0 Task line 1');
+    expect(frame.split('\n').length).toBeLessThanOrEqual(18);
   });
 
   it('exits to list mode when the running entry being viewed flips to a terminal status', () => {
@@ -656,7 +782,7 @@ describe('BackgroundTasksDialog', () => {
     // footer drops "x stop" once status leaves 'running', but without
     // gating handleCancelKey itself, the first `x` would still arm a
     // confirm step on the (now-terminal) entry — surfacing a misleading
-    // "x again to confirm stop" line that does nothing.
+    // "x again to stop" line that does nothing.
     const completed = entry({
       agentId: 'fg-done',
       status: 'completed',
@@ -667,7 +793,7 @@ describe('BackgroundTasksDialog', () => {
     h.call(() => h.probe.current!.actions.openDialog());
 
     h.pressKey({ sequence: 'x' });
-    expect(h.lastFrame()).not.toContain('x again to confirm stop');
+    expect(h.lastFrame()).not.toContain('x again to stop');
 
     h.pressKey({ sequence: 'x' });
     expect(h.cancel).not.toHaveBeenCalled();
@@ -701,19 +827,23 @@ describe('BackgroundTasksDialog', () => {
     expect(frame).toContain('[2J');
 
     h.call(() => h.probe.current!.actions.enterDetail());
+    h.pressKey({ name: 'right' });
+    h.pressKey({ name: 'right' });
+    h.pressKey({ name: 'right' });
     const detailFrame = h.lastFrame() ?? '';
     expect(detailFrame).not.toContain(`${ESC}[2J`);
     expect(detailFrame).not.toContain(`${ESC}[31m`);
     expect(detailFrame).not.toContain(`${ESC}[?25l`);
     expect(detailFrame).toContain('[31m');
-    expect(detailFrame).toContain('[?25l');
+    h.pressKey({ name: 'left' });
+    expect(h.lastFrame()).toContain('[?25l');
   });
 
-  it('detail-mode left clears any armed foreground cancel before exiting', () => {
+  it('detail-mode Escape clears any armed foreground cancel before exiting', () => {
     // Detail-mode `x` arms the foreground confirm step on the focused
-    // entry. If the user presses `left` to back out without confirming,
+    // entry. Escape first cancels confirmation, then returns to the roster;
     // the armed state must NOT carry into list mode — otherwise the
-    // hint bar still shows "x again to confirm stop" and the next `x`
+    // hint bar still shows "x again to stop" and the next `x`
     // unintentionally cancels the run.
     const fg = entry({
       agentId: 'fg-1',
@@ -726,7 +856,9 @@ describe('BackgroundTasksDialog', () => {
     h.call(() => h.probe.current!.actions.enterDetail());
 
     h.pressKey({ sequence: 'x' });
-    h.pressKey({ name: 'left' });
+    h.pressKey({ name: 'escape' });
+    expect(h.probe.current!.state.dialogMode).toBe('detail');
+    h.pressKey({ name: 'escape' });
     expect(h.probe.current!.state.dialogMode).toBe('list');
 
     // Back in list mode, the next `x` arms again rather than confirming
@@ -753,12 +885,12 @@ describe('BackgroundTasksDialog', () => {
     h.call(() => h.probe.current!.actions.enterDetail());
 
     h.pressKey({ sequence: 'x' }); // arm the confirm step
-    expect(h.lastFrame()).toContain('x again to confirm stop');
+    expect(h.lastFrame()).toContain('x again to stop');
 
     h.setEntries([{ ...fg, status: 'completed' }]);
     expect(h.probe.current!.state.dialogMode).toBe('list');
 
-    expect(h.lastFrame()).not.toContain('x again to confirm stop');
+    expect(h.lastFrame()).not.toContain('x again to stop');
     // Esc closes the dialog outright — a stale arm would swallow it.
     h.pressKey({ name: 'escape' });
     expect(h.probe.current!.state.dialogMode).toBe('closed');
@@ -782,12 +914,12 @@ describe('BackgroundTasksDialog', () => {
     h.call(() => h.probe.current!.actions.enterDetail());
 
     h.pressKey({ sequence: 'x' }); // arm the confirm step
-    expect(h.lastFrame()).toContain('x again to confirm stop');
+    expect(h.lastFrame()).toContain('x again to stop');
 
     h.setEntries([]);
     expect(h.probe.current!.state.dialogMode).toBe('list');
 
-    expect(h.lastFrame()).not.toContain('x again to confirm stop');
+    expect(h.lastFrame()).not.toContain('x again to stop');
     // A single Esc closes the dialog — a stale arm would swallow it.
     h.pressKey({ name: 'escape' });
     expect(h.probe.current!.state.dialogMode).toBe('closed');
@@ -809,13 +941,13 @@ describe('BackgroundTasksDialog', () => {
     h.call(() => h.probe.current!.actions.enterDetail());
 
     h.pressKey({ sequence: 'x' }); // arm the confirm step
-    expect(h.lastFrame()).toContain('x again to confirm stop');
+    expect(h.lastFrame()).toContain('x again to stop');
 
     // fg disappears; other moves into the pinned index 0.
     h.setEntries([other]);
     expect(h.probe.current!.state.dialogMode).toBe('list');
 
-    expect(h.lastFrame()).not.toContain('x again to confirm stop');
+    expect(h.lastFrame()).not.toContain('x again to stop');
     h.pressKey({ name: 'escape' });
     expect(h.probe.current!.state.dialogMode).toBe('closed');
     expect(h.cancel).not.toHaveBeenCalled();
@@ -861,6 +993,7 @@ describe('BackgroundTasksDialog', () => {
 
     h.call(() => h.probe.current!.actions.openDialog());
     h.call(() => h.probe.current!.actions.enterDetail());
+    h.pressKey({ sequence: 'a' });
 
     expect(h.probe.current!.state.dialogMode).toBe('detail');
     expect(h.probe.current!.state.dialogOpen).toBe(true);
@@ -904,6 +1037,7 @@ describe('BackgroundTasksDialog', () => {
 
     h.call(() => h.probe.current!.actions.openDialog());
     h.call(() => h.probe.current!.actions.enterDetail());
+    h.pressKey({ sequence: 'a' });
 
     expect(h.probe.current!.state.dialogMode).toBe('detail');
     expect(h.lastFrame()).toContain('from nested agent: review-agent-abc123');
@@ -937,6 +1071,7 @@ describe('BackgroundTasksDialog', () => {
 
     h.call(() => h.probe.current!.actions.openDialog());
     h.call(() => h.probe.current!.actions.enterDetail());
+    h.pressKey({ sequence: 'a' });
 
     expect(h.probe.current!.state.dialogMode).toBe('detail');
     expect(h.lastFrame()).toContain('Background agent needs approval');
@@ -975,6 +1110,7 @@ describe('BackgroundTasksDialog', () => {
 
     h.call(() => h.probe.current!.actions.openDialog());
     h.call(() => h.probe.current!.actions.enterDetail());
+    h.pressKey({ sequence: 'a' });
 
     h.pressKeyBroadcast({ name: 'escape' });
 
@@ -1850,10 +1986,11 @@ describe('BackgroundTasksDialog', () => {
       h.call(() => h.probe.current!.actions.openDialog());
       h.call(() => h.probe.current!.actions.moveSelectionDown());
       h.call(() => h.probe.current!.actions.enterDetail());
+      h.pressKey({ name: 'left' });
       const frame = h.lastFrame() ?? '';
-      expect(frame).toContain('level 2 of 5');
+      expect(frame).toContain('level 2');
       expect(frame).toContain('Parent');
-      expect(frame).toContain('main › researcher — parent work');
+      expect(frame).toContain('researcher — parent work');
     });
 
     it('lists live children in the parent detail Sub-agents section', () => {
@@ -1873,9 +2010,10 @@ describe('BackgroundTasksDialog', () => {
       const h = setup([parent, child]);
       h.call(() => h.probe.current!.actions.openDialog());
       h.call(() => h.probe.current!.actions.enterDetail());
+      h.pressKey({ name: 'left' });
       const frame = h.lastFrame() ?? '';
       expect(frame).toContain('Sub-agents');
-      expect(frame).toContain('○\uFE0E explore — child work');
+      expect(frame).toMatch(/●\uFE0E? explore — child work/u);
       // The parent itself is top-level: no Parent section, no badge.
       expect(frame).not.toContain('level 1 of');
     });
@@ -1915,6 +2053,7 @@ describe('BackgroundTasksDialog', () => {
       const h = setup([parent, ...doneChildren, runningChild]);
       h.call(() => h.probe.current!.actions.openDialog());
       h.call(() => h.probe.current!.actions.enterDetail());
+      h.pressKey({ name: 'left' });
       const frame = h.lastFrame() ?? '';
       expect(frame).toContain('Sub-agents');
       // The running child is visible despite being the 6th by insertion…
@@ -1936,6 +2075,7 @@ describe('BackgroundTasksDialog', () => {
       const h = setup([orphan]);
       h.call(() => h.probe.current!.actions.openDialog());
       h.call(() => h.probe.current!.actions.enterDetail());
+      h.pressKey({ name: 'left' });
       const frame = h.lastFrame() ?? '';
       expect(frame).toContain('researcher');
       expect(frame).toContain('no longer running');
@@ -1982,6 +2122,7 @@ describe('BackgroundTasksDialog', () => {
       const h = setup([running]);
       h.call(() => h.probe.current!.actions.openDialog());
       h.call(() => h.probe.current!.actions.enterDetail());
+      h.pressKey({ name: 'left' });
       const frame = h.lastFrame() ?? '';
       expect(frame).toContain('Transcript');
       expect(frame).toContain('/tmp/subagents/agent-abc.jsonl');
@@ -1996,6 +2137,8 @@ describe('BackgroundTasksDialog', () => {
       const h = setup([entry({ recentActivities: activities })]);
       h.call(() => h.probe.current!.actions.openDialog());
       h.call(() => h.probe.current!.actions.enterDetail());
+      h.pressKey({ name: 'right' });
+      h.pressKey({ name: 'right' });
       const frame = h.lastFrame() ?? '';
       expect(frame).not.toContain('file-1.ts');
       expect(frame).toContain('file-2.ts');
@@ -2011,6 +2154,8 @@ describe('BackgroundTasksDialog', () => {
       const h = setup([entry({ recentActivities: activities })]);
       h.call(() => h.probe.current!.actions.openDialog());
       h.call(() => h.probe.current!.actions.enterDetail());
+      h.pressKey({ name: 'right' });
+      h.pressKey({ name: 'right' });
       const frame = h.lastFrame() ?? '';
       expect(frame).toContain('file-0.ts');
       expect(frame).toContain('file-9.ts');
@@ -2025,6 +2170,8 @@ describe('BackgroundTasksDialog', () => {
       const h = setup([entry({ recentActivities: activities })]);
       h.call(() => h.probe.current!.actions.openDialog());
       h.call(() => h.probe.current!.actions.enterDetail());
+      h.pressKey({ name: 'right' });
+      h.pressKey({ name: 'right' });
       const frame = h.lastFrame() ?? '';
       expect(frame).not.toContain('file-0.ts');
       expect(frame).toContain('file-1.ts');
@@ -2099,6 +2246,7 @@ describe('BackgroundTasksDialog', () => {
       const h = setup([running]);
       h.call(() => h.probe.current!.actions.openDialog());
       h.call(() => h.probe.current!.actions.enterDetail());
+      h.pressKey({ name: 'left' });
       const frame = (h.lastFrame() ?? '').replace(/\n\s*/g, '');
       // The whole path is present (the tail is not clipped off).
       expect(frame).toContain('agent-general-purpose-call-9.jsonl');

@@ -34,6 +34,8 @@ import { useTerminalSize } from '../hooks/useTerminalSize.js';
 import { StreamingState } from '../types.js';
 import { getStickyTodoMaxVisibleItemsForMode } from '../utils/todoSnapshot.js';
 import { getDialogMaxHeight } from '../utils/layoutUtils.js';
+import { getLayoutTier, sideMargin } from '../utils/layout-tier.js';
+import { useBackgroundTaskViewState } from '../contexts/BackgroundTaskViewContext.js';
 
 /** The header pinned above the conversation in full-screen mode. */
 const PinnedHeader: React.FC = () => {
@@ -57,6 +59,8 @@ export const DefaultAppLayout: React.FC = () => {
   const { refreshStatic } = useUIActions();
   const { activeView, agents } = useAgentViewState();
   const { columns: terminalWidth } = useTerminalSize();
+  const { dialogOpen: backgroundDialogOpen } = useBackgroundTaskViewState();
+  const backgroundMargin = sideMargin(getLayoutTier(terminalWidth));
   const hasAgents = agents.size > 0;
   const isAgentTab = activeView !== 'main' && agents.has(activeView);
   const stickyTodoWidth = Math.min(uiState.mainAreaWidth, 64);
@@ -121,14 +125,16 @@ export const DefaultAppLayout: React.FC = () => {
               )}
             {uiState.dialogsVisible ? (
               <Box
-                marginX={2}
+                marginX={backgroundDialogOpen ? backgroundMargin : 2}
                 flexDirection="column"
                 width={
-                  uiState.isSettingsDialogOpen
-                    ? Math.max(1, terminalWidth - 4)
-                    : uiState.isApprovalModeDialogOpen
-                      ? Math.max(1, Math.min(terminalWidth - 4, 140))
-                      : uiState.mainAreaWidth
+                  backgroundDialogOpen
+                    ? Math.max(1, terminalWidth - backgroundMargin * 2)
+                    : uiState.isSettingsDialogOpen
+                      ? Math.max(1, terminalWidth - 4)
+                      : uiState.isApprovalModeDialogOpen
+                        ? Math.max(1, Math.min(terminalWidth - 4, 140))
+                        : uiState.mainAreaWidth
                 }
                 height={
                   uiState.isApprovalModeDialogOpen ||
