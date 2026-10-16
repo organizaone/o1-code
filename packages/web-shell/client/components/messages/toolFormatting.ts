@@ -22,6 +22,7 @@ export const TOOL_DISPLAY_NAMES: Record<string, string> = {
   glob: 'Glob',
   run_shell_command: 'Shell',
   todo_write: 'TodoList',
+  report_progress: 'Progress',
   get_goal: 'Goal',
   update_goal: 'UpdateGoal',
   propose_goal: 'ProposeGoal',

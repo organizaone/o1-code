@@ -3927,6 +3927,7 @@ const ZH: Messages = {
   'toolName.glob': '查找文件',
   'toolName.run_shell_command': '运行命令',
   'toolName.todo_write': '任务清单',
+  'toolName.report_progress': '报告进度',
   'toolName.get_goal': '目标',
   'toolName.update_goal': '更新目标',
   'toolName.propose_goal': '提议目标',
