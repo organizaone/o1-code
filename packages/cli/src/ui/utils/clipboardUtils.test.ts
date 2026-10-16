@@ -14,6 +14,10 @@ import {
   type Mock,
 } from 'vitest';
 import { EventEmitter } from 'node:events';
+const windowsClipboard = vi.hoisted(() => ({ hasImage: vi.fn() }));
+vi.mock('@organizaone/o1-code-core/utils/windows-clipboard.js', () => ({
+  hasWindowsClipboardImage: windowsClipboard.hasImage,
+}));
 vi.mock('./clipboard-image-worker.js', () => ({
   saveNativeClipboardImage: vi.fn().mockResolvedValue(null),
 }));
@@ -205,6 +209,7 @@ describe('clipboardUtils', () => {
     clipboardMockState.loadDelayMs = 0;
     clipboardMockState.throwOnConstruct = false;
     clipboardMockState.throwOnHasFormat = false;
+    windowsClipboard.hasImage.mockReset().mockReturnValue(false);
     vi.resetModules();
     vi.clearAllMocks();
 
@@ -250,6 +255,43 @@ describe('clipboardUtils', () => {
       vi.stubEnv('WAYLAND_DISPLAY', 'wayland-0');
 
       expect(isWaylandSession()).toBe(true);
+    });
+  });
+
+  describe('Windows native clipboard', () => {
+    it('detects an image without loading the legacy clipboard addon', async () => {
+      Object.defineProperty(process, 'platform', {
+        value: 'win32',
+        configurable: true,
+      });
+      clipboardMockState.failLoad = true;
+      windowsClipboard.hasImage.mockReturnValue(true);
+      const unavailable = vi.fn();
+      expect(await clipboardHasImage(unavailable)).toBe(true);
+      expect(windowsClipboard.hasImage).toHaveBeenCalledOnce();
+      expect(unavailable).not.toHaveBeenCalled();
+    });
+    it('keeps an empty Windows clipboard quiet', async () => {
+      Object.defineProperty(process, 'platform', {
+        value: 'win32',
+        configurable: true,
+      });
+      const unavailable = vi.fn();
+      expect(await clipboardHasImage(unavailable)).toBe(false);
+      expect(windowsClipboard.hasImage).toHaveBeenCalledOnce();
+      expect(unavailable).not.toHaveBeenCalled();
+    });
+    it('reports native clipboard access failure distinctly from an empty clipboard', async () => {
+      Object.defineProperty(process, 'platform', {
+        value: 'win32',
+        configurable: true,
+      });
+      windowsClipboard.hasImage.mockImplementation(() => {
+        throw new Error('Windows clipboard access failed');
+      });
+      const unavailable = vi.fn();
+      expect(await clipboardHasImage(unavailable)).toBe(false);
+      expect(unavailable).toHaveBeenCalledOnce();
     });
   });
 

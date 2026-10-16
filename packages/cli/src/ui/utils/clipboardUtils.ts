@@ -12,6 +12,7 @@ import { randomUUID } from 'node:crypto';
 import { createDebugLogger } from '@organizaone/o1-code-core';
 import { wrapForMultiplexer } from '../../utils/osc.js';
 import { saveNativeClipboardImage } from './clipboard-image-worker.js';
+import { hasWindowsClipboardImage } from '@organizaone/o1-code-core/utils/windows-clipboard.js';
 
 const debugLogger = createDebugLogger('CLIPBOARD_UTILS');
 
@@ -64,21 +65,22 @@ let linuxClipboardTool: 'wl-paste' | 'xclip' | null | undefined;
 // Cache for wl-paste image types (reset after each paste operation)
 let cachedWlPasteImageTypes: string[] | null = null;
 
-// Cache for @teddyzhu/clipboard module (macOS/Windows fallback)
+// Cache for the native addon used outside Windows and Linux.
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 let clipboardModulePromise: Promise<any | null> | null = null;
 
 /**
  * Get and cache the @teddyzhu/clipboard module.
- * Only used on macOS/Windows as fallback for Linux platform-native tools.
+ * Windows uses system APIs; Linux uses its display server's clipboard tools.
  */
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 async function getClipboardModule(): Promise<any | null> {
   if (!clipboardModulePromise) {
     const modName = '@teddyzhu/clipboard';
-    clipboardModulePromise = import(modName).catch(() => {
+    clipboardModulePromise = import(modName).catch((error: unknown) => {
       debugLogger.error(
         'Failed to load @teddyzhu/clipboard native module. Clipboard image features will be unavailable.',
+        error,
       );
       return null;
     });
@@ -314,6 +316,15 @@ export async function clipboardHasImage(
   onUnavailable?: () => void,
 ): Promise<boolean> {
   cachedWlPasteImageTypes = null; // Fresh check each time
+  if (process.platform === 'win32') {
+    try {
+      return hasWindowsClipboardImage();
+    } catch (error) {
+      debugLogger.error('Error accessing Windows clipboard images:', error);
+      onUnavailable?.();
+      return false;
+    }
+  }
   if (process.platform === 'linux') {
     try {
       const tool = getLinuxClipboardTool();

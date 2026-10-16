@@ -184,6 +184,8 @@ const mainBuild = esbuild.build({
   entryPoints: {
     cli: 'packages/cli/src/cli.ts',
     'execution-worker': 'packages/core/src/services/execution-worker-main.ts',
+    'windows-clipboard-worker':
+      'packages/cli/src/ui/utils/windows-clipboard-worker.ts',
   },
   bundle: true,
   outdir: 'dist',

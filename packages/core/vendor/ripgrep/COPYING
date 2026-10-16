@@ -1,3 +1,14 @@
 This project is dual-licensed under the Unlicense and MIT licenses.
 
 You may use this code under the terms of either license.
+
+The arm64-win32/rg.exe binary is unmodified from the official ripgrep 15.0.0
+release by Andrew Gallant:
+https://github.com/BurntSushi/ripgrep/releases/tag/15.0.0
+Archive: ripgrep-15.0.0-aarch64-pc-windows-msvc.zip
+https://github.com/BurntSushi/ripgrep/releases/download/15.0.0/ripgrep-15.0.0-aarch64-pc-windows-msvc.zip
+Archive SHA256 (verified against the release's .zip.sha256 asset):
+572709c8770cb7f9385d725cb06d2bcd9537ec24d4dd17b1be1d65a876f8b591
+Binary SHA256:
+85807e3c3af7c59c5086ac496100036f3a2b3ad54a5569b3c46925cd441d4c15
+LICENSE-MIT and UNLICENSE are included verbatim from that archive.

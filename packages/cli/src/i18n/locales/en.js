@@ -8,6 +8,8 @@
 // The key serves as both the translation key and the default English text
 
 export default {
+  'Clipboard images are unavailable in this session. Attach the image file directly.':
+    'Clipboard images are unavailable in this session. Attach the image file directly.',
   '← back · x stop': '← back · x stop',
   'Additional content omitted; inspect the transcript.':
     'Additional content omitted; inspect the transcript.',

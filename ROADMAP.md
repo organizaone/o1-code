@@ -32,10 +32,11 @@ In this order.
 
 ### Remaining Windows process helpers
 
-Windows sleep requests and browser opening use optional native bindings, text clipboard reads
-reuse the native clipboard module, and standalone updates extract ZIP files in Node. These changes
-do not make every Windows feature independent of PowerShell. The following fixed helpers remain
-until equivalent native behavior is demonstrated in supported Windows environments:
+Windows sleep requests, browser opening and clipboard reads use optional native bindings to Windows
+APIs, and standalone updates extract ZIP files in Node. Clipboard PNG/bitmap fixtures and the shipped
+image worker pass after an isolated npm installation on Windows 11 ARM64 without an ARM64 Visual C++
+runtime. These changes do not make every Windows feature independent of PowerShell. The following
+fixed helpers remain until equivalent native behavior is demonstrated in supported Windows environments:
 
 | Consumer                                             | Retained helper                                                         | Required parity before migration                                                                                                                         |
 | ---------------------------------------------------- | ----------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------- |

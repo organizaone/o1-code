@@ -346,8 +346,36 @@ async function resolveHealthyRipgrep(
       throw error;
     }
     debugLogger.warn(
-      `Bundled ripgrep at ${selection.command} is unusable (${error}); trying system rg.`,
+      `Bundled ripgrep at ${selection.command} is unusable (${error}); trying alternatives.`,
     );
+
+    // Official ARM64 builds may require an absent VC runtime. Windows 11 ARM64
+    // can run our statically linked x64 build without installing that runtime.
+    if (
+      process.platform === 'win32' &&
+      process.arch === 'arm64' &&
+      path.basename(path.dirname(selection.command)) === 'arm64-win32'
+    ) {
+      const compatible: RipgrepSelection = {
+        mode: 'builtin',
+        command: path.join(
+          path.dirname(path.dirname(selection.command)),
+          'x64-win32',
+          'rg.exe',
+        ),
+      };
+      try {
+        if (await fileExists(compatible.command)) {
+          await ensureRipgrepHealthy(compatible);
+          cachedSelections.set(true, compatible);
+          return compatible;
+        }
+      } catch (compatibilityError) {
+        debugLogger.warn(
+          `Bundled x64 ripgrep is unusable: ${compatibilityError}`,
+        );
+      }
+    }
 
     let fallback: RipgrepSelection | null = null;
     try {
