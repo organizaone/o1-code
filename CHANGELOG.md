@@ -7,6 +7,8 @@ follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.19.4] - 2026-10-15
+
 ### Fixed
 
 - Terminal wake recovery now redraws the complete current interface, preserving borders and input when incremental rendering is enabled.
