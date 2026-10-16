@@ -62,6 +62,7 @@ const DIST_REQUIRED_PATHS = [
   'cli-entry.js',
   'codeModeHost.js',
   'execution-worker.js',
+  'windows-clipboard-worker.js',
   'sandboxBwrapRelay.js',
   'sandboxFileWorker.js',
   'chunks',
@@ -73,6 +74,7 @@ const DIST_ALLOWED_ENTRIES = new Set([
   'release-notes.json',
   'cli.js',
   'execution-worker.js',
+  'windows-clipboard-worker.js',
   // bin wrapper emitted by prepare-package.js. Standalone shims use it for
   // `o1-code serve` so daemon startup gets the same fast path as npm installs.
   'cli-entry.js',

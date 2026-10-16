@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { EventEmitter } from 'node:events';
 import {
   _resetRipgrepUtilsCachesForTest,
@@ -657,6 +657,70 @@ describe('ripgrepUtils', () => {
         retrySucceeded: true,
         failureKind: 'eagain',
       });
+    });
+  });
+
+  describe('Windows ARM64 bundled compatibility fallback', () => {
+    beforeEach(() => {
+      vi.spyOn(process, 'platform', 'get').mockReturnValue('win32');
+      vi.spyOn(process, 'arch', 'get').mockReturnValue('arm64');
+      vi.mocked(fileExists).mockResolvedValue(true);
+      vi.mocked(isCommandAvailable).mockReturnValue({ available: false });
+    });
+
+    afterEach(() => vi.restoreAllMocks());
+
+    it('uses and caches bundled x64 when native ARM64 cannot load its runtime', async () => {
+      vi.mocked(execCommand).mockImplementation(async (command: string) => {
+        if (command.includes('arm64-win32')) throw new Error('Missing runtime');
+        return { stdout: 'ripgrep 15.0.0', stderr: '', code: 0 };
+      });
+      await expect(canUseRipgrep(true)).resolves.toBe(true);
+      expect(await resolveRipgrep(true)).toEqual({
+        mode: 'builtin',
+        command: path.join(
+          path.dirname(path.dirname(getBuiltinRipgrep()!)),
+          'x64-win32',
+          'rg.exe',
+        ),
+      });
+      expect(isCommandAvailable).not.toHaveBeenCalled();
+      vi.mocked(execCommand).mockClear();
+      await expect(canUseRipgrep(true)).resolves.toBe(true);
+      expect(execCommand).not.toHaveBeenCalled();
+    });
+
+    it('prefers native ARM64 when it runs', async () => {
+      vi.mocked(execCommand).mockResolvedValue({
+        stdout: 'ripgrep 15.0.0',
+        stderr: '',
+        code: 0,
+      });
+      await expect(canUseRipgrep(true)).resolves.toBe(true);
+      expect(execCommand).toHaveBeenCalledTimes(1);
+      expect(await resolveRipgrep(true)).toMatchObject({
+        command: getBuiltinRipgrep(),
+      });
+    });
+
+    it('continues to system ripgrep if both bundled architectures fail', async () => {
+      vi.mocked(isCommandAvailable).mockReturnValue({ available: true });
+      vi.mocked(execCommand).mockImplementation(async (command: string) => {
+        if (command !== 'rg') throw new Error('Bundled executable unavailable');
+        return { stdout: 'ripgrep 15.0.0', stderr: '', code: 0 };
+      });
+      await expect(canUseRipgrep(true)).resolves.toBe(true);
+      expect(execCommand).toHaveBeenCalledTimes(3);
+      expect(await resolveRipgrep(true)).toEqual({
+        mode: 'system',
+        command: 'rg',
+      });
+    });
+
+    it('honors system-only selection on ARM64', async () => {
+      await expect(canUseRipgrep(false)).resolves.toBe(false);
+      expect(fileExists).not.toHaveBeenCalled();
+      expect(execCommand).not.toHaveBeenCalled();
     });
   });
 

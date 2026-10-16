@@ -7,6 +7,9 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { canUseRipgrep } from '@organizaone/o1-code-core/utils/ripgrepUtils.js';
+import { createDebugLogger } from '@organizaone/o1-code-core/utils/debugLogger.js';
+
+const debugLogger = createDebugLogger('STARTUP');
 
 type WarningCheckOptions = {
   workspaceRoot: string;
@@ -50,12 +53,16 @@ const ripgrepAvailabilityCheck: WarningCheck = {
     try {
       const isAvailable = await canUseRipgrep(options.useBuiltinRipgrep);
       if (!isAvailable) {
-        return 'Ripgrep not available: Please install ripgrep globally to enable faster file content search. Falling back to built-in grep.';
+        debugLogger.warn(
+          'Ripgrep not available. Falling back to built-in grep.',
+        );
       }
-      return null;
     } catch (error) {
-      return `Ripgrep not available: ${error instanceof Error ? error.message : 'Unknown error'}. Falling back to built-in grep.`;
+      debugLogger.warn(
+        `Ripgrep not available: ${error instanceof Error ? error.message : 'Unknown error'}. Falling back to built-in grep.`,
+      );
     }
+    return null;
   },
 };
 

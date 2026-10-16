@@ -94,12 +94,21 @@ dependency. It can reuse `integration-tests/fake-openai-server.ts` and the scena
 | Subagent dashboard    | Run two agents reporting explicit progress; switch tabs without leaving the roster, enter details, return with Esc, and resize 120×40 → 70×24 → 120×40. | Filled active tab and primary shortcuts remain distinct; the roster count stays pinned; all frame edges retain their columns and long details remain reachable. |
 | Wake recovery         | Freeze the test process long enough to exceed the heartbeat threshold, resume it, then type.                                                                         | The current tree is repainted completely, unchanged borders return and input remains usable. Record the actual gap.                                                                                                         |
 | Sleep prevention      | With the feature enabled, observe power requests during active work, completion and cancellation. Exercise optional-native-binding absence separately when relevant. | Requests are acquired and released with work; the unavailable-binding path follows its documented diagnostic behavior. Recovery after a pause does not prove prevention of sleep.                                           |
+| Clipboard             | Use synthetic empty, Unicode text, padded registered PNG and bitmap-only clipboard fixtures; exercise the shipped image worker and attachment save after isolated npm installation. Test cancellation, busy/unavailable access and existing destination files in scoped regressions. | Text and PNG bytes survive intact; bitmap PNG dimensions and decoded pixels match. No external clipboard-addon runtime is required on Windows. Failures preserve unrelated files, release owned resources and distinguish unavailable access from no image. |
+| Bundled search        | Start without a global `rg`; search a file whose path contains spaces and accents. On Windows ARM64, test a usable native executable and the missing-native-runtime path; retain system-only selection tests. | The packaged executable runs and returns the expected match. ARM64 is preferred; the bundled x64 executable is health-probed before system fallback. No technical startup warning appears when functional fallback is available; diagnostics remain inspectable. |
 
 Use the production feedback hook with controlled eligibility/randomness in an isolated process;
 forcing a dialog directly does not verify the transition that changes composer height. For layout,
 assert geometry and controls as well as text markers: all expected words can survive in a corrupted
 frame. Keep native fixture overrides and any temporary PATH adjustments in the evidence. Repeat the
 final scenario without diagnostic output filtering or workarounds that hide the defect.
+
+Clipboard fixtures replace the test guest's clipboard; use synthetic data and do not capture a user's
+clipboard contents as evidence. Record whether the machine lacks the matching Visual C++ runtime:
+the October 2026 Windows 11 ARM64/Node 24.22.0 isolated npm validation exercised PNG, bitmap, text,
+the shipped worker and bundled x64 search without adding that runtime. A read-only inspection of a
+separate Node 24.18.0 installation established the old addon loader failure; it did not validate an
+updated installation there.
 
 ## Driver details that affect results
 

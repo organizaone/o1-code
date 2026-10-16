@@ -1966,7 +1966,7 @@ describe('InputPrompt', () => {
       expect(addItem).toHaveBeenCalledWith(
         {
           type: 'error',
-          text: 'Clipboard image paste is unavailable because the native clipboard module could not be loaded. Reinstall O1-Code or use the npm installation method.',
+          text: 'Clipboard images are unavailable in this session. Attach the image file directly.',
         },
         expect.any(Number),
       );

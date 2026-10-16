@@ -863,7 +863,7 @@ export const InputPrompt: React.FC<InputPromptProps> = ({
       {
         type: 'error',
         text: t(
-          'Clipboard image paste is unavailable because the native clipboard module could not be loaded. Reinstall O1-Code or use the npm installation method.',
+          'Clipboard images are unavailable in this session. Attach the image file directly.',
         ),
       },
       Date.now(),

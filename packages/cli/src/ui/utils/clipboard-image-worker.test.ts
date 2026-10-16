@@ -1,5 +1,5 @@
 /** Copyright 2026 o1-code contributors. SPDX-License-Identifier: Apache-2.0 */
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { beforeEach, afterEach, describe, expect, it, vi } from 'vitest';
 import { mkdtemp, writeFile, readFile, rm, access } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -23,7 +23,12 @@ vi.mock('node:worker_threads', async (importOriginal) => {
   };
 });
 let directory = '';
+beforeEach(() => {
+  // These worker fixtures emulate the addon; Windows extraction has its own native entry point.
+  vi.spyOn(process, 'platform', 'get').mockReturnValue('darwin');
+});
 afterEach(async () => {
+  vi.restoreAllMocks();
   if (directory) await rm(directory, { recursive: true, force: true });
 });
 async function setup(body: string) {
@@ -73,5 +78,31 @@ describe('native clipboard image worker', () => {
       'clipboard locked',
     );
     await expect(access(destination)).rejects.toMatchObject({ code: 'ENOENT' });
+  });
+  it('preserves an existing file when extraction fails', async () => {
+    const destination = await setup(
+      "hasFormat() { return true; } getImageData() { throw new Error('clipboard locked'); }",
+    );
+    await writeFile(destination, 'keep existing file');
+    await expect(saveNativeClipboardImage(destination)).rejects.toThrow(
+      'clipboard locked',
+    );
+    expect(await readFile(destination, 'utf8')).toBe('keep existing file');
+  });
+  it('refuses to overwrite an existing file and preserves its contents', async () => {
+    const destination = await setup(
+      "hasFormat() { return true; } getImageData() { return {data: Buffer.from('image')}; }",
+    );
+    await writeFile(destination, 'keep existing file');
+    await expect(saveNativeClipboardImage(destination)).rejects.toMatchObject({
+      code: 'EEXIST',
+    });
+    expect(await readFile(destination, 'utf8')).toBe('keep existing file');
+  });
+  it('does not delete an existing file when the clipboard contains no image', async () => {
+    const destination = await setup('hasFormat() { return false; }');
+    await writeFile(destination, 'keep existing file');
+    expect(await saveNativeClipboardImage(destination)).toBeNull();
+    expect(await readFile(destination, 'utf8')).toBe('keep existing file');
   });
 });

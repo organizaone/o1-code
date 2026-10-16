@@ -7,6 +7,12 @@ follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Fixed
+
+- Fresh Windows ARM64 installations include ripgrep and can use the bundled x64 executable when the native executable's runtime is unavailable. Search fallback diagnostics no longer appear as a technical startup warning.
+- Windows clipboard image paste and text reads use Windows APIs instead of a clipboard addon that could fail to load without a matching Visual C++ runtime. PNG and bitmap images are extracted outside the interface thread; unavailable clipboard access offers attaching the image file directly.
+- Failed or cancelled clipboard image preparation preserves existing destination files.
+
 ## [0.20.0] - 2026-10-16
 
 ### Enhanced

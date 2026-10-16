@@ -7,13 +7,14 @@ import { readWindowsClipboardText } from './clipboard-text.js';
 
 const native = vi.hoisted(() => ({ load: vi.fn(), getText: vi.fn() }));
 vi.mock('node:module', () => ({ createRequire: () => native.load }));
+vi.mock('@organizaone/o1-code-core/utils/windows-clipboard.js', () => ({
+  getWindowsClipboardText: native.getText,
+}));
 
 describe('readWindowsClipboardText', () => {
   beforeEach(() => {
-    native.load.mockReset().mockReturnValue({
-      ClipboardManager: class {
-        getText = native.getText;
-      },
+    native.load.mockReset().mockImplementation(() => {
+      throw new Error('Legacy addon must not be loaded on Windows');
     });
     native.getText.mockReset();
   });
@@ -22,11 +23,12 @@ describe('readWindowsClipboardText', () => {
     (text) => {
       native.getText.mockReturnValue(text);
       expect(readWindowsClipboardText()).toBe(text);
-      expect(native.load).toHaveBeenCalledWith('@teddyzhu/clipboard');
+      expect(native.getText).toHaveBeenCalledOnce();
+      expect(native.load).not.toHaveBeenCalled();
     },
   );
   it('returns unavailable when the optional module is absent', () => {
-    native.load.mockImplementation(() => {
+    native.getText.mockImplementation(() => {
       throw new Error('missing binding');
     });
     expect(readWindowsClipboardText()).toBeUndefined();
