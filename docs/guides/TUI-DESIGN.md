@@ -162,6 +162,11 @@ optional survey reserves or releases its rows before the conversation settles. W
 asks Ink to invalidate its incremental cache and render the current tree over a clean viewport;
 replaying captured terminal writes cannot reconstruct a frame from partial row updates.
 
+Height budgets include the pinned header, frame, notices and controls before allocating scrollable
+content. Re-measure when an optional control appears or disappears. A pending question brings itself
+into view and owns keyboard and wheel scrolling until answered; the surrounding transcript must
+not consume those same events. Full-detail mode preserves the confirmation's finite height budget.
+
 ### Header
 
 Each row has an independent left and right side: a long item on the right never squeezes the left.
@@ -567,8 +572,11 @@ Windows Terminal, VS Code and others do. Resolved once at startup (`llm.tsx`), r
 **Ambiguous-width rule** (also in `STACK-O1-CODE.md`): no East Asian Ambiguous glyph (`△`, `⚠`, `✔`,
 …) in a row that can reach the full terminal width, even with VS15. Windows Terminal draws some of
 them two columns wide, the row wraps where Ink counts one, and every later repaint is off by a line.
-Use ASCII or a glyph from `glyphs()`. The ambiguous glyphs the sets keep carry VS15 so CJK terminals
-draw them one column wide, as Ink measures them.
+Use ASCII or a glyph from `glyphs()`. On macOS and Linux, the ambiguous glyphs the sets keep carry
+VS15 so CJK terminals draw them one column wide, as Ink measures them. On Windows, plain symbols
+omit that selector: ConPTY can advance an extra column for these sequences, wrapping a footer and
+displacing the frame. Keep the text selector for symbols with an emoji presentation, including
+`ICON.CROSS` and `ICON.SPARKLE`; the plain-symbol exception does not replace the rule below.
 
 **Emoji-presentation rule:** on Windows, a symbol that has both a text and an emoji presentation
 (`ℹ`, `▶`, `☑`, `⚠`, `✔`, `✖`) in tool output and code blocks gets the text-presentation selector
@@ -594,15 +602,24 @@ After building and bundling, run the real CLI against a local fake provider with
 ```bash
 node --import tsx integration-tests/terminal-capture/terminal-layout-regression.ts feedback
 node --import tsx integration-tests/terminal-capture/terminal-layout-regression.ts question
+node --import tsx integration-tests/terminal-capture/terminal-layout-regression.ts resize
 ```
 
 These checks require the installed Playwright Chromium browser. They use temporary settings and
 six conversation turns, assert the visible terminal contents, and save screenshots and raw output.
 The question scenario pages down and back up, sends mouse-wheel events, and toggles full-detail
 mode. `O1CODE_TUI_E2E_OUT` selects the capture directory. Renderer composition, dialog row budgets,
-custom answers and plugin navigation also have collocated CLI tests.
+custom answers and plugin navigation also have collocated CLI tests. The resize scenario shrinks
+from 100×30 to 80×24 and 60×18, restores 100×30, and verifies that the complete original input is
+submitted. Verify border positions and controls as well as marker text: a frame can contain all
+expected words while still being misaligned.
+
+These captures render through xterm.js. They do not establish how a Windows terminal draws a glyph.
+Use the native execution and evidence procedure in [Windows validation](WINDOWS-VALIDATION.md)
+when changing Windows rendering, shells or process handling.
 
 ## See also
 
 - `STACK-O1-CODE.md` — Windows rules, including the ambiguous-width rule.
+- `WINDOWS-VALIDATION.md` — native test setup, scenario matrix and evidence requirements.
 - `../../README.md` (Principles) and `../../ROADMAP.md` — what the product is and what comes next.

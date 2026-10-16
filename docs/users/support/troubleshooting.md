@@ -55,6 +55,35 @@ This guide provides solutions to common issues and debugging tips, including top
     - Alternative: set the environment variable `O1CODE_SAFE_MODE=true` if the CLI cannot accept flags.
     - Note: "MCP servers" here means servers configured in `settings.json` / project `.mcp.json` — local, ambient state that safe mode is meant to isolate against. MCP servers you explicitly supply for the current invocation (an embedding ACP client's `session/new` `mcpServers`, or `--mcp-config`) are not local/ambient state and are still honored under safe mode.
 
+## Terminal layout and Windows commands
+
+If borders, choices or input lines become displaced, record the terminal application's name and
+version, Windows or macOS version, `o1-code --version`, `node --version`, terminal dimensions and the
+steps that triggered the problem. Note whether it followed resizing, sleep/resume, a long input or
+an opened dialog. Include a screenshot with credentials and private project information removed.
+
+On Windows, try `ui.glyphs: "compat"` in your user settings when symbols render incorrectly, then
+restart the CLI. This changes the interface's symbols; it does not select the command shell. For
+duplicated streaming lines, the incremental-rendering diagnostic in the FAQ above is a separate
+setting. Report which setting changed the result.
+
+To select the agent's command shell, open `/settings`, find **Agent Shell**, choose the shell and
+restart the CLI. Automatic selection on Windows prefers installed Git Bash, then Command Prompt.
+PowerShell can be selected explicitly. **Agent Shell Executable** accepts an absolute executable
+path when a shell is explicitly selected. These settings belong in user or system configuration;
+project settings cannot override them. The terminal application hosting O1-Code and the agent's
+command shell are separate choices.
+
+When reporting shell failures, include the selected shell, its resolved executable and version,
+the exact command, working directory, output and exit code. For a cancellation issue, record the
+test process PID before pressing Esc and check that specific PID afterward. A list of unrelated
+`node.exe` processes cannot establish whether cancellation worked.
+
+If the issue concerns sleep prevention, record `general.preventSystemSleep`, whether work was
+active, and whether the system actually slept. Recovery after a frozen process and prevention of
+system sleep are separate behaviors. Maintainers use the
+[Windows validation guide](../../guides/WINDOWS-VALIDATION.md) to reproduce these scenarios.
+
 ## Common error messages and solutions
 
 - **Error: `params must have required property 'file_path'`, sometimes accompanied by XML tool-call tags.**

@@ -161,6 +161,13 @@ For an exception commit:
 
 ## Deviations in this project
 
+- **Native Windows validation follows the changed behavior.** Changes to ConPTY rendering,
+  Windows shell discovery, process cancellation or native APIs include the applicable scenarios
+  from [Windows validation](WINDOWS-VALIDATION.md). Run them on an available native Windows machine
+  or VM, and record OS, architecture, runtime, scenario results and evidence type. If that environment
+  is unavailable, report the native checks as not run; host emulation and platform mocks do not
+  count as native execution. A controlled heartbeat gap is recorded separately from physical sleep.
+  This adds focused checks, not a requirement to run the full product suites locally.
 - **Step 3, test reach.** The full suite is expensive (3 GB heap, thousands of files).
   The CI's explicitly requested `full` matrix runs `npm run test:ci` for core, CLI,
   SDK, ACP bridge, Node REPL, VS Code companion and audio capture. Web Shell tests
