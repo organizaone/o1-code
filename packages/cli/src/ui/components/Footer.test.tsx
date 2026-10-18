@@ -10,7 +10,7 @@ import type { DOMElement } from 'ink';
 import stripAnsi from 'strip-ansi';
 import { EventEmitter } from 'node:events';
 import { createRef, type RefObject } from 'react';
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { Footer } from './Footer.js';
 import {
   ApprovalMode,
@@ -30,7 +30,8 @@ import { VimModeProvider } from '../contexts/VimModeContext.js';
 import { SettingsContext } from '../contexts/SettingsContext.js';
 import { KeypressProvider } from '../contexts/KeypressContext.js';
 import type { LoadedSettings } from '../../config/settings.js';
-import { StreamingState } from '../types.js';
+import { MessageType, StreamingState } from '../types.js';
+import { AuthType } from '@organizaone/o1-code-core/utils/auth-type.js';
 
 vi.mock('../hooks/useTerminalSize.js');
 const useTerminalSizeMock = vi.mocked(useTerminalSize.useTerminalSize);
@@ -71,7 +72,11 @@ const createMockConfig = (overrides = {}) => ({
   getModelDisplayName: vi.fn(() => 'glm-5.3'),
   getTargetDir: vi.fn(() => '/test/project'),
   getDebugMode: vi.fn(() => false),
-  getContentGeneratorConfig: vi.fn(() => ({ contextWindowSize: 131072 })),
+  getContentGeneratorConfig: vi.fn(() => ({
+    model: 'glm-5.3',
+    baseUrl: 'https://provider.example/v1',
+    contextWindowSize: 131072,
+  })),
   getMcpServers: vi.fn(() => ({})),
   getBlockedMcpServers: vi.fn(() => []),
   getProjectRoot: vi.fn(() => '/test/project'),
@@ -273,6 +278,10 @@ const renderAtLayoutWidth = (
 
 describe('<Footer />', () => {
   beforeEach(() => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(() => new Promise(() => {})),
+    );
     useStatusLineMock.mockReturnValue({
       lines: [],
       useThemeColors: false,
@@ -289,6 +298,11 @@ describe('<Footer />', () => {
     });
   });
 
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    vi.unstubAllEnvs();
+  });
+
   it('keeps model and usage visible while paste feedback belongs to the composer', async () => {
     const { lastFrame, stdin, unmount } = renderAtLayoutWidth(
       100,
@@ -299,7 +313,7 @@ describe('<Footer />', () => {
       stdin.emit('data', Buffer.from('\x1b[200~pending text'));
       await new Promise((resolve) => setTimeout(resolve, 50));
       expect(stripAnsi(lastFrame())).toContain('glm-5.3');
-      expect(stripAnsi(lastFrame())).toContain('online');
+      expect(stripAnsi(lastFrame())).toContain('checking');
       expect(stripAnsi(lastFrame())).not.toContain('Pasting');
       stdin.emit('data', Buffer.from('\x1b[201~'));
     } finally {
@@ -506,6 +520,77 @@ describe('<Footer />', () => {
     expect(frame).toContain('no provider');
   });
 
+  it('does not report online before checking the selected provider', async () => {
+    const { lastFrame, unmount } = renderWithWidth(120, createMockUIState(), {
+      getContentGeneratorConfig: vi.fn(() => ({
+        model: 'glm-5.3',
+        baseUrl: 'https://provider.example/v1',
+        contextWindowSize: 131072,
+      })),
+    });
+    try {
+      await new Promise((resolve) => setTimeout(resolve, 20));
+      expect(lastFrame()).toContain('checking');
+      expect(lastFrame()).not.toContain('online');
+    } finally {
+      unmount();
+    }
+  });
+
+  it('checks the Vertex AI regional endpoint when no base URL is configured', async () => {
+    vi.stubEnv('GOOGLE_CLOUD_LOCATION', 'us-central1');
+    const fetchMock = vi.fn(() => new Promise(() => {}));
+    vi.stubGlobal('fetch', fetchMock);
+    const { unmount } = renderWithWidth(120, createMockUIState(), {
+      getContentGeneratorConfig: vi.fn(() => ({
+        authType: AuthType.USE_VERTEX_AI,
+        model: 'vertex-model',
+        contextWindowSize: 131072,
+      })),
+    });
+    try {
+      await new Promise((resolve) => setTimeout(resolve, 20));
+      expect(fetchMock).toHaveBeenCalledWith(
+        'https://us-central1-aiplatform.googleapis.com/models',
+        expect.objectContaining({ method: 'HEAD' }),
+      );
+    } finally {
+      unmount();
+    }
+  });
+
+  it('keeps the footer short and records the connection failure reason once', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi
+        .fn()
+        .mockRejectedValue(
+          Object.assign(new Error('unreachable'), { code: 'ENETUNREACH' }),
+        ),
+    );
+    const addItem = vi.fn();
+    const { lastFrame, unmount } = renderWithWidth(
+      120,
+      createMockUIState({
+        historyManager: { addItem } as unknown as UIState['historyManager'],
+      }),
+    );
+    try {
+      await new Promise((resolve) => setTimeout(resolve, 20));
+      expect(lastFrame()).toContain('failed');
+      expect(lastFrame()).not.toContain('network unreachable');
+      expect(addItem).toHaveBeenCalledWith(
+        {
+          type: MessageType.WARNING,
+          text: 'Provider connection failed: network unreachable',
+        },
+        expect.any(Number),
+      );
+    } finally {
+      unmount();
+    }
+  });
+
   it('does not display the working directory or branch name', () => {
     const { lastFrame } = renderWithWidth(120, createMockUIState());
     expect(lastFrame()).not.toMatch(/\(.*\*\)/);
@@ -537,7 +622,7 @@ describe('<Footer />', () => {
       expect(frame).toContain('● AUTO │ glm-5.3');
       expect(frame).toContain('⎇ main +31 -6');
       expect(frame).toContain('% ctx');
-      expect(frame).toContain('● online');
+      expect(frame).toContain('○ checking');
     });
 
     it('lets a transient notice take the first zone', () => {

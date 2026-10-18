@@ -328,8 +328,16 @@ Three zones spread across the width (`footer-zones.tsx`):
 2. **Git:** `⎇ main` in accent, `+31` green `-6` red: the working-tree diff. A worktree shows its
    own branch. The folder is not repeated here; it is in the header.
 3. **Usage:** 6-cell context bar in brand, `81% ctx`, `12.4k tok` (this turn's tokens), the turn
-   time, and `● online` (green), `● failed` (red) or `○ no provider` (muted). "Online" means the last
-   request succeeded. Idle: `0% ctx · — tok · —`.
+   time, and `○ checking` (muted), `● online` (green), `● failed` (red) or
+   `○ no provider` (muted). The selected provider is checked on startup and every 30 seconds after
+   each completed check, with a three-second timeout and no credentials or prompt content sent.
+   HTTP 2xx and most 4xx responses confirm reachability; redirects, HTTP 407, transport errors
+   and 5xx responses show `failed`. Vertex AI uses the regional endpoint selected by
+   `GOOGLE_CLOUD_LOCATION`, or the global endpoint when no region is set or in express mode.
+   `GOOGLE_VERTEX_BASE_URL` and `GOOGLE_GEMINI_BASE_URL` override the respective defaults.
+   A streaming answer confirms `online`, while a pending request error shows `failed`.
+   The conversation receives the failure reason once per outage, never on every poll. Idle:
+   `0% ctx · — tok · —`.
 
 The turn time counts the whole turn, approvals included, on the same base as its tokens. A custom
 `ui.statusLine` replaces zone 3. When `ui.showModelQuotaInFooter` is enabled for an OrganizaOne
@@ -355,7 +363,7 @@ and `sideMargin(tier)`. Components read it through `hooks/use-layout-tier.ts`; `
 | `full`    | ≥ 120   | nothing                                                                                                                                                           |
 | `medium`  | 100–119 | context bar; `ctrl+c quit` hint                                                                                                                                   |
 | `compact` | 80–99   | footer git zone; active skill; memory bar; `@ files` hint; `reasoning high` becomes `high`; approval options stack vertically                                     |
-| `minimal` | < 80    | logo becomes the wordmark; hints; memory row; reasoning; `summary`; tokens; inactive chip labels; `online`/`failed`/`no provider` text (dot stays); side margin 1 |
+| `minimal` | < 80    | logo becomes the wordmark; hints; memory row; reasoning; `summary`; tokens; inactive chip labels; `checking`/`online`/`failed`/`no provider` text (dot stays); side margin 1 |
 
 Side margin is 2 columns, 1 under 80. Under 80 the header is three rows: wordmark and version,
 notices (shortened to `↑ v… · /update` and `● MCP · /mcp`), and the path right-aligned. The path

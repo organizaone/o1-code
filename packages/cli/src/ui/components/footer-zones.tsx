@@ -150,7 +150,7 @@ export const UsageZone: React.FC<{
   contextPercent: number;
   tokens?: number;
   turnStartedAt?: number;
-  status: 'online' | 'failed' | 'none';
+  status: 'checking' | 'online' | 'failed' | 'none';
   modelQuota?: ModelQuotaFooterState;
 }> = ({ tier, contextPercent, tokens, turnStartedAt, status, modelQuota }) => {
   const wide = atLeast(tier, 'compact');
@@ -160,6 +160,10 @@ export const UsageZone: React.FC<{
     status === 'failed' ? (
       <Text color={theme.status.error}>
         {`${glyphs().dot}${wide ? ` ${t('failed')}` : ''}`}
+      </Text>
+    ) : status === 'checking' ? (
+      <Text color={extendedTheme.text.muted}>
+        {`${glyphs().hollow}${wide ? ` ${t('checking')}` : ''}`}
       </Text>
     ) : status === 'none' ? (
       <Text color={extendedTheme.text.muted}>

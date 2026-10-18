@@ -2183,6 +2183,7 @@ export default {
   medium: 'medium',
   high: 'high',
   online: 'online',
+  checking: 'checking',
   '↑↓ navigate · tab complete · enter select · esc close':
     '↑↓ navigate · tab complete · enter select · esc close',
   '↑↓ navigate · enter select · esc close':
@@ -2406,6 +2407,14 @@ export default {
   canceled: 'canceled',
   failed: 'failed',
   'no provider': 'no provider',
+  'Provider connection failed: {{reason}}':
+    'Provider connection failed: {{reason}}',
+  'DNS lookup failed': 'DNS lookup failed',
+  'connection refused': 'connection refused',
+  'network unreachable': 'network unreachable',
+  'connection timed out': 'connection timed out',
+  'connection failed': 'connection failed',
+  'provider returned HTTP {{status}}': 'provider returned HTTP {{status}}',
   info: 'info',
   reading: 'reading',
   writing: 'writing',
