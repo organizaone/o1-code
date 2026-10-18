@@ -7,6 +7,10 @@ follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Fixed
+
+- The terminal footer checks the selected provider at startup and periodically, so an unavailable connection no longer appears online before the first model request. The indicator stays short; the conversation shows the reason once per outage.
+
 ## [0.20.2] - 2026-10-16
 
 ### Fixed

@@ -38,6 +38,10 @@ import {
   useModelQuotaFooter,
 } from '../hooks/use-model-quota-footer.js';
 import type { Config } from '@organizaone/o1-code-core/config/config.js';
+import {
+  getProviderConnectionBaseUrl,
+  useProviderConnectionStatus,
+} from '../hooks/use-provider-connection-status.js';
 
 /**
  * The reasoning effort to show, `false` when off, `default` when the model
@@ -107,6 +111,23 @@ export const Footer: React.FC<FooterProps> = ({ containerRef }) => {
 
   const promptTokenCount = uiState.sessionStats.lastPromptTokenCount;
   const generationConfig = config.getContentGeneratorConfig();
+  const onProviderFailure = useCallback(
+    (reason: string) => {
+      uiState.historyManager.addItem(
+        {
+          type: MessageType.WARNING,
+          text: t('Provider connection failed: {{reason}}', { reason }),
+        },
+        Date.now(),
+      );
+    },
+    [uiState.historyManager],
+  );
+  const providerBaseUrl = getProviderConnectionBaseUrl(generationConfig);
+  const providerConnection = useProviderConnectionStatus(
+    providerBaseUrl,
+    onProviderFailure,
+  );
   const contextWindowSize = generationConfig?.contextWindowSize;
   const contextPercent =
     promptTokenCount > 0 && contextWindowSize && !hideContextIndicator
@@ -116,8 +137,6 @@ export const Footer: React.FC<FooterProps> = ({ containerRef }) => {
   const turnTokens =
     (uiState.responseCandidateTokens ?? 0) +
     Math.round((uiState.streamingResponseLengthRef?.current ?? 0) / 4);
-  // "failed" while the stream shows a pending error, retries included; once a
-  // retried request streams its answer it is online again.
   const requestStatus = !generationConfig
     ? 'none'
     : !uiState.isReceivingContent &&
@@ -125,7 +144,9 @@ export const Footer: React.FC<FooterProps> = ({ containerRef }) => {
           (item) => item.type === 'error',
         )
       ? 'failed'
-      : 'online';
+      : uiState.isReceivingContent
+        ? 'online'
+        : providerConnection;
   const worktreeBranch = settings.merged.ui?.hideBuiltinWorktreeIndicator
     ? undefined
     : uiState.activeWorktree?.branch;

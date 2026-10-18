@@ -932,6 +932,7 @@ export default {
   medium: 'médio',
   high: 'alto',
   online: 'online',
+  checking: 'checando',
   '↑↓ navigate · tab complete · enter select · esc close':
     '↑↓ navegar · tab completar · enter selecionar · esc fechar',
   '↑↓ navigate · enter select · esc close':
@@ -1154,6 +1155,14 @@ export default {
   canceled: 'cancelado',
   failed: 'falha',
   'no provider': 'sem provedor',
+  'Provider connection failed: {{reason}}':
+    'Falha na conexão com o provedor: {{reason}}',
+  'DNS lookup failed': 'falha na consulta DNS',
+  'connection refused': 'conexão recusada',
+  'network unreachable': 'rede inacessível',
+  'connection timed out': 'tempo de conexão esgotado',
+  'connection failed': 'conexão falhou',
+  'provider returned HTTP {{status}}': 'provedor respondeu HTTP {{status}}',
   info: 'info',
   reading: 'leitura',
   writing: 'escrita',
