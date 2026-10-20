@@ -61,7 +61,7 @@ function hintItems(tier: LayoutTier): Array<[string, string]> {
     ['/', t('commands')],
   ];
   if (atLeast(tier, 'medium')) items.push(['@', t('files')]);
-  if (atLeast(tier, 'full')) items.push(['ctrl+c', t('quit')]);
+  if (atLeast(tier, 'full')) items.push(['←', t('agents')]);
   return items;
 }
 

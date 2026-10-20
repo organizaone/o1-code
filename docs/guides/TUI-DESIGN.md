@@ -179,7 +179,7 @@ Each row has an independent left and right side: a long item on the right never 
 | 3   | empty          | notices, only when present: `↑ v… available · /update` (brand soft), `● N MCP offline · /mcp` (amber) |
 | 4   | shortcut hints | workspace path: parents muted, folder bold primary                                                    |
 
-Hints: `esc cancel · shift+tab mode · / commands · @ files · ctrl+c quit`, key in secondary, label
+Hints: `esc cancel · shift+tab mode · / commands · @ files · ← agents`, key in secondary, label
 in muted, `·` in separator. Hints are dropped whole from the end until the folder name fits. The
 path loses its start first (`…\pessoal\o1-code`); the folder always shows. Outside Windows the home
 directory becomes `~`. No usage meter, user name or sandbox indicator; the banner customisation
@@ -372,8 +372,11 @@ never leaves; it only shortens from the start.
 ## Dialogs and selection
 
 - **Agent sessions** (`agent-view/session-dashboard.ts`): `/agents` (alias
-  `/sessions`) is a full-screen terminal controller view. It groups top-level
-  conversations by workspace and keeps task, status, age, and model in aligned
+  `/sessions`) is a full-screen terminal controller view. Open it with the command
+  or bare Left from an empty focused prompt.
+  Left retains text editing when any input is present, including whitespace, and
+  does not take navigation from menus, searches, attachments or dialogs. It groups
+  top-level conversations by workspace and keeps task, status, age, and model in aligned
   columns. At 110 columns or more it shows selected details on the right;
   narrower terminals use Space to switch between list and details. The active
   terminal session has a filled marker. Theme colours come from the same

@@ -7,6 +7,10 @@ follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Fixed
+
+- Press Left from an empty prompt to open the agent session list. The header shows `← agents` in place of the quit hint; text editing and menu navigation keep their existing behavior.
+
 ## [0.21.0] - 2026-10-20
 
 ### Added

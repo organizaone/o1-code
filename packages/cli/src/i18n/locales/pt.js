@@ -1179,6 +1179,7 @@ export default {
   mode: 'modo',
   commands: 'comandos',
   files: 'arquivos',
+  agents: 'agentes',
   quit: 'sair',
   '{{version}} available': '{{version}} disponível',
   '{{count}} MCP offline': '{{count}} MCP offline',

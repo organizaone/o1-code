@@ -131,7 +131,8 @@ Commands for managing AI tools and models.
 | `/lsp`                | Show LSP server status                                                                                                      | `/lsp`                                                                                                    |
 | `/trust`              | Manage folder trust settings                                                                                                | `/trust`                                                                                                  |
 
-`/agents` opens a full-screen list of conversations grouped by folder. Use ↑/↓ to select, `/` to
+`/agents` opens a full-screen list of conversations grouped by folder. Press ← from an empty
+prompt to open the same list; with text in the prompt, ← keeps moving the cursor. Use ↑/↓ to select, `/` to
 search, Enter to open a session, and Esc to return. The detail pane shows the selected conversation's
 summary, model when known, and latest message. Managed sessions keep running when you switch away.
 Closing the main CLI window stops the sessions it owns, including work still running in another
