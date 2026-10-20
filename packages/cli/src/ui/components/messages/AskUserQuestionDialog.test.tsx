@@ -11,7 +11,10 @@ import {
 } from './AskUserQuestionDialog.js';
 import type { ToolAskUserQuestionConfirmationDetails } from '@organizaone/o1-code-core';
 import { ToolConfirmationOutcome } from '@organizaone/o1-code-core';
-import { renderWithProviders } from '../../../test-utils/render.js';
+import {
+  renderWithProviders,
+  withProviders,
+} from '../../../test-utils/render.js';
 import stripAnsi from 'strip-ansi';
 import { act } from 'react';
 import { Box } from 'ink';
@@ -76,6 +79,132 @@ const createConfirmationDetails = (
 });
 
 describe('bounded question layout', () => {
+  it.each([false, true])(
+    'draws a complete container frame (scrolling: %s)',
+    async (scrolling) => {
+      const details = createConfirmationDetails({
+        questions: [
+          createSingleQuestion({
+            question: scrolling
+              ? 'Question line\n'.repeat(35)
+              : 'Choose a color.',
+          }),
+        ],
+      });
+      const { lastFrame, unmount } = renderWithProviders(
+        <Box width={80} flexDirection="column">
+          <AskUserQuestionDialog
+            confirmationDetails={details}
+            availableWidth={80}
+            availableHeight={scrolling ? 14 : 36}
+            onConfirm={vi.fn()}
+          />
+        </Box>,
+      );
+      await waitForFrame(() => {
+        const rows = clean(lastFrame()).split('\n');
+        expect(rows[0]).toMatch(/^╭─+╮$/);
+        expect(rows.at(-1)).toMatch(/^╰─+╯$/);
+        expect(rows.slice(1, -1).every((row) => /^│.*│$/.test(row))).toBe(true);
+        expect(rows.length).toBeLessThanOrEqual(scrolling ? 14 : 20);
+      });
+      unmount();
+    },
+  );
+
+  it.each([false, true])(
+    'keeps the standard content-sized layout when a short question fits (multiple: %s)',
+    async (multiple) => {
+      const details = createConfirmationDetails({
+        questions: multiple
+          ? [createSingleQuestion(), createSingleQuestion({ header: 'Next' })]
+          : [createSingleQuestion()],
+      });
+      const standard = renderWithProviders(
+        <Box width={80} flexDirection="column">
+          <AskUserQuestionDialog
+            confirmationDetails={details}
+            availableWidth={80}
+            onConfirm={vi.fn()}
+          />
+        </Box>,
+      );
+      await wait();
+      const expected = clean(standard.lastFrame());
+      standard.unmount();
+      const bounded = renderWithProviders(
+        <Box width={80} flexDirection="column">
+          <AskUserQuestionDialog
+            confirmationDetails={details}
+            availableWidth={80}
+            availableHeight={36}
+            onConfirm={vi.fn()}
+          />
+        </Box>,
+      );
+      await waitForFrame(() => {
+        expect(clean(bounded.lastFrame())).toBe(expected);
+      });
+      bounded.unmount();
+    },
+  );
+
+  it('re-measures the content after terminal width and height changes', async () => {
+    const details = createConfirmationDetails();
+    const dialog = (width: number, height: number) => (
+      <Box width={width} flexDirection="column">
+        <AskUserQuestionDialog
+          confirmationDetails={details}
+          availableWidth={width}
+          availableHeight={height}
+          onConfirm={vi.fn()}
+        />
+      </Box>
+    );
+    const { lastFrame, rerender, unmount } = renderWithProviders(
+      dialog(80, 36),
+    );
+    await wait();
+    const standard = clean(lastFrame());
+    rerender(withProviders(dialog(40, 7)));
+    await waitForFrame(() => {
+      expect(clean(lastFrame()).split('\n').length).toBeLessThanOrEqual(7);
+      expect(clean(lastFrame())).toContain('❯ 1. Red');
+    });
+    rerender(withProviders(dialog(80, 36)));
+    await waitForFrame(() => {
+      expect(clean(lastFrame())).toBe(standard);
+    });
+    unmount();
+  });
+
+  it('keeps custom-answer editing in the content-sized question', async () => {
+    const onConfirm = vi.fn();
+    const { stdin, lastFrame, unmount } = renderWithProviders(
+      <Box width={80} flexDirection="column">
+        <AskUserQuestionDialog
+          confirmationDetails={createConfirmationDetails()}
+          availableWidth={80}
+          availableHeight={36}
+          onConfirm={onConfirm}
+        />
+      </Box>,
+    );
+    await wait();
+    await writeText(stdin, '4');
+    await writeText(stdin, 'abcd');
+    await writeText(stdin, '\x1b[D');
+    await writeText(stdin, '\x1b[D');
+    await writeText(stdin, 'X');
+    expect(clean(lastFrame()).split('\n').length).toBeLessThan(25);
+    await writeText(stdin, '\r');
+    expect(onConfirm).toHaveBeenCalledExactlyOnceWith(
+      ToolConfirmationOutcome.ProceedOnce,
+      { answers: { 0: 'abXcd' } },
+    );
+    unmount();
+  });
+
   it.each([1, 2, 3, 4])(
     'keeps choices and custom submission within %i available rows',
     async (availableHeight) => {
@@ -407,7 +536,9 @@ describe('responsive custom answers', () => {
       const firstLine = 'a'.repeat(width);
       await writeText(stdin, firstLine + 'b');
       await waitForFrame(() => {
-        expect(clean(lastFrame()).replace(/\s/g, '')).toContain(firstLine);
+        expect(
+          clean(lastFrame()).replace(/^│|│$/gm, '').replace(/\s/g, ''),
+        ).toContain(firstLine);
         expect(clean(lastFrame())).toContain('b');
       });
       const remainder = 'c'.repeat(width * 4) + 'THE-END';

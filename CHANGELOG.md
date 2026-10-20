@@ -7,6 +7,10 @@ follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Fixed
+
+- Short questions keep a bordered, content-sized container beside their conversation context instead of filling the viewport and separating the choices from their controls. Questions and answer reviews that exceed the available space retain bounded scrolling.
+
 ## [0.21.1] - 2026-10-20
 
 ### Fixed

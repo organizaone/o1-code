@@ -535,6 +535,11 @@ never leaves; it only shortens from the start.
   advances extra columns for those sequences. Symbols with an emoji presentation retain their
   text selector; macOS and Linux retain the selectors used for narrow rendering in CJK terminals.
 - **Question custom answers** (`messages/AskUserQuestionDialog.tsx`): questions, option
+  lists and answer reviews use their natural measured height when they fit, keeping
+  choices and navigation together inside their own amber confirmation frame beside
+  the conversation context. Below ten available rows the controls take priority over
+  the frame. The available
+  message height is a ceiling, not a reserved panel height. Questions, option
   descriptions and answer reviews scroll with PgUp/PgDn within the available message height.
   The question header, active choice or custom input, and navigation remain pinned when space
   permits. The question owns scrolling while awaiting an answer, so paging its contents does not
