@@ -442,6 +442,88 @@ describe('InputPrompt', () => {
     },
   );
 
+  it.each([false, true])(
+    'opens agent sessions with Left from an empty prompt (shell mode: %s)',
+    async (shellModeActive) => {
+      props.shellModeActive = shellModeActive;
+      const { stdin, unmount } = renderWithProviders(
+        <InputPrompt {...props} />,
+      );
+      await wait();
+      stdin.write('\x1b[D');
+      await wait();
+      expect(props.onSubmit).toHaveBeenCalledExactlyOnceWith('/agents');
+      expect(props.buffer.text).toBe('');
+      unmount();
+    },
+  );
+
+  it.each(['draft prompt', ' ', '\n'])(
+    'preserves Left cursor navigation with non-empty input %j',
+    async (text) => {
+      props.buffer.setText(text);
+      props.buffer.cursor = [0, 0];
+      const { stdin, unmount } = renderWithProviders(
+        <InputPrompt {...props} />,
+      );
+      await wait();
+      stdin.write('\x1b[D');
+      await wait();
+      expect(props.onSubmit).not.toHaveBeenCalled();
+      expect(props.buffer.text).toBe(text);
+      expect(props.buffer.handleInput).toHaveBeenCalled();
+      unmount();
+    },
+  );
+
+  it.each(['\x1b[1;2D', '\x1b[1;3D', '\x1b[1;5D'])(
+    'does not open agent sessions with a modified Left key %j',
+    async (key) => {
+      const { stdin, unmount } = renderWithProviders(
+        <InputPrompt {...props} />,
+      );
+      await wait();
+      stdin.write(key);
+      await wait();
+      expect(props.onSubmit).not.toHaveBeenCalled();
+      unmount();
+    },
+  );
+
+  it('does not open agent sessions when the prompt is unfocused', async () => {
+    props.focus = false;
+    const { stdin, unmount } = renderWithProviders(<InputPrompt {...props} />);
+    await wait();
+    stdin.write('\x1b[D');
+    await wait();
+    expect(props.onSubmit).not.toHaveBeenCalled();
+    unmount();
+  });
+
+  it('keeps a modal dialog in control of Left', async () => {
+    vi.mocked(useUIState).mockReturnValue({
+      isFeedbackDialogOpen: false,
+      messageQueue: [],
+      dialogsVisible: true,
+    } as ReturnType<typeof useUIState>);
+    const { stdin, unmount } = renderWithProviders(<InputPrompt {...props} />);
+    await wait();
+    stdin.write('\x1b[D');
+    await wait();
+    expect(props.onSubmit).not.toHaveBeenCalled();
+    unmount();
+  });
+
+  it('keeps completion navigation in control of Left', async () => {
+    mockCommandCompletion.showSuggestions = true;
+    const { stdin, unmount } = renderWithProviders(<InputPrompt {...props} />);
+    await wait();
+    stdin.write('\x1b[D');
+    await wait();
+    expect(props.onSubmit).not.toHaveBeenCalled();
+    unmount();
+  });
+
   it('stashes non-empty input on Ctrl+S', async () => {
     props.buffer.setText('draft prompt');
     const { stdin, unmount } = renderWithProviders(<InputPrompt {...props} />);

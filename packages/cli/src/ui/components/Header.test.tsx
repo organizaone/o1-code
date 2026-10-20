@@ -44,16 +44,16 @@ describe('<Header />', () => {
     expect(lines[1]).toContain('▰');
     expect(lines[2]!.trim()).toBe('');
     expect(lines[3]).toContain(
-      'esc cancel · shift+tab mode · / commands · @ files · ctrl+c quit',
+      'esc cancel · shift+tab mode · / commands · @ files · ← agents',
     );
     expect(
       lines[3]!.trimEnd().endsWith('W:\\workspace\\pessoal\\o1-code'),
     ).toBe(true);
   });
 
-  it('drops ctrl+c under 120 columns and @ files and the bar under 100', () => {
+  it('drops the agents hint under 120 columns and @ files and the bar under 100', () => {
     const medium = renderHeader({ columns: 100 });
-    expect(medium[3]).not.toContain('ctrl+c');
+    expect(medium[3]).not.toContain('← agents');
     expect(medium[3]).toContain('@ files');
     const compact = renderHeader({ columns: 80 });
     expect(compact[3]).not.toContain('@ files');
@@ -119,9 +119,9 @@ describe('<Header />', () => {
           : hintsRow.indexOf(folder),
       )
       .trimEnd();
-    expect(left === '' || /(cancel|mode|commands|files|quit)$/.test(left)).toBe(
-      true,
-    );
+    expect(
+      left === '' || /(cancel|mode|commands|files|agents)$/.test(left),
+    ).toBe(true);
   });
 
   it('pins with a blank row above and below the header', () => {

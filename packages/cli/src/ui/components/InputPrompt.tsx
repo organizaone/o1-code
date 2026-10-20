@@ -1279,6 +1279,22 @@ export const InputPrompt: React.FC<InputPromptProps> = ({
         return true;
       }
 
+      if (
+        key.name === 'left' &&
+        !key.ctrl &&
+        !key.meta &&
+        !key.shift &&
+        buffer.text.length === 0 &&
+        !reverseSearchActive &&
+        !commandSearchActive &&
+        !showCompletionSuggestions &&
+        !isAttachmentMode &&
+        !uiState.dialogsVisible
+      ) {
+        onSubmit('/agents');
+        return true;
+      }
+
       if (keyMatchers[Command.SHOW_MORE_LINES](key) && buffer.text.length > 0) {
         const textToStash = expandPendingPastePlaceholders(
           buffer.text,
@@ -2094,6 +2110,7 @@ export const InputPrompt: React.FC<InputPromptProps> = ({
       onClearScreen,
       inputHistory,
       handleSubmitAndClear,
+      onSubmit,
       shellHistory,
       reverseSearchCompletion,
       handleClipboardImage,
