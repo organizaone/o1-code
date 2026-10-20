@@ -11,6 +11,10 @@ follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 - `/agents` and `/sessions` open a workspace-grouped conversation list with status, model, last activity and details. Switching conversations keeps the previous task running; closing the CLI window stops the sessions it owns. `/subagents` opens the specialized subagent manager, while existing management forms remain compatible.
 
+### Fixed
+
+- Conversation selection follows the displayed workspace grouping, and active shell commands count as working sessions. The subagent manager hides the conversation behind it and no longer duplicates its selection heading.
+
 ## [0.20.3] - 2026-10-18
 
 ### Fixed

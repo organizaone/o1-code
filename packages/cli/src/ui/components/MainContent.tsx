@@ -588,6 +588,7 @@ export const MainContent = ({
   if (
     useVirtualScroll &&
     (uiState.isExtensionsManagerDialogOpen ||
+      uiState.isAgentsManagerDialogOpen ||
       uiState.isSettingsDialogOpen ||
       uiState.isModelDialogOpen ||
       uiState.isStatsDialogOpen ||

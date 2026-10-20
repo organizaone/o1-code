@@ -71,7 +71,25 @@ Native Windows validation used Node 22.23.3 and the compiled CLI:
 The lifecycle checks used an isolated configuration home; its worker reached setup input rather
 than a model turn. These runs prove process and terminal behavior, not a completed provider turn.
 The switcher was also exercised with configured local sessions and real shell commands. No full
-product regression suite was run. WSL and provider-backed model-turn checks are not claimed here.
+product regression suite was run.
+
+Native WSL validation used Ubuntu 26.04, Node 22.23.3, the packaged Linux CLI and a real tmux
+terminal. It covered grouped workspaces, search, saved-session resume, arrow navigation, narrow
+layouts, `/subagents manage` and `/tasks`. Twelve repeated switches retained the same two worker
+processes; individual switches took roughly 0.65–1.22 seconds. Delayed shell commands completed
+while detached, and closing the foreground window stopped both workers and an active shell child.
+The combined resident memory of the controller, supervisor, two workers and their PTY hosts grew
+from roughly 900 MiB to 992 MiB during the short switching run. This is a warm-up observation,
+not a sustained memory-leak benchmark.
+
+These runs exposed and corrected shell activity reported as idle, navigation order differing from
+workspace grouping, and conversation history remaining above the subagent manager. The manager
+selection screen now uses its group headings without a duplicate generic title. The installed
+application was exercised again after each correction; no additional unit suite was run.
+
+The configured MiMo provider rejected the isolated credential with HTTP 401, including a direct
+provider request. No successful provider-backed model turn is claimed. Credentials were copied
+only into the isolated validation home and removed after the run.
 
 The initial Windows baseline measured roughly 113–197 MiB for a blank CLI worker during startup
 and 97–127 MiB for its PTY host. These observations are directional and were not a sustained

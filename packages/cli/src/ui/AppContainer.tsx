@@ -4295,6 +4295,8 @@ export const AppContainer = (props: AppContainerProps) => {
     streamingState === StreamingState.Idle &&
     (historyManager.history.at(-1)?.type === 'error' ||
       pendingLlmHistoryItems.some((item) => item.type === 'error'));
+  const agentSessionIsWorking =
+    isProcessing || hasExecutingTool || Boolean(activePtyId);
   useEffect(() => {
     if (!isAgentViewWorkerEnv()) return;
     void reportAgentViewWorkerState({
@@ -4302,7 +4304,7 @@ export const AppContainer = (props: AppContainerProps) => {
         initialized: isConfigInitialized,
         failed: Boolean(initError),
         needsInput: dialogsVisible,
-        isProcessing,
+        isProcessing: agentSessionIsWorking,
         streamingState,
       }),
       cwd: config.getTargetDir(),
@@ -4315,11 +4317,11 @@ export const AppContainer = (props: AppContainerProps) => {
     agentSessionTheme,
     agentSessionLanguage,
     agentSessionTurnFailed,
+    agentSessionIsWorking,
     config,
     currentModel,
     dialogsVisible,
     isConfigInitialized,
-    isProcessing,
     initError,
     streamingState,
   ]);

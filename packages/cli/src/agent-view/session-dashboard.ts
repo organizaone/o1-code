@@ -48,6 +48,16 @@ export interface DashboardViewport {
   language?: string;
 }
 
+function groupSessionRows(rows: readonly AgentSessionRow[]): AgentSessionRow[] {
+  const groups = new Map<string, AgentSessionRow[]>();
+  for (const row of rows) {
+    const group = groups.get(row.workspace) ?? [];
+    group.push(row);
+    groups.set(row.workspace, group);
+  }
+  return [...groups.values()].flat();
+}
+
 export function renderAgentSessionDashboard(
   allRows: readonly AgentSessionRow[],
   view: DashboardViewport,
@@ -58,10 +68,12 @@ export function renderAgentSessionDashboard(
   const inner = width - 4;
   const bodyHeight = Math.max(1, view.rows - 4);
   const search = view.search ?? '';
-  const rows = allRows.filter((row) =>
-    `${row.title} ${row.workspace}`
-      .toLocaleLowerCase()
-      .includes(search.toLocaleLowerCase()),
+  const rows = groupSessionRows(
+    allRows.filter((row) =>
+      `${row.title} ${row.workspace}`
+        .toLocaleLowerCase()
+        .includes(search.toLocaleLowerCase()),
+    ),
   );
   const selected = Math.max(0, Math.min(view.selected, rows.length - 1));
   const split = view.columns >= 110;
@@ -194,7 +206,7 @@ export async function runAgentSessionDashboard(
   if (!stdin.isTTY || !stdout.isTTY || !stdin.setRawMode) {
     throw new Error('Agent sessions require an interactive terminal.');
   }
-  let rows = await loadRows();
+  let rows = groupSessionRows(await loadRows());
   let selected = Math.max(
     0,
     rows.findIndex((row) => row.sessionId === currentSessionId),
@@ -305,7 +317,7 @@ export async function runAgentSessionDashboard(
       const selectedId = filtered()[selected]?.sessionId;
       void loadRows()
         .then((next) => {
-          rows = next;
+          rows = groupSessionRows(next);
           for (const row of rows) {
             const excerpt = details.get(row.sessionId);
             if (excerpt) row.lastMessage = excerpt;
