@@ -7,6 +7,8 @@ follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.21.0] - 2026-10-20
+
 ### Added
 
 - `/agents` and `/sessions` open a workspace-grouped conversation list with status, model, last activity and details. Switching conversations keeps the previous task running; closing the CLI window stops the sessions it owns. `/subagents` opens the specialized subagent manager, while existing management forms remain compatible.
@@ -667,7 +669,8 @@ The first release of o1-code, a coding agent for the terminal.
 - `o1-code serve` runs a local daemon with a REST API and the Web Shell, a browser interface.
 - Editor companions for VS Code and Zed.
 
-[Unreleased]: https://github.com/organizaone/o1-code/compare/v0.19.2...HEAD
+[Unreleased]: https://github.com/organizaone/o1-code/compare/v0.21.0...HEAD
+[0.21.0]: https://github.com/organizaone/o1-code/compare/v0.20.3...v0.21.0
 [0.19.2]: https://github.com/organizaone/o1-code/compare/v0.18.0...v0.19.2
 [0.18.0]: https://github.com/organizaone/o1-code/compare/v0.17.0...v0.18.0
 [0.17.0]: https://github.com/organizaone/o1-code/compare/v0.16.0...v0.17.0
