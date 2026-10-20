@@ -51,6 +51,9 @@ const mocks = vi.hoisted(() => ({
   mcpRemoveHandler: vi.fn(),
   getCliVersion: vi.fn(),
   installManagedNpmUpdate: vi.fn(),
+  runAgentViewSupervisor: vi.fn(),
+  runAgentViewPtyHostProcess: vi.fn(),
+  runAgentSessionForeground: vi.fn(),
 }));
 
 vi.mock('./llm.js', () => ({
@@ -80,6 +83,18 @@ vi.mock('./utils/version.js', () => ({
 
 vi.mock('./utils/managed-npm-update.js', () => ({
   installManagedNpmUpdate: mocks.installManagedNpmUpdate,
+}));
+
+vi.mock('./agent-view/supervisor-runner.js', () => ({
+  runAgentViewSupervisor: mocks.runAgentViewSupervisor,
+}));
+
+vi.mock('./agent-view/pty-host-process.js', () => ({
+  runAgentViewPtyHostProcess: mocks.runAgentViewPtyHostProcess,
+}));
+
+vi.mock('./agent-view/foreground-runner.js', () => ({
+  runAgentSessionForeground: mocks.runAgentSessionForeground,
 }));
 
 vi.mock('./commands/mcp.js', () => ({
@@ -750,6 +765,157 @@ describe('runCliEntry', () => {
     expect(mocks.tryRunServeFastPath).not.toHaveBeenCalled();
     expect(mocks.initStartupProfiler).not.toHaveBeenCalled();
     expect(mocks.initCpuProfiler).not.toHaveBeenCalled();
+  });
+
+  it('routes the internal supervisor process before the full CLI', async () => {
+    await runCliEntry(['--internal-agent-view-supervisor']);
+
+    expect(mocks.runAgentViewSupervisor).toHaveBeenCalledOnce();
+    expect(mocks.main).not.toHaveBeenCalled();
+  });
+
+  it('routes the opt-in foreground controller before the full CLI', async () => {
+    const exit = vi.spyOn(process, 'exit').mockImplementation(() => {
+      throw new Error('controller-exit');
+    });
+    await expect(
+      runCliEntry(['--internal-agent-view-controller']),
+    ).rejects.toThrow('controller-exit');
+
+    expect(mocks.runAgentSessionForeground).toHaveBeenCalledOnce();
+    expect(mocks.main).not.toHaveBeenCalled();
+    expect(exit).toHaveBeenCalledWith(0);
+  });
+
+  it('starts a managed foreground session for an interactive empty invocation', async () => {
+    const stdinDescriptor = Object.getOwnPropertyDescriptor(
+      process.stdin,
+      'isTTY',
+    );
+    const stdoutDescriptor = Object.getOwnPropertyDescriptor(
+      process.stdout,
+      'isTTY',
+    );
+    const previousWorker = process.env['O1CODE_AGENT_VIEW_WORKER'];
+    Object.defineProperty(process.stdin, 'isTTY', {
+      configurable: true,
+      value: true,
+    });
+    Object.defineProperty(process.stdout, 'isTTY', {
+      configurable: true,
+      value: true,
+    });
+    delete process.env['O1CODE_AGENT_VIEW_WORKER'];
+    const exit = vi.spyOn(process, 'exit').mockImplementation(() => {
+      throw new Error('managed-exit');
+    });
+    try {
+      await expect(runCliEntry([])).rejects.toThrow('managed-exit');
+      expect(mocks.runAgentSessionForeground).toHaveBeenCalledOnce();
+      expect(mocks.main).not.toHaveBeenCalled();
+      expect(exit).toHaveBeenCalledWith(0);
+    } finally {
+      if (stdinDescriptor)
+        Object.defineProperty(process.stdin, 'isTTY', stdinDescriptor);
+      else Reflect.deleteProperty(process.stdin, 'isTTY');
+      if (stdoutDescriptor)
+        Object.defineProperty(process.stdout, 'isTTY', stdoutDescriptor);
+      else Reflect.deleteProperty(process.stdout, 'isTTY');
+      if (previousWorker === undefined)
+        delete process.env['O1CODE_AGENT_VIEW_WORKER'];
+      else process.env['O1CODE_AGENT_VIEW_WORKER'] = previousWorker;
+    }
+  });
+
+  it('does not open a second direct session after a managed session has attached', async () => {
+    const stdinDescriptor = Object.getOwnPropertyDescriptor(
+      process.stdin,
+      'isTTY',
+    );
+    const stdoutDescriptor = Object.getOwnPropertyDescriptor(
+      process.stdout,
+      'isTTY',
+    );
+    Object.defineProperty(process.stdin, 'isTTY', {
+      configurable: true,
+      value: true,
+    });
+    Object.defineProperty(process.stdout, 'isTTY', {
+      configurable: true,
+      value: true,
+    });
+    mocks.runAgentSessionForeground.mockImplementationOnce(
+      async (onReady: () => void) => {
+        onReady();
+        throw new Error('attachment lost');
+      },
+    );
+    try {
+      await expect(runCliEntry([])).rejects.toThrow('attachment lost');
+      expect(mocks.main).not.toHaveBeenCalled();
+    } finally {
+      if (stdinDescriptor)
+        Object.defineProperty(process.stdin, 'isTTY', stdinDescriptor);
+      else Reflect.deleteProperty(process.stdin, 'isTTY');
+      if (stdoutDescriptor)
+        Object.defineProperty(process.stdout, 'isTTY', stdoutDescriptor);
+      else Reflect.deleteProperty(process.stdout, 'isTTY');
+    }
+  });
+
+  it('does not bypass managed worker capacity with a direct session', async () => {
+    const stdinDescriptor = Object.getOwnPropertyDescriptor(
+      process.stdin,
+      'isTTY',
+    );
+    const stdoutDescriptor = Object.getOwnPropertyDescriptor(
+      process.stdout,
+      'isTTY',
+    );
+    Object.defineProperty(process.stdin, 'isTTY', {
+      configurable: true,
+      value: true,
+    });
+    Object.defineProperty(process.stdout, 'isTTY', {
+      configurable: true,
+      value: true,
+    });
+    mocks.runAgentSessionForeground.mockRejectedValueOnce(
+      Object.assign(new Error('Agent session capacity reached'), {
+        code: 'capacity_reached',
+      }),
+    );
+    try {
+      await expect(runCliEntry([])).rejects.toThrow('capacity reached');
+      expect(mocks.main).not.toHaveBeenCalled();
+    } finally {
+      if (stdinDescriptor)
+        Object.defineProperty(process.stdin, 'isTTY', stdinDescriptor);
+      else Reflect.deleteProperty(process.stdin, 'isTTY');
+      if (stdoutDescriptor)
+        Object.defineProperty(process.stdout, 'isTTY', stdoutDescriptor);
+      else Reflect.deleteProperty(process.stdout, 'isTTY');
+    }
+  });
+
+  it('routes a PTY host with its launch and socket paths', async () => {
+    const exit = vi.spyOn(process, 'exit').mockImplementation(() => {
+      throw new Error('host-exit');
+    });
+    await expect(
+      runCliEntry([
+        '--internal-agent-view-pty-host',
+        'launch.json',
+        'worker.sock',
+      ]),
+    ).rejects.toThrow('host-exit');
+
+    expect(mocks.runAgentViewPtyHostProcess).toHaveBeenCalledWith({
+      launchPath: 'launch.json',
+      socketPath: 'worker.sock',
+    });
+    expect(mocks.main).not.toHaveBeenCalled();
+    expect(exit).toHaveBeenCalledWith(0);
   });
 
   it('runs a managed update worker without starting the CLI', async () => {

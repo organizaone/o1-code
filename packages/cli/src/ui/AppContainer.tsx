@@ -17,6 +17,7 @@ import {
 } from 'react';
 import { type DOMElement, measureElement } from 'ink';
 import { App } from './App.js';
+import { themeManager } from './themes/theme-manager.js';
 import { AppContext } from './contexts/AppContext.js';
 import { UIStateContext, type UIState } from './contexts/UIStateContext.js';
 import { VirtualViewportContext } from './contexts/VirtualViewportContext.js';
@@ -251,11 +252,16 @@ import { resolveDisplayMode } from './hooks/use-display-mode.js';
 import { TerminalOutputProvider } from './contexts/TerminalOutputContext.js';
 import { useAgentViewState } from './contexts/AgentViewContext.js';
 import {
+  isAgentViewWorkerEnv,
+  reportAgentViewWorkerState,
+} from '../agent-view/worker-sideband.js';
+import { deriveAgentSessionWorkerState } from './utils/agent-session-worker-state.js';
+import {
   useBackgroundTaskViewState,
   useBackgroundTaskViewActions,
 } from './contexts/BackgroundTaskViewContext.js';
 import { getLiveAgentPanelLayoutKey } from './components/background-view/liveAgentPanelVisibility.js';
-import { t } from '../i18n/index.js';
+import { getCurrentLanguage, t } from '../i18n/index.js';
 import { TUI_CHAT_RECORDING_FAILURE_MESSAGE } from '../nonInteractive/chat-recording-failure.js';
 import { buildPermissionSuggestions } from '../nonInteractive/permission-suggestions.js';
 import { useWelcomeBack } from './hooks/useWelcomeBack.js';
@@ -4281,6 +4287,44 @@ export const AppContainer = (props: AppContainerProps) => {
     showWorktreeExitDialog ||
     !!(settings.corruptedPath && !settings.corruptionDialogDismissed);
   dialogsVisibleRef.current = dialogsVisible;
+
+  const agentSessionTheme =
+    themeManager.getActiveTheme().type === 'light' ? 'light' : 'dark';
+  const agentSessionLanguage = getCurrentLanguage();
+  const agentSessionTurnFailed =
+    streamingState === StreamingState.Idle &&
+    (historyManager.history.at(-1)?.type === 'error' ||
+      pendingLlmHistoryItems.some((item) => item.type === 'error'));
+  const agentSessionIsWorking =
+    isProcessing || hasExecutingTool || Boolean(activePtyId);
+  useEffect(() => {
+    if (!isAgentViewWorkerEnv()) return;
+    void reportAgentViewWorkerState({
+      sessionState: deriveAgentSessionWorkerState({
+        initialized: isConfigInitialized,
+        failed: Boolean(initError),
+        needsInput: dialogsVisible,
+        isProcessing: agentSessionIsWorking,
+        streamingState,
+      }),
+      cwd: config.getTargetDir(),
+      model: currentModel,
+      theme: agentSessionTheme,
+      language: agentSessionLanguage,
+      lastResult: agentSessionTurnFailed ? 'failed' : undefined,
+    });
+  }, [
+    agentSessionTheme,
+    agentSessionLanguage,
+    agentSessionTurnFailed,
+    agentSessionIsWorking,
+    config,
+    currentModel,
+    dialogsVisible,
+    isConfigInitialized,
+    initError,
+    streamingState,
+  ]);
 
   const shouldShowStickyTodos =
     stickyTodos !== null &&

@@ -306,8 +306,8 @@ export default {
   'Enter to submit, Esc to go back': 'Return per enviar, Esc per tornar enrere',
   'Invalid step: {{step}}': 'Pas no vàlid: {{step}}',
   'No subagents found.': "No s'han trobat subagents.",
-  "Use '/agents create' to create your first subagent.":
-    "Useu '/agents create' per crear el vostre primer subagent.",
+  "Use '/subagents create' to create your first subagent.":
+    "Useu '/subagents create' per crear el vostre primer subagent.",
   '(built-in)': '(integrat)',
   '(overridden by project level agent)':
     '(sobreescrit per un agent de nivell de projecte)',
@@ -3149,4 +3149,11 @@ export default {
     "Revisa els missatges retinguts d'altres sessions de O1-Code (accept | deny) i gestiona els controladors de confiança (controllers | revoke)",
   'Cycle prompt history': "Recorre l'historial de peticions",
   'Scroll when the input is empty': "Desplaça amb l'entrada buida",
+  'Browse and switch agent sessions.':
+    "Consulta i canvia entre sessions d'agents.",
+  'Opening agent sessions…': "S'obren les sessions d'agents…",
+  'Could not open agent sessions: {{error}}':
+    "No s'han pogut obrir les sessions d'agents: {{error}}",
+  'Session switching is unavailable in this terminal.':
+    'El canvi de sessió no està disponible en aquest terminal.',
 };

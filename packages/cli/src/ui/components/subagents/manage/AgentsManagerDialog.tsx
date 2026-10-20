@@ -149,10 +149,11 @@ export function AgentsManagerDialog({
 
   const renderStepHeader = useCallback(() => {
     const currentStep = getCurrentStep();
+    if (currentStep === MANAGEMENT_STEPS.AGENT_SELECTION) {
+      return null;
+    }
     const getStepHeaderText = () => {
       switch (currentStep) {
-        case MANAGEMENT_STEPS.AGENT_SELECTION:
-          return t('Agents');
         case MANAGEMENT_STEPS.ACTION_SELECTION:
           return t('Choose Action');
         case MANAGEMENT_STEPS.AGENT_VIEWER:

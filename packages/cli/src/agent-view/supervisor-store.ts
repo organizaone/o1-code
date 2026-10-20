@@ -781,6 +781,7 @@ function normalizeSessionState(
     projectCwd: path.resolve(projectCwd),
     originalCwd: path.resolve(originalCwd),
     activeCwd: path.resolve(activeCwd),
+    foregroundOwnerId: stringValue(raw['foregroundOwnerId']),
     createdAt,
     updatedAt,
     worktree: isRecord(raw['worktree'])
@@ -839,6 +840,15 @@ function normalizeActivity(
     ...raw,
     schemaVersion: 1,
     summary: stringValue(raw['summary']),
+    model: stringValue(raw['model']),
+    theme:
+      raw['theme'] === 'light'
+        ? 'light'
+        : raw['theme'] === 'dark'
+          ? 'dark'
+          : undefined,
+    language: stringValue(raw['language']),
+    dashboardRequestId: stringValue(raw['dashboardRequestId']),
     waitingFor: stringValue(raw['waitingFor']),
     inputKind: inputKindValue(raw['inputKind']),
     lastResult: stringValue(raw['lastResult']),

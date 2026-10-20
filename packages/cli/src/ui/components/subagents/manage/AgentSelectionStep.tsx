@@ -300,7 +300,7 @@ export const AgentSelectionStep = ({
       <Box flexDirection="column">
         <Text color={theme.text.secondary}>{t('No subagents found.')}</Text>
         <Text color={theme.text.secondary}>
-          {t("Use '/agents create' to create your first subagent.")}
+          {t("Use '/subagents create' to create your first subagent.")}
         </Text>
       </Box>
     );

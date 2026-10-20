@@ -567,8 +567,8 @@ export default {
   'Enter to submit, Esc to go back': 'Enter 提交，Esc 返回',
   'Invalid step: {{step}}': '无效步骤: {{step}}',
   'No subagents found.': '未找到子智能体。',
-  "Use '/agents create' to create your first subagent.":
-    "使用 '/agents create' 创建您的第一个子智能体。",
+  "Use '/subagents create' to create your first subagent.":
+    "使用 '/subagents create' 创建您的第一个子智能体。",
   '(built-in)': '（内置）',
   '(overridden by project level agent)': '（已被项目级智能体覆盖）',
   'Project Level ({{path}})': '项目级 ({{path}})',
@@ -2896,4 +2896,8 @@ export default {
   'enter steers the turn · ctrl+q queues': 'enter 引导本轮 · ctrl+q 加入队列',
   'Cycle prompt history': '循环浏览提示历史',
   'Scroll when the input is empty': '输入为空时滚动',
+  'Browse and switch agent sessions.': '浏览并切换智能体会话。',
+  'Opening agent sessions…': '正在打开智能体会话…',
+  'Could not open agent sessions: {{error}}': '无法打开智能体会话：{{error}}',
+  'Session switching is unavailable in this terminal.': '此终端无法切换会话。',
 };

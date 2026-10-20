@@ -294,6 +294,39 @@ describe('Agent View supervisor server', () => {
     }
   });
 
+  it('preserves the capacity error code for callers that must not bypass the worker limit', async () => {
+    const { dir, socketPath } = await makeSocketPath();
+    cleanupPaths.push(dir);
+    const server = createAgentViewSupervisorServer(
+      {
+        status: () => ({}),
+        list: () => [],
+        shutdown: () => ({}),
+        dispatch: () => {
+          throw Object.assign(new Error('Agent session capacity reached'), {
+            code: 'capacity_reached',
+          });
+        },
+      },
+      { socketPath },
+    );
+    await server.listen();
+    try {
+      await expect(
+        requestAgentViewSupervisor(socketPath, {
+          id: 'dispatch-request',
+          op: 'dispatch',
+          params: { cwd: process.cwd(), interactive: true },
+        }),
+      ).resolves.toMatchObject({
+        ok: false,
+        error: { code: 'capacity_reached' },
+      });
+    } finally {
+      await server.close();
+    }
+  });
+
   it('returns internal_error when a handler result is not serializable', async () => {
     const { dir, socketPath } = await makeSocketPath();
     cleanupPaths.push(dir);

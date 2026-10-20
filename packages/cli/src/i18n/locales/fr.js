@@ -312,8 +312,8 @@ export default {
   'Enter to submit, Esc to go back': 'Enter pour soumettre, Esc pour revenir',
   'Invalid step: {{step}}': 'Étape invalide : {{step}}',
   'No subagents found.': 'Aucun sous-agent trouvé.',
-  "Use '/agents create' to create your first subagent.":
-    "Utilisez '/agents create' pour créer votre premier sous-agent.",
+  "Use '/subagents create' to create your first subagent.":
+    "Utilisez '/subagents create' pour créer votre premier sous-agent.",
   '(built-in)': '(intégré)',
   '(overridden by project level agent)':
     '(remplacé par un agent au niveau du projet)',
@@ -3146,4 +3146,11 @@ export default {
     "Vérifier les messages en attente d'autres sessions O1-Code (accept | deny), et gérer les contrôleurs de confiance (controllers | revoke)",
   'Cycle prompt history': "Parcourir l'historique des prompts",
   'Scroll when the input is empty': 'Défiler si la saisie est vide',
+  'Browse and switch agent sessions.':
+    "Parcourir les sessions d'agents et en changer.",
+  'Opening agent sessions…': "Ouverture des sessions d'agents…",
+  'Could not open agent sessions: {{error}}':
+    "Impossible d'ouvrir les sessions d'agents : {{error}}",
+  'Session switching is unavailable in this terminal.':
+    "Le changement de session n'est pas disponible dans ce terminal.",
 };

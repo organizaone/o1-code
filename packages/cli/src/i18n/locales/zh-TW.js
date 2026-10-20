@@ -542,8 +542,8 @@ export default {
   'Enter to submit, Esc to go back': 'Enter 提交，Esc 返回',
   'Invalid step: {{step}}': '無效步驟: {{step}}',
   'No subagents found.': '未找到子智能體。',
-  "Use '/agents create' to create your first subagent.":
-    "使用 '/agents create' 創建您的第一個子智能體。",
+  "Use '/subagents create' to create your first subagent.":
+    "使用 '/subagents create' 創建您的第一個子智能體。",
   '(built-in)': '（內置）',
   '(overridden by project level agent)': '（已被項目級智能體覆蓋）',
   'Project Level ({{path}})': '項目級 ({{path}})',
@@ -2694,4 +2694,8 @@ export default {
   'enter steers the turn · ctrl+q queues': 'enter 引導本輪 · ctrl+q 加入佇列',
   'Cycle prompt history': '循環瀏覽提示歷史',
   'Scroll when the input is empty': '輸入為空時捲動',
+  'Browse and switch agent sessions.': '瀏覽並切換代理對話。',
+  'Opening agent sessions…': '正在開啟代理對話…',
+  'Could not open agent sessions: {{error}}': '無法開啟代理對話：{{error}}',
+  'Session switching is unavailable in this terminal.': '此終端無法切換對話。',
 };

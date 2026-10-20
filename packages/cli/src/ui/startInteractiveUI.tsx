@@ -74,6 +74,12 @@ import { startPostRenderPrefetches } from '../startup/startup-prefetch.js';
 import { computeWindowTitle, writeTerminalTitle } from './utils/windowTitle.js';
 import { getCliVersion } from '../utils/version.js';
 import { primeRecentSessions } from './utils/recent-sessions.js';
+import {
+  readAgentViewWorkerRedrawEvents,
+  readAgentViewWorkerSidebandEnv,
+  sendAgentViewWorkerEvent,
+  startAgentViewWorkerHeartbeat,
+} from '../agent-view/worker-sideband.js';
 
 const debugLogger = createDebugLogger('STARTUP');
 
@@ -206,6 +212,7 @@ export async function startInteractiveUI(
   // reflowed height. Installed before render() so the resize listener runs
   // ahead of Ink's resized().
   const viewportRenderer: { repaint?: () => void } = {};
+  const workerSideband = readAgentViewWorkerSidebandEnv();
   const resizeReflow =
     process.stdout.isTTY && !config.getScreenReader()
       ? installTerminalResizeReflow(process.stdout, {
@@ -273,6 +280,44 @@ export async function startInteractiveUI(
       });
       return () => {
         alive = false;
+      };
+    }, []);
+
+    React.useEffect(() => {
+      if (!workerSideband) return;
+      let mounted = true;
+      let polling = false;
+      let readySent = false;
+      const heartbeat = startAgentViewWorkerHeartbeat();
+      const poll = async () => {
+        if (polling || !mounted) return;
+        polling = true;
+        try {
+          if (!readySent) {
+            await sendAgentViewWorkerEvent({
+              type: 'ready',
+              cwd: config.getTargetDir(),
+              capabilities: ['redraw'],
+            });
+            readySent = true;
+          }
+          const redraws = await readAgentViewWorkerRedrawEvents();
+          if (mounted && redraws.length > 0) {
+            viewportRenderer.repaint?.();
+          }
+        } catch {
+          // The supervisor can be restarting while the TUI stays usable.
+        } finally {
+          polling = false;
+        }
+      };
+      void poll();
+      const timer = setInterval(() => void poll(), 500);
+      timer.unref?.();
+      return () => {
+        mounted = false;
+        clearInterval(timer);
+        heartbeat?.dispose();
       };
     }, []);
 

@@ -5,6 +5,7 @@
  */
 
 import { callAgentViewSupervisor } from './supervisor-client.js';
+import { randomUUID } from 'node:crypto';
 import type {
   AgentViewInputKind,
   AgentViewWorkerControlEvent,
@@ -39,7 +40,8 @@ type AgentViewWorkerEventWithoutSession =
   | Omit<Extract<AgentViewWorkerEvent, { type: 'ready' }>, 'sessionId'>
   | Omit<Extract<AgentViewWorkerEvent, { type: 'heartbeat' }>, 'sessionId'>
   | Omit<Extract<AgentViewWorkerEvent, { type: 'detach' }>, 'sessionId'>
-  | Omit<Extract<AgentViewWorkerEvent, { type: 'state' }>, 'sessionId'>;
+  | Omit<Extract<AgentViewWorkerEvent, { type: 'state' }>, 'sessionId'>
+  | Omit<Extract<AgentViewWorkerEvent, { type: 'dashboard' }>, 'sessionId'>;
 
 export interface AgentViewWorkerStateReport {
   sessionState: AgentViewSessionState;
@@ -48,6 +50,20 @@ export interface AgentViewWorkerStateReport {
   waitingFor?: string;
   inputKind?: AgentViewInputKind;
   lastResult?: string;
+  model?: string;
+  theme?: 'dark' | 'light';
+  language?: string;
+}
+
+export async function requestAgentSessionDashboard(
+  env: NodeJS.ProcessEnv = process.env,
+): Promise<boolean> {
+  if (!readAgentViewWorkerSidebandEnv(env)) return false;
+  await sendAgentViewWorkerEvent(
+    { type: 'dashboard', requestId: randomUUID() },
+    env,
+  );
+  return true;
 }
 
 export interface AgentViewWorkerHeartbeat {
@@ -154,6 +170,32 @@ export async function readAgentViewWorkerControlEvents(
     });
     return true;
   });
+}
+
+export async function readAgentViewWorkerRedrawEvents(
+  env: NodeJS.ProcessEnv = process.env,
+): Promise<Array<Extract<AgentViewWorkerControlEvent, { type: 'redraw' }>>> {
+  const sideband = readAgentViewWorkerSidebandEnv(env);
+  if (!sideband) return [];
+  const result = await callAgentViewSupervisor(
+    sideband.sidebandEndpoint,
+    'workerControl',
+    {
+      sessionId: sideband.sessionId,
+      token: sideband.token,
+      redrawOnly: true,
+    },
+    { timeoutMs: 1000 },
+  );
+  if (!isRecord(result) || !Array.isArray(result['events'])) return [];
+  return result['events']
+    .filter(isAgentViewWorkerControlEvent)
+    .filter(
+      (
+        event,
+      ): event is Extract<AgentViewWorkerControlEvent, { type: 'redraw' }> =>
+        event.type === 'redraw',
+    );
 }
 
 export async function reportAgentViewWorkerState(

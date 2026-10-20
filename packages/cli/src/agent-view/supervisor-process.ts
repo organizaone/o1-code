@@ -91,7 +91,7 @@ function resolveSessionCwd(cwd: string): string {
 const UNIX_SOCKET_PATH_LIMIT = 100;
 const DEFAULT_IDLE_HIBERNATION_MS = 30 * 60 * 1000;
 const DEFAULT_SUPERVISOR_AUTO_EXIT_GRACE_MS = 10 * 60 * 1000;
-const DEFAULT_WORKER_READY_TIMEOUT_MS = 15_000;
+const DEFAULT_WORKER_READY_TIMEOUT_MS = 45_000;
 const DEFAULT_GRACEFUL_STOP_TIMEOUT_MS = 10_000;
 const DEFAULT_HOST_EXIT_TIMEOUT_MS = 10_000;
 const UNMANAGED_TOMBSTONE_RETENTION_MS = 7 * 24 * 60 * 60 * 1000;
@@ -116,6 +116,7 @@ export interface AgentViewSupervisorMaintenanceResult
 type AgentViewStoreOptions = { globalDir?: string };
 
 export interface AgentViewSupervisorMaintenance {
+  stopOrphanedForegroundSessions(): Promise<void>;
   hibernateIdleSessions(): Promise<AgentViewSupervisorHibernationResult>;
   tickIdleHibernation(): Promise<AgentViewSupervisorMaintenanceResult>;
 }
@@ -141,6 +142,7 @@ export interface AgentViewSupervisorPathOptions {
 
 export interface AgentViewSupervisorProcessOptions
   extends AgentViewSupervisorPathOptions {
+  maxManagedWorkers?: number;
   launchPtyHost?: (
     launch: AgentViewLaunchFile,
   ) => Promise<AgentViewPtyHostHandle>;
@@ -218,6 +220,9 @@ class AgentViewSupervisorProcessHandler
   private readonly attachSockets = new Map<string, Socket>();
   private readonly attachLeases = new AgentViewAttachLeaseManager();
   private readonly subscribers = new Set<Socket>();
+  private readonly ownerSockets = new Map<string, Socket>();
+  private readonly sessionOwners = new Map<string, string>();
+  private readonly ownerSessions = new Map<string, Set<string>>();
   private readonly snapshotCache = new SessionSnapshotCache();
   private readonly pendingWorkerControls = new Map<
     string,
@@ -226,6 +231,7 @@ class AgentViewSupervisorProcessHandler
   private readonly promptQueues = new Map<string, Promise<void>>();
   private readonly attachSetupQueues = new Map<string, Promise<void>>();
   private readonly activeHibernations = new Set<string>();
+  private admissionSequence: Promise<void> = Promise.resolve();
   private readonly workers: WorkerRegistry;
   private workerControlSequence = 0;
   private shuttingDown = false;
@@ -269,6 +275,44 @@ class AgentViewSupervisorProcessHandler
 
   private nextSequence(): number {
     return ++this.workerControlSequence;
+  }
+
+  private async withAdmissionLock<T>(action: () => Promise<T>): Promise<T> {
+    const previous = this.admissionSequence;
+    let release = () => {};
+    this.admissionSequence = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    await previous;
+    try {
+      return await action();
+    } finally {
+      release();
+    }
+  }
+
+  private async assertAdmissionCapacity(): Promise<void> {
+    const configured =
+      this.options.maxManagedWorkers ??
+      Number(process.env['O1CODE_MAX_MANAGED_SESSIONS']);
+    const limit =
+      Number.isInteger(configured) && configured >= 1 && configured <= 8
+        ? configured
+        : 3;
+    const states = await listAgentViewSessionStates(this.store);
+    const resident = states.filter(
+      (state) =>
+        state.ownership === 'managed' &&
+        ['starting', 'alive', 'restarting', 'hibernating'].includes(
+          state.processState,
+        ),
+    ).length;
+    if (resident >= limit) {
+      throw Object.assign(
+        new Error(`Agent session capacity reached (${limit} managed workers).`),
+        { code: 'capacity_reached' },
+      );
+    }
   }
 
   private notifyChanged(): void {
@@ -413,13 +457,111 @@ class AgentViewSupervisorProcessHandler
       this.subscribers.delete(socket);
     });
   }
+  watchOwner(params: { ownerId: string }, socket: Socket, requestId: string) {
+    const ownerId = params?.ownerId;
+    if (typeof ownerId !== 'string' || !/^[a-f\d-]{36}$/i.test(ownerId)) {
+      throw new Error('Invalid foreground owner ID.');
+    }
+    if (this.ownerSockets.has(ownerId)) {
+      throw new Error('Foreground owner is already connected.');
+    }
+    this.ownerSockets.set(ownerId, socket);
+    this.ownerSessions.set(ownerId, new Set());
+    socket.once('close', () => {
+      if (this.ownerSockets.get(ownerId) !== socket) return;
+      this.ownerSockets.delete(ownerId);
+      const sessions = this.ownerSessions.get(ownerId) ?? new Set();
+      this.ownerSessions.delete(ownerId);
+      for (const sessionId of sessions) {
+        if (this.sessionOwners.get(sessionId) !== ownerId) continue;
+        this.sessionOwners.delete(sessionId);
+        void this.stop({ sessionId }).catch(() => {});
+      }
+    });
+    socket.write(
+      `${JSON.stringify({ id: requestId, ok: true, result: { watching: true } })}\n`,
+    );
+  }
+  async claimOwner(params?: Record<string, unknown>) {
+    const ownerId = params?.['ownerId'];
+    const sessionId = requireSessionId(params);
+    if (typeof ownerId !== 'string') {
+      throw new Error('Foreground owner is disconnected.');
+    }
+    const ownerSocket = this.ownerSockets.get(ownerId);
+    if (!ownerSocket) {
+      throw new Error('Foreground owner is disconnected.');
+    }
+    await resolveManagedSessionId(sessionId, this.store);
+    if (this.ownerSockets.get(ownerId) !== ownerSocket) {
+      throw new Error('Foreground owner disconnected while claiming session.');
+    }
+    if (this.hasLiveAttach(sessionId)) {
+      throw new Error(`Session ${sessionId} is attached to another window.`);
+    }
+    const previous = this.sessionOwners.get(sessionId);
+    if (previous) this.ownerSessions.get(previous)?.delete(sessionId);
+    this.sessionOwners.set(sessionId, ownerId);
+    this.ownerSessions.get(ownerId)?.add(sessionId);
+    try {
+      await patchAgentViewSessionState(
+        sessionId,
+        { foregroundOwnerId: ownerId },
+        this.store,
+      );
+      if (this.ownerSockets.get(ownerId) !== ownerSocket) {
+        throw new Error(
+          'Foreground owner disconnected while claiming session.',
+        );
+      }
+    } catch (error) {
+      if (this.sessionOwners.get(sessionId) === ownerId) {
+        this.ownerSessions.get(ownerId)?.delete(sessionId);
+        if (previous && this.ownerSockets.has(previous)) {
+          this.sessionOwners.set(sessionId, previous);
+          this.ownerSessions.get(previous)?.add(sessionId);
+        } else {
+          this.sessionOwners.delete(sessionId);
+          await this.stop({ sessionId }).catch(() => {});
+        }
+      }
+      throw error;
+    }
+    return { sessionId, ownerId };
+  }
   async dispatch(params?: Record<string, unknown>) {
+    return this.withAdmissionLock(async () => {
+      const ownerId = params?.['ownerId'];
+      if (typeof ownerId === 'string' && !this.ownerSockets.has(ownerId)) {
+        throw new Error('Foreground owner is disconnected.');
+      }
+      await this.assertAdmissionCapacity();
+      const result = await this.dispatchUnlocked(params);
+      if (typeof ownerId === 'string') {
+        try {
+          await this.claimOwner({ ownerId, sessionId: result.sessionId });
+        } catch (error) {
+          await this.stop({ sessionId: result.sessionId });
+          throw error;
+        }
+      }
+      return result;
+    });
+  }
+
+  private async dispatchUnlocked(params?: Record<string, unknown>) {
     const prompt =
       typeof params?.['prompt'] === 'string' ? params['prompt'] : '';
+    const interactive = params?.['interactive'] === true;
     const cwd =
       typeof params?.['cwd'] === 'string' ? params['cwd'] : process.cwd();
-    if (!prompt.trim()) {
+    if (!interactive && !prompt.trim()) {
       throw new Error('Agent View dispatch prompt cannot be empty.');
+    }
+    if (interactive && prompt.trim()) {
+      throw new Error(
+        'Interactive Agent View dispatch cannot include a prompt.',
+      );
     }
     const store = {
       ...(this.options.globalDir ? { globalDir: this.options.globalDir } : {}),
@@ -428,7 +570,7 @@ class AgentViewSupervisorProcessHandler
       ...store,
       sidebandEndpoint: this.socketPath,
       publishRoster: false,
-      promptInArgv: !shouldWaitForWorkerReady(this.options),
+      promptInArgv: !interactive && !shouldWaitForWorkerReady(this.options),
     });
     const launch = await readAgentViewLaunch(result.sessionId, store);
     if (!launch) {
@@ -439,10 +581,12 @@ class AgentViewSupervisorProcessHandler
     let host: AgentViewPtyHostHandle | undefined;
     try {
       await this.workers.withHostSetupLock(result.sessionId, async () => {
-        const ready = this.workers.waitForWorkerReadyIfNeeded(
-          result.sessionId,
-          launch.activeCwd,
-        );
+        const ready = interactive
+          ? Promise.resolve()
+          : this.workers.waitForWorkerReadyIfNeeded(
+              result.sessionId,
+              launch.activeCwd,
+            );
         void ready.catch(() => {});
         const hostIdentity = this.workers.createHostIdentity(result.sessionId);
         if (hostIdentity) {
@@ -489,7 +633,7 @@ class AgentViewSupervisorProcessHandler
         readyCompleted = true;
         await ensureSessionStillLaunchable(result.sessionId, store);
       });
-      if (shouldWaitForWorkerReady(this.options)) {
+      if (!interactive && shouldWaitForWorkerReady(this.options)) {
         await this.queuePromptForSession(result.sessionId, prompt);
       }
       const state = await readAgentViewSessionState(result.sessionId, store);
@@ -543,6 +687,30 @@ class AgentViewSupervisorProcessHandler
     }
   }
   async adopt(params?: Record<string, unknown>) {
+    return this.withAdmissionLock(async () => {
+      const ownerId = params?.['ownerId'];
+      if (typeof ownerId === 'string' && !this.ownerSockets.has(ownerId)) {
+        throw new Error('Foreground owner is disconnected.');
+      }
+      const sessionId = requireSessionId(params);
+      const existing = await readAgentViewSessionState(sessionId, this.store);
+      if (existing?.ownership !== 'managed') {
+        await this.assertAdmissionCapacity();
+      }
+      const result = await this.adoptUnlocked(params);
+      if (typeof ownerId === 'string') {
+        try {
+          await this.claimOwner({ ownerId, sessionId });
+        } catch (error) {
+          if (result.adopted) await this.stop({ sessionId });
+          throw error;
+        }
+      }
+      return result;
+    });
+  }
+
+  private async adoptUnlocked(params?: Record<string, unknown>) {
     const adoption = parseAdoptParams(params);
     const store = this.store;
     return this.workers.withHostSetupLock(adoption.sessionId, async () => {
@@ -816,6 +984,25 @@ class AgentViewSupervisorProcessHandler
       await applyWorkerHeartbeatEvent(event, this.store);
       return { sessionId: event.sessionId, accepted: true };
     }
+    if (event.type === 'dashboard') {
+      await requireKnownSession(event.sessionId, this.store);
+      const state = await readAgentViewSessionState(
+        event.sessionId,
+        this.store,
+      );
+      if (!state)
+        throw new Error('Agent session dashboard worker disappeared.');
+      if (state.processState !== 'alive') {
+        throw new Error('Agent session dashboard requires a live worker.');
+      }
+      await patchAgentViewActivityIf(
+        event.sessionId,
+        () => ({ dashboardRequestId: event.requestId }),
+        this.store,
+      );
+      this.notifyChanged();
+      return { sessionId: event.sessionId, accepted: true };
+    }
     let applied = true;
     try {
       const apply = async () => {
@@ -868,6 +1055,19 @@ class AgentViewSupervisorProcessHandler
     await requireKnownSession(sessionId, this.store);
     return this.withPromptQueueLock(sessionId, async () => {
       await requireValidWorkerToken(sessionId, params, this.store);
+      if (params?.['redrawOnly'] === true) {
+        const pending = this.pendingWorkerControls.get(sessionId) ?? [];
+        const redraws = pending.filter((event) => event.type === 'redraw');
+        if (redraws.length > 0) {
+          const remaining = pending.filter((event) => event.type !== 'redraw');
+          if (remaining.length > 0) {
+            this.pendingWorkerControls.set(sessionId, remaining);
+          } else {
+            this.pendingWorkerControls.delete(sessionId);
+          }
+        }
+        return { sessionId, events: redraws };
+      }
       const activity = await readAgentViewActivity(sessionId, this.store);
       const pendingEvents = this.pendingWorkerControls.get(sessionId) ?? [];
       this.pendingWorkerControls.delete(sessionId);
@@ -917,33 +1117,35 @@ class AgentViewSupervisorProcessHandler
       requireSessionId(params),
       this.store,
     );
-    const prepared = await this.withAttachSetupLock(sessionId, () =>
-      this.withPromptQueueLock(sessionId, async () => {
-        if (this.shuttingDown) {
-          writeAttachError(
-            socket,
-            requestId,
-            'not_running',
-            'Agent View supervisor is shutting down.',
-          );
-          return undefined;
-        }
-        if (
-          !(await this.prepareSessionForAttach(sessionId, socket, requestId))
-        ) {
-          return undefined;
-        }
-        if (this.shuttingDown) {
-          writeAttachError(
-            socket,
-            requestId,
-            'not_running',
-            'Agent View supervisor is shutting down.',
-          );
-          return undefined;
-        }
-        return this.beginAttach(sessionId, socket, requestId);
-      }),
+    const prepared = await this.withAdmissionLock(() =>
+      this.withAttachSetupLock(sessionId, () =>
+        this.withPromptQueueLock(sessionId, async () => {
+          if (this.shuttingDown) {
+            writeAttachError(
+              socket,
+              requestId,
+              'not_running',
+              'Agent View supervisor is shutting down.',
+            );
+            return undefined;
+          }
+          if (
+            !(await this.prepareSessionForAttach(sessionId, socket, requestId))
+          ) {
+            return undefined;
+          }
+          if (this.shuttingDown) {
+            writeAttachError(
+              socket,
+              requestId,
+              'not_running',
+              'Agent View supervisor is shutting down.',
+            );
+            return undefined;
+          }
+          return this.beginAttach(sessionId, socket, requestId);
+        }),
+      ),
     );
     if (!prepared) return;
     await this.attachSessionStream(sessionId, socket, requestId, prepared);
@@ -958,6 +1160,12 @@ class AgentViewSupervisorProcessHandler
       const state = await readAgentViewSessionState(sessionId, this.store);
       if (state) {
         await this.detachIfAttachIsStale(state);
+        if (
+          state.processState === 'exited' ||
+          state.processState === 'hibernated'
+        ) {
+          await this.assertAdmissionCapacity();
+        }
       }
       if (await this.workers.respawnStoppedOrFailedSessionIfNeeded(sessionId)) {
         this.notifyChanged();
@@ -1388,6 +1596,19 @@ class AgentViewSupervisorProcessHandler
     const workerCount = await this.workers.shutdownAll();
     await this.options.onShutdown?.();
     return { shuttingDown: true, workersStopped: workerCount };
+  }
+  async stopOrphanedForegroundSessions(): Promise<void> {
+    const states = await listAgentViewSessionStates(this.store);
+    for (const state of states) {
+      if (
+        state.ownership !== 'managed' ||
+        !state.foregroundOwnerId ||
+        state.processState === 'exited'
+      ) {
+        continue;
+      }
+      await this.stop({ sessionId: state.sessionId }).catch(() => {});
+    }
   }
   async hibernateIdleSessions() {
     const result = await this.hibernateIdleSessionsWithPolicy(
@@ -3814,6 +4035,15 @@ async function applyWorkerEvent(
     event.type === 'state' || event.type === 'ready'
       ? {
           ...(event.summary ? { summary: event.summary } : {}),
+          ...(event.type === 'state' && event.model
+            ? { model: event.model }
+            : {}),
+          ...(event.type === 'state' && event.theme
+            ? { theme: event.theme }
+            : {}),
+          ...(event.type === 'state' && event.language
+            ? { language: event.language }
+            : {}),
           ...(event.type === 'state'
             ? { waitingFor: event.waitingFor || undefined }
             : { waitingFor: undefined }),
@@ -4257,6 +4487,14 @@ function parseWorkerEvent(
     const waitingFor = waitingForRaw?.toLowerCase();
     const inputKind = inputKindValue(params['inputKind']);
     const lastResult = stringParam(params, 'lastResult');
+    const model = stringParam(params, 'model');
+    const theme =
+      params['theme'] === 'light'
+        ? 'light'
+        : params['theme'] === 'dark'
+          ? 'dark'
+          : undefined;
+    const language = stringParam(params, 'language');
     const promptId = stringParam(params, 'promptId');
     const at = stringParam(params, 'at');
     return {
@@ -4268,9 +4506,18 @@ function parseWorkerEvent(
       ...(waitingFor !== undefined ? { waitingFor } : {}),
       ...(inputKind !== undefined ? { inputKind } : {}),
       ...(lastResult !== undefined ? { lastResult } : {}),
+      ...(model !== undefined ? { model } : {}),
+      ...(theme !== undefined ? { theme } : {}),
+      ...(language !== undefined ? { language } : {}),
       ...(promptId !== undefined ? { promptId } : {}),
       ...(at !== undefined ? { at } : {}),
     };
+  }
+  if (type === 'dashboard') {
+    const requestId = stringParam(params, 'requestId', { required: true });
+    if (!requestId)
+      throw new Error('Agent session dashboard request ID is required.');
+    return { type, sessionId, requestId };
   }
   throw new Error('Agent View worker event type is invalid.');
 }

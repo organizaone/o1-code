@@ -776,8 +776,8 @@ export default {
   'Enter to submit, Esc to go back': 'Enter to submit, Esc to go back',
   'Invalid step: {{step}}': 'Invalid step: {{step}}',
   'No subagents found.': 'No subagents found.',
-  "Use '/agents create' to create your first subagent.":
-    "Use '/agents create' to create your first subagent.",
+  "Use '/subagents create' to create your first subagent.":
+    "Use '/subagents create' to create your first subagent.",
   '(built-in)': '(built-in)',
   '(overridden by project level agent)': '(overridden by project level agent)',
   'Project Level ({{path}})': 'Project Level ({{path}})',
@@ -3549,4 +3549,10 @@ export default {
   Continue: 'Continue',
   'Disconnect remote control': 'Disconnect remote control',
   Other: 'Other',
+  'Browse and switch agent sessions.': 'Browse and switch agent sessions.',
+  'Opening agent sessions…': 'Opening agent sessions…',
+  'Could not open agent sessions: {{error}}':
+    'Could not open agent sessions: {{error}}',
+  'Session switching is unavailable in this terminal.':
+    'Session switching is unavailable in this terminal.',
 };

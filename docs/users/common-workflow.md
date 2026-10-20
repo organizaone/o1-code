@@ -144,7 +144,7 @@ Suppose you want to use specialized AI subagents to handle specific tasks more e
 **1. View available subagents**
 
 ```
-/agents
+/subagents
 ```
 
 This shows all available subagents and lets you create new ones.
@@ -174,7 +174,7 @@ have the debugger subagent investigate why users can't log in
 **4. Create custom subagents for your workflow**
 
 ```
-/agents
+/subagents
 ```
 
 Then select "create" and follow the prompts to define:

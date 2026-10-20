@@ -518,6 +518,80 @@ export async function runCliEntry(
     return;
   }
 
+  if (rawArgv[0] === '--internal-agent-view-supervisor') {
+    delete process.env['O1CODE_EXTERNAL_TOOL_GUARD_TOKEN'];
+    const { runAgentViewSupervisor } = await import(
+      './agent-view/supervisor-runner.js'
+    );
+    await runAgentViewSupervisor();
+    return;
+  }
+
+  if (rawArgv[0] === '--internal-agent-view-pty-host') {
+    delete process.env['O1CODE_EXTERNAL_TOOL_GUARD_TOKEN'];
+    const launchPath = rawArgv[1];
+    const socketPath = rawArgv[2];
+    if (!launchPath || !socketPath || rawArgv.length !== 3) {
+      throw new Error('Invalid internal PTY host arguments.');
+    }
+    const { runAgentViewPtyHostProcess } = await import(
+      './agent-view/pty-host-process.js'
+    );
+    await runAgentViewPtyHostProcess({ launchPath, socketPath });
+    process.exit(0);
+    return;
+  }
+
+  if (rawArgv[0] === '--internal-agent-view-controller') {
+    if (rawArgv.length !== 1) {
+      throw new Error('Invalid internal foreground controller arguments.');
+    }
+    delete process.env['O1CODE_EXTERNAL_TOOL_GUARD_TOKEN'];
+    const { runAgentSessionForeground } = await import(
+      './agent-view/foreground-runner.js'
+    );
+    await runAgentSessionForeground();
+    process.exit(0);
+    return;
+  }
+
+  if (
+    rawArgv.length === 0 &&
+    process.stdin.isTTY &&
+    process.stdout.isTTY &&
+    process.env['O1CODE_AGENT_VIEW_WORKER'] !== '1' &&
+    process.env['O1CODE_DISABLE_SESSION_SWITCHER'] !== '1'
+  ) {
+    delete process.env['O1CODE_EXTERNAL_TOOL_GUARD_TOKEN'];
+    const { runAgentSessionForeground } = await import(
+      './agent-view/foreground-runner.js'
+    );
+    let managed = false;
+    let attached = false;
+    try {
+      await runAgentSessionForeground(() => {
+        attached = true;
+      });
+      managed = true;
+    } catch (error) {
+      if (attached) throw error;
+      if (
+        error instanceof Error &&
+        'code' in error &&
+        error.code === 'capacity_reached'
+      ) {
+        throw error;
+      }
+      process.stderr.write(
+        `Session switching is unavailable; opening a direct session: ${error instanceof Error ? error.message : String(error)}\n`,
+      );
+    }
+    if (managed) {
+      process.exit(0);
+      return;
+    }
+  }
+
   const argv = normalizeServeFastPathArgv(rawArgv);
   const route = resolveBootstrapRoute(argv);
   if (route !== 'serve') {

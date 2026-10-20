@@ -223,6 +223,28 @@ describe('launchAgentViewPtyHost', () => {
     expect(handle.output.toString()).toBe('lo world');
   });
 
+  it('detects a Windows worker that exited without a PTY exit callback', async () => {
+    const pty = createFakePty();
+    let alive = true;
+    const handle = await launchAgentViewPtyHost(createLaunch(), {
+      pty,
+      isWorkerProcessAlive: () => alive,
+      exitPollMs: 5,
+    });
+    try {
+      alive = false;
+      const outcome = await Promise.race([
+        handle.exited,
+        new Promise<'timeout'>((resolve) =>
+          setTimeout(() => resolve('timeout'), 100),
+        ),
+      ]);
+      expect(outcome).toEqual({ kind: 'exited', exitCode: 1 });
+    } finally {
+      handle.dispose();
+    }
+  });
+
   it('uses launch argv when no fake command is provided', async () => {
     const pty = createFakePty();
 

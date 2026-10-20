@@ -121,7 +121,8 @@ Commands for managing AI tools and models.
 | `/hooks`              | Manage O1-Code hooks                                                                                                        | `/hooks`, `/hooks list`                                                                                   |
 | `/reload-plugins`     | Reload extension changes (commands, skills, agents, workflows, hooks, MCP/LSP servers) from disk                            | `/reload-plugins`                                                                                         |
 | `/permissions`        | Manage permission rules                                                                                                     | `/permissions`                                                                                            |
-| `/agents`             | Manage subagents                                                                                                            | `/agents manage`, `/agents create`                                                                        |
+| `/agents`             | Browse conversations by workspace and switch the attached terminal session                                                  | `/agents` (alias `/sessions`)                                                                             |
+| `/subagents`          | Manage specialized subagents                                                                                                | `/subagents manage`, `/subagents create`                                                                  |
 | `/arena`              | Manage Arena sessions                                                                                                       | `/arena start`, `/arena stop`, `/arena status`, `/arena select` (alias `choose`)                          |
 | `/goal`               | Set a Goal — keep working until a verifier confirms it (see [Goals](./goals.md))                                            | `/goal <objective>`, `/goal edit <objective>`, `/goal pause`, `/goal resume`, `/goal clear`               |
 | `/tasks`              | List background tasks                                                                                                       | `/tasks`                                                                                                  |
@@ -129,6 +130,19 @@ Commands for managing AI tools and models.
 | `/rc`                 | Mirror the session to your OrganizaOne account page and take input from there (see [Remote sessions](./remote-sessions.md)) | `/rc`, `/rc off`, `/rc status`, `/rc name <name>`                                                         |
 | `/lsp`                | Show LSP server status                                                                                                      | `/lsp`                                                                                                    |
 | `/trust`              | Manage folder trust settings                                                                                                | `/trust`                                                                                                  |
+
+`/agents` opens a full-screen list of conversations grouped by folder. Use ↑/↓ to select, `/` to
+search, Enter to open a session, and Esc to return. The detail pane shows the selected conversation's
+summary, model when known, and latest message. Managed sessions keep running when you switch away.
+Closing the main CLI window stops the sessions it owns, including work still running in another
+session. Opening one of those sessions from a different CLI window transfers ownership to that window.
+Saved conversations can be resumed from the list. An independently running terminal appears in the
+list but cannot be taken over; return to its own terminal to continue it. The switcher requires an
+interactive terminal with PTY support. O1-Code falls back to a direct session if that support is
+unavailable. By default, at most three managed workers run at once; set
+`O1CODE_MAX_MANAGED_SESSIONS` to a value from 1 to 8 to adjust this limit.
+The previous `/agents manage` and `/agents create` forms remain available for compatibility;
+`/subagents` is the command for subagent management.
 
 > [!warning]
 >

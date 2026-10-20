@@ -286,8 +286,8 @@ export default {
   'Enter to submit, Esc to go back': 'Enter zum Absenden, Esc zum Zurückgehen',
   'Invalid step: {{step}}': 'Ungültiger Schritt: {{step}}',
   'No subagents found.': 'Keine Unteragenten gefunden.',
-  "Use '/agents create' to create your first subagent.":
-    "Verwenden Sie '/agents create', um Ihren ersten Unteragenten zu erstellen.",
+  "Use '/subagents create' to create your first subagent.":
+    "Verwenden Sie '/subagents create', um Ihren ersten Unteragenten zu erstellen.",
   '(built-in)': '(integriert)',
   '(overridden by project level agent)': '(überschrieben durch Projektagent)',
   'Project Level ({{path}})': 'Projektebene ({{path}})',
@@ -3147,4 +3147,11 @@ export default {
     'Von anderen O1-Code-Sitzungen zurückgehaltene Nachrichten überprüfen (accept | deny) und vertrauenswürdige Controller verwalten (controllers | revoke)',
   'Cycle prompt history': 'Durch den Prompt-Verlauf blättern',
   'Scroll when the input is empty': 'Scrollen bei leerer Eingabe',
+  'Browse and switch agent sessions.':
+    'Agentensitzungen anzeigen und wechseln.',
+  'Opening agent sessions…': 'Agentensitzungen werden geöffnet…',
+  'Could not open agent sessions: {{error}}':
+    'Agentensitzungen konnten nicht geöffnet werden: {{error}}',
+  'Session switching is unavailable in this terminal.':
+    'Der Sitzungswechsel ist in diesem Terminal nicht verfügbar.',
 };

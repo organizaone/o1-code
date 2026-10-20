@@ -309,8 +309,8 @@ export default {
   'Enter to submit, Esc to go back': 'Enter для отправки, Esc для возврата',
   'Invalid step: {{step}}': 'Неверный шаг: {{step}}',
   'No subagents found.': 'Подагенты не найдены.',
-  "Use '/agents create' to create your first subagent.":
-    "Используйте '/agents create' для создания первого подагента.",
+  "Use '/subagents create' to create your first subagent.":
+    "Используйте '/subagents create' для создания первого подагента.",
   '(built-in)': '(встроенный)',
   '(overridden by project level agent)':
     '(переопределен агентом уровня проекта)',
@@ -3108,4 +3108,10 @@ export default {
     'Просмотр сообщений, удержанных от других сессий O1-Code (accept | deny), и управление доверенными контроллерами (controllers | revoke)',
   'Cycle prompt history': 'Перебор истории запросов',
   'Scroll when the input is empty': 'Прокрутка при пустом вводе',
+  'Browse and switch agent sessions.': 'Просмотр и переключение сессий агента.',
+  'Opening agent sessions…': 'Открытие сессий агента…',
+  'Could not open agent sessions: {{error}}':
+    'Не удалось открыть сессии агента: {{error}}',
+  'Session switching is unavailable in this terminal.':
+    'Переключение сессий недоступно в этом терминале.',
 };

@@ -98,7 +98,8 @@ add input validation to POST /todos: reject an empty title with a 400, and add a
   a [status line](./docs/users/features/status-line.md) and
   [extensions](./docs/users/extension/introduction.md) that bundle them.
 - Project instructions in `AGENTS.md`, [memory](./docs/users/features/memory.md) across sessions,
-  session resume and compaction.
+  session resume and compaction. Use `/agents` to browse workspace conversations and switch the
+  terminal between managed sessions while work continues in the others.
 
 **Beyond the terminal**
 
