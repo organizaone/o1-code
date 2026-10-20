@@ -5,14 +5,15 @@
  */
 
 import type React from 'react';
-import { useRef, useState } from 'react';
-import { Box, Text } from 'ink';
+import { useLayoutEffect, useRef, useState } from 'react';
+import { Box, Text, useBoxMetrics, type DOMElement } from 'ink';
 import { ToolConfirmationOutcome } from '@organizaone/o1-code-core/tools/tools.js';
 import type {
   ToolAskUserQuestionConfirmationDetails,
   ToolConfirmationPayload,
 } from '@organizaone/o1-code-core/tools/tools.js';
-import { theme } from '../../semantic-colors.js';
+import { extendedTheme, theme } from '../../semantic-colors.js';
+import { glyphs } from '../../glyphs.js';
 import { useKeypress } from '../../hooks/useKeypress.js';
 import { keyMatchers, Command } from '../../keyMatchers.js';
 import { TextInput } from '../shared/TextInput.js';
@@ -51,12 +52,43 @@ interface AskUserQuestionDialogProps {
   /** Width (cells) of the box the dialog is rendered into; sizes the header
    * tab row. */
   availableWidth: number;
-  /** Rows reserved for the dialog, excluding its parent's border and title. */
+  /** Maximum rows for the dialog, excluding its parent's border and title. */
   availableHeight?: number;
   onConfirm: (
     outcome: ToolConfirmationOutcome,
     payload?: ToolConfirmationPayload,
   ) => Promise<void>;
+}
+
+function QuestionDialogLayout({
+  availableHeight,
+  children,
+  renderOverflow,
+}: {
+  availableHeight?: number;
+  children: React.ReactElement;
+  renderOverflow: (height: number) => React.ReactElement;
+}) {
+  const naturalRef = useRef<DOMElement>(null);
+  const { height, hasMeasured } = useBoxMetrics(
+    naturalRef as React.RefObject<DOMElement>,
+  );
+  const [naturalHeight, setNaturalHeight] = useState<number | null>(null);
+  useLayoutEffect(() => {
+    // Retain the natural measurement when overflow replaces the measured box.
+    if (hasMeasured && naturalRef.current && height > 0) {
+      setNaturalHeight(height);
+    }
+  }, [height, hasMeasured]);
+  if (availableHeight !== undefined && naturalHeight !== null) {
+    const limit = Math.max(1, Math.floor(availableHeight));
+    if (naturalHeight > limit) return renderOverflow(limit);
+  }
+  return (
+    <Box ref={naturalRef} flexDirection="column" flexShrink={0}>
+      {children}
+    </Box>
+  );
 }
 
 export const AskUserQuestionDialog: React.FC<AskUserQuestionDialogProps> = ({
@@ -106,15 +138,22 @@ export const AskUserQuestionDialog: React.FC<AskUserQuestionDialogProps> = ({
   const getCustomInputValue = (idx: number) =>
     customInputValuesRef.current[idx] ?? customInputValues[idx] ?? '';
   const currentCustomInputValue = getCustomInputValue(currentQuestionIndex);
+  // Below ten rows, reserve the frame's space for answer controls instead.
+  const frameFits = availableHeight === undefined || availableHeight >= 10;
+  const horizontalInset = frameFits ? 4 : 2;
+  const contentHeight =
+    availableHeight === undefined
+      ? undefined
+      : Math.max(1, availableHeight - (frameFits ? 2 : 0));
   const customInputPrefixWidth =
     2 + (isMultiSelect ? 4 : 0) + String(totalOptions).length + 2;
   const customInputWidth = Math.max(
     1,
-    availableWidth - 2 - customInputPrefixWidth - 2 - 1,
+    availableWidth - horizontalInset - customInputPrefixWidth - 2 - 1,
   );
   const boundedInputHeight = Math.min(
     3,
-    Math.max(1, (availableHeight ?? 10) - 7),
+    Math.max(1, (contentHeight ?? 10) - 7),
   );
   const isCustomInputAnswer =
     !isSubmitTab &&
@@ -149,7 +188,7 @@ export const AskUserQuestionDialog: React.FC<AskUserQuestionDialogProps> = ({
   ).length;
   // Cells the row spends outside the header text, matching what it renders.
   // Recomputed each render, so answering a question re-fits the row.
-  const dialogPadding = 2;
+  const dialogPadding = horizontalInset;
   // "▸ " when the Submit tab is active, a single leading space otherwise, plus
   // the (locale-dependent) label.
   const submitChipWidth =
@@ -419,17 +458,16 @@ export const AskUserQuestionDialog: React.FC<AskUserQuestionDialogProps> = ({
         placeholder={t('Type something...')}
         isActive={isFocused}
         inputWidth={customInputWidth}
-        height={availableHeight === undefined ? 3 : boundedInputHeight}
-        showScrollIndicator={
-          availableHeight === undefined || availableHeight >= 7
-        }
+        height={contentHeight === undefined ? 3 : boundedInputHeight}
+        showScrollIndicator={contentHeight === undefined || contentHeight >= 7}
       />
     </Box>
   );
 
-  if (availableHeight !== undefined) {
-    const height = Math.max(1, Math.floor(availableHeight));
-    const width = Math.max(1, availableWidth - 2);
+  const layoutKey = `${availableWidth}:${currentQuestionIndex}:${Boolean(isCustomInputSelected)}:${frameFits}`;
+  const renderBoundedDialog = (limit: number) => {
+    const height = Math.max(1, limit - (frameFits ? 2 : 0));
+    const width = Math.max(1, availableWidth - horizontalInset);
     const showHeader = height >= 3;
     const showNavigationHint = height >= 4;
     const showScrollHint = height >= 6;
@@ -516,9 +554,11 @@ export const AskUserQuestionDialog: React.FC<AskUserQuestionDialogProps> = ({
     return (
       <Box
         width={availableWidth}
-        height={height}
+        height={limit}
         flexDirection="column"
         paddingX={1}
+        borderStyle={frameFits ? glyphs().borderStyle : undefined}
+        borderColor={extendedTheme.activity.execute}
       >
         {showHeader && (
           <Box height={1} flexShrink={0}>
@@ -612,234 +652,262 @@ export const AskUserQuestionDialog: React.FC<AskUserQuestionDialogProps> = ({
         </Box>
       </Box>
     );
-  }
+  };
 
   // Submit tab (for multiple questions)
   if (isSubmitTab) {
     return (
-      <Box flexDirection="column" padding={1}>
-        {/* Tabs */}
-        <Box marginBottom={1} flexDirection="row" gap={1}>
-          {confirmationDetails.questions.map((q, idx) => {
-            const isAnswered = getAnswerForQuestion(idx) !== undefined;
-            return (
-              <Box key={idx}>
-                <Text dimColor>
-                  {'  '}
-                  {truncateToWidth(q.header, headerCap)}
-                  {isAnswered ? ' ✓' : ''}
-                </Text>
-              </Box>
-            );
-          })}
-          <Box>
-            <Text color={theme.text.accent} bold>
-              ▸ {t('Submit')}
+      <QuestionDialogLayout
+        key={layoutKey}
+        availableHeight={availableHeight}
+        renderOverflow={renderBoundedDialog}
+      >
+        <Box
+          width={availableWidth}
+          flexDirection="column"
+          paddingX={1}
+          paddingY={frameFits ? 0 : 1}
+          borderStyle={frameFits ? glyphs().borderStyle : undefined}
+          borderColor={extendedTheme.activity.execute}
+        >
+          {/* Tabs */}
+          <Box marginBottom={1} flexDirection="row" gap={1}>
+            {confirmationDetails.questions.map((q, idx) => {
+              const isAnswered = getAnswerForQuestion(idx) !== undefined;
+              return (
+                <Box key={idx}>
+                  <Text dimColor>
+                    {'  '}
+                    {truncateToWidth(q.header, headerCap)}
+                    {isAnswered ? ' ✓' : ''}
+                  </Text>
+                </Box>
+              );
+            })}
+            <Box>
+              <Text color={theme.text.accent} bold>
+                ▸ {t('Submit')}
+              </Text>
+            </Box>
+          </Box>
+
+          {/* Show selected answers */}
+          <Box flexDirection="column" marginBottom={1}>
+            <Text bold>{t('Your answers:')}</Text>
+            {confirmationDetails.questions.map((q, idx) => {
+              const answer = getAnswerForQuestion(idx);
+              return (
+                <Box key={idx} marginLeft={2}>
+                  <Text>
+                    {q.header}:{' '}
+                    {answer ? (
+                      <Text color={theme.text.accent}>{answer}</Text>
+                    ) : (
+                      <Text dimColor>{t('(not answered)')}</Text>
+                    )}
+                  </Text>
+                </Box>
+              );
+            })}
+          </Box>
+
+          <Box marginTop={1} marginBottom={1}>
+            <Text>{t('Ready to submit your answers?')}</Text>
+          </Box>
+
+          {/* Submit/Cancel options */}
+          <Box flexDirection="column">
+            <Box>
+              <Text
+                color={
+                  selectedIndex === 0 ? theme.text.accent : theme.text.primary
+                }
+                bold={selectedIndex === 0}
+              >
+                {selectedIndex === 0 ? '❯ ' : '  '}1. {t('Submit answers')}
+              </Text>
+            </Box>
+            <Box>
+              <Text
+                color={
+                  selectedIndex === 1 ? theme.text.accent : theme.text.primary
+                }
+                bold={selectedIndex === 1}
+              >
+                {selectedIndex === 1 ? '❯ ' : '  '}2. {t('Cancel')}
+              </Text>
+            </Box>
+          </Box>
+
+          <Box marginTop={1}>
+            <Text dimColor>
+              {t('↑/↓: Navigate | ←/→: Switch tabs | Enter: Select')}
             </Text>
           </Box>
         </Box>
-
-        {/* Show selected answers */}
-        <Box flexDirection="column" marginBottom={1}>
-          <Text bold>{t('Your answers:')}</Text>
-          {confirmationDetails.questions.map((q, idx) => {
-            const answer = getAnswerForQuestion(idx);
-            return (
-              <Box key={idx} marginLeft={2}>
-                <Text>
-                  {q.header}:{' '}
-                  {answer ? (
-                    <Text color={theme.text.accent}>{answer}</Text>
-                  ) : (
-                    <Text dimColor>{t('(not answered)')}</Text>
-                  )}
-                </Text>
-              </Box>
-            );
-          })}
-        </Box>
-
-        <Box marginTop={1} marginBottom={1}>
-          <Text>{t('Ready to submit your answers?')}</Text>
-        </Box>
-
-        {/* Submit/Cancel options */}
-        <Box flexDirection="column">
-          <Box>
-            <Text
-              color={
-                selectedIndex === 0 ? theme.text.accent : theme.text.primary
-              }
-              bold={selectedIndex === 0}
-            >
-              {selectedIndex === 0 ? '❯ ' : '  '}1. {t('Submit answers')}
-            </Text>
-          </Box>
-          <Box>
-            <Text
-              color={
-                selectedIndex === 1 ? theme.text.accent : theme.text.primary
-              }
-              bold={selectedIndex === 1}
-            >
-              {selectedIndex === 1 ? '❯ ' : '  '}2. {t('Cancel')}
-            </Text>
-          </Box>
-        </Box>
-
-        <Box marginTop={1}>
-          <Text dimColor>
-            {t('↑/↓: Navigate | ←/→: Switch tabs | Enter: Select')}
-          </Text>
-        </Box>
-      </Box>
+      </QuestionDialogLayout>
     );
   }
 
   // Question tab
   return (
-    <Box flexDirection="column" padding={1}>
-      {/* Tabs for multiple questions */}
-      {hasMultipleQuestions && (
-        <Box marginBottom={1} flexDirection="row" gap={1}>
-          {confirmationDetails.questions.map((q, idx) => {
-            const isAnswered = getAnswerForQuestion(idx) !== undefined;
-            return (
-              <Box key={idx}>
-                <Text
-                  color={
-                    idx === currentQuestionIndex
-                      ? theme.text.accent
-                      : theme.text.primary
-                  }
-                  bold={idx === currentQuestionIndex}
-                  dimColor={idx !== currentQuestionIndex}
-                >
-                  {idx === currentQuestionIndex ? '▸ ' : '  '}
-                  {truncateToWidth(q.header, headerCap)}
-                  {isAnswered ? ' ✓' : ''}
-                </Text>
-              </Box>
-            );
-          })}
-          <Box>
-            <Text dimColor> {t('Submit')}</Text>
-          </Box>
-        </Box>
-      )}
-
-      {/* Question */}
-      <Box flexDirection="column" marginBottom={1}>
-        {!hasMultipleQuestions && (
-          <Box marginBottom={1}>
-            <Text color={theme.text.accent} bold>
-              {currentQuestion!.header}
-            </Text>
+    <QuestionDialogLayout
+      key={layoutKey}
+      availableHeight={availableHeight}
+      renderOverflow={renderBoundedDialog}
+    >
+      <Box
+        width={availableWidth}
+        flexDirection="column"
+        paddingX={1}
+        paddingY={frameFits ? 0 : 1}
+        borderStyle={frameFits ? glyphs().borderStyle : undefined}
+        borderColor={extendedTheme.activity.execute}
+      >
+        {/* Tabs for multiple questions */}
+        {hasMultipleQuestions && (
+          <Box marginBottom={1} flexDirection="row" gap={1}>
+            {confirmationDetails.questions.map((q, idx) => {
+              const isAnswered = getAnswerForQuestion(idx) !== undefined;
+              return (
+                <Box key={idx}>
+                  <Text
+                    color={
+                      idx === currentQuestionIndex
+                        ? theme.text.accent
+                        : theme.text.primary
+                    }
+                    bold={idx === currentQuestionIndex}
+                    dimColor={idx !== currentQuestionIndex}
+                  >
+                    {idx === currentQuestionIndex ? '▸ ' : '  '}
+                    {truncateToWidth(q.header, headerCap)}
+                    {isAnswered ? ' ✓' : ''}
+                  </Text>
+                </Box>
+              );
+            })}
+            <Box>
+              <Text dimColor> {t('Submit')}</Text>
+            </Box>
           </Box>
         )}
-        <Text>{currentQuestion!.question}</Text>
-      </Box>
 
-      {/* Options */}
-      <Box flexDirection="column" marginBottom={1}>
-        {currentQuestion!.options.map((opt, index) => {
-          const isSelected = selectedIndex === index;
-          const isMultiChecked =
-            isMultiSelect &&
-            (multiSelectedOptions[currentQuestionIndex] ?? []).includes(
-              opt.label,
-            );
-          const isAnswered =
-            !isMultiSelect &&
-            selectedOptions[currentQuestionIndex] === opt.label;
-          const isHighlighted = isSelected || isAnswered || isMultiChecked;
-          // Calculate prefix width for description alignment:
-          // 2 (cursor) + checkbox (4 if multi) + number + ". " (2)
-          const prefixWidth =
-            2 + (isMultiSelect ? 4 : 0) + String(index + 1).length + 2;
-          return (
-            <Box key={index} flexDirection="column">
-              <Box>
-                <Text
-                  color={isHighlighted ? theme.text.accent : theme.text.primary}
-                  bold={isHighlighted}
-                >
-                  {isSelected ? '❯ ' : '  '}
-                  {isMultiSelect ? (isMultiChecked ? '[✓] ' : '[ ] ') : ''}
-                  {index + 1}. {opt.label}
-                  {isAnswered ? ' ✓' : ''}
-                </Text>
-              </Box>
-              {opt.description && (
-                <Box marginLeft={prefixWidth}>
-                  <Text dimColor>{opt.description}</Text>
-                </Box>
-              )}
-            </Box>
-          );
-        })}
-
-        {/* Type something option/input */}
-        <Box flexDirection="column">
-          {isCustomInputSelected ? (
-            customInputElement
-          ) : (
-            // Show typed value or placeholder when not selected
-            <Box>
-              <Text
-                color={
-                  isCustomInputAnswer ||
-                  customInputChecked[currentQuestionIndex]
-                    ? theme.text.accent
-                    : theme.text.primary
-                }
-                bold={
-                  !!(
-                    isCustomInputAnswer ||
-                    customInputChecked[currentQuestionIndex]
-                  )
-                }
-                dimColor={
-                  !currentCustomInputValue &&
-                  !isCustomInputAnswer &&
-                  !customInputChecked[currentQuestionIndex]
-                }
-              >
-                {'  '}
-                {isMultiSelect
-                  ? customInputChecked[currentQuestionIndex]
-                    ? '[✓] '
-                    : '[ ] '
-                  : ''}
-                {currentQuestion!.options.length + 1}.{' '}
-                {currentCustomInputValue || t('Type something...')}
-                {isCustomInputAnswer ? ' ✓' : ''}
+        {/* Question */}
+        <Box flexDirection="column" marginBottom={1}>
+          {!hasMultipleQuestions && (
+            <Box marginBottom={1}>
+              <Text color={theme.text.accent} bold>
+                {currentQuestion!.header}
               </Text>
             </Box>
           )}
+          <Text>{currentQuestion!.question}</Text>
         </Box>
-      </Box>
 
-      {/* Help text */}
-      <Box flexDirection="column" marginTop={1}>
-        <Box>
-          <Text dimColor>
-            {hasMultipleQuestions
-              ? isMultiSelect
-                ? t(
-                    '↑/↓: Navigate | ←/→: Switch tabs | Space: Toggle | Enter: Confirm | Esc: Cancel',
-                  )
-                : t(
-                    '↑/↓: Navigate | ←/→: Switch tabs | Enter: Select | Esc: Cancel',
-                  )
-              : isMultiSelect
-                ? t(
-                    '↑/↓: Navigate | Space: Toggle | Enter: Confirm | Esc: Cancel',
-                  )
-                : t('↑/↓: Navigate | Enter: Select | Esc: Cancel')}
-          </Text>
+        {/* Options */}
+        <Box flexDirection="column" marginBottom={1}>
+          {currentQuestion!.options.map((opt, index) => {
+            const isSelected = selectedIndex === index;
+            const isMultiChecked =
+              isMultiSelect &&
+              (multiSelectedOptions[currentQuestionIndex] ?? []).includes(
+                opt.label,
+              );
+            const isAnswered =
+              !isMultiSelect &&
+              selectedOptions[currentQuestionIndex] === opt.label;
+            const isHighlighted = isSelected || isAnswered || isMultiChecked;
+            // Calculate prefix width for description alignment:
+            // 2 (cursor) + checkbox (4 if multi) + number + ". " (2)
+            const prefixWidth =
+              2 + (isMultiSelect ? 4 : 0) + String(index + 1).length + 2;
+            return (
+              <Box key={index} flexDirection="column">
+                <Box>
+                  <Text
+                    color={
+                      isHighlighted ? theme.text.accent : theme.text.primary
+                    }
+                    bold={isHighlighted}
+                  >
+                    {isSelected ? '❯ ' : '  '}
+                    {isMultiSelect ? (isMultiChecked ? '[✓] ' : '[ ] ') : ''}
+                    {index + 1}. {opt.label}
+                    {isAnswered ? ' ✓' : ''}
+                  </Text>
+                </Box>
+                {opt.description && (
+                  <Box marginLeft={prefixWidth}>
+                    <Text dimColor>{opt.description}</Text>
+                  </Box>
+                )}
+              </Box>
+            );
+          })}
+
+          {/* Type something option/input */}
+          <Box flexDirection="column">
+            {isCustomInputSelected ? (
+              customInputElement
+            ) : (
+              // Show typed value or placeholder when not selected
+              <Box>
+                <Text
+                  color={
+                    isCustomInputAnswer ||
+                    customInputChecked[currentQuestionIndex]
+                      ? theme.text.accent
+                      : theme.text.primary
+                  }
+                  bold={
+                    !!(
+                      isCustomInputAnswer ||
+                      customInputChecked[currentQuestionIndex]
+                    )
+                  }
+                  dimColor={
+                    !currentCustomInputValue &&
+                    !isCustomInputAnswer &&
+                    !customInputChecked[currentQuestionIndex]
+                  }
+                >
+                  {'  '}
+                  {isMultiSelect
+                    ? customInputChecked[currentQuestionIndex]
+                      ? '[✓] '
+                      : '[ ] '
+                    : ''}
+                  {currentQuestion!.options.length + 1}.{' '}
+                  {currentCustomInputValue || t('Type something...')}
+                  {isCustomInputAnswer ? ' ✓' : ''}
+                </Text>
+              </Box>
+            )}
+          </Box>
+        </Box>
+
+        {/* Help text */}
+        <Box flexDirection="column" marginTop={1}>
+          <Box>
+            <Text dimColor>
+              {hasMultipleQuestions
+                ? isMultiSelect
+                  ? t(
+                      '↑/↓: Navigate | ←/→: Switch tabs | Space: Toggle | Enter: Confirm | Esc: Cancel',
+                    )
+                  : t(
+                      '↑/↓: Navigate | ←/→: Switch tabs | Enter: Select | Esc: Cancel',
+                    )
+                : isMultiSelect
+                  ? t(
+                      '↑/↓: Navigate | Space: Toggle | Enter: Confirm | Esc: Cancel',
+                    )
+                  : t('↑/↓: Navigate | Enter: Select | Esc: Cancel')}
+            </Text>
+          </Box>
         </Box>
       </Box>
-    </Box>
+    </QuestionDialogLayout>
   );
 };
