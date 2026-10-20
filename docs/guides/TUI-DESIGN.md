@@ -371,6 +371,18 @@ never leaves; it only shortens from the start.
 
 ## Dialogs and selection
 
+- **Agent sessions** (`agent-view/session-dashboard.ts`): `/agents` (alias
+  `/sessions`) is a full-screen terminal controller view. It groups top-level
+  conversations by workspace and keeps task, status, age, and model in aligned
+  columns. At 110 columns or more it shows selected details on the right;
+  narrower terminals use Space to switch between list and details. The active
+  terminal session has a filled marker. Theme colours come from the same
+  dark/light tokens as Ink; labels follow the current language. Arrows navigate,
+  `/` searches, Enter attaches, and Esc returns. The controller renders ANSI
+  frames because it runs outside the worker's Ink tree while that worker is
+  detached. It must keep every row within the terminal width and never route
+  keyboard input to a detached worker.
+
 - **Subagent dashboard** (`background-view/AgentDashboard.tsx`): `/tasks` uses the
   terminal's available width and height, including its outer layout containers.
   At 120 terminal columns, the roster and details appear side by side; narrower

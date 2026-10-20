@@ -16,6 +16,7 @@ import {
   O1CODE_AGENT_VIEW_WORKER,
   readAgentViewWorkerSidebandEnv,
   readAgentViewWorkerControlEvents,
+  readAgentViewWorkerRedrawEvents,
   reportAgentViewWorkerState,
   resetAgentViewWorkerStateReportForTests,
   sendAgentViewWorkerEvent,
@@ -245,6 +246,28 @@ describe('worker sideband env', () => {
         sessionId: 'session-1',
         token: 'token-1',
       },
+      { timeoutMs: 1000 },
+    );
+  });
+
+  it('requests redraws without consuming other worker controls', async () => {
+    mockCallAgentViewSupervisor.mockResolvedValueOnce({
+      events: [{ type: 'redraw', sequence: 4, at: '2026-07-17T00:00:00Z' }],
+    });
+    const env = createAgentViewWorkerSidebandEnv({
+      sessionId: 'session-1',
+      sidebandEndpoint: '/tmp/o1-code-agent-view.sock',
+      token: 'token-1',
+      activeCwd: '/repo',
+    });
+
+    await expect(readAgentViewWorkerRedrawEvents(env)).resolves.toEqual([
+      { type: 'redraw', sequence: 4, at: '2026-07-17T00:00:00Z' },
+    ]);
+    expect(mockCallAgentViewSupervisor).toHaveBeenCalledWith(
+      '/tmp/o1-code-agent-view.sock',
+      'workerControl',
+      { sessionId: 'session-1', token: 'token-1', redrawOnly: true },
       { timeoutMs: 1000 },
     );
   });

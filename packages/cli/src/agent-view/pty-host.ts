@@ -79,6 +79,8 @@ export interface AgentViewPtyHostOptions {
   maxOutputBytes?: number;
   pty?: AgentViewPtyImplementation | null;
   loadPty?: () => Promise<AgentViewPtyImplementation | null>;
+  isWorkerProcessAlive?: (pid: number) => boolean;
+  exitPollMs?: number;
 }
 
 export type AgentViewPtyHostExit =
@@ -382,6 +384,20 @@ export async function launchAgentViewPtyHost(
     }
   });
 
+  if (process.platform === 'win32' || options.isWorkerProcessAlive) {
+    const isAlive = options.isWorkerProcessAlive ?? isProcessAlive;
+    const exitPoll = setInterval(() => {
+      if (!settled && !isAlive(ptyProcess.pid)) {
+        // ConPTY can omit onExit after a normal CLI shutdown. The process
+        // liveness check cannot recover its exit code, so classify unknown
+        // exits conservatively while releasing the host and its attach lease.
+        resolveExitOnce({ kind: 'exited', exitCode: 1 });
+      }
+    }, options.exitPollMs ?? 1000);
+    exitPoll.unref?.();
+    void exited.then(() => clearInterval(exitPoll));
+  }
+
   return {
     pid: process.pid,
     workerPid: ptyProcess.pid,
@@ -424,6 +440,15 @@ export async function launchAgentViewPtyHost(
       }
     },
   };
+}
+
+function isProcessAlive(pid: number): boolean {
+  try {
+    process.kill(pid, 0);
+    return true;
+  } catch (error) {
+    return (error as NodeJS.ErrnoException).code !== 'ESRCH';
+  }
 }
 
 async function importPty(

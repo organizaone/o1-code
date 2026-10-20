@@ -180,6 +180,7 @@ export async function runAgentViewSupervisor(
   closeServer = () => (serverClosePromise ??= server.close());
 
   await server.listen();
+  await handler.stopOrphanedForegroundSessions();
   await writeAgentViewSupervisor(
     {
       schemaVersion: 1,

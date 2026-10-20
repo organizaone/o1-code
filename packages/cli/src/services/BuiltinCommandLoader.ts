@@ -12,6 +12,7 @@ import { advisorCommand } from '../ui/commands/advisor-command.js';
 import { tasksCommand } from '../ui/commands/tasksCommand.js';
 import { workflowsCommand } from '../ui/commands/workflowsCommand.js';
 import { agentsCommand } from '../ui/commands/agentsCommand.js';
+import { subagentsCommand } from '../ui/commands/subagents-command.js';
 import { arenaCommand } from '../ui/commands/arenaCommand.js';
 import { approvalModeCommand } from '../ui/commands/approvalModeCommand.js';
 import { authCommand } from '../ui/commands/authCommand.js';
@@ -124,6 +125,7 @@ export class BuiltinCommandLoader implements ICommandLoader {
       aboutCommand,
       advisorCommand,
       agentsCommand,
+      subagentsCommand,
       tasksCommand,
       // Gated behind isWorkflowsEnabled — feature flag honors
       // tools.workflowsEnabled, O1CODE_ENABLE_WORKFLOWS (opt-in), and

@@ -28,6 +28,12 @@ export interface AgentViewSupervisorHandler {
     socket: net.Socket,
     requestId: string,
   ): Promise<void> | void;
+  watchOwner?(
+    params: AgentViewSupervisorRequestMap['watchOwner'],
+    socket: net.Socket,
+    requestId: string,
+  ): Promise<void> | void;
+  claimOwner?: AgentViewSupervisorHandlerMethod<'claimOwner'>;
   dispatch?: AgentViewSupervisorHandlerMethod<'dispatch'>;
   adopt?: AgentViewSupervisorHandlerMethod<'adopt'>;
   workerEvent?: AgentViewSupervisorHandlerMethod<'workerEvent'>;
@@ -190,7 +196,7 @@ export async function handleAgentViewSupervisorRequest(
       'Agent View attachStream requires a streaming socket.',
     );
   }
-  if (op === 'subscribe') {
+  if (op === 'subscribe' || op === 'watchOwner') {
     return errorResponse(
       request['id'],
       'not_implemented',
@@ -221,7 +227,11 @@ export async function handleAgentViewSupervisorRequest(
   } catch (error) {
     return errorResponse(
       request['id'],
-      'internal_error',
+      error instanceof Error &&
+        'code' in error &&
+        error.code === 'capacity_reached'
+        ? 'capacity_reached'
+        : 'internal_error',
       error instanceof Error ? error.message : 'Supervisor request failed.',
     );
   }
@@ -280,7 +290,7 @@ class SupervisorOperationGate {
     }
   }
 
-  canStartStream(op: 'attachStream' | 'subscribe'): boolean {
+  canStartStream(op: 'attachStream' | 'subscribe' | 'watchOwner'): boolean {
     return this.state === 'running' || op === 'subscribe';
   }
 }
@@ -370,6 +380,29 @@ async function respondToLine(
     return;
   }
 
+  if (
+    request &&
+    request.op === 'watchOwner' &&
+    typeof handler.watchOwner === 'function'
+  ) {
+    if (!operationGate.canStartStream('watchOwner')) {
+      socket.end(
+        `${JSON.stringify(errorResponse(request.id, 'internal_error', 'Agent View supervisor is shutting down.'))}\n`,
+      );
+      return;
+    }
+    await handleStreamingOp(
+      request,
+      socket,
+      authToken,
+      remaining,
+      'watchOwner',
+      handler.watchOwner.bind(handler),
+      'Owner watch failed.',
+    );
+    return;
+  }
+
   let response: AgentViewSupervisorResponse;
   try {
     response = await handleAgentViewSupervisorRequest(
@@ -397,7 +430,9 @@ async function respondToLine(
   socket.end(`${payload}\n`);
 }
 
-async function handleStreamingOp<Op extends 'attachStream' | 'subscribe'>(
+async function handleStreamingOp<
+  Op extends 'attachStream' | 'subscribe' | 'watchOwner',
+>(
   request: ParsedRequest,
   socket: net.Socket,
   authToken: string | undefined,
@@ -510,6 +545,8 @@ function isSupervisorOperation(
     value === 'status' ||
     value === 'list' ||
     value === 'subscribe' ||
+    value === 'watchOwner' ||
+    value === 'claimOwner' ||
     value === 'shutdown' ||
     value === 'dispatch' ||
     value === 'adopt' ||

@@ -58,6 +58,7 @@ export interface AgentViewSessionStateFile {
   projectCwd: string;
   originalCwd: string;
   activeCwd: string;
+  foregroundOwnerId?: string;
   createdAt: string;
   updatedAt: string;
   lastError?: AgentViewLastError;
@@ -81,6 +82,8 @@ export interface AgentViewLaunchFile {
   projectCwd: string;
   activeCwd: string;
   model?: string;
+  theme?: 'dark' | 'light';
+  language?: string;
   approvalMode?: string;
   sandbox?: string;
   settingsDigest?: string;
@@ -97,6 +100,8 @@ export interface AgentViewActivityFile {
   [key: string]: unknown;
   schemaVersion: 1;
   summary?: string;
+  model?: string;
+  dashboardRequestId?: string;
   waitingFor?: string;
   inputKind?: AgentViewInputKind;
   lastResult?: string;
@@ -166,6 +171,12 @@ export interface AgentViewSessionSnapshot {
 
 export type AgentViewWorkerEvent =
   | {
+      type: 'dashboard';
+      sessionId: string;
+      requestId: string;
+      at?: string;
+    }
+  | {
       type: 'ready';
       sessionId: string;
       cwd: string;
@@ -192,6 +203,9 @@ export type AgentViewWorkerEvent =
       waitingFor?: string;
       inputKind?: AgentViewInputKind;
       lastResult?: string;
+      model?: string;
+      theme?: 'dark' | 'light';
+      language?: string;
       promptId?: string;
       at?: string;
     };

@@ -28,6 +28,11 @@ whatever equivalents your harness provides.
 - For non-trivial features (three or more steps, or any architectural
   decision), interview the user about implementation, UX, and trade-offs
   before writing code.
+- For terminal interface changes, ask whether the user wants an interactive
+  CLI mock before implementation. When the user requests one, build a mock
+  with representative states and working keyboard navigation, review it with
+  the user, and refine it until approved before changing the product UI. Do
+  not ask again when the user has already requested the mock.
 - Never attempt a multi-file refactor in a single pass. Break it into phases of
   at most **five files**. Complete a phase, verify it, get approval, then
   continue. Verification here defers to `TASK-COMPLETION.md`. In autonomous

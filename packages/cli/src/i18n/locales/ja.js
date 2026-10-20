@@ -262,8 +262,8 @@ export default {
   'Enter to submit, Esc to go back': 'Enter で送信、Esc で戻る',
   'Invalid step: {{step}}': '無効なステップ: {{step}}',
   'No subagents found.': 'サブエージェントが見つかりません',
-  "Use '/agents create' to create your first subagent.":
-    "'/agents create' で最初のサブエージェントを作成してください",
+  "Use '/subagents create' to create your first subagent.":
+    "'/subagents create' で最初のサブエージェントを作成してください",
   '(built-in)': '(組み込み)',
   '(overridden by project level agent)':
     '(プロジェクトレベルのエージェントで上書き)',
@@ -2895,4 +2895,11 @@ export default {
     '他の O1-Code セッションから保留されているメッセージを確認(accept | deny)し、信頼済みコントローラーを管理(controllers | revoke)',
   'Cycle prompt history': 'プロンプト履歴を順に表示',
   'Scroll when the input is empty': '入力が空のときにスクロール',
+  'Browse and switch agent sessions.':
+    'エージェントセッションを表示して切り替えます。',
+  'Opening agent sessions…': 'エージェントセッションを開いています…',
+  'Could not open agent sessions: {{error}}':
+    'エージェントセッションを開けませんでした: {{error}}',
+  'Session switching is unavailable in this terminal.':
+    'この端末ではセッションを切り替えられません。',
 };

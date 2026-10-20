@@ -27,7 +27,7 @@ starter/
 | Capability | Where               | How it shows up                                          |
 | ---------- | ------------------- | -------------------------------------------------------- |
 | Context    | `AGENTS.md`         | Persistent instructions injected into every session.     |
-| Subagent   | `agents/diary.md`   | Available via `/agents manage`.                          |
+| Subagent   | `agents/diary.md`   | Available via `/subagents manage`.                       |
 | Command    | `commands/writing/` | Invoked as `/writing:polish <text>`.                     |
 | Skill      | `skills/synonyms/`  | Auto-activated via `/skills` when relevant.              |
 | MCP server | `example.ts`        | Exposes a `count_words` tool and a `poem-writer` prompt. |
@@ -53,7 +53,7 @@ o1-code extensions link /path/to/starter   # link this directory for local testi
 
 Then restart O1-Code. The context loads automatically, `/writing:polish` and
 `/skills` become available, the `diary-writer` subagent appears under
-`/agents manage`, and (once built) the MCP `count_words` tool is callable.
+`/subagents manage`, and (once built) the MCP `count_words` tool is callable.
 
 See the [Getting Started with Extensions](https://github.com/organizaone/o1-code/blob/main/docs/users/extension/getting-started-extensions.md)
 guide for a deeper walkthrough.

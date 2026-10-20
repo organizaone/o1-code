@@ -28,6 +28,14 @@ const registerSession = vi.hoisted(() => vi.fn());
 const REGISTERED = { registered: true, slot: 'shared' };
 const registerCleanup = vi.hoisted(() => vi.fn());
 const inkRender = vi.hoisted(() => vi.fn());
+const inkRepaint = vi.hoisted(() => vi.fn());
+const workerSideband = vi.hoisted(() => ({ enabled: false }));
+const workerReady = vi.hoisted(() => vi.fn().mockResolvedValue(undefined));
+const workerRedraw = vi.hoisted(() => vi.fn().mockResolvedValue([]));
+const workerHeartbeatDispose = vi.hoisted(() => vi.fn());
+const workerHeartbeat = vi.hoisted(() =>
+  vi.fn(() => ({ dispose: workerHeartbeatDispose })),
+);
 const lastPeerInboxFailure = vi.hoisted(() => ({ value: null as unknown }));
 const observedPeerInboxFailure = vi.hoisted(() => ({
   value: null as unknown,
@@ -46,8 +54,18 @@ vi.mock('@organizaone/o1-code-core', async (importOriginal) => {
 vi.mock('ink', () => ({
   render: (element: ReactElement) => {
     inkRender(element);
-    return { unmount: vi.fn() };
+    return { unmount: vi.fn(), repaint: inkRepaint };
   },
+}));
+
+vi.mock('../agent-view/worker-sideband.js', () => ({
+  readAgentViewWorkerSidebandEnv: () =>
+    workerSideband.enabled
+      ? { sessionId: 'session-123', activeCwd: '/work/app' }
+      : undefined,
+  sendAgentViewWorkerEvent: (...args: unknown[]) => workerReady(...args),
+  readAgentViewWorkerRedrawEvents: () => workerRedraw(),
+  startAgentViewWorkerHeartbeat: () => workerHeartbeat(),
 }));
 
 vi.mock('./AppContainer.js', async () => {
@@ -202,6 +220,29 @@ async function start(
 describe('startInteractiveUI session registration', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    workerSideband.enabled = false;
+    workerRedraw.mockResolvedValue([]);
+  });
+
+  it('reports worker readiness after mount and repaints only on redraw', async () => {
+    registerSession.mockResolvedValue(REGISTERED);
+    workerSideband.enabled = true;
+    workerRedraw.mockResolvedValueOnce([{ type: 'redraw' }]);
+    await start();
+    expect(workerReady).not.toHaveBeenCalled();
+    const tree = inkRender.mock.calls[0]?.[0] as ReactElement;
+    const mounted = renderDom(tree);
+    await waitFor(() =>
+      expect(workerReady).toHaveBeenCalledWith({
+        type: 'ready',
+        cwd: '/work/app',
+        capabilities: expect.any(Array),
+      }),
+    );
+    await waitFor(() => expect(inkRepaint).toHaveBeenCalled());
+    expect(workerHeartbeat).toHaveBeenCalledTimes(1);
+    mounted.unmount();
+    expect(workerHeartbeatDispose).toHaveBeenCalledTimes(1);
   });
 
   it('registers the session with its id, target dir, CLI version, and kind', async () => {

@@ -13,12 +13,17 @@ import type {
   AgentViewWorkerEvent,
 } from './protocol.js';
 import { bridgeAgentViewTerminal } from './terminal-bridge.js';
-import type { AgentViewTerminalBytes } from './terminal-bridge.js';
+import type {
+  AgentViewTerminalBridgeResult,
+  AgentViewTerminalBytes,
+} from './terminal-bridge.js';
 
 export type AgentViewSupervisorOperation =
   | 'status'
   | 'list'
   | 'subscribe'
+  | 'watchOwner'
+  | 'claimOwner'
   | 'shutdown'
   | 'dispatch'
   | 'adopt'
@@ -75,6 +80,7 @@ export interface AgentViewSupervisorAdoptParams
   sessionId: string;
   projectCwd: string;
   activeCwd: string;
+  ownerId?: string;
   approvalMode?: string;
   sandbox?: string;
   terminal: {
@@ -87,11 +93,18 @@ export interface AgentViewSupervisorRequestMap {
   status: undefined;
   list: { cwd?: string } | undefined;
   subscribe: undefined;
+  watchOwner: { ownerId: string };
+  claimOwner: { ownerId: string; sessionId: string };
   shutdown: { keepWorkers?: boolean } | undefined;
-  dispatch: { prompt: string; cwd: string };
+  dispatch: {
+    prompt?: string;
+    cwd: string;
+    interactive?: boolean;
+    ownerId?: string;
+  };
   adopt: AgentViewSupervisorAdoptParams;
   workerEvent: AgentViewWorkerEvent & { token?: string };
-  workerControl: { sessionId: string; token?: string };
+  workerControl: { sessionId: string; token?: string; redrawOnly?: boolean };
   attachStream: { sessionId: string };
   resize: { sessionId: string; columns: number; rows: number };
   peek: { sessionId: string };
@@ -110,6 +123,8 @@ export interface AgentViewSupervisorResponseMap {
   status: unknown;
   list: AgentViewSessionSnapshot[];
   subscribe: { subscribed: true };
+  watchOwner: { watching: true };
+  claimOwner: { sessionId: string; ownerId: string };
   shutdown: unknown;
   dispatch: unknown;
   adopt: unknown;
@@ -147,6 +162,8 @@ export interface AgentViewSupervisorAttachOptions {
   stdin?: Readable | AsyncIterable<AgentViewTerminalBytes>;
   stdout?: Writable;
   rawMode?: boolean;
+  detachSignal?: AbortSignal;
+  onAttached?: () => void;
   timeoutMs?: number;
   authToken?: string;
 }
@@ -271,11 +288,40 @@ export async function callAgentViewSupervisor<
   );
 }
 
+export async function watchAgentViewOwner(
+  socketPath: string,
+  ownerId: string,
+  options: AgentViewSupervisorClientOptions = {},
+): Promise<{ dispose(): void }> {
+  const socket = net.createConnection(socketPath);
+  const request: AgentViewSupervisorRequest = {
+    id: createRequestId(),
+    protocolVersion: AGENT_VIEW_PROTOCOL_VERSION,
+    ...(options.authToken ? { authToken: options.authToken } : {}),
+    op: 'watchOwner',
+    params: { ownerId },
+  };
+  try {
+    const { response } = await openAttachStream(socket, request, options);
+    if (!response.ok) {
+      throw new AgentViewSupervisorClientError(
+        response.error.message,
+        response.error.code,
+      );
+    }
+    socket.on('error', () => {});
+    return { dispose: () => socket.destroy() };
+  } catch (error) {
+    socket.destroy();
+    throw error;
+  }
+}
+
 export async function attachAgentViewSupervisorTerminal(
   socketPath: string,
   sessionId: string,
   options: AgentViewSupervisorAttachOptions = {},
-): Promise<unknown> {
+): Promise<AgentViewTerminalBridgeResult> {
   const socket = net.createConnection(socketPath);
   const stdin = options.stdin ?? process.stdin;
   const stdout = options.stdout ?? process.stdout;
@@ -286,6 +332,12 @@ export async function attachAgentViewSupervisorTerminal(
     op: 'attachStream',
     params: { sessionId },
   };
+  const onDetach = () => socket.destroy();
+  if (options.detachSignal?.aborted) {
+    socket.destroy();
+    return { reason: 'detached' };
+  }
+  options.detachSignal?.addEventListener('abort', onDetach, { once: true });
   try {
     const { response, leftover } = await openAttachStream(socket, request, {
       timeoutMs: options.timeoutMs ?? 30_000,
@@ -305,6 +357,8 @@ export async function attachAgentViewSupervisorTerminal(
       socket.pause();
       await writeToWritable(stdout, leftover);
     }
+
+    options.onAttached?.();
 
     const restoreRawMode = setRawMode(stdin, options.rawMode ?? true);
     try {
@@ -350,6 +404,7 @@ export async function attachAgentViewSupervisorTerminal(
       restoreRawMode();
     }
   } finally {
+    options.detachSignal?.removeEventListener('abort', onDetach);
     socket.destroy();
   }
 }

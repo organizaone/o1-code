@@ -255,6 +255,100 @@ describe('Agent View supervisor process helpers', () => {
     await fs.rm(globalDir, { recursive: true, force: true });
   });
 
+  it('starts a blank interactive worker without waiting for prompt acceptance', async () => {
+    const globalDir = await fs.mkdtemp(
+      path.join(os.tmpdir(), 'o1-code-agent-view-store-'),
+    );
+    let launchedArgv: string[] = [];
+    const handler = createAgentViewSupervisorHandler({
+      globalDir,
+      platform: process.platform,
+      waitForWorkerReady: true,
+      launchPtyHost: async (launch) => {
+        launchedArgv = launch.argv;
+        return fakePtyHost();
+      },
+    });
+
+    const result = (await handler.dispatch?.({
+      cwd: globalDir,
+      interactive: true,
+    })) as { sessionId: string };
+
+    expect(result.sessionId).toBeTruthy();
+    expect(launchedArgv).toContain('--session-id');
+    expect(
+      launchedArgv.some((arg) => arg.startsWith('--prompt-interactive')),
+    ).toBe(false);
+    await fs.rm(globalDir, { recursive: true, force: true });
+  });
+
+  it('limits concurrent managed workers while preserving the existing worker', async () => {
+    const globalDir = await fs.mkdtemp(
+      path.join(os.tmpdir(), 'o1-code-admission-'),
+    );
+    try {
+      const handler = createAgentViewSupervisorHandler({
+        globalDir,
+        platform: process.platform,
+        maxManagedWorkers: 1,
+        launchPtyHost: async () => fakePtyHost(),
+      });
+      const first = (await handler.dispatch?.({
+        cwd: globalDir,
+        interactive: true,
+      })) as { sessionId: string };
+      await expect(
+        handler.dispatch?.({ cwd: globalDir, interactive: true }),
+      ).rejects.toThrow('capacity');
+      await expect(
+        handler.peek?.({ sessionId: first.sessionId }),
+      ).resolves.toMatchObject({
+        state: { processState: 'starting' },
+      });
+    } finally {
+      await fs.rm(globalDir, { recursive: true, force: true });
+    }
+  });
+
+  it('keeps a queued prompt when a worker polls only for redraws', async () => {
+    const globalDir = await fs.mkdtemp(
+      path.join(os.tmpdir(), 'o1-code-agent-view-store-'),
+    );
+    const handler = createAgentViewSupervisorHandler({
+      globalDir,
+      platform: process.platform,
+      launchPtyHost: async () => fakePtyHost(),
+    });
+    const result = (await handler.dispatch?.({
+      cwd: globalDir,
+      interactive: true,
+    })) as { sessionId: string };
+    const token = await readWorkerTokenForTest(result.sessionId, globalDir);
+    await handler.workerEvent?.({
+      type: 'ready',
+      sessionId: result.sessionId,
+      token,
+      cwd: globalDir,
+    });
+    await handler.send?.({ sessionId: result.sessionId, text: 'follow up' });
+
+    await expect(
+      handler.workerControl?.({
+        sessionId: result.sessionId,
+        token,
+        redrawOnly: true,
+      }),
+    ).resolves.toMatchObject({ events: [] });
+    await expect(
+      handler.workerControl?.({ sessionId: result.sessionId, token }),
+    ).resolves.toMatchObject({
+      events: [expect.objectContaining({ type: 'prompt', text: 'follow up' })],
+    });
+
+    await fs.rm(globalDir, { recursive: true, force: true });
+  });
+
   it('lists sessions scoped through a symlinked project path', async () => {
     const globalDir = await fs.mkdtemp(
       path.join(os.tmpdir(), 'o1-code-agent-view-store-'),
@@ -1075,6 +1169,7 @@ describe('Agent View supervisor process helpers', () => {
       token,
       sessionState: 'needs_input',
       waitingFor: 'approval',
+      model: 'mimo-v2.6-flash',
       at: '2026-07-17T00:00:01.000Z',
     });
     await expect(
@@ -1088,8 +1183,19 @@ describe('Agent View supervisor process helpers', () => {
       readAgentViewActivity(result.sessionId, { globalDir }),
     ).resolves.toMatchObject({
       waitingFor: 'approval',
+      model: 'mimo-v2.6-flash',
       lastActivityAt: '2026-07-17T00:00:01.000Z',
     });
+
+    await handler.workerEvent?.({
+      type: 'dashboard',
+      sessionId: result.sessionId,
+      token,
+      requestId: 'navigation-1',
+    });
+    await expect(
+      readAgentViewActivity(result.sessionId, { globalDir }),
+    ).resolves.toMatchObject({ dashboardRequestId: 'navigation-1' });
 
     const blockedState = await readAgentViewSessionState(result.sessionId, {
       globalDir,
@@ -5001,6 +5107,160 @@ describe('Agent View supervisor process helpers', () => {
     expect(hosts[1]?.killedWith).toBeUndefined();
     expect(onShutdown).toHaveBeenCalledTimes(2);
 
+    await fs.rm(globalDir, { recursive: true, force: true });
+  });
+
+  it('stops only sessions owned by a closed foreground window', async () => {
+    const globalDir = await fs.mkdtemp(
+      path.join(os.tmpdir(), 'o1-code-agent-view-owner-'),
+    );
+    const handler = createAgentViewSupervisorHandler({
+      globalDir,
+      platform: 'linux',
+      launchPtyHost: async () => fakePtyHost(),
+    });
+    const firstWindow = new Duplex({
+      read() {},
+      write(_chunk, _encoding, callback) {
+        callback();
+      },
+    }) as Socket;
+    const secondWindow = new Duplex({
+      read() {},
+      write(_chunk, _encoding, callback) {
+        callback();
+      },
+    }) as Socket;
+    const firstOwner = '11111111-1111-4111-8111-111111111111';
+    const secondOwner = '22222222-2222-4222-8222-222222222222';
+    handler.watchOwner?.({ ownerId: firstOwner }, firstWindow, 'first-watch');
+    handler.watchOwner?.(
+      { ownerId: secondOwner },
+      secondWindow,
+      'second-watch',
+    );
+    const first = (await handler.dispatch?.({
+      prompt: 'first task',
+      cwd: globalDir,
+      ownerId: firstOwner,
+    })) as { sessionId: string };
+    const second = (await handler.dispatch?.({
+      prompt: 'second task',
+      cwd: globalDir,
+      ownerId: secondOwner,
+    })) as { sessionId: string };
+
+    firstWindow.destroy();
+    await waitForSessionState(
+      first.sessionId,
+      globalDir,
+      (state) => state.sessionState === 'stopped',
+    );
+    expect(
+      (await readAgentViewSessionState(second.sessionId, { globalDir }))
+        ?.sessionState,
+    ).not.toBe('stopped');
+
+    secondWindow.destroy();
+    await waitForSessionState(
+      second.sessionId,
+      globalDir,
+      (state) => state.sessionState === 'stopped',
+    );
+    await fs.rm(globalDir, { recursive: true, force: true });
+  });
+
+  it('transfers a session to the window that opens it', async () => {
+    const globalDir = await fs.mkdtemp(
+      path.join(os.tmpdir(), 'o1-code-agent-view-transfer-'),
+    );
+    const handler = createAgentViewSupervisorHandler({
+      globalDir,
+      platform: 'linux',
+      launchPtyHost: async () => fakePtyHost(),
+    });
+    const firstWindow = new Duplex({
+      read() {},
+      write(_chunk, _encoding, callback) {
+        callback();
+      },
+    }) as Socket;
+    const secondWindow = new Duplex({
+      read() {},
+      write(_chunk, _encoding, callback) {
+        callback();
+      },
+    }) as Socket;
+    const firstOwner = '11111111-1111-4111-8111-111111111111';
+    const secondOwner = '22222222-2222-4222-8222-222222222222';
+    handler.watchOwner?.({ ownerId: firstOwner }, firstWindow, 'first-watch');
+    handler.watchOwner?.(
+      { ownerId: secondOwner },
+      secondWindow,
+      'second-watch',
+    );
+    const created = (await handler.dispatch?.({
+      prompt: 'ongoing task',
+      cwd: globalDir,
+      ownerId: firstOwner,
+    })) as { sessionId: string };
+
+    await handler.claimOwner?.({
+      ownerId: secondOwner,
+      sessionId: created.sessionId,
+    });
+    firstWindow.destroy();
+    await new Promise((resolve) => setTimeout(resolve, 25));
+    expect(
+      (await readAgentViewSessionState(created.sessionId, { globalDir }))
+        ?.sessionState,
+    ).not.toBe('stopped');
+
+    secondWindow.destroy();
+    await waitForSessionState(
+      created.sessionId,
+      globalDir,
+      (state) => state.sessionState === 'stopped',
+    );
+    await fs.rm(globalDir, { recursive: true, force: true });
+  });
+
+  it('stops window-owned sessions after supervisor restart', async () => {
+    const globalDir = await fs.mkdtemp(
+      path.join(os.tmpdir(), 'o1-code-agent-view-restart-'),
+    );
+    const original = createAgentViewSupervisorHandler({
+      globalDir,
+      platform: 'linux',
+      launchPtyHost: async () => fakePtyHost(),
+    });
+    const windowSocket = new Duplex({
+      read() {},
+      write(_chunk, _encoding, callback) {
+        callback();
+      },
+    }) as Socket;
+    const ownerId = '33333333-3333-4333-8333-333333333333';
+    original.watchOwner?.({ ownerId }, windowSocket, 'owner-watch');
+    const created = (await original.dispatch?.({
+      prompt: 'ongoing task',
+      cwd: globalDir,
+      ownerId,
+    })) as { sessionId: string };
+    expect(
+      (await readAgentViewSessionState(created.sessionId, { globalDir }))
+        ?.foregroundOwnerId,
+    ).toBe(ownerId);
+
+    const restarted = createAgentViewSupervisorHandler({
+      globalDir,
+      platform: 'linux',
+    });
+    await restarted.stopOrphanedForegroundSessions();
+    expect(
+      (await readAgentViewSessionState(created.sessionId, { globalDir }))
+        ?.sessionState,
+    ).toBe('stopped');
     await fs.rm(globalDir, { recursive: true, force: true });
   });
 });

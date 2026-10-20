@@ -246,7 +246,7 @@ Subagents are specialized AI assistants for specific tasks.
     5. Verify functionality is preserved
     ```
 
-After restarting O1-Code, your custom skills will be available via `/skills` and subagents via `/agents manage`.
+After restarting O1-Code, your custom skills will be available via `/skills` and subagents via `/subagents manage`.
 
 An extension skill is registered under its owner's name: the skill above becomes `my-first-extension:code-analyzer`, so you run it as `/my-first-extension:code-analyzer`. `skills.disabled` can block it under either that name or the plain `code-analyzer` you authored; `skills.enabled` opts it back in under the prefixed name only. See [Extension Skills](../features/skills.md#extension-skills).
 

@@ -179,6 +179,24 @@ describe('BuiltinCommandLoader', () => {
     expect(commands.some((command) => command.name === 'ide')).toBe(true);
   });
 
+  it('offers session navigation and keeps subagent management separate', async () => {
+    const commands = await new BuiltinCommandLoader(mockConfig).loadCommands(
+      new AbortController().signal,
+    );
+    const sessions = commands.find((command) => command.name === 'agents');
+    const subagents = commands.find((command) => command.name === 'subagents');
+    expect(sessions?.altNames).toContain('sessions');
+    expect(sessions?.subCommands?.map((command) => command.name)).toEqual([
+      'manage',
+      'create',
+    ]);
+    expect(subagents?.subCommands?.map((command) => command.name)).toEqual([
+      'manage',
+      'create',
+    ]);
+    expect(commands.some((command) => command.name === 'tasks')).toBe(true);
+  });
+
   it('should correctly pass the config object to restore command factory', async () => {
     const loader = new BuiltinCommandLoader(mockConfig);
     await loader.loadCommands(new AbortController().signal);

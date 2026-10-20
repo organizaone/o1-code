@@ -81,6 +81,22 @@ describe('dispatchAgentViewSession', () => {
     });
   });
 
+  it('creates an interactive worker without an initial model prompt', async () => {
+    const result = await dispatchAgentViewSession('', '/repo/pkg', {
+      globalDir: tempDir,
+      promptInArgv: false,
+    });
+    const launch = await readAgentViewLaunch(result.sessionId, {
+      globalDir: tempDir,
+    });
+
+    expect(launch?.argv).toContain('--session-id');
+    expect(launch?.argv).not.toEqual(
+      expect.arrayContaining([expect.stringMatching(/^--prompt-interactive/)]),
+    );
+    expect(launch?.initialPrompt).toBeUndefined();
+  });
+
   it('rolls back session files and roster when a mid-dispatch write fails', async () => {
     // Fail the activity write: the session-state and launch writes have
     // already succeeded at that point, so rollback must actually remove the

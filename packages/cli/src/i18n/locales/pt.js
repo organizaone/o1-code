@@ -780,8 +780,8 @@ export default {
   'Enter to submit, Esc to go back': 'Enter para enviar, Esc para voltar',
   'Invalid step: {{step}}': 'Etapa inválida: {{step}}',
   'No subagents found.': 'Nenhum subagente encontrado.',
-  "Use '/agents create' to create your first subagent.":
-    "Use '/agents create' para criar seu primeiro subagente.",
+  "Use '/subagents create' to create your first subagent.":
+    "Use '/subagents create' para criar seu primeiro subagente.",
   '(built-in)': '(integrado)',
   '(overridden by project level agent)':
     '(substituído por agente de nível de projeto)',
@@ -3864,4 +3864,11 @@ export default {
   Continue: 'Continuar',
   'Disconnect remote control': 'Desconectar controle remoto',
   Other: 'Outra resposta',
+  'Browse and switch agent sessions.':
+    'Ver e alternar entre sessões de agentes.',
+  'Opening agent sessions…': 'Abrindo sessões de agentes…',
+  'Could not open agent sessions: {{error}}':
+    'Não foi possível abrir as sessões de agentes: {{error}}',
+  'Session switching is unavailable in this terminal.':
+    'A troca de sessões não está disponível neste terminal.',
 };

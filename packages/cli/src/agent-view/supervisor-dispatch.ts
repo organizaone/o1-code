@@ -92,7 +92,7 @@ export async function dispatchAgentViewSession(
           columns: process.stdout.columns ?? 80,
           rows: process.stdout.rows ?? 24,
         },
-        initialPrompt: prompt,
+        ...(prompt ? { initialPrompt: prompt } : {}),
       },
       options,
     );
