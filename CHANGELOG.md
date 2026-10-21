@@ -7,6 +7,8 @@ follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.21.3] - 2026-10-20
+
 ### Fixed
 
 - `/agents` opens when the CLI starts with `--yolo` or `-y`, and omits conversations with no user interaction.
