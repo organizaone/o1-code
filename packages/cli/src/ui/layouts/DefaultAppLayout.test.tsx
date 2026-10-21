@@ -21,6 +21,7 @@ const dialogManagerMockState = vi.hoisted(() => ({
   probe: false,
   backgroundOpen: false,
   columns: 80,
+  authChrome: false,
 }));
 vi.mock('../contexts/BackgroundTaskViewContext.js', async (importOriginal) => ({
   ...(await importOriginal<
@@ -38,7 +39,8 @@ vi.mock('../contexts/BackgroundTaskViewContext.js', async (importOriginal) => ({
 }));
 
 vi.mock('../components/MainContent.js', () => ({
-  MainContent: () => <Text>MainContent</Text>,
+  MainContent: () =>
+    dialogManagerMockState.authChrome ? null : <Text>MainContent</Text>,
 }));
 
 vi.mock('../components/UpdateNotification.js', () => ({
@@ -62,10 +64,6 @@ vi.mock('../components/DialogManager.js', () => ({
 
 vi.mock('../components/Composer.js', () => ({
   Composer: () => <Text>Composer</Text>,
-}));
-
-vi.mock('../components/ExitWarning.js', () => ({
-  ExitWarning: () => <Text>ExitWarning</Text>,
 }));
 
 vi.mock('../components/messages/BtwMessage.js', () => ({
@@ -93,7 +91,14 @@ vi.mock('../hooks/useTerminalSize.js', () => ({
 }));
 
 vi.mock('../components/AppHeader.js', () => ({
-  AppHeader: () => <Text>AppHeader</Text>,
+  AppHeader: () => (
+    <Text>
+      {Array.from(
+        { length: dialogManagerMockState.authChrome ? 6 : 1 },
+        () => 'AppHeader',
+      ).join('\n')}
+    </Text>
+  ),
 }));
 
 vi.mock('../contexts/AppContext.js', () => ({
@@ -158,6 +163,7 @@ describe('DefaultAppLayout', () => {
     dialogManagerMockState.probe = false;
     dialogManagerMockState.backgroundOpen = false;
     dialogManagerMockState.columns = 80;
+    dialogManagerMockState.authChrome = false;
   });
 
   it('does not clip the right edge of the wide agent dashboard to the old 100-column cap', () => {
@@ -256,6 +262,39 @@ describe('DefaultAppLayout', () => {
     expect(output).toContain('DialogManager 1');
     expect(output).not.toContain('DialogManager 20');
   });
+
+  it.each([
+    [true, false, false, 18],
+    [false, false, false, 13],
+    [true, true, false, 16],
+    [true, true, true, 14],
+  ] as const)(
+    'sizes full-screen authentication %s with exit flags %s/%s',
+    (isAuthDialogOpen, ctrlCPressedOnce, ctrlDPressedOnce, visibleRows) => {
+      mockedUseAgentViewState.mockReturnValue({
+        activeView: 'main',
+        agents: new Map(),
+      });
+      dialogManagerMockState.lineCount = 18;
+      dialogManagerMockState.authChrome = true;
+      const { lastFrame } = renderLayout({
+        ...baseUIState,
+        dialogsVisible: true,
+        terminalHeight: 24,
+        staticExtraHeight: 3,
+        useTerminalBuffer: true,
+        ctrlCPressedOnce,
+        ctrlDPressedOnce,
+        auth: { isAuthDialogOpen, authError: null } as UIState['auth'],
+      });
+      expect(lastFrame()).toContain(`DialogManager ${visibleRows}`);
+      if (!isAuthDialogOpen)
+        expect(lastFrame()).not.toContain('DialogManager 18');
+      if (visibleRows < 18)
+        expect(lastFrame()).not.toContain(`DialogManager ${visibleRows + 1}`);
+      expect(frameHeight(lastFrame() ?? '')).toBeLessThanOrEqual(24);
+    },
+  );
 
   it('does not cap a tall dialog when height constraints are disabled', () => {
     mockedUseAgentViewState.mockReturnValue({
