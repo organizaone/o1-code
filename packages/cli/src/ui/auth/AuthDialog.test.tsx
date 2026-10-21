@@ -30,8 +30,11 @@ import { LoadedSettings } from '../../config/settings.js';
 import type { Settings } from '../../config/settingsSchema.js';
 import type { Config } from '@organizaone/o1-code-core';
 import { AuthType } from '@organizaone/o1-code-core';
-import { renderWithProviders } from '../../test-utils/render.js';
+import { renderWithProviders, withProviders } from '../../test-utils/render.js';
 import { act } from 'react';
+import { Box } from 'ink';
+import { getDialogMaxHeight } from '../utils/layoutUtils.js';
+import { getFixedHeaderHeight } from '../components/Header.js';
 import { UIStateContext } from '../contexts/UIStateContext.js';
 import { UIActionsContext } from '../contexts/UIActionsContext.js';
 import type { UIState } from '../contexts/UIStateContext.js';
@@ -200,7 +203,7 @@ const renderAuthDialog = (
   configAuthType: AuthType | undefined = undefined,
   configApiKey: string | undefined = undefined,
 ) => {
-  const uiState = createMockUIState(uiStateOverrides);
+  let uiState = createMockUIState(uiStateOverrides);
   const uiActions = createMockUIActions(uiActionsOverrides);
 
   const mockConfig = {
@@ -208,14 +211,43 @@ const renderAuthDialog = (
     getContentGeneratorConfig: vi.fn(() => ({ apiKey: configApiKey })),
   } as unknown as Config;
 
-  return renderWithProviders(
+  const tree = () => (
     <UIStateContext.Provider value={uiState}>
       <UIActionsContext.Provider value={uiActions}>
-        <AuthDialog />
+        <Box
+          width={uiState.mainAreaWidth}
+          height={
+            uiState.constrainHeight
+              ? uiState.useTerminalBuffer
+                ? Math.max(
+                    1,
+                    uiState.terminalHeight -
+                      getFixedHeaderHeight(uiState.terminalWidth) -
+                      (uiState.ctrlCPressedOnce ? 2 : 0) -
+                      (uiState.ctrlDPressedOnce ? 2 : 0),
+                  )
+                : getDialogMaxHeight(
+                    uiState.terminalHeight,
+                    uiState.staticExtraHeight,
+                  )
+              : undefined
+          }
+          flexDirection="column"
+        >
+          <AuthDialog />
+        </Box>
       </UIActionsContext.Provider>
-    </UIStateContext.Provider>,
-    { settings, config: mockConfig },
+    </UIStateContext.Provider>
   );
+  const options = { settings, config: mockConfig };
+  const result = renderWithProviders(tree(), options);
+  return {
+    ...result,
+    updateUIState: (overrides: UIStateOverrides) => {
+      uiState = createMockUIState({ ...uiStateOverrides, ...overrides });
+      result.rerender(withProviders(tree(), options));
+    },
+  };
 };
 
 /**
@@ -387,6 +419,141 @@ describe('AuthDialog', { timeout: 15000 }, () => {
   afterEach(() => {
     process.env = originalEnv;
   });
+
+  it.each([
+    null,
+    'Authentication failed. Check the provider credentials and choose a connection to continue.',
+  ])(
+    'keeps provider choices separated with a startup error: %s',
+    async (authError) => {
+      const empty = { settings: {}, originalSettings: {}, path: '' };
+      const settings = new LoadedSettings(
+        empty,
+        empty,
+        empty,
+        empty,
+        true,
+        new Set(),
+      );
+      const { lastFrame, unmount } = renderAuthDialog(settings, {
+        terminalWidth: 80,
+        mainAreaWidth: 76,
+        terminalHeight: 24,
+        staticExtraHeight: 0,
+        constrainHeight: true,
+        useTerminalBuffer: true,
+        authError,
+      });
+      await act(async () => {});
+      const frame = lastFrame() ?? '';
+      const lines = frame.split('\n');
+      expect(frame).toContain('OrganizaOne with your key');
+      expect(frame).toContain('API key');
+      expect(frame).toContain('Terms of Services and Privacy Notice');
+      if (authError)
+        expect(frame.replace(/│/g, '').replace(/\s+/g, ' ')).toContain(
+          authError,
+        );
+      const first = lines.findIndex((line) =>
+        line.includes('OrganizaOne with your key'),
+      );
+      expect(lines[first + 1].trim()).toMatch(/^│\s*│$/);
+      expect(
+        lines.every((line) => !line.includes('─') || !/[A-Za-z]/.test(line)),
+      ).toBe(true);
+      expect(lines.length).toBeLessThanOrEqual(24 - getFixedHeaderHeight(80));
+      unmount();
+    },
+  );
+
+  itWhenTuiInputReliable(
+    'keeps the highlighted provider visible after resizing and adding a wrapped error',
+    async () => {
+      probeLocalServersMock.mockReturnValueOnce(new Promise(() => {}));
+      const empty = { settings: {}, originalSettings: {}, path: '' };
+      const settings = new LoadedSettings(
+        empty,
+        empty,
+        empty,
+        empty,
+        true,
+        new Set(),
+      );
+      const { lastFrame, stdin, updateUIState, unmount } = renderAuthDialog(
+        settings,
+        {
+          terminalWidth: 80,
+          mainAreaWidth: 76,
+          terminalHeight: 20,
+          staticExtraHeight: 3,
+          constrainHeight: true,
+          useTerminalBuffer: true,
+        },
+      );
+      await waitForSelectedOption(lastFrame, 'OrganizaOne');
+      expect(lastFrame()).toContain('↑↓ 1/4');
+      await moveDownAndWaitForSelection(stdin, lastFrame, 'API key');
+      await moveDownAndWaitForSelection(stdin, lastFrame, 'Local');
+      await moveDownAndWaitForSelection(stdin, lastFrame, 'Custom');
+      await act(async () =>
+        updateUIState({
+          terminalWidth: 120,
+          mainAreaWidth: 116,
+          terminalHeight: 40,
+        }),
+      );
+      await waitForSelectedOption(lastFrame, 'Custom');
+      expect(lastFrame()).toContain('OrganizaOne with your key');
+      expect(lastFrame()).toContain('Models running on this machine');
+      expect(lastFrame()).not.toContain('↑↓ 4/4');
+      await act(async () =>
+        updateUIState({
+          authError:
+            'Authentication failed. Choose a provider to authenticate again.',
+        }),
+      );
+      await waitForSelectedOption(lastFrame, 'Custom');
+      expect(lastFrame()).toContain('Authentication failed.');
+      expect((lastFrame() ?? '').split('\n').length).toBeLessThanOrEqual(
+        20 - getFixedHeaderHeight(80),
+      );
+      unmount();
+    },
+  );
+
+  it.each([
+    [20, true, 15],
+    [15, false, 10],
+  ] as const)(
+    'keeps the complete provider frame with a long error at height %i in full-screen mode %s',
+    async (terminalHeight, useTerminalBuffer, maximumHeight) => {
+      const empty = { settings: {}, originalSettings: {}, path: '' };
+      const settings = new LoadedSettings(
+        empty,
+        empty,
+        empty,
+        empty,
+        true,
+        new Set(),
+      );
+      const { lastFrame, unmount } = renderAuthDialog(settings, {
+        terminalWidth: 60,
+        mainAreaWidth: 56,
+        terminalHeight,
+        staticExtraHeight: 3,
+        constrainHeight: true,
+        useTerminalBuffer,
+        authError: 'Authentication failed. '.repeat(12),
+      });
+      await act(async () => {});
+      const lines = (lastFrame() ?? '').split('\n');
+      expect(lines.length).toBeLessThanOrEqual(maximumHeight);
+      expect(lines.at(-1)).toMatch(/╰─+╯/);
+      expect(lastFrame()).toContain('Authentication failed.');
+      expect(lastFrame()).toContain('Terms of Services and Privacy Notice');
+      unmount();
+    },
+  );
 
   it('frames the dialog in the brand colour with the title and the step', () => {
     const scope = { ui: { customThemes: {} }, mcpServers: {} };
@@ -1583,7 +1750,7 @@ describe('AuthDialog', { timeout: 15000 }, () => {
         lastFrame,
         'Alibaba ModelStudio › Model IDs',
       );
-      await waitForText(lastFrame, 'Enter model IDs directly');
+      await waitForText(lastFrame, 'Model IDs');
       stdin.write('\r');
       await vi.waitFor(
         () => {
@@ -1662,7 +1829,7 @@ describe('AuthDialog', { timeout: 15000 }, () => {
         lastFrame,
         'Alibaba ModelStudio › Model IDs',
       );
-      await waitForText(lastFrame, 'Enter model IDs directly');
+      await waitForText(lastFrame, 'Model IDs');
 
       // The Model IDs input is pre-filled with the saved custom model id
       // (which only exists in settings, never among the built-in defaults).

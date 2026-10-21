@@ -15,6 +15,7 @@ import {
 } from 'react';
 import { Box, Text } from 'ink';
 import Link from 'ink-link';
+import wrapAnsi from 'wrap-ansi';
 import { DescriptiveRadioButtonSelect } from '../components/shared/DescriptiveRadioButtonSelect.js';
 import { TextInput } from '../components/shared/TextInput.js';
 import { extendedTheme, theme } from '../semantic-colors.js';
@@ -404,6 +405,7 @@ function ModelIdsStep({
   draftModelIds,
   onDraftChange,
   additionalChromeRows = 0,
+  availableHeight,
 }: {
   config: ProviderConfig;
   flow: ProviderSetupFlow;
@@ -423,9 +425,10 @@ function ModelIdsStep({
   keyVerified?: boolean;
   /** The enclosing dialog already displays the valid-key status. */
   showKeyStatus?: boolean;
-  /** The standalone editor keeps this many catalog rows visible. */
+  /** Preferred catalog rows when there is no height limit. */
   minVisibleModelRows?: number;
   additionalChromeRows?: number;
+  availableHeight?: number;
 }): React.JSX.Element {
   const uiState = useContext(UIStateContext);
   const constrained = Boolean(
@@ -437,8 +440,9 @@ function ModelIdsStep({
         Math.min(uiState.mainAreaWidth, uiState.terminalWidth - 4) - 4,
       )
     : undefined;
-  const budget =
-    constrained && uiState
+  const stepHeight =
+    availableHeight ??
+    (constrained && uiState
       ? Math.max(
           1,
           getDialogMaxHeight(
@@ -449,34 +453,44 @@ function ModelIdsStep({
               : 0,
           ) -
             5 -
-            additionalChromeRows -
-            (uiState.auth.authError ? 2 : 0),
+            (uiState.auth.authError
+              ? 1 +
+                wrapAnsi(uiState.auth.authError, width ?? 80, {
+                  hard: true,
+                }).split('\n').length
+              : 0),
         )
-      : undefined;
+      : undefined);
+  const budget =
+    stepHeight === undefined
+      ? undefined
+      : Math.max(1, stepHeight - additionalChromeRows);
+  const errorRows = Number(Boolean(flow.state.modelIdsError));
   const compact =
-    minVisibleModelRows === undefined && budget !== undefined && budget < 18;
+    budget !== undefined &&
+    budget <
+      15 +
+        errorRows * 2 +
+        (minVisibleModelRows ?? MODEL_CATALOG_MIN_VISIBLE_ROWS);
+  const borderless = budget !== undefined && budget < 9 + errorRows;
   const gap = compact ? 0 : 1;
   const inputHeight = 1;
-  const showVerified = showKeyStatus && keyVerified && !compact;
-  const statusRows =
-    Number(showVerified) + Number(Boolean(flow.state.modelIdsError));
-  const showSearchLabel = !compact && (budget === undefined || budget >= 8);
-  const searchRows = showSearchLabel ? 2 : 1;
+  const showVerified = showKeyStatus && keyVerified;
+  const showSearchLabel = !compact;
+  const searchRows = borderless ? 1 : 3 + Number(showSearchLabel);
   const showSelectionSummary = !compact;
-  const navigationRows = showSelectionSummary ? 4 : 3;
   const chromeRows =
-    gap * (7 + statusRows) +
-    inputHeight +
-    (compact ? 0 : 2) +
-    statusRows +
+    gap * (4 + errorRows) +
+    (borderless ? 1 : 2) +
+    (compact ? 0 : 1) +
+    errorRows +
     searchRows +
-    navigationRows +
-    5;
+    Number(showSelectionSummary) +
+    3;
   const modelRows =
-    minVisibleModelRows ??
-    (budget === undefined
-      ? MAX_MODELS_TO_SHOW
-      : Math.max(1, Math.min(compact ? 4 : 6, budget - chromeRows)));
+    budget === undefined
+      ? (minVisibleModelRows ?? MAX_MODELS_TO_SHOW)
+      : Math.max(1, budget - chromeRows);
   const defaultIds = config.models?.map((m) => m.id).join(', ') ?? '';
   const hasSelectableModels = models.length > 0;
   const selectedModelIds = useMemo(
@@ -672,11 +686,11 @@ function ModelIdsStep({
 
   if (hasSelectableModels) {
     return (
-      <Box marginTop={gap} flexDirection="column" width={width}>
+      <Box marginTop={gap} flexDirection="column" width={width} flexShrink={0}>
         <Box
           marginTop={0}
-          borderStyle={compact ? undefined : glyphs().borderStyle}
-          borderBottom={!compact}
+          borderStyle={borderless ? undefined : glyphs().borderStyle}
+          borderBottom={!borderless}
           borderTop={false}
           borderLeft={false}
           borderRight={false}
@@ -714,13 +728,13 @@ function ModelIdsStep({
             </Text>
           )}
           <Box
-            borderStyle={compact ? undefined : glyphs().borderStyle}
+            borderStyle={borderless ? undefined : glyphs().borderStyle}
             borderColor={
               focusedModelIndex === MODEL_SEARCH_INPUT_FOCUS_INDEX
                 ? extendedTheme.ui.brand
                 : extendedTheme.ui.rule
             }
-            paddingX={compact ? 0 : 1}
+            paddingX={borderless ? 0 : 1}
             width={width}
           >
             <TextInput
@@ -743,7 +757,7 @@ function ModelIdsStep({
               inputWidth={
                 width === undefined
                   ? undefined
-                  : Math.max(1, width - (compact ? 2 : 6))
+                  : Math.max(1, width - (borderless ? 2 : 6))
               }
               isActive={focusedModelIndex === MODEL_SEARCH_INPUT_FOCUS_INDEX}
             />
@@ -936,12 +950,14 @@ function DiscoveringModelIdsStep({
   showKeyStatus,
   onKeyStatusChange,
   minVisibleModelRows,
+  availableHeight,
 }: {
   config: ProviderConfig;
   flow: ProviderSetupFlow;
   showKeyStatus?: boolean;
   onKeyStatusChange?: (isValid: boolean) => void;
   minVisibleModelRows?: number;
+  availableHeight?: number;
 }): React.JSX.Element {
   const uiState = useContext(UIStateContext);
   const constrained = Boolean(
@@ -1124,9 +1140,8 @@ function DiscoveringModelIdsStep({
         keyVerified={snapshot.verified && requiresApiKey(config)}
         showKeyStatus={showKeyStatus}
         minVisibleModelRows={minVisibleModelRows}
-        additionalChromeRows={
-          (compactNotices ? 0 : 2) + (listFailed ? noticeGap + 1 : 0)
-        }
+        availableHeight={availableHeight}
+        additionalChromeRows={listFailed ? noticeGap + 1 : 0}
         preselect={
           snapshot.verified
             ? preselectedModels(
@@ -1375,8 +1390,10 @@ export interface ProviderSetupStepsProps {
   showKeyStatus?: boolean;
   /** Receives the result of model discovery when a parent displays it. */
   onKeyStatusChange?: (isValid: boolean) => void;
-  /** Keeps this many catalog rows visible for an owning dialog. */
+  /** Preferred catalog rows when the owning dialog has no height limit. */
   minVisibleModelRows?: number;
+  /** Rows left after the owning dialog's frame, header and notices. */
+  availableHeight?: number;
 }
 
 export function ProviderSetupSteps({
@@ -1384,6 +1401,7 @@ export function ProviderSetupSteps({
   showKeyStatus,
   onKeyStatusChange,
   minVisibleModelRows,
+  availableHeight,
 }: ProviderSetupStepsProps): React.JSX.Element | null {
   const { provider, step } = flow.state;
 
@@ -1512,6 +1530,7 @@ export function ProviderSetupSteps({
             showKeyStatus={showKeyStatus}
             onKeyStatusChange={onKeyStatusChange}
             minVisibleModelRows={minVisibleModelRows}
+            availableHeight={availableHeight}
           />
         );
       }
@@ -1521,6 +1540,7 @@ export function ProviderSetupSteps({
           flow={flow}
           showKeyStatus={showKeyStatus}
           minVisibleModelRows={minVisibleModelRows}
+          availableHeight={availableHeight}
         />
       );
 

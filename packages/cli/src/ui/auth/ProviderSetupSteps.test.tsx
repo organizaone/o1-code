@@ -1525,6 +1525,77 @@ describe('ProviderSetupSteps', () => {
   });
 
   it.each([
+    [80, 24, 0, false, true],
+    [80, 30, 0, false, true],
+    [120, 40, 0, false, true],
+    [40, 24, 3, true, false],
+    [80, 20, 0, true, false],
+  ] as const)(
+    'fits the authenticated catalog and inputs in %ix%i',
+    async (
+      terminalWidth,
+      terminalHeight,
+      staticExtraHeight,
+      hasError,
+      hasSearchBorder,
+    ) => {
+      const models = Array.from({ length: 45 }, (_, index) => ({
+        id: `layout-model-${String(index).padStart(2, '0')}`,
+      }));
+      const flow = createModelIdsFlow({ modelIds: '' });
+      if (hasError) flow.state.modelIdsError = 'Select at least one model.';
+      enableDiscovery(flow);
+      flow.state.keyCheck = { status: 'ok', models };
+      const state = {
+        terminalWidth,
+        mainAreaWidth: terminalWidth - 4,
+        terminalHeight,
+        staticExtraHeight,
+        constrainHeight: true,
+        useTerminalBuffer: true,
+        auth: { authError: null },
+      } as UIState;
+      const height = getDialogMaxHeight(
+        terminalHeight,
+        staticExtraHeight,
+        getFixedHeaderHeight(terminalWidth),
+      );
+      const { lastFrame, unmount } = renderWithProviders(
+        <UIStateContext.Provider value={state}>
+          <Box width={terminalWidth - 4} height={height} flexDirection="column">
+            <Box borderStyle="round" padding={1} flexDirection="column">
+              <Text>Connect a provider</Text>
+              <ProviderSetupSteps flow={flow} minVisibleModelRows={6} />
+            </Box>
+          </Box>
+        </UIStateContext.Provider>,
+      );
+      await act(async () => {});
+      const frame = lastFrame() ?? '';
+      const lines = frame.split('\n');
+      const renderedModels = lines.filter((line) =>
+        line.includes('layout-model-'),
+      );
+      const range = frame.match(/1–(\d+)\/45/);
+      expect(range).not.toBeNull();
+      expect(renderedModels).toHaveLength(Number(range?.[1]));
+      const idLine = lines.find((line) => line.includes('> model-id')) ?? '';
+      expect(idLine).not.toContain('─');
+      const searchLine = lines.find((line) => line.includes('> search')) ?? '';
+      expect(searchLine).not.toContain('─');
+      if (hasSearchBorder)
+        expect(searchLine.trim()).toMatch(/^│\s*│ > search\s*│\s*│$/);
+      if (hasError) expect(frame).toContain('Select at least one model.');
+      expect(frame).toContain('Space toggle');
+      expect(frame).toContain('Enter confirm');
+      expect(lines).toHaveLength(height);
+      if (terminalHeight === 40)
+        expect(renderedModels.length).toBeGreaterThan(6);
+      unmount();
+    },
+  );
+
+  it.each([
     [80, 24],
     [40, 24],
     [80, 30],

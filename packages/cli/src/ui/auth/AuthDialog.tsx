@@ -5,11 +5,22 @@
  */
 
 import type React from 'react';
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import {
+  Children,
+  isValidElement,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react';
 import { Box, Text } from 'ink';
 import Link from 'ink-link';
+import wrapAnsi from 'wrap-ansi';
 import { extendedTheme, theme } from '../semantic-colors.js';
 import { glyphs } from '../glyphs.js';
+import { getDialogMaxHeight } from '../utils/layoutUtils.js';
+import { getFixedHeaderHeight } from '../components/Header.js';
 import { getAuthStepPosition } from './auth-step-position.js';
 import { useKeypress } from '../hooks/useKeypress.js';
 import {
@@ -327,6 +338,22 @@ export function buildLocalItems(servers: LocalServersState): AuthMenuItem[] {
   });
 }
 
+function menuText(node: React.ReactNode): string {
+  return Children.toArray(node)
+    .map((child) => {
+      if (typeof child === 'string' || typeof child === 'number')
+        return String(child);
+      if (
+        isValidElement<{ children?: React.ReactNode; text?: string }>(child)
+      ) {
+        if (child.type === Badge) return `  ${child.props.text ?? ''}`;
+        return menuText(child.props.children ?? child.props.text);
+      }
+      return '';
+    })
+    .join('');
+}
+
 /** A menu list; the one-line API key rows are drawn without a gap. */
 export function AuthMenuList<T extends string>({
   items,
@@ -334,12 +361,14 @@ export function AuthMenuList<T extends string>({
   onSelect,
   onHighlight,
   compact = false,
+  maxItemsToShow = items.length,
 }: {
   items: Array<AuthMenuItem<T>>;
   initialIndex: number;
   onSelect: (value: T) => void;
   onHighlight?: (value: T) => void;
   compact?: boolean;
+  maxItemsToShow?: number;
 }): React.JSX.Element {
   return (
     <DescriptiveRadioButtonSelect
@@ -348,7 +377,7 @@ export function AuthMenuList<T extends string>({
       onSelect={onSelect}
       onHighlight={onHighlight}
       itemGap={compact ? 0 : 1}
-      maxItemsToShow={Math.max(items.length, 1)}
+      maxItemsToShow={Math.max(maxItemsToShow, 1)}
     />
   );
 }
@@ -393,9 +422,10 @@ const MAIN_INDEX_BY_GROUP: Record<string, number> = {
 // ---------------------------------------------------------------------------
 
 export function AuthDialog(): React.JSX.Element {
+  const uiState = useUIState();
   const {
     auth: { authError, choosingDisplayMode },
-  } = useUIState();
+  } = uiState;
   const {
     auth: {
       closeAuthDialog,
@@ -684,9 +714,101 @@ export function AuthDialog(): React.JSX.Element {
       ? undefined
       : subMenus[viewLevel];
 
+  const constrained = uiState.useTerminalBuffer || uiState.constrainHeight;
+  const dialogHeight = constrained
+    ? uiState.useTerminalBuffer
+      ? Math.max(
+          1,
+          uiState.terminalHeight -
+            getFixedHeaderHeight(uiState.terminalWidth) -
+            (uiState.ctrlCPressedOnce ? 2 : 0) -
+            (uiState.ctrlDPressedOnce ? 2 : 0),
+        )
+      : getDialogMaxHeight(uiState.terminalHeight, uiState.staticExtraHeight)
+    : undefined;
+  const contentWidth = Math.max(1, uiState.mainAreaWidth - 4);
+  const isMenu = viewLevel !== 'provider-setup';
+  const compactFrame =
+    (isMenu || setupFlow.state.step === 'models') &&
+    dialogHeight !== undefined &&
+    dialogHeight < 22;
+  const compactMenu = isMenu && compactFrame;
+  const paddingY = compactFrame ? 0 : 1;
+  const innerHeight =
+    dialogHeight === undefined
+      ? undefined
+      : Math.max(1, dialogHeight - 3 - paddingY * 2);
+  const menuItems = viewLevel === 'main' ? mainItems : activeItems;
+  const itemGap = viewLevel === 'apiKey' ? 0 : 1;
+  const wrappedRows = (text: string, width = contentWidth) =>
+    wrapAnsi(text, width, { hard: true }).split('\n').length;
+  const itemRows = Math.max(
+    1,
+    ...(menuItems ?? []).map(
+      (item) =>
+        wrappedRows(menuText(item.title), Math.max(1, contentWidth - 2)) +
+        (menuText(item.description).trim()
+          ? wrappedRows(
+              menuText(item.description),
+              Math.max(1, contentWidth - 2),
+            )
+          : 0),
+    ),
+  );
+  const noticeRows = notice && activeItems ? 2 : 0;
+  const error = authError || errorMessage;
+  const showTermsUrl =
+    innerHeight === undefined || innerHeight >= itemRows + 4 + (error ? 2 : 0);
+  const footerRows =
+    viewLevel === 'main'
+      ? (compactMenu ? 2 : 4) + Number(showTermsUrl)
+      : isMenu
+        ? 2
+        : 0;
+  const errorLines = error
+    ? wrapAnsi(error, contentWidth, { hard: true }).split('\n')
+    : [];
+  const maxErrorRows =
+    innerHeight === undefined
+      ? errorLines.length
+      : Math.max(
+          1,
+          innerHeight -
+            footerRows -
+            noticeRows -
+            (isMenu
+              ? itemRows + 1
+              : 6 + Number(Boolean(setupFlow.state.modelIdsError))) -
+            1,
+        );
+  const visibleErrorLines = errorLines.slice(0, maxErrorRows);
+  if (visibleErrorLines.length < errorLines.length)
+    visibleErrorLines[visibleErrorLines.length - 1] =
+      `${visibleErrorLines.at(-1)?.slice(0, -1)}…`;
+  const errorRows =
+    visibleErrorLines.length > 0 ? visibleErrorLines.length + 1 : 0;
+  const availableHeight =
+    innerHeight === undefined
+      ? undefined
+      : Math.max(1, innerHeight - errorRows);
+  const menuRows =
+    availableHeight === undefined
+      ? undefined
+      : availableHeight - footerRows - noticeRows - 1;
+  const maxMenuItems =
+    menuRows === undefined
+      ? menuItems?.length
+      : Math.max(1, Math.floor((menuRows + itemGap) / (itemRows + itemGap)));
+  const menuIndex =
+    viewLevel === 'main'
+      ? (mainIndex ?? defaultMainIndex)
+      : (subMenuIndex[viewLevel] ?? 0);
+  const menuOverflow =
+    menuItems && maxMenuItems !== undefined && menuItems.length > maxMenuItems;
+
   const header = (
-    <Box>
-      <Box flexGrow={1}>
+    <Box flexShrink={0}>
+      <Box flexGrow={1} minWidth={0}>
         <Text wrap="truncate-end">
           <Text bold>{t('Connect a provider')}</Text>
           <Text color={extendedTheme.text.muted}>
@@ -695,7 +817,10 @@ export function AuthDialog(): React.JSX.Element {
         </Text>
       </Box>
       <Box flexShrink={0} marginLeft={2}>
-        <Text color={extendedTheme.text.muted}>{stepText}</Text>
+        <Text color={extendedTheme.text.muted}>
+          {stepText}
+          {menuOverflow ? ` · ↑↓ ${menuIndex + 1}/${menuItems.length}` : ''}
+        </Text>
       </Box>
     </Box>
   );
@@ -720,15 +845,19 @@ export function AuthDialog(): React.JSX.Element {
       borderStyle={glyphs().borderStyle}
       borderColor={extendedTheme.ui.brand}
       flexDirection="column"
-      padding={1}
+      paddingX={1}
+      paddingY={paddingY}
       width="100%"
+      flexShrink={isMenu || setupFlow.state.step === 'models' ? 0 : 1}
     >
       {header}
 
       {viewLevel === 'main' && (
         <Box marginTop={1}>
           <AuthMenuList
+            key={maxMenuItems}
             items={mainItems}
+            maxItemsToShow={maxMenuItems}
             initialIndex={mainIndex != null ? mainIndex : defaultMainIndex}
             onSelect={handleMainSelect}
             onHighlight={(value) => {
@@ -742,9 +871,10 @@ export function AuthDialog(): React.JSX.Element {
         <>
           <Box marginTop={1}>
             <AuthMenuList
-              key={viewLevel}
+              key={`${viewLevel}-${maxMenuItems}`}
               items={activeItems}
               compact={viewLevel === 'apiKey'}
+              maxItemsToShow={maxMenuItems}
               initialIndex={subMenuIndex[viewLevel] ?? 0}
               onSelect={(value) => handleSubMenuSelect(activeItems, value)}
               onHighlight={(value) => {
@@ -758,11 +888,13 @@ export function AuthDialog(): React.JSX.Element {
           </Box>
           {notice && (
             <Box marginTop={1}>
-              <Text color={theme.status.warning}>{notice}</Text>
+              <Text color={theme.status.warning} wrap="truncate-end">
+                {notice}
+              </Text>
             </Box>
           )}
           <Box marginTop={1}>
-            <Text color={extendedTheme.text.muted}>
+            <Text color={extendedTheme.text.muted} wrap="truncate-end">
               {viewLevel === 'local'
                 ? t('↑↓ navigate · enter select · ctrl+r look again · esc back')
                 : t('↑↓ navigate · enter select · esc back')}
@@ -775,32 +907,44 @@ export function AuthDialog(): React.JSX.Element {
         <ProviderSetupSteps
           flow={setupFlow}
           minVisibleModelRows={MODEL_CATALOG_MIN_VISIBLE_ROWS}
+          availableHeight={availableHeight}
         />
       )}
 
-      {(authError || errorMessage) && (
+      {error && (
         <Box marginTop={1}>
-          <Text color={theme.status.error}>{authError || errorMessage}</Text>
+          <Text color={theme.status.error}>{visibleErrorLines.join('\n')}</Text>
         </Box>
       )}
 
       {viewLevel === 'main' && (
         <>
-          <Box marginY={1}>
-            <Text color={theme.border.default}>{'─'.repeat(80)}</Text>
+          <Box marginY={compactMenu ? 0 : 1}>
+            <Text color={theme.border.default}>{'─'.repeat(contentWidth)}</Text>
           </Box>
           <Box>
-            <Text color={theme.text.primary}>
-              {t('Terms of Services and Privacy Notice')}:
+            <Text
+              color={theme.text.primary}
+              wrap={constrained ? 'truncate-end' : undefined}
+            >
+              <Link url={TOS_PRIVACY_URL} fallback={false}>
+                {t('Terms of Services and Privacy Notice')}:
+              </Link>
             </Text>
           </Box>
-          <Box>
-            <Link url={TOS_PRIVACY_URL} fallback={false}>
-              <Text color={theme.text.secondary} underline>
-                {TOS_PRIVACY_URL}
+          {showTermsUrl && (
+            <Box>
+              <Text
+                color={theme.text.secondary}
+                underline
+                wrap={constrained ? 'truncate-end' : undefined}
+              >
+                <Link url={TOS_PRIVACY_URL} fallback={false}>
+                  {TOS_PRIVACY_URL}
+                </Link>
               </Text>
-            </Link>
-          </Box>
+            </Box>
+          )}
         </>
       )}
     </Box>

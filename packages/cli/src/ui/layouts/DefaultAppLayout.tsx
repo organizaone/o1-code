@@ -68,11 +68,22 @@ export const DefaultAppLayout: React.FC = () => {
     uiState.terminalHeight,
     uiState.useTerminalBuffer,
   );
-  const dialogMaxHeight = getDialogMaxHeight(
-    uiState.terminalHeight,
-    uiState.staticExtraHeight,
-    uiState.useTerminalBuffer ? getFixedHeaderHeight(terminalWidth) : 0,
-  );
+  const isFullScreenAuth =
+    uiState.useTerminalBuffer &&
+    Boolean(uiState.auth?.isAuthDialogOpen || uiState.auth?.authError);
+  const dialogMaxHeight = isFullScreenAuth
+    ? Math.max(
+        1,
+        uiState.terminalHeight -
+          getFixedHeaderHeight(terminalWidth) -
+          (uiState.ctrlCPressedOnce ? 2 : 0) -
+          (uiState.ctrlDPressedOnce ? 2 : 0),
+      )
+    : getDialogMaxHeight(
+        uiState.terminalHeight,
+        uiState.staticExtraHeight,
+        uiState.useTerminalBuffer ? getFixedHeaderHeight(terminalWidth) : 0,
+      );
   const dialogHeight = uiState.constrainHeight ? dialogMaxHeight : undefined;
   const shouldShowStickyTodos =
     uiState.stickyTodos !== null &&
