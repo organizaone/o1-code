@@ -7,6 +7,8 @@ follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.21.5] - 2026-10-21
+
 ### Fixed
 
 - Provider setup sizes the model catalog to the available terminal height, keeping model ID and search borders clear of their text. Authentication errors reserve their wrapped rows so provider choices retain their spacing; resizing keeps the highlighted provider visible.
