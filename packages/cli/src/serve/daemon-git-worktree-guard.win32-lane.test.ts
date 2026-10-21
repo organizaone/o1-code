@@ -4,8 +4,8 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-// Runs the committed guard suite the way the Windows merge lane executes it
-// (win32 + cmd.exe, no Git-Bash markers), so a lane-red defect is caught on
+// Runs the committed guard suite with explicit win32 + cmd.exe grammar,
+// independent of installed shells, so a lane-red defect is caught on
 // every platform instead of first going red inside the merge queue. The
 // spoof must be in place BEFORE the suite module evaluates its runIf
 // conditions, hence the dynamic import, and re-armed before every test
@@ -40,13 +40,28 @@ afterAll(() => {
   delete process.env['O1CODE_DAEMON_GUARD_LANE_SPOOF'];
 });
 
-await import('./daemon-git-worktree-guard.test.js');
+const { getGuardShellConfiguration } = await import(
+  './daemon-git-worktree-guard.test.js'
+);
+const cmdShellConfiguration = getGuardShellConfiguration();
 
-it('harness premise: the lane resolves to win32/cmd', async () => {
-  const { getShellConfiguration } = await import('@organizaone/o1-code-core');
+it('harness premise: the guard uses win32/cmd semantics', async () => {
   expect(process.platform).toBe('win32');
   expect(os.platform()).toBe('win32');
-  expect(getShellConfiguration().shell).toBe('cmd');
+  expect(cmdShellConfiguration.shell).toBe('cmd');
+  await expect(
+    createCmdToolGuard()({
+      sessionId: 'session-1',
+      promptId: 'prompt-1',
+      toolCallId: 'call-1',
+      toolName: 'run_shell_command',
+      arguments: { command: 'git -C %OUTSIDE_REPO% reset --hard' },
+      effectiveCwd: cmdWorktree,
+    } as never),
+  ).resolves.toMatchObject({
+    allowed: false,
+    reason: expect.stringContaining('cmd.exe rewrite syntax'),
+  });
 });
 
 // cmd.exe builtins persist state into every later `&&`-chained command:
@@ -61,6 +76,8 @@ const path = await import('node:path');
 const { createDaemonToolGuard } = await import(
   './daemon-git-worktree-guard.js'
 );
+const createCmdToolGuard = () =>
+  createDaemonToolGuard(undefined, cmdShellConfiguration);
 
 const cmdRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'guard-win32-cmd-'));
 const cmdWorktree = path.join(cmdRoot, 'workspace', 'worktree');
@@ -79,7 +96,7 @@ afterAll(() => {
 });
 
 describe('cmd.exe state-persisting builtins fail closed', () => {
-  const guard = createDaemonToolGuard();
+  const guard = createCmdToolGuard();
   const request = (command: string) =>
     ({
       sessionId: 'session-1',
@@ -199,7 +216,7 @@ describe('cmd.exe state-persisting builtins fail closed', () => {
 // against while cmd hands git the relocated environment anyway.
 
 describe('cmd.exe env assignments are case-insensitive', () => {
-  const guard = createDaemonToolGuard();
+  const guard = createCmdToolGuard();
   const request = (command: string) =>
     ({
       sessionId: 'session-1',
@@ -260,7 +277,7 @@ describe('cmd.exe env assignments are case-insensitive', () => {
 // tracked and the following git is validated against the wrong directory.
 
 describe('cmd.exe delimiter-less cd forms are tracked', () => {
-  const guard = createDaemonToolGuard();
+  const guard = createCmdToolGuard();
   const request = (command: string) =>
     ({
       sessionId: 'session-1',
@@ -307,7 +324,7 @@ describe('cmd.exe delimiter-less cd forms are tracked', () => {
 // windows-native lanes.
 
 describe('cmd.exe relink destinations stay tracked', () => {
-  const guard = createDaemonToolGuard();
+  const guard = createCmdToolGuard();
   const request = (command: string) =>
     ({
       sessionId: 'session-1',

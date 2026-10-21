@@ -195,6 +195,7 @@ export default {
   'toolDisplayName.Shell': '運行命令',
   'toolDisplayName.Shell Command': 'Shell 命令',
   'toolDisplayName.TodoList': '任務清單',
+  'toolDisplayName.Progress': '進度',
   'toolDisplayName.Goal': '目標',
   'toolDisplayName.UpdateGoal': '更新目標',
   'toolDisplayName.ProposeGoal': '提議目標',

@@ -732,6 +732,11 @@ describe('createWorkspaceProvidersStatusProvider', () => {
             name: 'Shared Current',
             baseUrl: `https://user:cur'rent@current.example/v1`,
           },
+          {
+            id: 'shared-model',
+            name: 'Shared Alternative',
+            baseUrl: 'https://user:other-key@other.example/v1',
+          },
         ],
       },
     });
@@ -745,6 +750,7 @@ describe('createWorkspaceProvidersStatusProvider', () => {
     expect(JSON.stringify(result)).not.toContain('secret');
     expect(JSON.stringify(result)).not.toContain('sec ret');
     expect(JSON.stringify(result)).not.toContain(`cur'rent`);
+    expect(JSON.stringify(result)).not.toContain('other-key');
   });
 
   it('does not mark baseUrl variants current when no baseUrl is resolved', async () => {
