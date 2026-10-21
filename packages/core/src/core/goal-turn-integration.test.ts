@@ -73,6 +73,7 @@ describe('Goal turn evidence propagation', () => {
     const chat = new LlmChat(
       {
         getContentGeneratorConfig: () => ({ contextWindowSize: 4096 }),
+        getToolRegistry: () => undefined,
       } as unknown as Config,
       {},
       [],

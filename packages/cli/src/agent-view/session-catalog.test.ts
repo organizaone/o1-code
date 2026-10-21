@@ -208,16 +208,15 @@ describe('agent session catalog', () => {
       path.join(os.tmpdir(), 'o1-session-catalog-'),
     );
     try {
+      const workspace = path.join(base, 'other-workspace');
       const chats = path.join(base, 'projects', 'sample', 'chats');
       await fs.mkdir(chats, { recursive: true });
       await fs.writeFile(
         path.join(chats, 'one.jsonl'),
-        `${JSON.stringify({ cwd: 'C:/Workspace/other' })}\n`,
+        `${JSON.stringify({ cwd: workspace })}\n`,
       );
       await fs.writeFile(path.join(chats, 'bad.jsonl'), 'invalid\n');
-      expect(await discoverAgentSessionWorkspaces(base)).toContain(
-        path.resolve('C:/Workspace/other'),
-      );
+      expect(await discoverAgentSessionWorkspaces(base)).toContain(workspace);
     } finally {
       await fs.rm(base, { recursive: true, force: true });
     }

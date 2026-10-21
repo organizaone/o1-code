@@ -810,14 +810,20 @@ describe('<Footer />', () => {
   });
 
   describe('footer rendering (golden snapshots)', () => {
+    // Platform-specific text selectors are covered in terminal-symbol-width.test.ts;
+    // the golden frames compare visible glyphs and retain every layout column.
     it('renders complete footer on wide terminal', () => {
       const { lastFrame } = renderWithWidth(120, createMockUIState());
-      expect(lastFrame()).toMatchSnapshot('complete-footer-wide');
+      expect(lastFrame()?.replaceAll('\uFE0E', '')).toMatchSnapshot(
+        'complete-footer-wide',
+      );
     });
 
     it('renders complete footer on narrow terminal', () => {
       const { lastFrame } = renderWithWidth(79, createMockUIState());
-      expect(lastFrame()).toMatchSnapshot('complete-footer-narrow');
+      expect(lastFrame()?.replaceAll('\uFE0E', '')).toMatchSnapshot(
+        'complete-footer-narrow',
+      );
     });
   });
 });

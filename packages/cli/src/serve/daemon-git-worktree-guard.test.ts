@@ -18,7 +18,6 @@ import {
   vi,
 } from 'vitest';
 import {
-  getShellConfiguration,
   GitWorktreeService,
   splitCommands,
   ToolNames,
@@ -36,20 +35,21 @@ import {
 } from './daemon-git-worktree-guard.js';
 import type { ShellConfiguration } from '@organizaone/o1-code-core/utils/shell-utils.js';
 
-function createDaemonToolGuard(
-  externalGuard?: ExternalToolGuardHandler,
-  selectedShell?: ShellConfiguration,
-): ExternalToolGuardHandler {
+export function getGuardShellConfiguration(): ShellConfiguration {
   const shell =
     process.platform !== 'win32' || process.env['MSYSTEM']
       ? 'bash'
       : process.env['ComSpec']?.includes('powershell')
         ? 'powershell'
         : 'cmd';
-  return createRuntimeDaemonToolGuard(
-    externalGuard,
-    selectedShell ?? { shell, executable: shell, argsPrefix: [] },
-  );
+  return { shell, executable: shell, argsPrefix: [] };
+}
+
+function createDaemonToolGuard(
+  externalGuard?: ExternalToolGuardHandler,
+  selectedShell = getGuardShellConfiguration(),
+): ExternalToolGuardHandler {
+  return createRuntimeDaemonToolGuard(externalGuard, selectedShell);
 }
 
 const temporaryRoot = mkdtempSync(path.join(os.tmpdir(), 'daemon-guard-'));
@@ -89,8 +89,9 @@ function request(
 // Bash-semantics expectations only mean what they say on lanes that execute
 // through bash: on the win32 cmd/PowerShell lanes the divergent-syntax gate
 // denies those shapes before any analysis reads them.
-const bashSemanticsLane =
-  process.platform !== 'win32' || getShellConfiguration().shell === 'bash';
+const bashSemanticsLane = getGuardShellConfiguration().shell === 'bash';
+// Junctions preserve directory traversal coverage without Windows symlink privileges.
+const directoryLinkType = process.platform === 'win32' ? 'junction' : 'dir';
 
 afterAll(async () => {
   await rm(temporaryRoot, { recursive: true, force: true });
@@ -861,7 +862,7 @@ it -C ${cmdPath(outsideRepo)} reset --hard`,
   // of win32 tokenisation and POSIX path rules.
   describe.runIf(
     process.platform === 'win32' &&
-      getShellConfiguration().shell !== 'bash' &&
+      !bashSemanticsLane &&
       // The lane-spoof harness (daemon-git-worktree-guard.win32-lane.test.ts)
       // cannot supply real Windows path semantics; these shapes stay pinned
       // on the lane that really executes them.
@@ -906,8 +907,8 @@ it -C ${cmdPath(outsideRepo)} reset --hard`,
     });
   });
 
-  // The rewrite gate reads process.platform and getShellConfiguration() at
-  // call time, so spoofing both pins the cmd-lane denial on every lane — the
+  // The rewrite gate combines process.platform with the runtime shell
+  // snapshot, so selecting cmd explicitly pins its denial on every lane — the
   // merge_group Windows lane is otherwise the only lane that executes the
   // gate, and a regression would first go red inside the merge queue.
   describe('cmd.exe rewrite-syntax denial (spoofed cmd lane)', () => {
@@ -916,8 +917,7 @@ it -C ${cmdPath(outsideRepo)} reset --hard`,
     beforeEach(() => {
       vi.spyOn(process, 'platform', 'get').mockReturnValue('win32');
       vi.spyOn(os, 'platform').mockReturnValue('win32');
-      // Keep the Git Bash detectors (MSYSTEM/TERM) off so the shell
-      // configuration resolves to cmd like the Windows merge lane.
+      // Keep the fixture's Bash and PowerShell markers off so it selects cmd.
       for (const key of ['MSYSTEM', 'TERM', 'ComSpec'] as const) {
         savedEnv[key] = process.env[key];
         delete process.env[key];
@@ -1350,7 +1350,7 @@ it -C ${cmdPath(outsideRepo)} reset --hard`,
       mkdir(localEffectiveCwd, { recursive: true }),
       mkdir(localOutsideRepo, { recursive: true }),
     ]);
-    await symlink(localOutsideRepo, linkedOutsideRepo);
+    await symlink(localOutsideRepo, linkedOutsideRepo, directoryLinkType);
 
     const guard = createDaemonToolGuard();
     await expect(
@@ -1469,6 +1469,7 @@ it -C ${cmdPath(outsideRepo)} reset --hard`,
     await symlink(
       path.join(outsideRepo, '.git'),
       path.join(localNestedD, '.git'),
+      directoryLinkType,
     );
     const localRequest = (
       command: string,
@@ -2008,7 +2009,11 @@ it -C ${cmdPath(outsideRepo)} reset --hard`,
   });
 
   it('resolves cd -P through symlinks before applying ..', async () => {
-    await symlink(outsideRepo, path.join(effectiveCwd, 'outward-link'), 'dir');
+    await symlink(
+      outsideRepo,
+      path.join(effectiveCwd, 'outward-link'),
+      directoryLinkType,
+    );
 
     const guard = createDaemonToolGuard();
     await expect(
@@ -2025,7 +2030,7 @@ it -C ${cmdPath(outsideRepo)} reset --hard`,
   // symlinks — unlike bash's default (logical) `cd`.
   it('resolves git -C physically through symlinks', async () => {
     const outward = path.join(effectiveCwd, 'physical-link');
-    await symlink(path.join(outsideRepo, 'sub'), outward, 'dir');
+    await symlink(path.join(outsideRepo, 'sub'), outward, directoryLinkType);
     await mkdir(path.join(outsideRepo, 'sub'), { recursive: true });
 
     const guard = createDaemonToolGuard();
@@ -3125,9 +3130,7 @@ it -C ${cmdPath(outsideRepo)} reset --hard`,
   // the same text defines nothing — the guard's divergent-syntax gate denies
   // most of it outright and no shadow is recorded — so these pins only mean
   // what they say on lanes that execute through bash.
-  describe.runIf(
-    process.platform !== 'win32' || getShellConfiguration().shell === 'bash',
-  )('bash exported-function shadow semantics', () => {
+  describe.runIf(bashSemanticsLane)('bash exported-function shadows', () => {
     it.each([
       // `env -u BASH_FUNC_git%%` (separated, attached, and `--unset=` forms)
       // strips the exported function from the child, which then runs the real

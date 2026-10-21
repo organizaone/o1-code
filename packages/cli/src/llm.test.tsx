@@ -83,6 +83,7 @@ const lspConfigWatcherMock = vi.hoisted(() => ({
 }));
 const sessionRegistryConfigStub = {
   getTargetDir: () => '/tmp/project',
+  isRemoteEnabled: () => false,
   trackSessionRegistration: (registration: Promise<boolean>) => {
     void registration.catch(() => undefined);
   },

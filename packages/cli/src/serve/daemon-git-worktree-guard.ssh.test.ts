@@ -17,6 +17,11 @@ describe('daemon tool guard for SSH workspaces', () => {
   let anchor: string;
   const remote = '/srv/project';
   const url = `ssh://dev-host${remote}`;
+  const shellConfiguration = {
+    shell: 'bash' as const,
+    executable: '/bin/bash',
+    argsPrefix: ['-c'],
+  };
 
   beforeEach(async () => {
     root = await realpath(await mkdtemp(path.join(os.tmpdir(), 'ssh-guard-')));
@@ -51,7 +56,7 @@ describe('daemon tool guard for SSH workspaces', () => {
   }
 
   it('accepts remote command directories only for a verified SSH session anchor', async () => {
-    const guard = createDaemonToolGuard();
+    const guard = createDaemonToolGuard(undefined, shellConfiguration);
 
     await expect(guard(request())).resolves.toEqual({ allowed: true });
     const local = path.join(root, 'local-workspace');
@@ -65,7 +70,7 @@ describe('daemon tool guard for SSH workspaces', () => {
   it('preserves required external guard decisions for remote shell calls', async () => {
     const denial = { allowed: false, reason: 'external policy denied' };
     const externalGuard = vi.fn().mockResolvedValue(denial);
-    const guard = createDaemonToolGuard(externalGuard);
+    const guard = createDaemonToolGuard(externalGuard, shellConfiguration);
     const call = request();
 
     await expect(guard(call)).resolves.toEqual(denial);
@@ -77,8 +82,8 @@ describe('daemon tool guard for SSH workspaces', () => {
       path.join(anchor, '..', 'connection.json'),
       JSON.stringify({ url: 'ssh://other-host/srv/project' }),
     );
-    await expect(createDaemonToolGuard()(request())).rejects.toThrow(
-      'identity does not match',
-    );
+    await expect(
+      createDaemonToolGuard(undefined, shellConfiguration)(request()),
+    ).rejects.toThrow('identity does not match');
   });
 });

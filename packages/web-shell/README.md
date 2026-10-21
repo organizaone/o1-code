@@ -13,3 +13,8 @@ trusted single operator. When the page and the daemon use different origins, sta
 [`client/App.tsx`](client/App.tsx).
 
 Requires Node.js 22 or later and a current evergreen browser.
+
+Hosts can filter settings through `WebShellSettingsOptions.includeItems` and `excludeItems`.
+Use the stable IDs exported as `WEB_SHELL_SETTING_ITEM_IDS`, including `setting:shell-type` and
+`setting:shell-executable` for the runtime shell controls. Terminal-only `/rc` preferences are not
+available in the Web Shell settings API or panel.

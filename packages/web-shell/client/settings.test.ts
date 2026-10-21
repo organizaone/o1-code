@@ -7,6 +7,17 @@ import {
 } from './settings';
 
 describe('settings presentation aliases', () => {
+  it.each([
+    ['tools.shell.type', 'setting:shell-type'],
+    ['tools.shell.executable', 'setting:shell-executable'],
+  ] as const)('lets hosts include and exclude the %s control', (key, id) => {
+    expect(isSettingVisible(key, { includeItems: [id] })).toBe(true);
+    expect(isSettingVisible(key, { excludeItems: [id] })).toBe(false);
+    expect(
+      isSettingVisible(key, { includeItems: [id], excludeItems: [id] }),
+    ).toBe(false);
+  });
+
   it('maps stable public aliases to configuration keys without accepting raw paths', () => {
     expect(
       isSettingVisible('fastModel', { excludeItems: ['setting:fast-model'] }),
@@ -251,6 +262,8 @@ describe('settings presentation aliases', () => {
       'setting:list-directory': 'tools.listDirectory.enabled',
       'setting:todo-write': 'tools.todoWrite.enabled',
       'setting:interactive-shell': 'tools.shell.enableInteractiveShell',
+      'setting:shell-type': 'tools.shell.type',
+      'setting:shell-executable': 'tools.shell.executable',
       'setting:workflows': 'tools.workflowsEnabled',
       'setting:workflow-size': 'tools.workflowSizeGuideline',
       'setting:workflow-name-only': 'tools.workflowNameOnly',

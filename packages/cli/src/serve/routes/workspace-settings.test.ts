@@ -570,6 +570,9 @@ describe('POST /workspace/settings', () => {
     'ui.showScrollbar',
     'ui.showToolCallArgs',
     'ui.showModelQuotaInFooter',
+    'remote.enabled',
+    'remote.atStartup',
+    'remote.viaTunnel',
   ])(
     'rejects a TUI-only key (%s) that has no effect in the web shell',
     async (key) => {
@@ -579,15 +582,21 @@ describe('POST /workspace/settings', () => {
       // declare showInDialog: true.
       const { app, persistSetting } = makeApp();
 
-      const res = await request(app).post('/workspace/settings').send({
-        scope: 'user',
-        key,
-        value: false,
-      });
+      const res = await request(app)
+        .post('/workspace/settings')
+        .send({
+          scope: 'user',
+          key,
+          value: key === 'remote.viaTunnel' ? 'auto' : false,
+        });
 
       expect(res.status).toBe(400);
       expect(res.body).toMatchObject({ code: 'disallowed_key' });
       expect(persistSetting).not.toHaveBeenCalled();
+      const read = await request(app).get('/workspace/settings');
+      expect(
+        read.body.settings.map((setting: { key: string }) => setting.key),
+      ).not.toContain(key);
     },
   );
 

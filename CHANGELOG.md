@@ -7,6 +7,11 @@ follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Fixed
+
+- The Web Shell omits terminal-only remote-session controls and provides stable presentation aliases for shell selection and its executable.
+- Complete Portuguese remote-session settings and Chinese agent-progress translations.
+
 ## [0.21.3] - 2026-10-20
 
 ### Fixed

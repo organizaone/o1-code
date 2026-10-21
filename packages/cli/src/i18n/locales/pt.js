@@ -3789,6 +3789,18 @@ export default {
   'this project only': 'só neste projeto',
   'Next: {{commands}}': 'Próximo: {{commands}}',
   // Remote sessions (/rc)
+  'Remote Sessions': 'Sessões remotas',
+  'Offer /rc, which puts the session in remote mode through the OrganizaOne gateway. The command still needs the OrganizaOne sign-in and a plan that includes remote sessions. O1CODE_DISABLE_REMOTE=1 turns it off regardless. Only honored from User, System, and SystemDefaults settings scopes.':
+    'Disponibiliza /rc, que coloca a sessão em modo remoto pelo gateway OrganizaOne. O comando ainda exige login OrganizaOne e um plano que inclua sessões remotas. O1CODE_DISABLE_REMOTE=1 desativa o recurso independentemente desta configuração. Aceito somente nas configurações de Usuário, Sistema e Padrões do sistema.',
+  'Remote at Startup': 'Modo remoto ao iniciar',
+  'Put every interactive session in remote mode as soon as it starts, as if /rc had been typed. Equivalent to the --rc flag. Only honored from User, System, and SystemDefaults settings scopes.':
+    'Coloca cada sessão interativa em modo remoto assim que ela inicia, como se /rc tivesse sido digitado. Equivale à opção --rc. Aceito somente nas configurações de Usuário, Sistema e Padrões do sistema.',
+  'Remote via Tunnel': 'Modo remoto por túnel',
+  'How the remote session reaches the gateway: "auto" (default) rides the o1-connect tunnel when the model goes through one and connects directly otherwise; "always" requires the tunnel, which is what a filtered network needs; "never" always connects directly with the device key.':
+    'Como a sessão remota acessa o gateway: "auto" (padrão) usa o túnel o1-connect quando o modelo passa por ele e conecta diretamente nos demais casos; "always" exige o túnel, necessário em redes com restrições de acesso; "never" sempre conecta diretamente com a chave do dispositivo.',
+  'Auto (tunnel when open)': 'Automático (túnel quando aberto)',
+  'Always through the tunnel': 'Sempre pelo túnel',
+  'Never (direct)': 'Nunca (conexão direta)',
   'Mirror this session to your OrganizaOne account page and take input from there':
     'Espelhar esta sessão na página da sua conta OrganizaOne e receber entrada de lá',
   '[off | status | name <name>]': '[off | status | name <nome>]',

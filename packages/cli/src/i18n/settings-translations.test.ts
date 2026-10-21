@@ -25,7 +25,10 @@ describe('Portuguese settings translations', () => {
     vi.restoreAllMocks();
   });
 
-  it('covers every visible setting label, description and option', () => {
+  it('covers every visible setting label, description and option', async () => {
+    const { default: portugueseTranslations } = (await import(
+      new URL('./locales/pt.js', import.meta.url).href
+    )) as { default: Record<string, unknown> };
     const missing: string[] = [];
     for (const key of getDialogSettingKeys()) {
       const definition = getSettingDefinition(key)!;
@@ -35,6 +38,14 @@ describe('Portuguese settings translations', () => {
         ...(definition.options ?? []).map((option) => option.label),
       ];
       for (const text of strings) {
+        if (
+          key === 'tools.shell.type' &&
+          (text === 'Git Bash' || text === 'PowerShell')
+        ) {
+          expect(portugueseTranslations).toHaveProperty(text, text);
+          expect(t(text)).toBe(text);
+          continue;
+        }
         if (text && text !== 'YOLO' && t(text) === text) {
           missing.push(`${key}: ${text}`);
         }

@@ -75,7 +75,7 @@ describe('createApprovalModeOverride bound-tool isolation', () => {
     return parent;
   }
 
-  it('registers only execution facades and delegates file access through the child environment', async () => {
+  it('registers execution facades and agent progress and delegates file access through the child environment', async () => {
     const parent = await createParentWithRegistry();
     const environment = {
       prepare: vi.fn().mockResolvedValue({
@@ -99,7 +99,12 @@ describe('createApprovalModeOverride bound-tool isolation', () => {
     );
     const registry = child.getToolRegistry();
     expect(registry.getAllToolNames().sort()).toEqual(
-      [...EXECUTION_TOOL_NAMES, ToolNames.TOOL_CALL, ToolNames.TOOL_SEARCH]
+      [
+        ...EXECUTION_TOOL_NAMES,
+        ToolNames.TOOL_CALL,
+        ToolNames.TOOL_SEARCH,
+        ToolNames.REPORT_PROGRESS,
+      ]
         .filter((name) => name !== ToolNames.LS)
         .sort(),
     );
@@ -767,14 +772,16 @@ describe('createApprovalModeOverride bound-tool isolation', () => {
       ToolNames.GET_GOAL,
       ToolNames.UPDATE_GOAL,
     ]);
-    const expectedChildNames = parentRegistry
-      .getAllToolNames()
-      .filter((name) => !topLevelOnlyTools.has(name))
-      .sort();
+    const expectedChildNames = [
+      ...parentRegistry
+        .getAllToolNames()
+        .filter((name) => !topLevelOnlyTools.has(name)),
+      ToolNames.REPORT_PROGRESS,
+    ].sort();
 
     // The child registry copies discovered tools and rebuilds the same core
     // toolset, except for session-owned tools intentionally excluded from
-    // subagent contexts.
+    // subagent contexts and the progress tool added only for agents.
     expect(childNames).toEqual(expectedChildNames);
     // And the parent's pre-warm names must be a subset of the post-warm
     // names — sanity check that warmAll didn't lose anything.

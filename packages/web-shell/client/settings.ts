@@ -43,6 +43,8 @@ const SETTING_KEYS = {
   'setting:list-directory': 'tools.listDirectory.enabled',
   'setting:todo-write': 'tools.todoWrite.enabled',
   'setting:interactive-shell': 'tools.shell.enableInteractiveShell',
+  'setting:shell-type': 'tools.shell.type',
+  'setting:shell-executable': 'tools.shell.executable',
   'setting:workflows': 'tools.workflowsEnabled',
   'setting:workflow-size': 'tools.workflowSizeGuideline',
   'setting:workflow-name-only': 'tools.workflowNameOnly',
