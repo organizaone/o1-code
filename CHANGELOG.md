@@ -7,6 +7,13 @@ follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Fixed
+
+- `/agents` opens when the CLI starts with `--yolo` or `-y`, and omits conversations with no user interaction.
+- Session switching connects the terminal during startup so initialization dialogs remain accessible, refreshes the current theme preference and restores the conversation viewport.
+- `/theme` defaults to workspace scope when a trusted workspace defines the active theme, so choosing a new theme updates the preference that takes effect.
+- Update the CLI's Markdown parser to address excessive processing time for crafted link references.
+
 ## [0.21.2] - 2026-10-20
 
 ### Fixed

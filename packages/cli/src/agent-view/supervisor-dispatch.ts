@@ -30,6 +30,7 @@ interface DispatchOptions {
   token?: string;
   publishRoster?: boolean;
   promptInArgv?: boolean;
+  approvalMode?: string;
 }
 
 // activity.json is re-read on every list() poll; keep the summary a
@@ -77,6 +78,7 @@ export async function dispatchAgentViewSession(
         argv: buildNativeWorkerArgv(
           sessionId,
           options.promptInArgv === false ? undefined : prompt,
+          options.approvalMode,
         ),
         env: createAgentViewWorkerSidebandEnv({
           sessionId,
@@ -88,6 +90,7 @@ export async function dispatchAgentViewSession(
         projectCwd: resolvedCwd,
         activeCwd: resolvedCwd,
         includeDirectories: [],
+        ...(options.approvalMode ? { approvalMode: options.approvalMode } : {}),
         terminal: {
           columns: process.stdout.columns ?? 80,
           rows: process.stdout.rows ?? 24,
@@ -190,10 +193,15 @@ async function cleanupFailedDispatchCreation(
   }
 }
 
-function buildNativeWorkerArgv(sessionId: string, prompt?: string): string[] {
+function buildNativeWorkerArgv(
+  sessionId: string,
+  prompt?: string,
+  approvalMode?: string,
+): string[] {
   return buildCurrentO1CodeCliArgv([
     '--session-id',
     sessionId,
+    ...(approvalMode ? [`--approval-mode=${approvalMode}`] : []),
     // Attached-value form: a bare token after the flag would be re-parsed
     // by yargs when the prompt starts with '-', turning e.g. '-y' into
     // flags instead of prompt text.

@@ -210,7 +210,7 @@ export function mergeAgentSessionCatalog(
   const rows = new Map<string, AgentSessionRow>();
   for (const item of saved) {
     if (item.isArchived || item.parentSessionId) continue;
-    if (!item.customTitle && !item.prompt && !item.goalObjective) continue;
+    if (!item.prompt.trim() && !item.goalObjective?.trim()) continue;
     const workspace = path.resolve(item.cwd);
     rows.set(item.sessionId.toLowerCase(), {
       sessionId: item.sessionId,
@@ -236,6 +236,13 @@ export function mergeAgentSessionCatalog(
     if (snapshot.state.processState === 'exited' && !rows.has(key)) continue;
     const workspace = path.resolve(snapshot.state.projectCwd);
     const prior = rows.get(key);
+    if (
+      !prior &&
+      !snapshot.launch?.initialPrompt?.trim() &&
+      !snapshot.activity?.queuedPromptText?.trim() &&
+      !snapshot.activity?.queuedPromptPreview?.trim()
+    )
+      continue;
     const conflict = prior && !sameWorkspace(prior.workspace, workspace);
     const status = conflict ? 'unknown' : statusOf(snapshot);
     const title =
@@ -279,6 +286,7 @@ export function mergeAgentSessionCatalog(
     const key = record.sessionId.toLowerCase();
     if (managedIds.has(key)) continue;
     const prior = rows.get(key);
+    if (!prior) continue;
     const workspace = path.resolve(record.cwd);
     rows.set(key, {
       ...prior,

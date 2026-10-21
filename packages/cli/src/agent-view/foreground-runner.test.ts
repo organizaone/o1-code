@@ -30,7 +30,11 @@ it('starts an empty managed worker and attaches it without a model request', asy
   const peek = vi
     .fn()
     .mockResolvedValueOnce({
-      state: { sessionState: 'starting', processState: 'starting' },
+      state: {
+        sessionState: 'starting',
+        processState: 'starting',
+        ownership: 'managed',
+      },
     })
     .mockResolvedValueOnce({
       state: {
@@ -57,6 +61,7 @@ it('starts an empty managed worker and attaches it without a model request', asy
   mocks.readSupervisor.mockResolvedValue({ authToken: 'secret' });
   mocks.call.mockResolvedValue({ sessionId: 'session-1' });
   const dispose = vi.fn();
+  const snapshotsAtAttach: number[] = [];
   mocks.watch.mockResolvedValue({ dispose });
   mocks.attach.mockImplementation(
     async (
@@ -64,6 +69,7 @@ it('starts an empty managed worker and attaches it without a model request', asy
       _id: string,
       options: { onAttached(): void; detachSignal: AbortSignal },
     ) => {
+      snapshotsAtAttach.push(peek.mock.calls.length);
       options.onAttached();
       return new Promise((resolve) =>
         options.detachSignal.addEventListener(
@@ -75,15 +81,23 @@ it('starts an empty managed worker and attaches it without a model request', asy
     },
   );
 
-  await runAgentSessionForeground();
+  const onReady = vi.fn();
+  await runAgentSessionForeground(onReady, { approvalMode: 'yolo' });
 
   expect(mocks.call).toHaveBeenCalledWith(
     'socket',
     'dispatch',
-    { cwd: process.cwd(), interactive: true, ownerId: expect.any(String) },
+    {
+      cwd: process.cwd(),
+      interactive: true,
+      ownerId: expect.any(String),
+      approvalMode: 'yolo',
+    },
     { authToken: 'secret', timeoutMs: 30_000 },
   );
   expect(mocks.attach).toHaveBeenCalledOnce();
+  expect(snapshotsAtAttach).toEqual([1]);
+  expect(onReady).toHaveBeenCalledOnce();
   expect(dispose).toHaveBeenCalledOnce();
 });
 
@@ -101,7 +115,7 @@ it('stops its new worker when startup fails before terminal attachment', async (
   const dispose = vi.fn();
   mocks.watch.mockResolvedValueOnce({ dispose });
 
-  await expect(runAgentSessionForeground()).rejects.toThrow('failed to start');
+  await expect(runAgentSessionForeground()).rejects.toThrow('unavailable');
   expect(stop).toHaveBeenCalledWith('failed-session');
   expect(dispose).toHaveBeenCalledOnce();
 });

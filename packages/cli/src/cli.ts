@@ -556,7 +556,7 @@ export async function runCliEntry(
   }
 
   if (
-    rawArgv.length === 0 &&
+    rawArgv.every((arg) => arg === '--yolo' || arg === '-y') &&
     process.stdin.isTTY &&
     process.stdout.isTTY &&
     process.env['O1CODE_AGENT_VIEW_WORKER'] !== '1' &&
@@ -569,9 +569,12 @@ export async function runCliEntry(
     let managed = false;
     let attached = false;
     try {
-      await runAgentSessionForeground(() => {
-        attached = true;
-      });
+      await runAgentSessionForeground(
+        () => {
+          attached = true;
+        },
+        rawArgv.length ? { approvalMode: 'yolo' } : {},
+      );
       managed = true;
     } catch (error) {
       if (attached) throw error;

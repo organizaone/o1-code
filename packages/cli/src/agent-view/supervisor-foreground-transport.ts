@@ -28,6 +28,7 @@ export function createSupervisorForegroundTransport(
       if (state?.['ownership'] !== 'managed') return false;
       if (
         state['processState'] === 'alive' ||
+        state['processState'] === 'starting' ||
         state['processState'] === 'hibernated'
       )
         return true;

@@ -787,45 +787,52 @@ describe('runCliEntry', () => {
     expect(exit).toHaveBeenCalledWith(0);
   });
 
-  it('starts a managed foreground session for an interactive empty invocation', async () => {
-    const stdinDescriptor = Object.getOwnPropertyDescriptor(
-      process.stdin,
-      'isTTY',
-    );
-    const stdoutDescriptor = Object.getOwnPropertyDescriptor(
-      process.stdout,
-      'isTTY',
-    );
-    const previousWorker = process.env['O1CODE_AGENT_VIEW_WORKER'];
-    Object.defineProperty(process.stdin, 'isTTY', {
-      configurable: true,
-      value: true,
-    });
-    Object.defineProperty(process.stdout, 'isTTY', {
-      configurable: true,
-      value: true,
-    });
-    delete process.env['O1CODE_AGENT_VIEW_WORKER'];
-    const exit = vi.spyOn(process, 'exit').mockImplementation(() => {
-      throw new Error('managed-exit');
-    });
-    try {
-      await expect(runCliEntry([])).rejects.toThrow('managed-exit');
-      expect(mocks.runAgentSessionForeground).toHaveBeenCalledOnce();
-      expect(mocks.main).not.toHaveBeenCalled();
-      expect(exit).toHaveBeenCalledWith(0);
-    } finally {
-      if (stdinDescriptor)
-        Object.defineProperty(process.stdin, 'isTTY', stdinDescriptor);
-      else Reflect.deleteProperty(process.stdin, 'isTTY');
-      if (stdoutDescriptor)
-        Object.defineProperty(process.stdout, 'isTTY', stdoutDescriptor);
-      else Reflect.deleteProperty(process.stdout, 'isTTY');
-      if (previousWorker === undefined)
-        delete process.env['O1CODE_AGENT_VIEW_WORKER'];
-      else process.env['O1CODE_AGENT_VIEW_WORKER'] = previousWorker;
-    }
-  });
+  it.each([{ args: [] }, { args: ['--yolo'] }, { args: ['-y'] }])(
+    'starts a managed foreground session for interactive args $args',
+    async ({ args }) => {
+      const stdinDescriptor = Object.getOwnPropertyDescriptor(
+        process.stdin,
+        'isTTY',
+      );
+      const stdoutDescriptor = Object.getOwnPropertyDescriptor(
+        process.stdout,
+        'isTTY',
+      );
+      const previousWorker = process.env['O1CODE_AGENT_VIEW_WORKER'];
+      Object.defineProperty(process.stdin, 'isTTY', {
+        configurable: true,
+        value: true,
+      });
+      Object.defineProperty(process.stdout, 'isTTY', {
+        configurable: true,
+        value: true,
+      });
+      delete process.env['O1CODE_AGENT_VIEW_WORKER'];
+      const exit = vi.spyOn(process, 'exit').mockImplementation(() => {
+        throw new Error('managed-exit');
+      });
+      try {
+        await expect(runCliEntry(args)).rejects.toThrow('managed-exit');
+        expect(mocks.runAgentSessionForeground).toHaveBeenCalledOnce();
+        expect(mocks.runAgentSessionForeground).toHaveBeenCalledWith(
+          expect.any(Function),
+          args.length ? { approvalMode: 'yolo' } : {},
+        );
+        expect(mocks.main).not.toHaveBeenCalled();
+        expect(exit).toHaveBeenCalledWith(0);
+      } finally {
+        if (stdinDescriptor)
+          Object.defineProperty(process.stdin, 'isTTY', stdinDescriptor);
+        else Reflect.deleteProperty(process.stdin, 'isTTY');
+        if (stdoutDescriptor)
+          Object.defineProperty(process.stdout, 'isTTY', stdoutDescriptor);
+        else Reflect.deleteProperty(process.stdout, 'isTTY');
+        if (previousWorker === undefined)
+          delete process.env['O1CODE_AGENT_VIEW_WORKER'];
+        else process.env['O1CODE_AGENT_VIEW_WORKER'] = previousWorker;
+      }
+    },
+  );
 
   it('does not open a second direct session after a managed session has attached', async () => {
     const stdinDescriptor = Object.getOwnPropertyDescriptor(

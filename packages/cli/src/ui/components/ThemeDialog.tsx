@@ -43,7 +43,11 @@ export function ThemeDialog({
   terminalWidth,
 }: ThemeDialogProps): React.JSX.Element {
   const [selectedScope, setSelectedScope] = useState<SettingScope>(
-    SettingScope.User,
+    settings.isTrusted &&
+      settings.workspaceSettingsActive &&
+      settings.workspace.settings.ui?.theme
+      ? SettingScope.Workspace
+      : SettingScope.User,
   );
 
   // Track the currently highlighted theme name. An unset theme means

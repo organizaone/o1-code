@@ -40,6 +40,18 @@ Managed startup requires an interactive terminal with PTY support. Before the fi
 an unavailable runtime falls back to a direct session. Worker processes bypass managed startup
 to prevent recursive spawning. Saved conversations resume through their own persisted session.
 
+Empty interactive invocations and invocations using only `--yolo` or `-y` start the managed
+frontend. The requested approval mode is recorded in the worker launch for subsequent resumes.
+Interactive attachment starts once the PTY host is available, before worker readiness: startup
+questions and terminal background queries need the attached terminal to complete. Readiness
+registration and cwd validation remain active; background dispatch still waits for readiness.
+
+The catalog omits sessions without a user prompt, a goal objective or a pending user request,
+including newly opened and renamed empty terminals. On attachment, the frontend restores its
+viewport and reloads the effective theme from user/workspace settings, never from conversation
+history. `/theme` starts in workspace scope when a trusted, active workspace defines the theme;
+otherwise it starts in user scope.
+
 ## State and resource limits
 
 Workers report readiness, heartbeats, model identity, theme, language, activity and input state
@@ -81,6 +93,12 @@ while detached, and closing the foreground window stopped both workers and an ac
 The combined resident memory of the controller, supervisor, two workers and their PTY hosts grew
 from roughly 900 MiB to 992 MiB during the short switching run. This is a warm-up observation,
 not a sustained memory-leak benchmark.
+
+The session-startup fixes were exercised with a packaged Linux CLI in WSL and a controlled local
+OpenAI-compatible provider. Checks covered YOLO startup, an empty catalog, saved-session resume,
+switching back to the same live worker PID, refreshed theme preferences, restored alternate-screen
+mode and a new model request after switching. This fixture validates the provider transport and
+frontend lifecycle without a paid external model.
 
 These runs exposed and corrected shell activity reported as idle, navigation order differing from
 workspace grouping, and conversation history remaining above the subagent manager. The manager
