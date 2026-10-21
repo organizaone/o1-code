@@ -7,15 +7,12 @@ follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.21.4] - 2026-10-21
+
 ### Fixed
 
 - The Web Shell omits terminal-only remote-session controls and provides stable presentation aliases for shell selection and its executable.
 - Complete Portuguese remote-session settings and Chinese agent-progress translations.
-
-## [0.21.3] - 2026-10-20
-
-### Fixed
-
 - `/agents` opens when the CLI starts with `--yolo` or `-y`, and omits conversations with no user interaction.
 - Session switching connects the terminal during startup so initialization dialogs remain accessible, refreshes the current theme preference and restores the conversation viewport.
 - `/theme` defaults to workspace scope when a trusted workspace defines the active theme, so choosing a new theme updates the preference that takes effect.
