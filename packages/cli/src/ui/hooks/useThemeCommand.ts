@@ -4,9 +4,10 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import { themeManager, AUTO_THEME_NAME } from '../themes/theme-manager.js';
-import type { LoadedSettings, SettingScope } from '../../config/settings.js'; // Import LoadedSettings, AppSettings, MergedSetting
+import { SettingScope, type LoadedSettings } from '../../config/settings.js';
+import { onAgentSessionReattach } from '../../agent-view/session-reattach.js';
 import { type HistoryItemWithoutId, MessageType } from '../types.js';
 import process from 'node:process';
 import { t } from '../../i18n/index.js';
@@ -28,6 +29,7 @@ export const useThemeCommand = (
   addItem: (item: HistoryItemWithoutId, timestamp: number) => void,
   initialThemeError: string | null,
   config?: Config,
+  onThemeChange?: () => void,
 ): UseThemeCommandReturn => {
   const [isThemeDialogOpen, setIsThemeDialogOpen] =
     useState(!!initialThemeError);
@@ -58,7 +60,10 @@ export const useThemeCommand = (
   }, [addItem, config]);
 
   const applyTheme = useCallback(
-    (themeName: string | undefined) => {
+    (
+      themeName: string | undefined,
+      previousTheme = themeManager.getActiveTheme(),
+    ) => {
       if (!themeManager.setActiveTheme(themeName)) {
         // If theme is not found, open the theme selection dialog and set error message
         setIsThemeDialogOpen(true);
@@ -69,9 +74,32 @@ export const useThemeCommand = (
         );
       } else {
         setThemeError(null); // Clear any previous theme error on success
+        if (themeManager.getActiveTheme() !== previousTheme) onThemeChange?.();
       }
     },
-    [setThemeError],
+    [setThemeError, onThemeChange],
+  );
+
+  useEffect(
+    () =>
+      onAgentSessionReattach(() => {
+        if (
+          !loadedSettings.reloadScopesFromDiskAtomically([
+            SettingScope.SystemDefaults,
+            SettingScope.System,
+            SettingScope.User,
+            SettingScope.Workspace,
+          ])
+        )
+          return;
+        const previousTheme = themeManager.getActiveTheme();
+        themeManager.loadCustomThemes(loadedSettings.merged.ui?.customThemes);
+        applyTheme(
+          loadedSettings.merged.ui?.theme ?? AUTO_THEME_NAME,
+          previousTheme,
+        );
+      }),
+    [loadedSettings, applyTheme],
   );
 
   const handleThemeHighlight = useCallback(

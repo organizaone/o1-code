@@ -18,6 +18,7 @@ import type { ReactElement } from 'react';
 import type { Config } from '@organizaone/o1-code-core';
 import { SettingScope, type LoadedSettings } from '../config/settings.js';
 import type { InitializationResult } from '../core/initializer.js';
+import { onAgentSessionReattach } from '../agent-view/session-reattach.js';
 
 const registerSession = vi.hoisted(() => vi.fn());
 
@@ -228,6 +229,8 @@ describe('startInteractiveUI session registration', () => {
     registerSession.mockResolvedValue(REGISTERED);
     workerSideband.enabled = true;
     workerRedraw.mockResolvedValueOnce([{ type: 'redraw' }]);
+    const refreshed = vi.fn();
+    const unsubscribe = onAgentSessionReattach(refreshed);
     await start();
     expect(workerReady).not.toHaveBeenCalled();
     const tree = inkRender.mock.calls[0]?.[0] as ReactElement;
@@ -240,6 +243,8 @@ describe('startInteractiveUI session registration', () => {
       }),
     );
     await waitFor(() => expect(inkRepaint).toHaveBeenCalled());
+    expect(refreshed).toHaveBeenCalledOnce();
+    unsubscribe();
     expect(workerHeartbeat).toHaveBeenCalledTimes(1);
     mounted.unmount();
     expect(workerHeartbeatDispose).toHaveBeenCalledTimes(1);

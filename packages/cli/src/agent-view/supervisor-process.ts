@@ -571,6 +571,7 @@ class AgentViewSupervisorProcessHandler
       sidebandEndpoint: this.socketPath,
       publishRoster: false,
       promptInArgv: !interactive && !shouldWaitForWorkerReady(this.options),
+      approvalMode: stringParam(params ?? {}, 'approvalMode'),
     });
     const launch = await readAgentViewLaunch(result.sessionId, store);
     if (!launch) {
@@ -901,7 +902,7 @@ class AgentViewSupervisorProcessHandler
           }),
           store,
         );
-        await ready;
+        if (!adoption.interactive) await ready;
         readyCompleted = true;
         await ensureSessionStillLaunchable(adoption.sessionId, store);
         this.notifyChanged();
@@ -1167,7 +1168,12 @@ class AgentViewSupervisorProcessHandler
           await this.assertAdmissionCapacity();
         }
       }
-      if (await this.workers.respawnStoppedOrFailedSessionIfNeeded(sessionId)) {
+      if (
+        await this.workers.respawnStoppedOrFailedSessionIfNeeded(
+          sessionId,
+          false,
+        )
+      ) {
         this.notifyChanged();
       }
     } catch (error) {
@@ -2599,6 +2605,7 @@ class WorkerRegistry {
 
   private async respawnSessionLocked(
     sessionId: string,
+    waitForReady = true,
   ): Promise<{ sessionId: string; respawned: true }> {
     const state = await readAgentViewSessionState(sessionId, this.store);
     if (!state) {
@@ -2760,7 +2767,7 @@ class WorkerRegistry {
         stoppedUpdatedAt: refreshedState.updatedAt,
       });
       this.set(sessionId, host);
-      await ready;
+      if (waitForReady) await ready;
       await ensureSessionStillLaunchable(sessionId, this.store);
     } catch (error) {
       this.rejectPendingWorkerReady(sessionId, error);
@@ -2946,7 +2953,7 @@ class WorkerRegistry {
       await readAgentViewActivity(sessionId, this.store),
     );
     if (!blockReason) {
-      await this.respawnSessionLocked(sessionId);
+      await this.respawnSessionLocked(sessionId, false);
       return true;
     }
     return false;
@@ -2954,6 +2961,7 @@ class WorkerRegistry {
 
   async respawnStoppedOrFailedSessionIfNeeded(
     sessionId: string,
+    waitForReady = true,
   ): Promise<boolean> {
     return this.withHostSetupLock(sessionId, async () => {
       const state = await readAgentViewSessionState(sessionId, this.store);
@@ -3004,7 +3012,7 @@ class WorkerRegistry {
         },
         this.store,
       );
-      await this.respawnSessionLocked(sessionId);
+      await this.respawnSessionLocked(sessionId, waitForReady);
       return true;
     });
   }
@@ -4390,6 +4398,7 @@ function parseAdoptParams(params: Record<string, unknown> | undefined): {
   activeCwd: string;
   approvalMode?: string;
   sandbox?: string;
+  interactive: boolean;
   terminal: { columns: number; rows: number };
 } {
   if (!params) {
@@ -4421,6 +4430,7 @@ function parseAdoptParams(params: Record<string, unknown> | undefined): {
     resumeSessionId: rawSessionId,
     projectCwd,
     activeCwd,
+    interactive: params['interactive'] === true,
     ...(approvalMode !== undefined ? { approvalMode } : {}),
     ...(sandbox !== undefined ? { sandbox } : {}),
     terminal: {

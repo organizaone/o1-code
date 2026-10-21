@@ -7,7 +7,7 @@
 import { render } from 'ink-testing-library';
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { ThemeDialog } from './ThemeDialog.js';
-import { LoadedSettings } from '../../config/settings.js';
+import { LoadedSettings, SettingScope } from '../../config/settings.js';
 import { KeypressProvider } from '../contexts/KeypressContext.js';
 import { SettingsContext } from '../contexts/SettingsContext.js';
 import { DEFAULT_THEME, themeManager } from '../themes/theme-manager.js';
@@ -17,6 +17,7 @@ const createMockSettings = (
   userSettings = {},
   workspaceSettings = {},
   systemSettings = {},
+  isTrusted = true,
 ): LoadedSettings =>
   new LoadedSettings(
     {
@@ -51,7 +52,7 @@ const createMockSettings = (
       },
       path: '/workspace/settings.json',
     },
-    true,
+    isTrusted,
     new Set(),
   );
 
@@ -105,4 +106,47 @@ describe('ThemeDialog Snapshots', () => {
 
     expect(lastFrame()).toMatchSnapshot();
   });
+
+  it.each([
+    {
+      workspaceTheme: 'O1-Code Light',
+      trusted: true,
+      scope: SettingScope.Workspace,
+    },
+    { workspaceTheme: undefined, trusted: true, scope: SettingScope.User },
+    {
+      workspaceTheme: 'O1-Code Light',
+      trusted: false,
+      scope: SettingScope.User,
+    },
+  ])(
+    'defaults to $scope for workspace theme $workspaceTheme (trusted=$trusted)',
+    async ({ workspaceTheme, trusted, scope }) => {
+      const settings = createMockSettings(
+        { ui: { theme: 'O1-Code Dark' } },
+        workspaceTheme ? { ui: { theme: workspaceTheme } } : {},
+        {},
+        trusted,
+      );
+      const onSelect = vi.fn();
+      const { stdin, unmount } = render(
+        <SettingsContext.Provider value={settings}>
+          <KeypressProvider kittyProtocolEnabled={false}>
+            <ThemeDialog
+              {...baseProps}
+              settings={settings}
+              onSelect={onSelect}
+            />
+          </KeypressProvider>
+        </SettingsContext.Provider>,
+      );
+      await new Promise((resolve) => setTimeout(resolve, 20));
+      act(() => {
+        stdin.write('\r');
+      });
+      await new Promise((resolve) => setTimeout(resolve, 20));
+      expect(onSelect).toHaveBeenCalledWith(settings.merged.ui?.theme, scope);
+      unmount();
+    },
+  );
 });

@@ -311,6 +311,93 @@ describe('Agent View supervisor process helpers', () => {
     }
   });
 
+  it('preserves YOLO approval mode in an interactive worker launch', async () => {
+    const globalDir = await fs.mkdtemp(path.join(os.tmpdir(), 'o1-yolo-'));
+    let launched: AgentViewLaunchFile | undefined;
+    const handler = createAgentViewSupervisorHandler({
+      globalDir,
+      launchPtyHost: async (launch) => {
+        launched = launch;
+        return fakePtyHost();
+      },
+    });
+    try {
+      await handler.dispatch?.({
+        cwd: globalDir,
+        interactive: true,
+        approvalMode: 'yolo',
+      });
+      expect(launched?.argv).toContain('--approval-mode=yolo');
+      expect(launched?.approvalMode).toBe('yolo');
+    } finally {
+      await fs.rm(globalDir, { recursive: true, force: true });
+    }
+  });
+
+  it('adopts an interactive session before UI readiness so startup dialogs can be answered', async () => {
+    const globalDir = await fs.mkdtemp(
+      path.join(os.tmpdir(), 'o1-adopt-startup-'),
+    );
+    const handler = createAgentViewSupervisorHandler({
+      globalDir,
+      waitForWorkerReady: true,
+      workerReadyTimeoutMs: 50,
+      launchPtyHost: async () => fakePtyHost(),
+    });
+    try {
+      await expect(
+        handler.adopt?.({
+          sessionId: '123e4567-e89b-12d3-a456-426614174000',
+          projectCwd: globalDir,
+          activeCwd: globalDir,
+          interactive: true,
+          terminal: { columns: 100, rows: 40 },
+        }),
+      ).resolves.toMatchObject({ adopted: true });
+    } finally {
+      await fs.rm(globalDir, { recursive: true, force: true });
+    }
+  });
+
+  it('retains readiness emitted before an interactive adoption registers its host', async () => {
+    const globalDir = await fs.mkdtemp(
+      path.join(os.tmpdir(), 'o1-fast-adopt-'),
+    );
+    const sessionId = '123e4567-e89b-12d3-a456-426614174000';
+    const handler = createAgentViewSupervisorHandler({
+      globalDir,
+      waitForWorkerReady: true,
+      workerReadyTimeoutMs: 100,
+      launchPtyHost: async (launch) => {
+        await handler.workerEvent?.({
+          type: 'ready',
+          sessionId,
+          token: launch.env['O1CODE_AGENT_VIEW_TOKEN'],
+          cwd: globalDir,
+          capabilities: ['redraw'],
+        });
+        return fakePtyHost();
+      },
+    });
+    try {
+      await handler.adopt?.({
+        sessionId,
+        projectCwd: globalDir,
+        activeCwd: globalDir,
+        interactive: true,
+        terminal: { columns: 100, rows: 40 },
+      });
+      await expect(
+        readAgentViewSessionState(sessionId, { globalDir }),
+      ).resolves.toMatchObject({ processState: 'alive', sessionState: 'idle' });
+      await expect(
+        readAgentViewActivity(sessionId, { globalDir }),
+      ).resolves.toMatchObject({ capabilities: ['redraw'] });
+    } finally {
+      await fs.rm(globalDir, { recursive: true, force: true });
+    }
+  });
+
   it('keeps a queued prompt when a worker polls only for redraws', async () => {
     const globalDir = await fs.mkdtemp(
       path.join(os.tmpdir(), 'o1-code-agent-view-store-'),
@@ -2618,7 +2705,7 @@ describe('Agent View supervisor process helpers', () => {
     await fs.rm(globalDir, { recursive: true, force: true });
   });
 
-  it('returns an attach error when respawned worker does not become ready', async () => {
+  it('connects a respawned worker before readiness so initialization remains interactive', async () => {
     const globalDir = await fs.mkdtemp(
       path.join(os.tmpdir(), 'o1-code-agent-view-store-'),
     );
@@ -2641,7 +2728,7 @@ describe('Agent View supervisor process helpers', () => {
     });
     const socket = new FakeAttachSocket();
 
-    await recoveredHandler.attachStream?.(
+    const attached = recoveredHandler.attachStream?.(
       { sessionId: result.sessionId },
       socket as unknown as Socket,
       'request-1',
@@ -2650,17 +2737,16 @@ describe('Agent View supervisor process helpers', () => {
 
     expect(JSON.parse(socket.outputLine())).toMatchObject({
       id: 'request-1',
-      ok: false,
-      error: {
-        message: expect.stringContaining('did not report ready'),
-      },
+      ok: true,
     });
     await expect(
       readAgentViewSessionState(result.sessionId, { globalDir }),
     ).resolves.toMatchObject({
-      sessionState: 'failed',
-      processState: 'exited',
+      sessionState: 'starting',
+      processState: 'starting',
     });
+    socket.closeInput();
+    await attached;
     await fs.rm(globalDir, { recursive: true, force: true });
   });
 

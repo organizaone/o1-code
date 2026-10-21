@@ -15,6 +15,7 @@ import { themeManager } from '../themes/theme-manager.js';
 import { MessageType } from '../types.js';
 import type { Config } from '@organizaone/o1-code-core';
 import process from 'node:process';
+import { notifyAgentSessionReattach } from '../../agent-view/session-reattach.js';
 
 describe('useThemeCommand', () => {
   const previousNoColor = process.env['NO_COLOR'];
@@ -93,5 +94,29 @@ describe('useThemeCommand', () => {
     expect(themeManager.getActiveTheme().name).toBe('Dracula');
     expect(setValue).not.toHaveBeenCalled();
     expect(result.current.isThemeDialogOpen).toBe(false);
+  });
+
+  it('refreshes the current preference on reattach without restoring a session theme', () => {
+    const merged = { ui: { theme: 'O1-Code Dark' } };
+    const settings = {
+      merged,
+      reloadScopesFromDiskAtomically: vi.fn(() => {
+        merged.ui.theme = 'O1-Code Light';
+        return true;
+      }),
+    } as unknown as LoadedSettings;
+    const refresh = vi.fn();
+    const mounted = renderHook(() =>
+      useThemeCommand(settings, vi.fn(), vi.fn(), null, undefined, refresh),
+    );
+    act(() => notifyAgentSessionReattach());
+    expect(settings.reloadScopesFromDiskAtomically).toHaveBeenCalled();
+    expect(themeManager.getActiveTheme().name).toBe('O1-Code Light');
+    expect(refresh).toHaveBeenCalledOnce();
+    act(() => notifyAgentSessionReattach());
+    expect(refresh).toHaveBeenCalledOnce();
+    mounted.unmount();
+    act(() => notifyAgentSessionReattach());
+    expect(refresh).toHaveBeenCalledOnce();
   });
 });

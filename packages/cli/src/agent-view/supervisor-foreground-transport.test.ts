@@ -16,6 +16,16 @@ vi.mock('./supervisor-client.js', () => ({
 }));
 
 describe('createSupervisorForegroundTransport', () => {
+  it('attaches a starting worker so terminal queries and startup prompts are visible', async () => {
+    const transport = createSupervisorForegroundTransport({
+      socketPath: 'socket',
+      authToken: 'secret',
+      peek: vi.fn().mockResolvedValue({
+        state: { ownership: 'managed', processState: 'starting' },
+      }),
+    });
+    await expect(transport.canAttach('session')).resolves.toBe(true);
+  });
   it('rejects nonmanaged work but permits completed managed sessions to resume', async () => {
     const peek = vi
       .fn()

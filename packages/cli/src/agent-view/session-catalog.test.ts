@@ -52,7 +52,11 @@ const live = (id: string, cwd: string): AgentViewSessionSnapshot => ({
 describe('agent session catalog', () => {
   it('merges live and saved top-level sessions by identity', () => {
     const rows = mergeAgentSessionCatalog(
-      [saved('one', 'C:/repo'), saved('two', 'C:/repo')],
+      [
+        saved('one', 'C:/repo'),
+        saved('two', 'C:/repo'),
+        saved('three', 'C:/other'),
+      ],
       [live('one', 'C:/repo'), live('three', 'C:/other')],
       'one',
     );
@@ -98,6 +102,41 @@ describe('agent session catalog', () => {
       'one',
     );
     expect(rows[0]).toMatchObject({ status: 'unknown', switchable: false });
+  });
+
+  it('omits empty sessions even when current, running, or renamed', () => {
+    const empty = live('empty', 'C:/repo');
+    empty.state.sessionState = 'idle';
+    empty.rosterEntry = {
+      sessionId: 'empty',
+      displayName: 'Renamed empty session',
+      projectCwd: 'C:/repo',
+      activeCwd: 'C:/repo',
+      createdAt: empty.state.createdAt,
+      updatedAt: empty.state.updatedAt,
+    };
+    expect(
+      mergeAgentSessionCatalog(
+        [{ ...saved('empty', 'C:/repo'), prompt: ' ', customTitle: 'Renamed' }],
+        [empty],
+        'empty',
+        [
+          {
+            sessionId: 'direct',
+            cwd: 'C:/repo',
+            name: 'Empty terminal',
+            kind: 'tui',
+            startedAt: 100,
+          } as SessionRegistryRecord,
+        ],
+      ),
+    ).toEqual([]);
+  });
+
+  it('keeps a dispatched user request before its transcript is indexed', () => {
+    const snapshot = live('pending', 'C:/repo');
+    snapshot.activity!.queuedPromptText = 'Inspect the repository';
+    expect(mergeAgentSessionCatalog([], [snapshot], 'pending')).toHaveLength(1);
   });
 
   it('lists independent direct terminals without offering an unsafe takeover', () => {

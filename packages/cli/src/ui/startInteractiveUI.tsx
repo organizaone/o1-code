@@ -80,6 +80,7 @@ import {
   sendAgentViewWorkerEvent,
   startAgentViewWorkerHeartbeat,
 } from '../agent-view/worker-sideband.js';
+import { notifyAgentSessionReattach } from '../agent-view/session-reattach.js';
 
 const debugLogger = createDebugLogger('STARTUP');
 
@@ -303,6 +304,12 @@ export async function startInteractiveUI(
           }
           const redraws = await readAgentViewWorkerRedrawEvents();
           if (mounted && redraws.length > 0) {
+            if (process.stdout.isTTY) {
+              // The dashboard leaves the alternate screen; Ink's diff cache
+              // alone cannot restore terminal modes or inherited SGR colors.
+              process.stdout.write(`${useVP ? '\x1b[?1049h' : ''}\x1b[0m`);
+            }
+            notifyAgentSessionReattach();
             viewportRenderer.repaint?.();
           }
         } catch {

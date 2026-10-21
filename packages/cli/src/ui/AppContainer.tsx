@@ -1735,6 +1735,7 @@ export const AppContainer = (props: AppContainerProps) => {
     historyManager.addItem,
     initializationResult.themeError,
     config,
+    refreshStatic,
   );
 
   const {

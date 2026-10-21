@@ -83,6 +83,7 @@ export interface AgentViewSupervisorAdoptParams
   ownerId?: string;
   approvalMode?: string;
   sandbox?: string;
+  interactive?: boolean;
   terminal: {
     columns: number;
     rows: number;
@@ -101,6 +102,7 @@ export interface AgentViewSupervisorRequestMap {
     cwd: string;
     interactive?: boolean;
     ownerId?: string;
+    approvalMode?: string;
   };
   adopt: AgentViewSupervisorAdoptParams;
   workerEvent: AgentViewWorkerEvent & { token?: string };
@@ -353,15 +355,13 @@ export async function attachAgentViewSupervisorTerminal(
     socket.once('close', () => controller.abort());
     socket.on('error', () => {});
 
-    if (leftover.length > 0) {
-      socket.pause();
-      await writeToWritable(stdout, leftover);
-    }
-
-    options.onAttached?.();
-
     const restoreRawMode = setRawMode(stdin, options.rawMode ?? true);
     try {
+      if (leftover.length > 0) {
+        socket.pause();
+        await writeToWritable(stdout, leftover);
+      }
+      options.onAttached?.();
       return await bridgeAgentViewTerminal({
         stdin,
         stdout,
