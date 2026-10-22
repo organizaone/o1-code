@@ -62,12 +62,6 @@ function formatModalities(
   return `${t('model.modality.text')} · ${parts.join(' · ')}`;
 }
 
-function getAuthType(model: ModelDialogModel): string | undefined {
-  if (model.authType) return model.authType;
-  const match = model.id.match(/\(([^()]+)\)$/);
-  return match?.[1];
-}
-
 function getModelName(model: ModelDialogModel): string {
   if (model.label) return model.label;
   if (model.baseModelId) return model.baseModelId;
@@ -215,7 +209,6 @@ export function ModelDialog({
           // cannot tell them apart here — mark one, consistent with the initial
           // highlight (which also lands on `currentIdx`, the first match).
           const isCurrent = index === currentIdx;
-          const authType = getAuthType(model);
           return (
             <div
               key={getModelKey(model)}
@@ -234,9 +227,6 @@ export function ModelDialog({
               onMouseMove={() => moveHighlight(index)}
             >
               <span className={styles.number}>{index + 1}.</span>
-              {authType ? (
-                <span className={styles.provider}>[{authType}]</span>
-              ) : null}
               <span className={styles.label}>{getModelName(model)}</span>
               {model.isRuntime ? (
                 <span className={styles.badge}>{t('common.runtime')}</span>

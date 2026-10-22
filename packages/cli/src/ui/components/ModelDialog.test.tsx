@@ -239,6 +239,64 @@ describe('<ModelDialog />', () => {
     expect(props.showNumbers).toBe(true);
   });
 
+  it.each([
+    {},
+    { isFastModelMode: true },
+    { isVoiceModelMode: true },
+    { isVisionModelMode: true },
+    { isCompactionModelMode: true },
+    { isImageModelMode: true },
+  ])(
+    'keeps provider labels and unique model keys without displaying protocols: %j',
+    (mode) => {
+      renderComponent(mode, {
+        getAllConfiguredModels: vi.fn(() =>
+          [AuthType.USE_OPENAI, AuthType.USE_ANTHROPIC].map((authType) => ({
+            id: 'shared-model',
+            label: '[OrganizaOne] Shared model',
+            authType,
+            supportsImageGeneration: true,
+          })),
+        ),
+        resolveImageGenerationModel: vi.fn(() => ({})),
+      } as unknown as Partial<Config>);
+      const { items } = mockedSelect.mock.calls[0][0];
+      expect(items.map(({ value }) => value)).toEqual([
+        'openai::shared-model',
+        'anthropic::shared-model',
+      ]);
+      for (const item of items) {
+        const view = renderInk(<InkBox>{item.title}</InkBox>);
+        const title = view.lastFrame() ?? '';
+        expect(title).toContain('[OrganizaOne] Shared model');
+        expect(title).toContain('(shared-model)');
+        expect(title).not.toMatch(/\[(?:openai|anthropic)\]/);
+        view.unmount();
+      }
+    },
+  );
+
+  it('keeps the runtime marker without displaying its protocol', () => {
+    renderComponent({}, {
+      getAllConfiguredModels: vi.fn(() => [
+        {
+          id: 'runtime-model',
+          label: 'Temporary model',
+          authType: AuthType.USE_ANTHROPIC,
+          isRuntimeModel: true,
+          runtimeSnapshotId: '$runtime|anthropic|runtime-model',
+        },
+      ]),
+    } as unknown as Partial<Config>);
+    const item = mockedSelect.mock.calls[0][0].items[0];
+    const view = renderInk(<InkBox>{item.title}</InkBox>);
+    expect(view.lastFrame()).toContain('Temporary model');
+    expect(view.lastFrame()).toContain('(Runtime)');
+    expect(view.lastFrame()).not.toContain('[anthropic]');
+    expect(item.value).toBe('$runtime|anthropic|runtime-model');
+    view.unmount();
+  });
+
   it('caps visible model options to the available dialog height', () => {
     renderComponent(
       { availableTerminalHeight: 20 },
