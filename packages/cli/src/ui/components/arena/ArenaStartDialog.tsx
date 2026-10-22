@@ -43,7 +43,7 @@ export function ArenaStartDialog({
       return {
         key: token,
         value: token,
-        label: `[${model.authType}] ${model.label}`,
+        label: model.label,
       };
     });
   }, [config]);

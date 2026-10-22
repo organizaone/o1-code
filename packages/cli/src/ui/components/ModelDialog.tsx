@@ -417,13 +417,7 @@ export function ModelDialog({
 
           const title = (
             <Text>
-              <Text
-                bold
-                color={isRuntime ? theme.status.warning : theme.text.accent}
-              >
-                [{t2}]
-              </Text>
-              <Text>{` ${model.label}`}</Text>
+              <Text>{model.label}</Text>
               {model.id !== model.label && (
                 <Text color={theme.text.secondary} italic>
                   {' '}

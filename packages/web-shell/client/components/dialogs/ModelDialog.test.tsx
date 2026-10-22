@@ -38,6 +38,27 @@ afterEach(() => {
 });
 
 describe('ModelDialog current marker', () => {
+  it('preserves provider labels without displaying protocol prefixes', () => {
+    mount(
+      <ModelDialog
+        onSelect={vi.fn()}
+        models={[
+          { id: 'first', label: '[OrganizaOne] First', authType: 'openai' },
+          {
+            id: 'second',
+            label: '[OrganizaOne] Second',
+            authType: 'anthropic',
+          },
+        ]}
+      />,
+    );
+    const options = Array.from(container!.querySelectorAll('[role="option"]'));
+    expect(options.map((option) => option.textContent)).toEqual([
+      '1.[OrganizaOne] First',
+      '2.[OrganizaOne] Second',
+    ]);
+  });
+
   it('marks exactly one row current when two models share an id', () => {
     // Two providers expose the same model id "shared-model"; `currentModel` is only an
     // id, so both used to be flagged. Only the first match should be current.

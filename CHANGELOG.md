@@ -7,6 +7,10 @@ follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Fixed
+
+- Model selection lists omit technical protocol prefixes while retaining provider and model names, including auxiliary model pickers and Arena setup.
+
 ## [0.21.5] - 2026-10-21
 
 ### Fixed
