@@ -82,6 +82,7 @@ pr_body.md
 *~
 
 # OS metadata
+*.vsix.sha256
 .DS_Store
 Thumbs.db
 desktop.ini

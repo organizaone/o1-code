@@ -12,11 +12,14 @@ vi.mock('node:child_process', async (importOriginal) => {
   return {
     ...actual,
     execSync: vi.fn(),
-    spawnSync: vi.fn(() => ({ status: 0 })),
+    execFile: vi.fn((_command, _args, _options, callback) =>
+      callback(null, '', ''),
+    ),
   };
 });
 vi.mock('fs');
 vi.mock('os');
+vi.mock('./companion-release.js', () => ({ downloadCompanionVsix: vi.fn() }));
 
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { getIdeInstaller } from './ide-installer.js';
@@ -25,6 +28,7 @@ import * as fs from 'node:fs';
 import * as os from 'node:os';
 import * as path from 'node:path';
 import { IDE_DEFINITIONS, type IdeInfo } from './detect-ide.js';
+import { downloadCompanionVsix } from './companion-release.js';
 
 describe('ide-installer', () => {
   const HOME_DIR = '/home/user';
@@ -32,6 +36,10 @@ describe('ide-installer', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     vi.spyOn(os, 'homedir').mockReturnValue(HOME_DIR);
+    vi.mocked(downloadCompanionVsix).mockResolvedValue({
+      path: '/tmp/companion package.vsix',
+      cleanup: vi.fn().mockResolvedValue(undefined),
+    });
   });
 
   afterEach(() => {
@@ -64,7 +72,7 @@ describe('ide-installer', () => {
     } = {}) {
       vi.spyOn(child_process, 'execSync').mockImplementation(execSync);
       vi.spyOn(fs, 'existsSync').mockReturnValue(existsResult);
-      const installer = getIdeInstaller(ide, platform)!;
+      const installer = getIdeInstaller(ide, platform, '0.21.7')!;
 
       return { installer };
     }
@@ -114,19 +122,72 @@ describe('ide-installer', () => {
         });
         await installer.install();
 
-        // Note: The implementation uses process.platform, not the mocked platform
-        const isActuallyWindows = process.platform === 'win32';
-        const expectedCommand = isActuallyWindows ? '"code"' : 'code';
-
-        expect(child_process.spawnSync).toHaveBeenCalledWith(
-          expectedCommand,
-          [
-            '--install-extension',
-            'organizaone.o1-code-vscode-ide-companion',
-            '--force',
-          ],
-          { stdio: 'pipe', shell: isActuallyWindows },
+        expect(downloadCompanionVsix).toHaveBeenCalledWith(
+          '0.21.7',
+          'linux',
+          process.arch,
         );
+        expect(child_process.execFile).toHaveBeenCalledWith(
+          'code',
+          ['--install-extension', '/tmp/companion package.vsix', '--force'],
+          {
+            shell: false,
+            windowsHide: true,
+            timeout: 120_000,
+            maxBuffer: 1024 * 1024,
+          },
+          expect.any(Function),
+        );
+      });
+
+      it('cleans up the VSIX and preserves the installation failure', async () => {
+        const cleanup = vi.fn().mockResolvedValue(undefined);
+        vi.mocked(downloadCompanionVsix).mockResolvedValue({
+          path: '/tmp/companion.vsix',
+          cleanup,
+        });
+        vi.mocked(child_process.execFile).mockImplementationOnce(() => {
+          throw new Error('VS Code process failed');
+        });
+        const { installer } = setup();
+        const result = await installer.install();
+        expect(result.success).toBe(false);
+        expect(result.message).toContain('VS Code process failed');
+        expect(result.message).toContain('GitHub');
+        expect(cleanup).toHaveBeenCalledOnce();
+      });
+
+      it('reports download errors without starting VS Code', async () => {
+        vi.mocked(downloadCompanionVsix).mockRejectedValue(
+          new Error('Companion download failed: HTTP 404.'),
+        );
+        const { installer } = setup();
+        const result = await installer.install();
+        expect(result.success).toBe(false);
+        expect(result.message).toContain('HTTP 404');
+        expect(child_process.execFile).not.toHaveBeenCalled();
+      });
+      it('quotes Windows executable and VSIX paths containing spaces', async () => {
+        const { installer } = setup({
+          platform: 'win32',
+          execSync: () =>
+            'C:\\Program Files\\VS Code\\bin\\code.cmd\r\nC:\\other\\code.cmd',
+        });
+        expect((await installer.install()).success).toBe(true);
+        expect(child_process.execFile).toHaveBeenCalledWith(
+          '"C:\\Program Files\\VS Code\\bin\\code.cmd"',
+          ['--install-extension', '"/tmp/companion package.vsix"', '--force'],
+          expect.objectContaining({ shell: true, timeout: 120_000 }),
+          expect.any(Function),
+        );
+      });
+      it('keeps the installation result if temporary cleanup fails', async () => {
+        vi.mocked(downloadCompanionVsix).mockResolvedValue({
+          path: '/tmp/companion.vsix',
+          cleanup: vi.fn().mockRejectedValue(new Error('File busy')),
+        });
+        const { installer } = setup();
+        expect((await installer.install()).success).toBe(true);
       });
 
       it.each([

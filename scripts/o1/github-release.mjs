@@ -125,12 +125,21 @@ export async function publishRelease({
         }),
       },
     );
-    if (created.status !== 201) {
+    if (created.status === 422 || created.status === 409) {
+      // Another platform may have created the release after our lookup.
+      const concurrent = await request(
+        fetchImpl,
+        token,
+        `${API}/repos/${repo}/releases/tags/${encodeURIComponent(tag)}`,
+      );
+      if (concurrent.status === 200) release = concurrent.body;
+    }
+    if (created.status !== 201 && !release) {
       throw new Error(
         `creating the release of ${tag} failed: HTTP ${created.status} ${created.body?.message ?? ''}`.trim(),
       );
     }
-    release = created.body;
+    release ??= created.body;
   } else {
     throw new Error(
       `looking up the release of ${tag} failed: HTTP ${existing.status} ${existing.body?.message ?? ''}`.trim(),

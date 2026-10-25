@@ -181,9 +181,16 @@ Bumping the version (Step 5) and releasing are different events. A release is th
   open alerts, separates what reaches the published package from development-only tooling, and
   lands the fixes together in one pull request that runs the full suites (`workflow_dispatch`
   with `full`). A major upgrade of a tool (the test runner, the bundler) is a change of its own.
-- **Runners.** Both workflows run on GitHub-hosted runners (`ubuntu-latest`). Self-hosted runners
-  are not used: on a public repository a fork pull request would run its own copy of the workflow
-  on them.
+- **Companion distribution.** The release job preserves validated CLI build inputs before npm
+  publication. Native Windows, macOS and Linux jobs package version-matched companion VSIX files,
+  install and activate each package in actual VS Code, verify the CLI connection, then attach the
+  VSIX and SHA-256 checksum to the GitHub release. A later npm publication failure does not prevent
+  these jobs from using already validated build inputs. Existing release assets are preserved on
+  retry. Marketplace publication is not enabled.
+- **Runners.** Workflows use GitHub-hosted runners. The regular gates and npm publication use
+  `ubuntu-latest`; companion packaging uses native Windows x64/arm64, macOS x64/arm64 and Linux x64
+  runners. Self-hosted runners are not used: on a public repository a fork pull request would run
+  its own copy of the workflow on them.
 - **Release switches.** `PUBLISH_PROVENANCE` turns itself on when the repository is public (npm
   provenance needs a public repository and a GitHub-hosted runner). `prepare:package` lists `@organizaone/o1-code-audio-capture` in the
   package's `optionalDependencies`, and checks its artifacts, only with

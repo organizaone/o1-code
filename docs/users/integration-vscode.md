@@ -14,17 +14,25 @@ editor.
 ### Requirements
 
 - VS Code 1.96.0 or later
-- A clone of the O1-Code repository, set up as in the [Quickstart](./quickstart.md)
+- Windows x64/Arm64, macOS Intel/Apple Silicon, or Linux x64
 
 ### Installation
 
-The extension is not published to the Marketplace yet. Build it from the repository root:
+Run `/ide install` from O1-Code in VS Code's integrated terminal. The CLI downloads the companion
+for its own release version and your platform from [GitHub releases](https://github.com/organizaone/o1-code/releases),
+verifies its SHA-256 checksum, and installs it using the editor's command-line tool.
+
+The extension is not published to the Marketplace yet. To install manually, download the matching
+`.vsix` release asset and choose **Extensions: Install from VSIX...**. VSIX installations do not
+receive Marketplace updates automatically; run `/ide install` again after updating the CLI.
+
+To build a local package from a repository checkout:
 
 ```bash
 npm run build:vscode
 ```
 
-This writes a `.vsix` file to `packages/vscode-ide-companion/`. In VS Code, run **Extensions:
+This writes a platform-specific `.vsix` file and `.sha256` checksum to `packages/vscode-ide-companion/`. In VS Code, run **Extensions:
 Install from VSIX...** from the command palette and pick that file.
 
 ## Troubleshooting
@@ -33,6 +41,8 @@ Install from VSIX...** from the command palette and pick that file.
 
 - Make sure you have VS Code 1.96.0 or later
 - Check that VS Code has permission to install extensions
+- Check that the CLI release has a VSIX for your platform and that GitHub downloads are reachable
+- Ensure `code` is on PATH; `/ide install` reports the original download or installation error
 
 ### O1-Code not responding
 
