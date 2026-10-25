@@ -11,6 +11,8 @@ import * as fs from 'node:fs';
 import * as os from 'node:os';
 import { IDE_DEFINITIONS, type IdeInfo } from './detect-ide.js';
 import { O1CODE_COMPANION_EXTENSION_NAME } from './constants.js';
+import { downloadCompanionVsix } from './companion-release.js';
+import { BRAND } from '../generated/brand.js';
 
 function getVsCodeCommand(platform: NodeJS.Platform = process.platform) {
   return platform === 'win32' ? 'code.cmd' : 'code';
@@ -104,6 +106,7 @@ class VsCodeInstaller implements IdeInstaller {
   constructor(
     readonly ideInfo: IdeInfo,
     readonly platform = process.platform,
+    readonly version?: string,
   ) {
     this.vsCodeCommand = findVsCodeCommand(platform);
   }
@@ -113,37 +116,61 @@ class VsCodeInstaller implements IdeInstaller {
     if (!commandPath) {
       return {
         success: false,
-        message: `${this.ideInfo.displayName} CLI not found. Please ensure 'code' is in your system's PATH. For help, see https://code.visualstudio.com/docs/configure/command-line#_code-is-not-recognized-as-an-internal-or-external-command. You can also install the '${O1CODE_COMPANION_EXTENSION_NAME}' extension manually from the VS Code marketplace.`,
+        message: `${this.ideInfo.displayName} CLI not found. Please ensure 'code' is in your system's PATH. You can also install '${O1CODE_COMPANION_EXTENSION_NAME}' from a VSIX at ${BRAND.repoUrl}/releases.`,
       };
     }
 
-    const isWindows = process.platform === 'win32';
+    const isWindows = this.platform === 'win32';
+    let archive: Awaited<ReturnType<typeof downloadCompanionVsix>> | undefined;
     try {
-      const result = child_process.spawnSync(
-        isWindows ? `"${commandPath}"` : commandPath,
-        [
-          '--install-extension',
-          'organizaone.o1-code-vscode-ide-companion',
-          '--force',
-        ],
-        { stdio: 'pipe', shell: isWindows },
+      archive = await downloadCompanionVsix(
+        this.version ?? '',
+        this.platform,
+        process.arch,
       );
-
-      if (result.status !== 0) {
-        throw new Error(
-          `Failed to install extension: ${result.stderr?.toString()}`,
+      const archivePath = archive.path;
+      await new Promise<void>((resolve, reject) => {
+        child_process.execFile(
+          isWindows ? `"${commandPath}"` : commandPath,
+          [
+            '--install-extension',
+            isWindows ? `"${archivePath}"` : archivePath,
+            '--force',
+          ],
+          {
+            shell: isWindows,
+            windowsHide: true,
+            timeout: 120_000,
+            maxBuffer: 1024 * 1024,
+          },
+          (error, stdout, stderr) => {
+            if (error)
+              reject(
+                new Error(
+                  (
+                    stderr?.toString().trim() ||
+                    stdout?.toString().trim() ||
+                    error.message
+                  ).slice(0, 1000),
+                ),
+              );
+            else resolve();
+          },
         );
-      }
+      });
 
       return {
         success: true,
         message: `${this.ideInfo.displayName} companion extension was installed successfully.`,
       };
-    } catch (_error) {
+    } catch (error) {
       return {
         success: false,
-        message: `Failed to install ${this.ideInfo.displayName} companion extension. Please try installing '${O1CODE_COMPANION_EXTENSION_NAME}' manually from the ${this.ideInfo.displayName} extension marketplace.`,
+        message: `Failed to install ${this.ideInfo.displayName} companion extension: ${error instanceof Error ? error.message : String(error)} Download the matching VSIX from GitHub: ${BRAND.repoUrl}/releases.`,
       };
+    } finally {
+      // Cleanup must not turn an installation result into an unhandled error.
+      await archive?.cleanup().catch(() => undefined);
     }
   }
 }
@@ -151,11 +178,12 @@ class VsCodeInstaller implements IdeInstaller {
 export function getIdeInstaller(
   ide: IdeInfo,
   platform = process.platform,
+  version?: string,
 ): IdeInstaller | null {
   switch (ide.name) {
     case IDE_DEFINITIONS.vscode.name:
     case IDE_DEFINITIONS.firebasestudio.name:
-      return new VsCodeInstaller(ide, platform);
+      return new VsCodeInstaller(ide, platform, version);
     default:
       return null;
   }

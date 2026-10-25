@@ -21,6 +21,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { spawnSync } from 'node:child_process';
 import fs from 'node:fs';
+import { verifyReusableCompanionBuild } from '../../../scripts/o1/companion-artifact.mjs';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -178,23 +179,33 @@ function removeSelfReferenceFromNodeModules() {
 function main() {
   const npm = npmBin();
 
-  // The CLI bundle is produced by esbuild directly from TypeScript source
-  // (entryPoint: packages/cli/index.ts), so a full tsc build is not needed.
-  // Calling `npm run build` here would trigger tsc --build a second time
-  // (after the initial `prepare` in npm ci) and fail with TS5055 when the
-  // version bump made source files diverge from the stale tsbuildinfo.
-  console.log('[prepackage] Bundling root CLI...');
-  run(npm, ['--prefix', repoRoot, 'run', 'bundle'], { cwd: repoRoot });
+  if (process.env.O1CODE_COMPANION_REUSE_BUILD === '1') {
+    verifyReusableCompanionBuild(repoRoot);
+    console.log('[prepackage] Reusing validated CLI and Web Shell artifacts');
+  } else {
+    console.log('[prepackage] Building Web Shell...');
+    run(
+      npm,
+      [
+        '--prefix',
+        path.join(repoRoot, 'packages', 'web-shell'),
+        'run',
+        'build',
+      ],
+      { cwd: repoRoot },
+    );
+
+    // The CLI bundle is produced by esbuild directly from TypeScript source
+    // (entryPoint: packages/cli/index.ts), so a full tsc build is not needed.
+    // Calling `npm run build` here would trigger tsc --build a second time
+    // (after the initial `prepare` in npm ci) and fail with TS5055 when the
+    // version bump made source files diverge from the stale tsbuildinfo.
+    console.log('[prepackage] Bundling root CLI...');
+    run(npm, ['--prefix', repoRoot, 'run', 'bundle'], { cwd: repoRoot });
+  }
 
   console.log('[prepackage] Preparing root dist/ package metadata...');
   run(npm, ['--prefix', repoRoot, 'run', 'prepare:package'], { cwd: repoRoot });
-
-  console.log('[prepackage] Preparing web-shell dist/ package metadata...');
-  run(
-    npm,
-    ['--prefix', path.join(repoRoot, 'packages', 'web-shell'), 'run', 'build'],
-    { cwd: repoRoot },
-  );
 
   console.log('[prepackage] Generating notices...');
   run(npm, ['run', 'generate:notices'], { cwd: extensionRoot });

@@ -157,6 +157,32 @@ test('reuses an existing release and skips an asset already attached', async () 
   assert.equal(calls.length, 1);
 });
 
+test('reuses a release created concurrently by another platform', async () => {
+  let reads = 0;
+  const fetch = async (_url, init = {}) => {
+    const status = init.method === 'POST' ? 422 : reads++ === 0 ? 404 : 200;
+    return {
+      status,
+      text: async () =>
+        JSON.stringify(
+          status === 200
+            ? { id: 9, html_url: 'release-url', assets: [] }
+            : { message: 'Already exists' },
+        ),
+    };
+  };
+  const result = await publishRelease({
+    repo: 'o/r',
+    tag: 'v1.0.0',
+    title: 'x',
+    notes: 'n',
+    token: 't',
+    assets: [],
+    fetch,
+  });
+  assert.equal(result.url, 'release-url');
+});
+
 test('reports a failed creation with the API message', async () => {
   const { fetch } = fakeFetch([
     [

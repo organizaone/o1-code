@@ -27,6 +27,7 @@ import type {
 import { CommandKind } from './types.js';
 import { SettingScope } from '../../config/settings.js';
 import { t } from '../../i18n/index.js';
+import { getCliVersion } from '../../utils/version.js';
 
 function getIdeStatusMessage(ideClient: IdeClient): {
   messageType: 'info' | 'error';
@@ -201,7 +202,11 @@ export const ideCommand = async (): Promise<SlashCommand> => {
     kind: CommandKind.BUILT_IN,
     supportedModes: ['interactive'] as const,
     action: async (context) => {
-      const installer = getIdeInstaller(currentIDE);
+      const installer = getIdeInstaller(
+        currentIDE,
+        process.platform,
+        await getCliVersion(),
+      );
       const isSandBox = !!process.env['SANDBOX'];
       if (isSandBox) {
         context.ui.addItem(

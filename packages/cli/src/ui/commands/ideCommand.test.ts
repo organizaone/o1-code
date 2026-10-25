@@ -10,6 +10,8 @@ import { ideCommand } from './ideCommand.js';
 import { type CommandContext } from './types.js';
 import { IDE_DEFINITIONS } from '@organizaone/o1-code-core';
 import * as core from '@organizaone/o1-code-core';
+import { getCliVersion } from '../../utils/version.js';
+vi.mock('../../utils/version.js', () => ({ getCliVersion: vi.fn() }));
 
 vi.mock('@organizaone/o1-code-core', async (importOriginal) => {
   const original = await importOriginal<typeof core>();
@@ -29,6 +31,7 @@ describe('ideCommand', () => {
 
   beforeEach(() => {
     vi.resetAllMocks();
+    vi.mocked(getCliVersion).mockResolvedValue('0.21.7');
 
     mockIdeClient = {
       reconnect: vi.fn(),
@@ -216,7 +219,11 @@ describe('ideCommand', () => {
       await vi.runAllTimersAsync();
       await actionPromise;
 
-      expect(core.getIdeInstaller).toHaveBeenCalledWith(IDE_DEFINITIONS.vscode);
+      expect(core.getIdeInstaller).toHaveBeenCalledWith(
+        IDE_DEFINITIONS.vscode,
+        process.platform,
+        '0.21.7',
+      );
       expect(mockInstall).toHaveBeenCalled();
       expect(mockContext.ui.addItem).toHaveBeenCalledWith(
         expect.objectContaining({
@@ -254,7 +261,11 @@ describe('ideCommand', () => {
         '',
       );
 
-      expect(core.getIdeInstaller).toHaveBeenCalledWith(IDE_DEFINITIONS.vscode);
+      expect(core.getIdeInstaller).toHaveBeenCalledWith(
+        IDE_DEFINITIONS.vscode,
+        process.platform,
+        '0.21.7',
+      );
       expect(mockInstall).toHaveBeenCalled();
       expect(mockContext.ui.addItem).toHaveBeenCalledWith(
         expect.objectContaining({
