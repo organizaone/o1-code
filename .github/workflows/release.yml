@@ -8,8 +8,8 @@
 # clean prefix, publishes it to npm and creates the GitHub release from the
 # changelog. No path filter: a tag on an already-pushed commit carries no
 # changed files, and a filtered workflow would silently skip the release.
-# Native companion jobs reuse validated build inputs and attach a VSIX only
-# after installing it and connecting the CLI in actual VS Code.
+# Native companion jobs reuse validated build inputs and attach VSIX files
+# with checksums. Actual editor validation is performed locally.
 name: 'o1-code release'
 
 on:
@@ -21,6 +21,10 @@ on:
         description: 'An existing tag to release, vX.Y.Z'
         type: 'string'
         required: true
+      companion_build_run:
+        description: 'Optional release run ID: publish only companion assets using its validated build'
+        type: 'string'
+        default: ''
 
 # Two runs for the same tag must never publish concurrently, and a release
 # already under way is never cancelled halfway through publishing. A manual
@@ -39,6 +43,7 @@ env:
 jobs:
   release:
     name: 'Release'
+    if: "${{ inputs.companion_build_run == '' }}"
     runs-on: 'ubuntu-latest'
     # Deploys only from v*.*.* tags, after the maintainer approves the run.
     environment: 'npm'
@@ -197,12 +202,16 @@ jobs:
           fi
           "$installed_dir/vendor/ripgrep/$(node -p 'process.arch + "-" + process.platform')/rg" --version
 
+      - name: 'Record the companion build source'
+        run: 'git rev-parse HEAD > companion-source-sha.txt'
+
       - name: 'Preserve the validated companion build inputs'
         id: 'companion_inputs'
         uses: 'actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a' # v7.0.1
         with:
           name: 'companion-build-inputs'
           path: |
+            companion-source-sha.txt
             dist/
             packages/*/dist/
             packages/web-templates/src/export-html/dist/
@@ -236,11 +245,12 @@ jobs:
   companion:
     name: 'Companion (${{ matrix.target }})'
     needs: 'release'
-    if: "${{ !cancelled() && needs.release.outputs.companion_inputs_ready == 'true' }}"
+    if: "${{ !cancelled() && (needs.release.outputs.companion_inputs_ready == 'true' || inputs.companion_build_run != '') }}"
     runs-on: '${{ matrix.runner }}'
     timeout-minutes: 45
     permissions:
       contents: 'write'
+      actions: 'read'
     strategy:
       fail-fast: false
       matrix:
@@ -257,6 +267,7 @@ jobs:
       NODE_OPTIONS: '--max-old-space-size=6144'
       TAG: "${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref_name }}"
       TARGET: '${{ matrix.target }}'
+      COMPANION_BUILD_RUN: '${{ inputs.companion_build_run || github.run_id }}'
     steps:
       - uses: 'actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1' # v7.0.1
         with:
@@ -272,6 +283,26 @@ jobs:
         with:
           name: 'companion-build-inputs'
           path: '.'
+          run-id: '${{ env.COMPANION_BUILD_RUN }}'
+          github-token: '${{ github.token }}'
+      - name: 'Validate the build source'
+        env:
+          GH_TOKEN: '${{ github.token }}'
+        run: |
+          if ! [[ "$TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ && "$COMPANION_BUILD_RUN" =~ ^[0-9]+$ ]]; then exit 1; fi
+          if [ -f companion-source-sha.txt ]; then
+            source_sha="$(cat companion-source-sha.txt)"
+          elif [ "$COMPANION_BUILD_RUN" != "$GITHUB_RUN_ID" ]; then
+            # Legacy tag-push runs predate the source manifest.
+            source_sha="$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$COMPANION_BUILD_RUN" --jq .head_sha)"
+          else
+            echo '::error::Missing companion build source manifest'
+            exit 1
+          fi
+          if [ "$source_sha" != "$(git rev-parse HEAD)" ]; then
+            echo '::error::Companion build inputs must come from the exact tagged commit'
+            exit 1
+          fi
       - name: 'Restore executable permissions'
         if: "${{ runner.os != 'Windows' }}"
         run: 'find dist/vendor/ripgrep -type f -name rg -exec chmod +x {} +'
@@ -282,13 +313,6 @@ jobs:
           version="$(node -p "require('./package.json').version")"
           if [ "v$version" != "$TAG" ]; then exit 1; fi
           echo "VSIX=packages/vscode-ide-companion/o1-code-vscode-ide-companion-$version-$TARGET.vsix" >> "$GITHUB_ENV"
-      - name: 'Validate in actual VS Code'
-        run: |
-          if [ "$RUNNER_OS" = 'Linux' ]; then
-            xvfb-run -a corepack pnpm exec tsx integration-tests/ide-companion-smoke.ts "$VSIX"
-          else
-            corepack pnpm exec tsx integration-tests/ide-companion-smoke.ts "$VSIX"
-          fi
       - name: 'Publish validated companion assets'
         env:
           GH_TOKEN: '${{ github.token }}'

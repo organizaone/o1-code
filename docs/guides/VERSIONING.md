@@ -183,10 +183,13 @@ Bumping the version (Step 5) and releasing are different events. A release is th
   with `full`). A major upgrade of a tool (the test runner, the bundler) is a change of its own.
 - **Companion distribution.** The release job preserves validated CLI build inputs before npm
   publication. Native Windows, macOS and Linux jobs package version-matched companion VSIX files,
-  install and activate each package in actual VS Code, verify the CLI connection, then attach the
-  VSIX and SHA-256 checksum to the GitHub release. A later npm publication failure does not prevent
+  then attach the VSIX and SHA-256 checksum to the GitHub release. Actual editor installation,
+  activation and CLI connectivity are validated locally, including Linux scenarios in WSL; the
+  release pipeline does not launch VS Code. A later npm publication failure does not prevent
   these jobs from using already validated build inputs. Existing release assets are preserved on
-  retry. Marketplace publication is not enabled.
+  retry. To retry companion publication independently, dispatch `release.yml` from `main` with
+  `tag` and `companion_build_run` naming the original release run. Its build inputs must match the
+  exact tagged commit; the npm job is skipped. Marketplace publication is not enabled.
 - **Runners.** Workflows use GitHub-hosted runners. The regular gates and npm publication use
   `ubuntu-latest`; companion packaging uses native Windows x64/arm64, macOS x64/arm64 and Linux x64
   runners. Self-hosted runners are not used: on a public repository a fork pull request would run

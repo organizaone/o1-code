@@ -18,11 +18,20 @@ exports.run = async function () {
     const child = spawn(
       config.node,
       [config.probe, companion.extensionPath, config.workspace],
-      { env: { ...process.env, TERM_PROGRAM: 'vscode' }, stdio: 'inherit' },
+      {
+        env: { ...process.env, TERM_PROGRAM: 'vscode' },
+        stdio: ['ignore', 'pipe', 'pipe'],
+      },
     );
+    let output = '';
+    for (const stream of [child.stdout, child.stderr]) {
+      stream.on('data', (data) => {
+        output = (output + data.toString()).slice(-10000);
+      });
+    }
     const timer = setTimeout(() => {
       child.kill();
-      reject(new Error('CLI/IDE smoke timed out'));
+      reject(new Error('CLI/IDE smoke timed out\n' + output));
     }, 90000);
     child.once('error', (error) => {
       clearTimeout(timer);
@@ -31,7 +40,7 @@ exports.run = async function () {
     child.once('exit', (code) => {
       clearTimeout(timer);
       if (code === 0) resolve();
-      else reject(new Error('CLI/IDE smoke failed: ' + code));
+      else reject(new Error('CLI/IDE smoke failed: ' + code + '\n' + output));
     });
   });
 };
