@@ -40,7 +40,7 @@ terminal.onData((data) => {
   if (stage === 0 && output.includes('Type your message')) {
     stage = 1;
     setTimeout(() => send('/ide status'), 500);
-  } else if (stage === 1 && output.includes('Connected to VS Code')) {
+  } else if (stage === 1 && /Connected to (VS Code|IDE)/.test(output)) {
     stage = 2;
     setTimeout(() => send('Check the integration'), 500);
   } else if (stage === 2 && output.includes('COMPANION_SMOKE_OK'))

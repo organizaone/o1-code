@@ -11,7 +11,7 @@ follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Fixed
 
-- IDE companion installation downloads the matching platform VSIX from GitHub releases with checksum verification instead of searching the unpublished Marketplace listing. Installation stays responsive and reports the original failure. Releases validate companion activation and CLI connectivity in VS Code before attaching each platform package.
+- IDE companion installation downloads the matching platform VSIX from GitHub releases with checksum verification instead of searching the unpublished Marketplace listing. Installation stays responsive and reports the original failure.
 
 ## [0.21.6] - 2026-10-21
 
