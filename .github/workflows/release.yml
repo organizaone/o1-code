@@ -292,7 +292,7 @@ jobs:
           if ! [[ "$TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ && "$COMPANION_BUILD_RUN" =~ ^[0-9]+$ ]]; then exit 1; fi
           if [ -f companion-source-sha.txt ]; then
             source_sha="$(cat companion-source-sha.txt)"
-          elif [ -n '${{ inputs.companion_build_run }}' ]; then
+          elif [ "$COMPANION_BUILD_RUN" != "$GITHUB_RUN_ID" ]; then
             # Legacy tag-push runs predate the source manifest.
             source_sha="$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$COMPANION_BUILD_RUN" --jq .head_sha)"
           else
