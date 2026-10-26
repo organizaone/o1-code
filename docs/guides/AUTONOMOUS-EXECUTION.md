@@ -28,6 +28,8 @@ If that line is absent, the mode did not engage. That is the whole point of the 
 
 **While the round is live**, `ops/TODO.md` holds an item that is not `done`. Every turn begins by reading its "Now" block, which is what makes the round survive a context reset, a new session or a compaction. A question asked mid-round is answered and the round continues; it is not an exit.
 
+**Active means active.** A checkpoint, status answer, commit or a written “next action” does not keep a round alive by itself. Before ending any turn with a live round, the orchestrator must either start the next concrete operation in that same turn or dispatch a real worker that owns it. If the platform cannot preserve a running operation between turns, record `interrupted` rather than implying unattended progress.
+
 **Four controlled transitions, and only four:**
 
 1. **`HALT`** (alias `PARAR`). The round ends on the spot. `ops/` is left intact so the same trigger resumes it later, the current task keeps its real status, and the closing report says where it stopped and what is uncommitted. Nothing is pushed.
@@ -36,6 +38,8 @@ If that line is absent, the mode did not engage. That is the whole point of the 
 4. **A scope change from the user.** An explicit cancellation or replacement of the objective ends the old round, with a visible acknowledgement. Clarifications, corrections, status questions and compatible additions update the live plan and execution continues; they do not require a new trigger. Escalate only an unresolved conflict that actually blocks work.
 
 **Publishing is not continuous.** Each slice commits through `TASK-COMPLETION.md` Step 6, so the history stays granular and reviewable, but nothing leaves the machine until the round closes by completion, or until the user asks. A slice that turns out wrong is then a local amend rather than a published mistake; a round that ends at `HALT` leaves its commits local and says so.
+
+An explicit instruction from the user to work autonomously also triggers execution within the scope they define, without requiring the word AUTORUN. Preserve evidence from studies; ensure that decisions are documented in a lasting format before concluding.
 
 ## Principles
 
@@ -67,6 +71,7 @@ The orchestrator owns the round and assigns these responsibilities at boot. Role
 ### Monitor and worker assignment
 
 - **Always name a MONITOR owner.** The orchestrator owns monitoring and user-facing reports by default. For several concurrent workers, delegate progress inspection to one dedicated monitor when the harness can keep it active alongside them. The orchestrator still owns scheduling, recovery and delivery of reports to the user; a child's message alone is not a user-facing update.
+- **A monitor has a lease.** `TODO.md` records its live identifier, last heartbeat and next report deadline. A completed, failed or idle reviewer is not a monitor: replace it before the deadline or mark the round `interrupted`. At every status question, compare the current time to the recorded deadline; if it is overdue, report the missed interval, repair the lease and resume the next operation before answering anything else.
 - The monitor inspects task states, evidence, elapsed time and dependencies. It sends findings to the orchestrator and does not edit implementation files or compete for ownership of the control files. Do not create a monitor whose only job is sleeping or waiting; use the orchestrator's bounded waits when there is nothing to inspect.
 - **Delegate independent, bounded tasks** when their results can be reviewed separately and available capacity makes delegation useful. Keep dependent work sequential. Do not create one agent per role mechanically or wait for unavailable capacity when the orchestrator can execute the task itself.
 - Each dispatch includes the task ID, objective, acceptance, dependencies, allowed files, forbidden files, shared resources, artifact path, expected duration, progress deadline and return format (result, evidence, unresolved issues). Include the prohibition on spawning background waiters from `AGENT-WORKFLOW.md`.
@@ -186,6 +191,7 @@ After every task, phase, worker result and recovery from failure:
 3. Send the checkpoint as a progress update and **start that action in the same execution turn**. Never end with "phase complete", "ready for the next phase", "shall I continue?" or a promise to work later while runnable work remains.
 4. If only active operations remain, inspect or wait for them with a bounded tool call and resume scheduling when it returns. A dispatched worker is outstanding work, not a reason to finish the orchestrator's turn.
 5. Before any final response, check the whole plan, outstanding workers and Definition of Done. Final success is allowed only for the whole round. If all unfinished work is genuinely blocked, report the precise escalation and persist `waiting_for_decision`; an answer resumes execution without renewed approval.
+6. A final response is forbidden while `Round state: active`, except to report a platform interruption that was persisted as `interrupted`. A status answer is commentary, not an exit; after it, start or resume the recorded next operation in the same turn.
 
 **A report is never a yield of control.** Send intermediate reports through the harness's progress channel and continue with tools. Ending the turn can leave the system waiting for the user forever; the MONITOR must treat that proposed ending as a continuity failure whenever a next action exists.
 
@@ -235,7 +241,7 @@ At each deadline, update `REPORT.md` **and send a short user-facing update**, ev
 The MONITOR overwrites `REPORT.md` with:
 
 - Timestamp, elapsed time, configured interval and next report due.
-- Monitor owner, active workers and their last evidence or contact.
+- Monitor owner, lease/heartbeat, active workers and their last evidence or contact.
 - Current phase and task.
 - Completed/total accepted tasks and a conservative percentage of the phase; elapsed time alone is not progress.
 - What changed since the last report.
@@ -243,6 +249,7 @@ The MONITOR overwrites `REPORT.md` with:
 - Blockers.
 - Risk of a loop or of scope growth.
 - The next concrete action.
+- The concrete operation already started for that action, or the declared platform reason it could not start.
 - Cycles spent on the current task.
 - Verdict: `ON_TRACK`, `SLOW`, `STUCK` or `NEEDS_DECISION`.
 
@@ -330,6 +337,8 @@ Between slices, speak short:
 - Decision needed: yes or no.
 
 Do not dump a log. Summarise and point to the state file. During a long implementation, **the MONITOR speaks for the team**; the IMPLEMENTER does not narrate every change. The time cadence and mandatory continuation check above make `AGENT-WORKFLOW.md` § Execution & Progress concrete for this mode. Reports are intermediate updates; only a permitted transition or a declared platform interruption can end execution before the whole plan is complete.
+
+**Missed-report recovery.** If a user indicates that reports stopped, do not describe the round as ongoing until repository state and live workers are reconciled. State the elapsed gap, identify whether any measurable work happened, update `REPORT.md`, establish a live monitor lease and start the recorded next operation. The recovery itself is logged in `PROGRESS.md`.
 
 ## See Also
 
