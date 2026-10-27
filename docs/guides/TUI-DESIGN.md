@@ -542,9 +542,12 @@ never leaves; it only shortens from the start.
   message height is a ceiling, not a reserved panel height. Questions, option
   descriptions and answer reviews scroll with PgUp/PgDn within the available message height.
   The question header, active choice or custom input, and navigation remain pinned when space
-  permits. The question owns scrolling while awaiting an answer, so paging its contents does not
-  move the surrounding transcript. An arriving question brings the transcript to its latest turn
-  before taking scroll focus, including when the user was reading earlier messages. Full-detail
+  permits. Nested question content receives scrolling first while it can move in the requested
+  direction; at its boundary, scrolling continues through the conversation so earlier context
+  remains accessible. Pending question rows retain their drafts and selections when scrolled out
+  of view, without keeping the full transcript mounted. Scroll shortcuts do not select another
+  answer. An arriving question brings the transcript to its latest turn, including when the user
+  was reading earlier messages. Full-detail
   mode expands results but retains the height budget
   for direct and subagent questions. The input
   uses the available message width after padding, numbering, and the input

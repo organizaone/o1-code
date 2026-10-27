@@ -19,6 +19,7 @@ import {
   useEffect,
   useRef,
   useState,
+  useMemo,
 } from 'react';
 import readline from 'node:readline';
 import { PassThrough } from 'node:stream';
@@ -139,6 +140,7 @@ export interface PasteProgress {
 }
 
 interface KeypressContextValue {
+  inputEnabled?: boolean;
   subscribe: (handler: KeypressHandler) => void;
   unsubscribe: (handler: KeypressHandler) => void;
   subscribeMouse: (handler: MouseHandler) => void;
@@ -150,6 +152,40 @@ interface KeypressContextValue {
 const KeypressContext = createContext<KeypressContextValue | undefined>(
   undefined,
 );
+const ignoreInputSubscription = () => {};
+
+export function KeypressScope({
+  isActive,
+  children,
+}: {
+  isActive: boolean;
+  children: React.ReactNode;
+}) {
+  const parent = useContext(KeypressContext);
+  const value = useMemo(
+    () =>
+      parent
+        ? {
+            ...parent,
+            inputEnabled: isActive && parent.inputEnabled !== false,
+            subscribe:
+              isActive && parent.inputEnabled !== false
+                ? parent.subscribe
+                : ignoreInputSubscription,
+            subscribeMouse:
+              isActive && parent.inputEnabled !== false
+                ? parent.subscribeMouse
+                : ignoreInputSubscription,
+          }
+        : undefined,
+    [parent, isActive],
+  );
+  return (
+    <KeypressContext.Provider value={value}>
+      {children}
+    </KeypressContext.Provider>
+  );
+}
 const debugLogger = createDebugLogger('KEYPRESS');
 
 export function useKeypressContext() {

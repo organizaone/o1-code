@@ -21,6 +21,7 @@ import { StaticRender } from './StaticRender.js';
 import { type DOMElement, Box, Text, useBoxMetrics } from 'ink';
 import { createDebugLogger } from '@organizaone/o1-code-core/utils/debugLogger.js';
 import { measureElementPosition } from '../../utils/measure-element-position.js';
+import { KeypressScope } from '../../contexts/KeypressContext.js';
 
 const debugLogger = createDebugLogger('VIRTUALIZED_LIST');
 
@@ -40,6 +41,7 @@ export type VirtualizedListProps<T> = {
   containerHeight?: number;
   showScrollbar?: boolean;
   measureAtFullHeight?: boolean;
+  keepMountedIndices?: readonly number[];
 };
 
 export type VirtualizedListRef<T> = {
@@ -113,6 +115,7 @@ const VirtualizedListItem = memo(
     containerWidth,
     itemKey,
     onHeightChange,
+    isHidden,
   }: {
     content: React.ReactElement;
     shouldBeStatic: boolean;
@@ -120,6 +123,7 @@ const VirtualizedListItem = memo(
     containerWidth: number;
     itemKey: string;
     onHeightChange: (key: string, height: number) => void;
+    isHidden: boolean;
   }) => {
     const itemRef = useRef<DOMElement>(null);
 
@@ -139,27 +143,35 @@ const VirtualizedListItem = memo(
       // the window (same as the grow direction).
       const measuredHeight =
         itemRef.current?.yogaNode?.getComputedHeight() ?? height;
-      if (hasMeasured) {
+      if (hasMeasured && !isHidden) {
         onHeightChangeRef.current(itemKey, measuredHeight);
       }
-    }, [itemKey, height, hasMeasured, content]);
+    }, [itemKey, height, hasMeasured, content, isHidden]);
 
     return (
-      <Box width="100%" flexDirection="column" flexShrink={0} ref={itemRef}>
-        {shouldBeStatic ? (
-          <StaticRender
-            width={typeof width === 'number' ? width : containerWidth}
-            key={
-              itemKey +
-              '-static-' +
-              (typeof width === 'number' ? width : containerWidth)
-            }
-          >
-            {content}
-          </StaticRender>
-        ) : (
-          content
-        )}
+      <Box
+        width="100%"
+        flexDirection="column"
+        flexShrink={0}
+        ref={itemRef}
+        display={isHidden ? 'none' : 'flex'}
+      >
+        <KeypressScope isActive={!isHidden}>
+          {shouldBeStatic ? (
+            <StaticRender
+              width={typeof width === 'number' ? width : containerWidth}
+              key={
+                itemKey +
+                '-static-' +
+                (typeof width === 'number' ? width : containerWidth)
+              }
+            >
+              {content}
+            </StaticRender>
+          ) : (
+            content
+          )}
+        </KeypressScope>
       </Box>
     );
   },
@@ -180,6 +192,7 @@ function VirtualizedList<T>(
     initialScrollOffsetInIndex,
     renderStatic,
     isStaticItem,
+    keepMountedIndices,
     width,
   } = props;
 
@@ -595,7 +608,12 @@ function VirtualizedList<T>(
     }
 
     const items = [];
-    for (let i = renderRangeStart; i <= renderRangeEnd; i++) {
+    const indices = new Set<number>();
+    for (let i = renderRangeStart; i <= renderRangeEnd; i++) indices.add(i);
+    for (const i of keepMountedIndices ?? []) {
+      if (i >= 0 && i < data.length) indices.add(i);
+    }
+    for (const i of [...indices].sort((a, b) => a - b)) {
       const item = data[i];
       if (item) {
         const isOutsideViewport = i < startIndex || i > endIndex;
@@ -613,7 +631,10 @@ function VirtualizedList<T>(
         // to scrollback or screen-scrapers.
         let content: React.ReactElement;
         try {
-          content = renderItem({ item, index: i });
+          content = renderItem({
+            item,
+            index: i,
+          });
         } catch (err) {
           debugLogger.debug(`renderItem threw at index ${i}`, err);
           content = (
@@ -633,6 +654,7 @@ function VirtualizedList<T>(
             width={width}
             containerWidth={containerWidth}
             onHeightChange={onHeightChange}
+            isHidden={!renderStatic && isOutsideViewport}
           />,
         );
       }
@@ -652,6 +674,7 @@ function VirtualizedList<T>(
     width,
     containerWidth,
     onHeightChange,
+    keepMountedIndices,
   ]);
 
   const { getScrollTop, setPendingScrollTop } = useBatchedScroll(scrollTop);

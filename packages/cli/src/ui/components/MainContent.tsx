@@ -139,6 +139,30 @@ const virtualKeyExtractor = (item: VpItem) =>
 const virtualIsStaticItem = (item: VpItem) =>
   item.type === 'vp-banner' || item.id > 0;
 
+function hasPendingUserQuestion(
+  item: HistoryItemWithoutId | VpBannerItem,
+): boolean {
+  return (
+    item.type === 'tool_group' &&
+    item.tools.some((tool) => {
+      if (
+        tool.status === ToolCallStatus.Confirming &&
+        tool.confirmationDetails?.type === 'ask_user_question'
+      )
+        return true;
+      const result = tool.resultDisplay;
+      return (
+        typeof result === 'object' &&
+        result !== null &&
+        'type' in result &&
+        result.type === 'task_execution' &&
+        (result as AgentResultDisplay).pendingConfirmation?.type ===
+          'ask_user_question'
+      );
+    })
+  );
+}
+
 interface MainContentProps {
   footerRef?: RefObject<DOMElement | null>;
   /** The input's lines container: its text can be selected like the conversation. */
@@ -486,26 +510,16 @@ export const MainContent = ({
           tool.confirmationDetails.renderPromptAsPlainText === true,
       ),
   );
-  const hasPendingQuestion = pendingHistoryItems.some(
-    (item) =>
-      item.type === 'tool_group' &&
-      item.tools.some((tool) => {
-        if (
-          tool.status === ToolCallStatus.Confirming &&
-          tool.confirmationDetails?.type === 'ask_user_question'
-        )
-          return true;
-        const result = tool.resultDisplay;
-        return (
-          typeof result === 'object' &&
-          result !== null &&
-          'type' in result &&
-          result.type === 'task_execution' &&
-          (result as AgentResultDisplay).pendingConfirmation?.type ===
-            'ask_user_question'
-        );
-      }),
-  );
+  const hasPendingQuestion = pendingHistoryItems.some(hasPendingUserQuestion);
+  const pendingQuestionIndices = useMemo(() => {
+    const indices: number[] = [];
+    for (let index = allVirtualItems.length - 1; index >= 0; index--) {
+      const item = allVirtualItems[index];
+      if (item.type === 'vp-banner' || item.id >= 0) break;
+      if (hasPendingUserQuestion(item)) indices.push(index);
+    }
+    return indices;
+  }, [allVirtualItems]);
   useLayoutEffect(() => {
     if (useVirtualScroll && hasPendingQuestion)
       scrollRef.current?.scrollToEnd();
@@ -615,9 +629,7 @@ export const MainContent = ({
     // selection — the menu's Copy Selection offers it — and clearing it the
     // instant the menu opens would hide what is about to be copied).
     const viewportInteractive =
-      !uiState.dialogsVisible &&
-      !hasPendingQuestion &&
-      contextMenuOpen === null;
+      !uiState.dialogsVisible && contextMenuOpen === null;
 
     return (
       <OverflowProvider>
@@ -650,6 +662,7 @@ export const MainContent = ({
             containerHeight={scrollContainerHeight}
             measureAtFullHeight={hasPendingPlainTextConfirmation}
             showScrollbar={showScrollbar}
+            keepMountedIndices={pendingQuestionIndices}
           />
         </ConversationWell>
         <TextSelectionController

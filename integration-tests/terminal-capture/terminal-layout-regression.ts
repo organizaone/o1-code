@@ -6,12 +6,14 @@
 
 // Run after build/bundle with feedback, question or resize as the scenario argument.
 import assert from 'node:assert/strict';
-import { mkdtempSync, mkdirSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdtempSync, mkdirSync, writeFileSync } from 'node:fs';
+import { rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 import { startFakeOpenAIServer, fakeToolCall } from '../fake-openai-server.js';
 import { TerminalCapture } from './terminal-capture.js';
+import { connectExistingAgentViewSupervisor } from '../../packages/cli/src/agent-view/supervisor-runner.js';
 
 const repo = resolve(dirname(fileURLToPath(import.meta.url)), '../..');
 const scenario = process.argv[2] ?? 'feedback';
@@ -37,6 +39,13 @@ const questionReady = new Promise<void>((resolve) => {
 });
 const server = await startFakeOpenAIServer(async ({ body }) => {
   const messages = body['messages'];
+  if (
+    JSON.stringify(
+      Array.isArray(messages) ? messages.at(-1) : undefined,
+    )?.includes('DRAFT_KEEP_ME')
+  ) {
+    return { content: 'QUESTION_ANSWER_RECEIVED' };
+  }
   const lastUser = Array.isArray(messages)
     ? [...messages]
         .reverse()
@@ -140,13 +149,14 @@ async function waitForVisible(text: string): Promise<string> {
 try {
   await terminal.spawn(process.execPath, [
     '--import',
-    preload,
+    pathToFileURL(preload).href,
     join(repo, 'dist/cli.js'),
     '-y',
   ]);
   await waitForVisible('Type your message');
   for (let turn = 0; turn < 6; turn++) {
     await terminal.type(`LAYOUT_SEED_${turn}`, { slow: true, delay: 35 });
+    await terminal.idle(300, 1500);
     await terminal.type('\r');
     await waitForVisible(`LAYOUT_DONE_${turn}`);
     await terminal.idle(500, 5000);
@@ -186,6 +196,7 @@ try {
     console.log(`Resize layout regression passed; captures: ${output}`);
   } else if (scenario === 'question') {
     await terminal.type('OPEN_QUESTION', { slow: true, delay: 35 });
+    await terminal.idle(300, 1500);
     await terminal.type('\r');
     await terminal.waitFor('OPEN_QUESTION', { timeout: 5000 });
     for (let page = 0; page < 3; page++)
@@ -239,6 +250,28 @@ try {
     await checkQuestion('question-wheel-down');
     await terminal.type('\u000f', { delay: 200 });
     await checkQuestion('question-full-detail');
+    await terminal.type('3', { delay: 150 });
+    await terminal.type('DRAFT_KEEP_ME', { delay: 150 });
+    await waitForVisible('DRAFT_KEEP_ME');
+    for (let page = 0; page < 8; page++) {
+      await terminal.type('\u001b[5~', { delay: 150 });
+    }
+    await terminal.idle(300, 2000);
+    const reviewed = await terminal.getScreenText();
+    assert.ok(
+      reviewed.includes('History '),
+      'pending questions must allow earlier context review',
+    );
+    assert.ok(
+      !reviewed.includes('DRAFT_KEEP_ME'),
+      'the question must leave the viewport',
+    );
+    await terminal.capture('question-history-review.png');
+    await terminal.type('\u001b[1;5F', { delay: 200 });
+    await waitForVisible('DRAFT_KEEP_ME');
+    await terminal.capture('question-draft-restored.png');
+    await terminal.type('\r', { delay: 200 });
+    await waitForVisible('QUESTION_ANSWER_RECEIVED');
     console.log(`Question layout regression passed; captures: ${output}`);
   } else {
     const openFrame = await waitForVisible(
@@ -293,7 +326,17 @@ try {
 } finally {
   releaseQuestion();
   writeFileSync(join(output, `${scenario}.ansi`), terminal.getRawOutput());
+  const supervisor = await connectExistingAgentViewSupervisor({
+    globalDir: stateDirectory,
+  });
+  await supervisor?.shutdown(false);
   await terminal.close();
   await server.close();
-  rmSync(home, { recursive: true, force: true });
+  assert.ok(home.startsWith(join(tmpdir(), 'o1-feedback-layout-')));
+  await rm(home, {
+    recursive: true,
+    force: true,
+    maxRetries: 30,
+    retryDelay: 100,
+  });
 }
