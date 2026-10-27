@@ -1306,7 +1306,7 @@ describe('<MainContent />', () => {
     });
 
     it.each([false, true])(
-      'yields transcript scrolling to a pending question (subagent=%s)',
+      'keeps transcript scrolling available during a pending question (subagent=%s)',
       (subagent) => {
         scrollableListPropsSpy.mockClear();
         const confirmation = {
@@ -1355,8 +1355,11 @@ describe('<MainContent />', () => {
           }),
         );
         expect(scrollableListPropsSpy.mock.calls.at(-1)?.[0].hasFocus).toBe(
-          false,
+          true,
         );
+        expect(
+          scrollableListPropsSpy.mock.calls.at(-1)?.[0].keepMountedIndices,
+        ).toEqual([1]);
         scrollableListPropsSpy.mockClear();
         renderMainContent(
           createUIState({ useTerminalBuffer: true, pendingHistoryItems: [] }),
@@ -1364,6 +1367,9 @@ describe('<MainContent />', () => {
         expect(scrollableListPropsSpy.mock.calls.at(-1)?.[0].hasFocus).toBe(
           true,
         );
+        expect(
+          scrollableListPropsSpy.mock.calls.at(-1)?.[0].keepMountedIndices,
+        ).toEqual([]);
       },
     );
 

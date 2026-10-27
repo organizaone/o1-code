@@ -7,6 +7,10 @@ follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Fixed
+
+- Pending tool questions allow scrolling through earlier conversation context. Long questions hand scrolling to the transcript at their boundaries, and typed answers and selections survive leaving the viewport.
+
 ## [0.21.7] - 2026-10-24
 
 ### Fixed

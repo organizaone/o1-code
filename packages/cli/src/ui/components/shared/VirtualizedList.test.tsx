@@ -8,6 +8,7 @@ import {
   createContext,
   useCallback,
   useContext,
+  useEffect,
   useRef,
   useState,
 } from 'react';
@@ -26,6 +27,7 @@ import { buildThoughtHeadIdMap } from '../../utils/historyUtils.js';
 import { SettingsContext } from '../../contexts/SettingsContext.js';
 import { VirtualViewportContext } from '../../contexts/VirtualViewportContext.js';
 import { KeypressProvider } from '../../contexts/KeypressContext.js';
+import { useKeypress } from '../../hooks/useKeypress.js';
 import { ThoughtExpandedProvider } from '../../contexts/ThoughtExpandedContext.js';
 import type { LoadedSettings } from '../../../config/settings.js';
 import type { HistoryItem } from '../../types.js';
@@ -40,6 +42,99 @@ const renderItem = ({ item }: { item: Item }) => <Text>{item.label}</Text>;
 const estimatedItemHeight = () => 1;
 
 describe('<VirtualizedList />', () => {
+  it('pauses retained input outside the viewport without changing its render focus', async () => {
+    const listRef = { current: null as VirtualizedListRef<Item> | null };
+    const Draft = () => {
+      const [text, setText] = useState('');
+      useKeypress(
+        (key) => {
+          if (/^[a-z]$/.test(key.sequence))
+            setText((value) => value + key.sequence);
+        },
+        { isActive: true },
+      );
+      return <Text>draft: {text}</Text>;
+    };
+    const { stdin, lastFrame, unmount } = render(
+      <KeypressProvider kittyProtocolEnabled={false}>
+        <VirtualizedList<Item>
+          ref={listRef}
+          data={makeItems(50)}
+          renderItem={({ item }) =>
+            item.id === 49 ? <Draft /> : <Text>{item.label}</Text>
+          }
+          keyExtractor={keyExtractor}
+          estimatedItemHeight={estimatedItemHeight}
+          initialScrollIndex={SCROLL_TO_ITEM_END}
+          keepMountedIndices={[49]}
+          containerHeight={5}
+          width={40}
+        />
+      </KeypressProvider>,
+    );
+    await act(async () => {});
+    await act(async () => {
+      stdin.write('a');
+    });
+    act(() => listRef.current?.scrollTo(0));
+    await act(async () => {
+      stdin.write('b');
+    });
+    act(() => listRef.current?.scrollToEnd());
+    await act(async () => {
+      stdin.write('c');
+    });
+    expect(lastFrame()).toContain('draft: ac');
+    unmount();
+  });
+  it('preserves only retained interactive items when they leave the viewport', async () => {
+    const listRef = { current: null as VirtualizedListRef<Item> | null };
+    let updateDraft: ((value: string) => void) | undefined;
+    let mounts = 0;
+    let unmounts = 0;
+    const renderedIds = new Set<number>();
+    const Draft = () => {
+      const [draft, setDraft] = useState('empty');
+      updateDraft = setDraft;
+      useEffect(() => {
+        mounts++;
+        return () => {
+          unmounts++;
+        };
+      }, []);
+      return <Text>answer: {draft}</Text>;
+    };
+    const data = makeItems(500);
+    const { lastFrame, unmount } = render(
+      <VirtualizedList<Item>
+        ref={listRef}
+        data={data}
+        renderItem={({ item }) => {
+          renderedIds.add(item.id);
+          return item.id === 499 ? <Draft /> : <Text>{item.label}</Text>;
+        }}
+        estimatedItemHeight={estimatedItemHeight}
+        keyExtractor={keyExtractor}
+        initialScrollIndex={SCROLL_TO_ITEM_END}
+        keepMountedIndices={[499]}
+        containerHeight={5}
+        width={40}
+      />,
+    );
+    await act(async () => {});
+    act(() => updateDraft?.('keep-my-answer'));
+    act(() => listRef.current?.scrollTo(0));
+    await act(async () => {});
+    expect(lastFrame()).toContain('item-0');
+    expect(lastFrame()).not.toContain('keep-my-answer');
+    expect(unmounts).toBe(0);
+    act(() => listRef.current?.scrollToEnd());
+    await act(async () => {});
+    expect(lastFrame()).toContain('keep-my-answer');
+    expect(mounts).toBe(1);
+    expect(renderedIds.size).toBeLessThan(30);
+    unmount();
+  });
   it('renders nothing visible when data is empty', () => {
     const { lastFrame } = render(
       <VirtualizedList<Item>

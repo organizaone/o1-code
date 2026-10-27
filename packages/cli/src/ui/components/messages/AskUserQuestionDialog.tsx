@@ -288,6 +288,11 @@ export const AskUserQuestionDialog: React.FC<AskUserQuestionDialogProps> = ({
       // typed into the input. Only honor unambiguous shortcuts: arrow keys
       // and the readline-style Ctrl+P/Ctrl+N. TextInput itself doesn't bind
       // those, so there's no double-fire.
+      if (
+        keyMatchers[Command.SCROLL_UP](key) ||
+        keyMatchers[Command.SCROLL_DOWN](key)
+      )
+        return;
       if (isCustomInputSelected) {
         const isOptionUp = key.name === 'up' || (key.ctrl && key.name === 'p');
         const isOptionDown =

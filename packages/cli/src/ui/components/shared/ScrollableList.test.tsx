@@ -64,6 +64,63 @@ const leftDrag = (col: number, row: number) => `${ESC}[<32;${col};${row}M`;
 const leftRelease = (col: number, row: number) => `${ESC}[<0;${col};${row}m`;
 
 describe('<ScrollableList /> mouse scrolling', () => {
+  it.each([wheelUp(5, 3), '\x1b[5~'])(
+    'scrolls a nested question first and hands its boundary to the transcript (%j)',
+    async (event) => {
+      const outer = createRef<ScrollableListRef<Item>>();
+      const inner = createRef<ScrollableListRef<Item>>();
+      const renderItem = ({ item }: { item: Item }) => (
+        <Text>{item.label}</Text>
+      );
+      const { stdin, unmount } = render(
+        withKeypress(
+          <ScrollableList<Item>
+            ref={outer}
+            hasFocus
+            data={makeItems(20)}
+            renderItem={({ item }) =>
+              item.id === 19 ? (
+                <ScrollableList<Item>
+                  ref={inner}
+                  hasFocus
+                  data={makeItems(20)}
+                  renderItem={renderItem}
+                  keyExtractor={keyExtractor}
+                  estimatedItemHeight={estimatedItemHeight}
+                  initialScrollIndex={3}
+                  containerHeight={5}
+                  width={40}
+                />
+              ) : (
+                <Text>{item.label}</Text>
+              )
+            }
+            keyExtractor={keyExtractor}
+            estimatedItemHeight={estimatedItemHeight}
+            initialScrollIndex={SCROLL_TO_ITEM_END}
+            containerHeight={5}
+            width={40}
+          />,
+        ),
+      );
+      // Let the virtual row measure the nested viewport before wheel input.
+      await act(async () => {});
+      const initial = outer.current!.getScrollState().scrollTop;
+      expect(inner.current!.getScrollState().scrollTop).toBe(3);
+      await act(async () => {
+        stdin.write(event);
+      });
+      await flushScrollFrame();
+      expect(inner.current!.getScrollState().scrollTop).toBe(0);
+      expect(outer.current!.getScrollState().scrollTop).toBe(initial);
+      await act(async () => {
+        stdin.write(event);
+      });
+      await flushScrollFrame();
+      expect(outer.current!.getScrollState().scrollTop).toBeLessThan(initial);
+      unmount();
+    },
+  );
   it('routes wheel SGR events to viewport scroll (window shifts)', async () => {
     // When scrolled to top, item-0 is in the visible window; after enough
     // wheel-down events it should be scrolled out; wheel-up brings it back.

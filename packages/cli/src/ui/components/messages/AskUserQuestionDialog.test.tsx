@@ -79,6 +79,26 @@ const createConfirmationDetails = (
 });
 
 describe('bounded question layout', () => {
+  it('keeps the custom answer selected when Shift+Up scrolls the transcript', async () => {
+    const onConfirm = vi.fn();
+    const { stdin, unmount } = renderWithProviders(
+      <AskUserQuestionDialog
+        confirmationDetails={createConfirmationDetails()}
+        availableWidth={80}
+        onConfirm={onConfirm}
+      />,
+    );
+    await wait();
+    await writeText(stdin, '4');
+    await writeText(stdin, 'keep-my-answer');
+    await writeText(stdin, '\x1b[1;2A');
+    await writeText(stdin, '\r');
+    expect(onConfirm).toHaveBeenCalledWith(
+      ToolConfirmationOutcome.ProceedOnce,
+      { answers: { 0: 'keep-my-answer' } },
+    );
+    unmount();
+  });
   it.each([false, true])(
     'draws a complete container frame (scrolling: %s)',
     async (scrolling) => {

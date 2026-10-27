@@ -4,7 +4,16 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { useRef, forwardRef, useImperativeHandle, useCallback } from 'react';
+import {
+  useRef,
+  forwardRef,
+  useImperativeHandle,
+  useCallback,
+  createContext,
+  useContext,
+  useEffect,
+  useMemo,
+} from 'react';
 import type React from 'react';
 import {
   VirtualizedList,
@@ -16,6 +25,7 @@ import { useKeypress, type Key } from '../../hooks/useKeypress.js';
 import { keyMatchers, Command } from '../../keyMatchers.js';
 import { useMouseEvents } from '../../hooks/useMouseEvents.js';
 import type { MouseEvent } from '../../utils/mouse.js';
+import { useKeypressContext } from '../../contexts/KeypressContext.js';
 
 export { SCROLL_TO_ITEM_END } from './VirtualizedList.js';
 
@@ -27,6 +37,58 @@ interface ScrollableListProps<T> extends VirtualizedListProps<T> {
 }
 
 export type ScrollableListRef<T> = VirtualizedListRef<T>;
+
+interface ScrollRegion {
+  parent: ScrollRegion | null;
+  children: Set<ScrollRegion>;
+  active: boolean;
+  state: () => { scrollTop: number; scrollHeight: number; innerHeight: number };
+  rect: () => { x: number; y: number; width: number; height: number } | null;
+  owners: WeakMap<object, ScrollRegion | null>;
+}
+
+const ScrollRegionContext = createContext<ScrollRegion | null>(null);
+
+function getScrollOwner(
+  region: ScrollRegion,
+  event: object,
+  direction: number,
+  pointer?: MouseEvent,
+): ScrollRegion | null {
+  let root = region;
+  while (root.parent) root = root.parent;
+  if (root.owners.has(event)) return root.owners.get(event) ?? null;
+  const findOwner = (candidate: ScrollRegion): ScrollRegion | null => {
+    if (!candidate.active) return null;
+    const rect = pointer ? candidate.rect() : null;
+    const inside =
+      !pointer ||
+      (rect !== null &&
+        pointer.col - 1 >= rect.x &&
+        pointer.col - 1 < rect.x + rect.width &&
+        pointer.row - 1 >= rect.y &&
+        pointer.row - 1 < rect.y + rect.height);
+    if (!inside && candidate.parent) return null;
+    if (inside) {
+      for (const child of candidate.children) {
+        const owner = findOwner(child);
+        if (owner) return owner;
+      }
+    }
+    const state = candidate.state();
+    return (
+      direction < 0
+        ? state.scrollTop > 0
+        : state.scrollTop + state.innerHeight < state.scrollHeight
+    )
+      ? candidate
+      : null;
+  };
+  // Resolve once before any subscriber changes the offset at a nested boundary.
+  const owner = findOwner(root);
+  root.owners.set(event, owner);
+  return owner;
+}
 
 function ScrollableList<T>(
   props: ScrollableListProps<T>,
@@ -49,6 +111,27 @@ function ScrollableList<T>(
       },
     [],
   );
+  const parentRegion = useContext(ScrollRegionContext);
+  const { inputEnabled } = useKeypressContext();
+  const region = useMemo<ScrollRegion>(
+    () => ({
+      parent: null,
+      children: new Set(),
+      active: false,
+      state: getScrollState,
+      rect: () => virtualizedListRef.current?.getViewportRect() ?? null,
+      owners: new WeakMap(),
+    }),
+    [getScrollState],
+  );
+  region.parent = parentRegion;
+  region.active = hasFocus && inputEnabled !== false;
+  useEffect(() => {
+    parentRegion?.children.add(region);
+    return () => {
+      parentRegion?.children.delete(region);
+    };
+  }, [parentRegion, region]);
 
   // Mouse scrolling. Legacy `<Static>` mode let the host terminal scroll its
   // native scrollback. In VP mode the list owns the visible region, so route
@@ -147,6 +230,18 @@ function ScrollableList<T>(
   useKeypress(
     useCallback(
       (key: Key) => {
+        const direction =
+          keyMatchers[Command.SCROLL_UP](key) ||
+          keyMatchers[Command.PAGE_UP](key) ||
+          keyMatchers[Command.SCROLL_HOME](key)
+            ? -1
+            : keyMatchers[Command.SCROLL_DOWN](key) ||
+                keyMatchers[Command.PAGE_DOWN](key) ||
+                keyMatchers[Command.SCROLL_END](key)
+              ? 1
+              : 0;
+        if (!direction || getScrollOwner(region, key, direction) !== region)
+          return;
         if (keyMatchers[Command.SCROLL_UP](key)) {
           queueKeyboardScroll(-1);
         } else if (keyMatchers[Command.SCROLL_DOWN](key)) {
@@ -167,7 +262,7 @@ function ScrollableList<T>(
           virtualizedListRef.current?.scrollToEnd();
         }
       },
-      [getScrollState, queueKeyboardScroll, cancelPendingScroll],
+      [getScrollState, queueKeyboardScroll, cancelPendingScroll, region],
     ),
     { isActive: hasFocus },
   );
@@ -175,6 +270,10 @@ function ScrollableList<T>(
   const handleMouseEvent = useCallback(
     (event: MouseEvent) => {
       if (!virtualizedListRef.current) return;
+      if (event.name === 'scroll-up' || event.name === 'scroll-down') {
+        const direction = event.name === 'scroll-up' ? -1 : 1;
+        if (getScrollOwner(region, event, direction, event) !== region) return;
+      }
       if (event.name === 'left-release') {
         isDraggingScrollbar.current = false;
         return;
@@ -204,7 +303,7 @@ function ScrollableList<T>(
         scheduleScrollFlush();
       }
     },
-    [scheduleScrollFlush, cancelPendingScroll],
+    [scheduleScrollFlush, cancelPendingScroll, region],
   );
 
   // The VP viewport owns the wheel (this IS the in-app scroller), so opt out
@@ -217,7 +316,11 @@ function ScrollableList<T>(
   // parent). MainContent passes an explicit `containerHeight`, which
   // VirtualizedList's outermost Box honours, so the wrapper added nothing
   // beyond the dead ref.
-  return <VirtualizedList ref={virtualizedListRef} {...virtualizedListProps} />;
+  return (
+    <ScrollRegionContext.Provider value={region}>
+      <VirtualizedList ref={virtualizedListRef} {...virtualizedListProps} />
+    </ScrollRegionContext.Provider>
+  );
 }
 
 const ScrollableListWithForwardRef = forwardRef(ScrollableList) as <T>(
