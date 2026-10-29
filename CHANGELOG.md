@@ -7,6 +7,8 @@ follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.21.10] - 2026-10-29
+
 ### Fixed
 
 - Updated vulnerable runtime and development dependencies. SDK option lists and IDE open-file lists now reject oversized inputs before validating their entries. MCP tool arguments are limited to 10,000 combined object fields and array elements.
@@ -723,7 +725,8 @@ The first release of o1-code, a coding agent for the terminal.
 - `o1-code serve` runs a local daemon with a REST API and the Web Shell, a browser interface.
 - Editor companions for VS Code and Zed.
 
-[Unreleased]: https://github.com/organizaone/o1-code/compare/v0.21.2...HEAD
+[Unreleased]: https://github.com/organizaone/o1-code/compare/v0.21.10...HEAD
+[0.21.10]: https://github.com/organizaone/o1-code/compare/v0.21.8...v0.21.10
 [0.21.2]: https://github.com/organizaone/o1-code/compare/v0.21.1...v0.21.2
 [0.21.1]: https://github.com/organizaone/o1-code/compare/v0.21.0...v0.21.1
 [0.21.0]: https://github.com/organizaone/o1-code/compare/v0.20.3...v0.21.0
