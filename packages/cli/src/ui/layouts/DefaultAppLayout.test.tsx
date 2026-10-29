@@ -4,10 +4,20 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { beforeEach, describe, expect, it, vi, type Mock } from 'vitest';
+import {
+  afterAll,
+  beforeEach,
+  describe,
+  expect,
+  it,
+  vi,
+  type Mock,
+} from 'vitest';
 import { render } from 'ink-testing-library';
 import { Text } from 'ink';
+import chalk from 'chalk';
 import { DefaultAppLayout } from './DefaultAppLayout.js';
+import { themeManager } from '../themes/theme-manager.js';
 import { UIStateContext, type UIState } from '../contexts/UIStateContext.js';
 import {
   UIActionsContext,
@@ -15,6 +25,22 @@ import {
 } from '../contexts/UIActionsContext.js';
 import { useAgentViewState } from '../contexts/AgentViewContext.js';
 import { StreamingState } from '../types.js';
+
+const originalColorEnv = vi.hoisted(() => {
+  const original = {
+    force: process.env['FORCE_COLOR'],
+    noColor: process.env['NO_COLOR'],
+  };
+  process.env['FORCE_COLOR'] = '3';
+  delete process.env['NO_COLOR'];
+  return original;
+});
+afterAll(() => {
+  if (originalColorEnv.force === undefined) delete process.env['FORCE_COLOR'];
+  else process.env['FORCE_COLOR'] = originalColorEnv.force;
+  if (originalColorEnv.noColor === undefined) delete process.env['NO_COLOR'];
+  else process.env['NO_COLOR'] = originalColorEnv.noColor;
+});
 
 const dialogManagerMockState = vi.hoisted(() => ({
   lineCount: 1,
@@ -164,6 +190,80 @@ describe('DefaultAppLayout', () => {
     dialogManagerMockState.backgroundOpen = false;
     dialogManagerMockState.columns = 80;
     dialogManagerMockState.authChrome = false;
+  });
+
+  it('paints the full viewport with the selected light theme', () => {
+    const previousLevel = chalk.level;
+    const previousTheme = themeManager.getActiveTheme().name;
+    chalk.level = 3;
+    themeManager.setActiveTheme('O1-Code Light');
+    mockedUseAgentViewState.mockReturnValue({
+      activeView: 'main',
+      agents: new Map(),
+    });
+    try {
+      const { lastFrame, unmount } = renderLayout({
+        ...baseUIState,
+        useTerminalBuffer: true,
+        terminalHeight: 24,
+      });
+      const output = lastFrame() ?? '';
+      expect(output).toContain('\u001b[48;2;247;249;252m');
+      expect(output).toContain('\u001b[38;2;22;32;51m');
+      expect(output).toContain('Composer');
+      unmount();
+    } finally {
+      chalk.level = previousLevel;
+      themeManager.setActiveTheme(previousTheme);
+    }
+  });
+
+  it('repaints the canvas when the active theme changes', () => {
+    mockedUseAgentViewState.mockReturnValue({
+      activeView: 'main',
+      agents: new Map(),
+    });
+    const previousTheme = themeManager.getActiveTheme().name;
+    const state = { ...baseUIState, useTerminalBuffer: true } as UIState;
+    const tree = () => (
+      <UIActionsContext.Provider value={mockUIActions}>
+        <UIStateContext.Provider value={state}>
+          <DefaultAppLayout />
+        </UIStateContext.Provider>
+      </UIActionsContext.Provider>
+    );
+    themeManager.setActiveTheme('O1-Code Light');
+    const { lastFrame, rerender, unmount } = render(tree());
+    try {
+      expect(lastFrame()).toContain('\u001b[48;2;247;249;252m');
+      themeManager.setActiveTheme('O1-Code Dark');
+      rerender(tree());
+      expect(lastFrame()).toContain('\u001b[48;2;10;18;32m');
+    } finally {
+      unmount();
+      themeManager.setActiveTheme(previousTheme);
+    }
+  });
+
+  it('does not paint a theme background in legacy mode or with NO_COLOR', () => {
+    mockedUseAgentViewState.mockReturnValue({
+      activeView: 'main',
+      agents: new Map(),
+    });
+    const previousTheme = themeManager.getActiveTheme().name;
+    themeManager.setActiveTheme('O1-Code Light');
+    try {
+      const legacy = renderLayout({ ...baseUIState, useTerminalBuffer: false });
+      expect(legacy.lastFrame()).not.toContain('\u001b[48;2;247;249;252m');
+      legacy.unmount();
+      process.env['NO_COLOR'] = '1';
+      const noColor = renderLayout({ ...baseUIState, useTerminalBuffer: true });
+      expect(noColor.lastFrame()).not.toContain('\u001b[48;2;247;249;252m');
+      noColor.unmount();
+    } finally {
+      delete process.env['NO_COLOR'];
+      themeManager.setActiveTheme(previousTheme);
+    }
   });
 
   it('does not clip the right edge of the wide agent dashboard to the old 100-column cap', () => {

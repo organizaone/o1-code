@@ -6,7 +6,7 @@
 
 import type React from 'react';
 import { useEffect, useMemo, useRef } from 'react';
-import { Box, type DOMElement } from 'ink';
+import { Box, foregroundContext, type DOMElement } from 'ink';
 import { MainContent } from '../components/MainContent.js';
 import {
   ScrollContext,
@@ -36,6 +36,9 @@ import { getStickyTodoMaxVisibleItemsForMode } from '../utils/todoSnapshot.js';
 import { getDialogMaxHeight } from '../utils/layoutUtils.js';
 import { getLayoutTier, sideMargin } from '../utils/layout-tier.js';
 import { useBackgroundTaskViewState } from '../contexts/BackgroundTaskViewContext.js';
+import { theme } from '../semantic-colors.js';
+import { themeManager } from '../themes/theme-manager.js';
+import { ThemeCanvasContext } from '../contexts/theme-canvas-context.js';
 
 /** The header pinned above the conversation in full-screen mode. */
 const PinnedHeader: React.FC = () => {
@@ -104,85 +107,110 @@ export const DefaultAppLayout: React.FC = () => {
   }, [activeView, refreshStatic]);
 
   return (
-    <Box flexDirection="column" width={terminalWidth}>
-      {uiState.useTerminalBuffer && <PinnedHeader />}
-      {isAgentTab ? (
-        <>
-          {/* Agent view: chat history + agent-specific composer */}
-          <AgentChatView agentId={activeView} />
-          <Box flexDirection="column" ref={uiState.mainControlsRef}>
-            {!uiState.useTerminalBuffer &&
-              !uiState.dialogsVisible &&
-              uiState.updateInfo && (
-                <UpdateNotification message={uiState.updateInfo.message} />
-              )}
-            <AgentComposer key={activeView} agentId={activeView} />
-            <ExitWarning />
-          </Box>
-        </>
-      ) : (
-        <ScrollContext.Provider value={scrollActions}>
-          {/* Main view: conversation history + main composer / dialogs */}
-          <MainContent
-            footerRef={footerRef}
-            inputLinesRef={inputLinesRef}
-            scrollActionsRef={scrollActionsRef}
-          />
-          <Box flexDirection="column" ref={uiState.mainControlsRef}>
-            {!uiState.useTerminalBuffer &&
-              !uiState.dialogsVisible &&
-              uiState.updateInfo && (
-                <UpdateNotification message={uiState.updateInfo.message} />
-              )}
-            {uiState.dialogsVisible ? (
-              <Box
-                marginX={backgroundDialogOpen ? backgroundMargin : 2}
-                flexDirection="column"
-                width={
-                  backgroundDialogOpen
-                    ? Math.max(1, terminalWidth - backgroundMargin * 2)
-                    : uiState.isSettingsDialogOpen
-                      ? Math.max(1, terminalWidth - 4)
-                      : uiState.isApprovalModeDialogOpen
-                        ? Math.max(1, Math.min(terminalWidth - 4, 140))
-                        : uiState.mainAreaWidth
-                }
-                height={
-                  uiState.isApprovalModeDialogOpen ||
-                  uiState.isSettingsDialogOpen
-                    ? undefined
-                    : dialogHeight
-                }
-                maxHeight={dialogHeight}
-                overflow={uiState.constrainHeight ? 'hidden' : undefined}
-              >
-                <DialogManager
-                  terminalWidth={uiState.terminalWidth}
-                  addItem={uiState.historyManager.addItem}
-                />
+    <ThemeCanvasContext.Provider
+      value={
+        uiState.useTerminalBuffer
+          ? theme.background.primary || undefined
+          : undefined
+      }
+    >
+      <foregroundContext.Provider
+        value={
+          uiState.useTerminalBuffer
+            ? themeManager.getActiveTheme().colors.Foreground || undefined
+            : undefined
+        }
+      >
+        <Box
+          flexDirection="column"
+          width={terminalWidth}
+          backgroundColor={
+            uiState.useTerminalBuffer
+              ? theme.background.primary || undefined
+              : undefined
+          }
+        >
+          {uiState.useTerminalBuffer && <PinnedHeader />}
+          {isAgentTab ? (
+            <>
+              {/* Agent view: chat history + agent-specific composer */}
+              <AgentChatView agentId={activeView} />
+              <Box flexDirection="column" ref={uiState.mainControlsRef}>
+                {!uiState.useTerminalBuffer &&
+                  !uiState.dialogsVisible &&
+                  uiState.updateInfo && (
+                    <UpdateNotification message={uiState.updateInfo.message} />
+                  )}
+                <AgentComposer key={activeView} agentId={activeView} />
+                <ExitWarning />
               </Box>
-            ) : (
-              <>
-                {shouldShowStickyTodos && (
-                  <StickyTodoList
-                    todos={uiState.stickyTodos!}
-                    width={stickyTodoWidth}
-                    maxVisibleItems={stickyTodoMaxVisibleItems}
-                  />
-                )}
-                {uiState.btwItem && (
-                  <Box marginX={2} width={uiState.mainAreaWidth}>
-                    <BtwMessage
-                      btw={uiState.btwItem.btw}
-                      containerWidth={uiState.mainAreaWidth}
+            </>
+          ) : (
+            <ScrollContext.Provider value={scrollActions}>
+              {/* Main view: conversation history + main composer / dialogs */}
+              <MainContent
+                footerRef={footerRef}
+                inputLinesRef={inputLinesRef}
+                scrollActionsRef={scrollActionsRef}
+              />
+              <Box flexDirection="column" ref={uiState.mainControlsRef}>
+                {!uiState.useTerminalBuffer &&
+                  !uiState.dialogsVisible &&
+                  uiState.updateInfo && (
+                    <UpdateNotification message={uiState.updateInfo.message} />
+                  )}
+                {uiState.dialogsVisible ? (
+                  <Box
+                    marginX={backgroundDialogOpen ? backgroundMargin : 2}
+                    flexDirection="column"
+                    width={
+                      backgroundDialogOpen
+                        ? Math.max(1, terminalWidth - backgroundMargin * 2)
+                        : uiState.isSettingsDialogOpen
+                          ? Math.max(1, terminalWidth - 4)
+                          : uiState.isApprovalModeDialogOpen
+                            ? Math.max(1, Math.min(terminalWidth - 4, 140))
+                            : uiState.mainAreaWidth
+                    }
+                    height={
+                      uiState.isApprovalModeDialogOpen ||
+                      uiState.isSettingsDialogOpen
+                        ? undefined
+                        : dialogHeight
+                    }
+                    maxHeight={dialogHeight}
+                    overflow={uiState.constrainHeight ? 'hidden' : undefined}
+                  >
+                    <DialogManager
+                      terminalWidth={uiState.terminalWidth}
+                      addItem={uiState.historyManager.addItem}
                     />
                   </Box>
+                ) : (
+                  <>
+                    {shouldShowStickyTodos && (
+                      <StickyTodoList
+                        todos={uiState.stickyTodos!}
+                        width={stickyTodoWidth}
+                        maxVisibleItems={stickyTodoMaxVisibleItems}
+                      />
+                    )}
+                    {uiState.btwItem && (
+                      <Box marginX={2} width={uiState.mainAreaWidth}>
+                        <BtwMessage
+                          btw={uiState.btwItem.btw}
+                          containerWidth={uiState.mainAreaWidth}
+                        />
+                      </Box>
+                    )}
+                    <Composer
+                      footerRef={footerRef}
+                      inputLinesRef={inputLinesRef}
+                    />
+                  </>
                 )}
-                <Composer footerRef={footerRef} inputLinesRef={inputLinesRef} />
-              </>
-            )}
-            <ExitWarning />
-            {/*
+                <ExitWarning />
+                {/*
               LiveAgentPanel — always-on roster of running subagents,
               anchored beneath the input footer (mirrors Claude Code's
               CoordinatorAgentStatus position). Hidden whenever any
@@ -207,26 +235,28 @@ export const DefaultAppLayout: React.FC = () => {
               live progress lines have nothing to soft-wrap, so the
               panel wants the full terminal width.
             */}
-            {!uiState.dialogsVisible && (
-              <LiveAgentPanel
-                width={uiState.terminalWidth}
-                maxRows={
-                  uiState.useTerminalBuffer
-                    ? getLiveAgentPanelVpMaxRows(uiState.terminalHeight)
-                    : undefined
-                }
-              />
-            )}
-          </Box>
-        </ScrollContext.Provider>
-      )}
+                {!uiState.dialogsVisible && (
+                  <LiveAgentPanel
+                    width={uiState.terminalWidth}
+                    maxRows={
+                      uiState.useTerminalBuffer
+                        ? getLiveAgentPanelVpMaxRows(uiState.terminalHeight)
+                        : undefined
+                    }
+                  />
+                )}
+              </Box>
+            </ScrollContext.Provider>
+          )}
 
-      {/* Tab bar: visible whenever in-process agents exist and input is active */}
-      {hasAgents && !uiState.dialogsVisible && <AgentTabBar />}
+          {/* Tab bar: visible whenever in-process agents exist and input is active */}
+          {hasAgents && !uiState.dialogsVisible && <AgentTabBar />}
 
-      {/* Right-click context menu: absolutely-positioned overlay, drawn last
+          {/* Right-click context menu: absolutely-positioned overlay, drawn last
           so it paints over the transcript. Renders nothing while closed. */}
-      <ContextMenuOverlay />
-    </Box>
+          <ContextMenuOverlay />
+        </Box>
+      </foregroundContext.Provider>
+    </ThemeCanvasContext.Provider>
   );
 };

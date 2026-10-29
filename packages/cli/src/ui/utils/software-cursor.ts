@@ -120,9 +120,16 @@ export function terminalShowsInputCursor(
   return platform === 'win32';
 }
 
-export function renderSoftwareCursor(text: string): string {
+export function renderSoftwareCursor(
+  text: string,
+  backgroundColor?: string,
+): string {
   const cursorText = text || ' ';
-  return compositionOverlaysSoftwareCursor()
-    ? chalk.underline(cursorText)
-    : chalk.bgHex(getSoftwareCursorBackground())(cursorText);
+  if (compositionOverlaysSoftwareCursor()) return chalk.underline(cursorText);
+  const cursorBackground = getSoftwareCursorBackground(backgroundColor);
+  const cursor = chalk.bgHex(cursorBackground);
+  if (!backgroundColor) return cursor(cursorText);
+  const foreground =
+    cursorBackground === DARK_CURSOR_BACKGROUND ? '#ffffff' : '#000000';
+  return cursor.hex(foreground)(cursorText);
 }

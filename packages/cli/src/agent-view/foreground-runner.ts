@@ -80,6 +80,7 @@ export async function runAgentSessionForeground(
           activeId,
           theme,
           readDashboardLanguage(snapshot),
+          readDashboardThemeName(snapshot),
         );
         if (target && target !== activeId) {
           const row = (await loadRows()).find(
@@ -143,6 +144,12 @@ function readDashboardRequestId(snapshot: unknown): string | undefined {
 function readDashboardTheme(snapshot: unknown): 'dark' | 'light' {
   if (!isRecord(snapshot) || !isRecord(snapshot['activity'])) return 'dark';
   return snapshot['activity']['theme'] === 'light' ? 'light' : 'dark';
+}
+
+function readDashboardThemeName(snapshot: unknown): string | undefined {
+  if (!isRecord(snapshot) || !isRecord(snapshot['activity'])) return undefined;
+  const name = snapshot['activity']['themeName'];
+  return typeof name === 'string' ? name : undefined;
 }
 
 function readDashboardLanguage(snapshot: unknown): string {

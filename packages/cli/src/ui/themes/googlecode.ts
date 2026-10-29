@@ -14,7 +14,7 @@ const googleCodeColors: ColorsTheme = {
   AccentBlue: '#008',
   AccentPurple: '#606',
   AccentCyan: '#066',
-  AccentGreen: '#080',
+  AccentGreen: '#006a00',
   AccentYellow: '#660',
   AccentRed: '#800',
   AccentYellowDim: '#8B7000',

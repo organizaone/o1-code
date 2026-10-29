@@ -15,7 +15,8 @@ The Web Shell (`o1-code serve`) has its own interface and is not covered here.
   [Layout tiers](#layout-tiers)). No row may exceed the terminal width at any width.
 - **Full-screen layout** (`ui.useTerminalBuffer`, on by default): header pinned at the top, input and
   footer pinned at the bottom, the conversation scrolls in between and sticks to its last line.
-- Panels draw on the terminal's own background. A selected tab may use a filled
+- The full-screen application paints the active theme's canvas inside its viewport. The legacy
+  layout and `NO_COLOR` leave the terminal background untouched. A selected tab may use a filled
   accent chip with contrasting text to identify the active view.
 - Colours come from theme tokens, never from literals in a component.
 
@@ -46,15 +47,14 @@ not have. Themes that do not declare extended colours get them derived from thei
 | warning (amber) | `theme.status.warning`                           | `#ffa347` | `#9a5200` | MCP offline, Safe/Debug Mode, warnings                                                     |
 | error           | `theme.status.error`                             | `#ff6b6b` | `#c02d2d` | failure, removed lines, provider error                                                     |
 
-**Why the dark theme's primary text is empty (the terminal's foreground):** without `ui.theme`,
-background detection falls back to the dark theme when it fails. An explicit near-white would be
-unreadable on a light terminal. `#e6ecf5` is the design reference, not a painted value.
+**Why the dark theme's primary text is empty:** the full-screen canvas supplies the theme's
+foreground (`#e6ecf5`) as the inherited default, while the legacy layout continues to use the
+terminal foreground. Explicit semantic colours override that default.
 
 **Chrome keeps a contrast floor of 1.8:1 against the backgrounds it can land on** (`separator` and
 `rule`, dark on `#0a1220`/`#212734`/`#1e1e1e`, light on `#f7f9fc`/white — pinned in
-`themes/o1-code-palette.test.ts`). Panels do not paint a background, so a frame colour is
-measured against the terminal's own: the first `rule`, `#2a3550`, was 1.2:1 on the dark navy
-profiles common on macOS and the conversation border disappeared.
+`themes/o1-code-palette.test.ts`). The legacy layout still uses the terminal background, so these
+checks include common terminal profiles as well as the theme canvas.
 
 With 256 or 16 colours, chalk (under Ink) reduces each token to the nearest ANSI colour. The product
 has no colour detection of its own and nothing is designed for 16 colours on purpose.

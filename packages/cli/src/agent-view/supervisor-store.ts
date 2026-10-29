@@ -847,6 +847,11 @@ function normalizeActivity(
         : raw['theme'] === 'dark'
           ? 'dark'
           : undefined,
+    themeName:
+      typeof raw['themeName'] === 'string' &&
+      /^[\p{L}\p{N} ._-]{1,128}$/u.test(raw['themeName'])
+        ? raw['themeName']
+        : undefined,
     language: stringValue(raw['language']),
     dashboardRequestId: stringValue(raw['dashboardRequestId']),
     waitingFor: stringValue(raw['waitingFor']),

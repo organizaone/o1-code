@@ -79,12 +79,10 @@ export const ModeZone: React.FC<{
     reasoning === undefined || !atLeast(tier, 'compact')
       ? ''
       : reasoning === false
-        ? t('reasoning off')
+        ? t('off')
         : reasoning === REASONING_DEFAULT
-          ? t('reasoning default')
-          : atLeast(tier, 'medium')
-            ? t('reasoning {{effort}}', { effort: t(reasoning) })
-            : t(reasoning);
+          ? t('DEFAULT').toLocaleLowerCase()
+          : t(reasoning);
   return (
     <Text color={extendedTheme.text.muted} wrap="truncate">
       <Text color={modeColor(mode)} bold>

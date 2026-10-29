@@ -9,6 +9,7 @@ import { describe, expect, it } from 'vitest';
 import { render } from 'ink-testing-library';
 import stripAnsi from 'strip-ansi';
 import { ApprovalMode } from '@organizaone/o1-code-core/config/approval-mode.js';
+import { setLanguageAsync } from '../../i18n/index.js';
 import {
   GitZone,
   ModelQuotaZone,
@@ -46,14 +47,17 @@ describe('footer zones', () => {
     ]);
   });
 
-  it('shows mode, model and reasoning, shortening by width', () => {
+  it('shows the effort without a label from the compact tier up', () => {
     const props = {
       mode: ApprovalMode.AUTO,
       model: 'glm-5.3',
       reasoning: 'high',
     } as const;
     expect(text(<ModeZone tier="full" {...props} />)).toBe(
-      '● AUTO │ glm-5.3 · reasoning high',
+      '● AUTO │ glm-5.3 · high',
+    );
+    expect(text(<ModeZone tier="medium" {...props} />)).toBe(
+      '● AUTO │ glm-5.3 · high',
     );
     expect(text(<ModeZone tier="compact" {...props} />)).toBe(
       '● AUTO │ glm-5.3 · high',
@@ -71,7 +75,7 @@ describe('footer zones', () => {
           safeMode
         />,
       ),
-    ).toBe('● DEFAULT │ m · reasoning off · Safe Mode');
+    ).toBe('● DEFAULT │ m · off · Safe Mode');
     expect(
       text(
         <ModeZone
@@ -81,7 +85,29 @@ describe('footer zones', () => {
           reasoning={REASONING_DEFAULT}
         />,
       ),
-    ).toBe('● DEFAULT │ m · reasoning default');
+    ).toBe('● DEFAULT │ m · default');
+  });
+
+  it('localizes effort values without a reasoning label', async () => {
+    await setLanguageAsync('pt');
+    try {
+      const props = {
+        tier: 'full',
+        mode: ApprovalMode.AUTO,
+        model: 'm',
+      } as const;
+      expect(text(<ModeZone {...props} reasoning="high" />)).toBe(
+        '● AUTO │ m · alto',
+      );
+      expect(text(<ModeZone {...props} reasoning={false} />)).toBe(
+        '● AUTO │ m · desativado',
+      );
+      expect(text(<ModeZone {...props} reasoning={REASONING_DEFAULT} />)).toBe(
+        '● AUTO │ m · padrão',
+      );
+    } finally {
+      await setLanguageAsync('en');
+    }
   });
 
   it('names the Summary display mode from the compact tier up', () => {
@@ -91,7 +117,7 @@ describe('footer zones', () => {
       reasoning: 'high',
     } as const;
     expect(text(<ModeZone tier="full" {...props} summaryMode />)).toBe(
-      '● DEFAULT │ m · reasoning high · summary',
+      '● DEFAULT │ m · high · summary',
     );
     expect(text(<ModeZone tier="compact" {...props} summaryMode />)).toBe(
       '● DEFAULT │ m · high · summary',
@@ -100,7 +126,7 @@ describe('footer zones', () => {
       '● DEFAULT │ m',
     );
     expect(text(<ModeZone tier="full" {...props} />)).toBe(
-      '● DEFAULT │ m · reasoning high',
+      '● DEFAULT │ m · high',
     );
   });
 

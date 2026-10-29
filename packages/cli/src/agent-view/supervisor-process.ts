@@ -4047,7 +4047,7 @@ async function applyWorkerEvent(
             ? { model: event.model }
             : {}),
           ...(event.type === 'state' && event.theme
-            ? { theme: event.theme }
+            ? { theme: event.theme, themeName: event.themeName }
             : {}),
           ...(event.type === 'state' && event.language
             ? { language: event.language }
@@ -4505,6 +4505,11 @@ function parseWorkerEvent(
           ? 'dark'
           : undefined;
     const language = stringParam(params, 'language');
+    const themeNameValue = stringParam(params, 'themeName');
+    const themeName =
+      themeNameValue && /^[\p{L}\p{N} ._-]{1,128}$/u.test(themeNameValue)
+        ? themeNameValue
+        : undefined;
     const promptId = stringParam(params, 'promptId');
     const at = stringParam(params, 'at');
     return {
@@ -4518,6 +4523,7 @@ function parseWorkerEvent(
       ...(lastResult !== undefined ? { lastResult } : {}),
       ...(model !== undefined ? { model } : {}),
       ...(theme !== undefined ? { theme } : {}),
+      ...(themeName !== undefined ? { themeName } : {}),
       ...(language !== undefined ? { language } : {}),
       ...(promptId !== undefined ? { promptId } : {}),
       ...(at !== undefined ? { at } : {}),

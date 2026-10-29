@@ -1759,6 +1759,9 @@ describe('SettingsDialog', () => {
         (key, i) => i >= 2 && workspaceKeys.has(key),
       );
       const label = getSettingDefinition(userKeys[index]!)?.label ?? '';
+      const variationSelector = process.platform === 'win32' ? '' : '\uFE0E';
+      const selectedDot = `●${variationSelector}`;
+      const emptyDot = `○${variationSelector}`;
       expect(label).not.toBe('');
 
       const { stdin, lastFrame, unmount } = render(
@@ -1770,30 +1773,32 @@ describe('SettingsDialog', () => {
           />
         </KeypressProvider>,
       );
-      expect(lastFrame()).toContain('Scope:  ●︎ User  ○︎ Workspace');
+      expect(lastFrame()).toContain(
+        `Scope:  ${selectedDot} User  ${emptyDot} Workspace`,
+      );
       expect(lastFrame()).not.toContain('this project only');
       for (let step = 0; step < index; step++) {
         act(() => stdin.write(TerminalKeys.DOWN_ARROW));
         await waitFor(() => expect(lastFrame()).toContain(`${step + 2}/`));
       }
-      expect(lastFrame()).toContain(`●\uFE0E ${label}`);
+      expect(lastFrame()).toContain(`${selectedDot} ${label}`);
 
       act(() => stdin.write(TerminalKeys.TAB));
       await waitFor(() =>
         expect(lastFrame()).toContain(`/${workspaceKeys.size}`),
       );
       const frame = lastFrame() ?? '';
-      expect(frame).toContain(`●\uFE0E ${label}`);
+      expect(frame).toContain(`${selectedDot} ${label}`);
       expect(frame).toContain('Search settings…');
       expect(frame).not.toContain('Apply To');
       expect(frame).toContain('Tab to switch scope');
       expect(frame).toContain(
-        'Scope:  ○︎ User  ●︎ Workspace  · this project only',
+        `Scope:  ${emptyDot} User  ${selectedDot} Workspace  · this project only`,
       );
 
       act(() => stdin.write(TerminalKeys.TAB));
       await waitFor(() => expect(lastFrame()).toContain(`/${userKeys.length}`));
-      expect(lastFrame()).toContain(`●\uFE0E ${label}`);
+      expect(lastFrame()).toContain(`${selectedDot} ${label}`);
 
       unmount();
     });

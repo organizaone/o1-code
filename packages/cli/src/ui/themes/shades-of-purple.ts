@@ -15,19 +15,19 @@ const shadesOfPurpleColors: ColorsTheme = {
   // Required colors for ColorsTheme interface
   Background: '#2d2b57', // Main background
   Foreground: '#e3dfff', // Default text color (hljs, hljs-subst)
-  LightBlue: '#847ace', // Light blue/purple accent
+  LightBlue: '#9991d6', // Light blue/purple accent
   AccentBlue: '#a599e9', // Borders, secondary blue
-  AccentPurple: '#ac65ff', // Comments (main purple)
+  AccentPurple: '#b87cff', // Comments (main purple)
   AccentCyan: '#a1feff', // Names
   AccentGreen: '#A5FF90', // Strings and many others
   AccentYellow: '#fad000', // Title, main yellow
   AccentRed: '#ff628c', // Error/deletion accent
-  AccentYellowDim: '#8B7530',
-  AccentRedDim: '#8B3A4A',
-  DiffAdded: '#383E45',
-  DiffRemoved: '#572244',
-  Comment: '#B362FF', // Comment color (same as AccentPurple)
-  Gray: '#726c86', // Gray color
+  AccentYellowDim: '#a89864',
+  AccentRedDim: '#bc8d96',
+  DiffAdded: '#2d303a',
+  DiffRemoved: '#3b2037',
+  Comment: '#be7aff',
+  Gray: '#9b97a9', // Gray color
   GradientColors: ['#4d21fc', '#847ace', '#ff628c'],
 };
 
@@ -35,9 +35,9 @@ const shadesOfPurpleColors: ColorsTheme = {
 const additionalColors = {
   AccentYellowAlt: '#f8d000', // Attr yellow (slightly different)
   AccentOrange: '#fb9e00', // Keywords, built_in, meta
-  AccentPink: '#fa658d', // Numbers, literals
+  AccentPink: '#fa678e', // Numbers, literals
   AccentLightPurple: '#c991ff', // For params and properties
-  AccentDarkPurple: '#6943ff', // For operators
+  AccentDarkPurple: '#9f87ff', // For operators
   AccentTeal: '#2ee2fa', // For special constructs
 };
 

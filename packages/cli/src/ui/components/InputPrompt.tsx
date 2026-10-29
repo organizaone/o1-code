@@ -2182,6 +2182,7 @@ export const InputPrompt: React.FC<InputPromptProps> = ({
         showCursor: showCursorOpt,
         absoluteVisualIndex,
         buffer: buf,
+        canvasBackground,
       } = opts;
       const mapEntry = buf.visualToLogicalMap[absoluteVisualIndex];
       const [logicalLineIdx, logicalStartCol] = mapEntry;
@@ -2222,7 +2223,7 @@ export const InputPrompt: React.FC<InputPromptProps> = ({
               cursorVisualColAbsolute - segStart + 1,
             );
             const highlighted = drawCursor
-              ? renderSoftwareCursor(charToHighlight)
+              ? renderSoftwareCursor(charToHighlight, canvasBackground)
               : charToHighlight;
             display =
               cpSlice(seg.text, 0, cursorVisualColAbsolute - segStart) +
@@ -2259,7 +2260,9 @@ export const InputPrompt: React.FC<InputPromptProps> = ({
             );
           } else if (ghostText.showCursorBeforeText) {
             renderedLine.push(
-              <Text key="ghost-cursor">{renderSoftwareCursor(' ')}</Text>,
+              <Text key="ghost-cursor">
+                {renderSoftwareCursor(' ', canvasBackground)}
+              </Text>,
             );
             renderedLine.push(
               <Text key="ghost-rest" color={theme.text.secondary}>
@@ -2271,7 +2274,9 @@ export const InputPrompt: React.FC<InputPromptProps> = ({
             const firstChar = ghostText.text[0]!;
             const rest = ghostText.text.slice(firstChar.length);
             renderedLine.push(
-              <Text key="ghost-cursor">{renderSoftwareCursor(firstChar)}</Text>,
+              <Text key="ghost-cursor">
+                {renderSoftwareCursor(firstChar, canvasBackground)}
+              </Text>,
             );
             if (rest.length > 0) {
               renderedLine.push(
@@ -2287,7 +2292,9 @@ export const InputPrompt: React.FC<InputPromptProps> = ({
           // the input's right border one column in on every cursor-at-end row.
           renderedLine.push(
             <Text key={`cursor-end-${cursorVisualColAbsolute}`}>
-              {showCursorOpt ? renderSoftwareCursor(' ') : ' '}
+              {showCursorOpt
+                ? renderSoftwareCursor(' ', canvasBackground)
+                : ' '}
             </Text>,
           );
         }

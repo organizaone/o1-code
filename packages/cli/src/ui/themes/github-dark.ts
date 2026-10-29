@@ -17,12 +17,12 @@ const githubDarkColors: ColorsTheme = {
   AccentGreen: '#85E89D',
   AccentYellow: '#FFAB70',
   AccentRed: '#F97583',
-  AccentYellowDim: '#8B7530',
-  AccentRedDim: '#8B3A4A',
-  DiffAdded: '#3C4636',
-  DiffRemoved: '#502125',
-  Comment: '#6A737D',
-  Gray: '#6A737D',
+  AccentYellowDim: '#a99966',
+  AccentRedDim: '#bd8f98',
+  DiffAdded: '#293426',
+  DiffRemoved: '#3b2023',
+  Comment: '#959ca3',
+  Gray: '#959ca3',
   GradientColors: ['#79B8FF', '#85E89D'],
 };
 

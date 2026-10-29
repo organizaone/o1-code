@@ -1,3 +1,20 @@
+diff --git a/node_modules/ink/build/components/BackgroundContext.d.ts b/node_modules/ink/build/components/BackgroundContext.d.ts
+--- a/node_modules/ink/build/components/BackgroundContext.d.ts
++++ b/node_modules/ink/build/components/BackgroundContext.d.ts
+@@ -2,3 +2,4 @@ import { type LiteralUnion } from 'type-fest';
+ import { type ForegroundColorName } from 'ansi-styles';
+ export type BackgroundColor = LiteralUnion<ForegroundColorName, string>;
+ export declare const backgroundContext: import("react").Context<BackgroundColor | undefined>;
++export declare const foregroundContext: import("react").Context<string | undefined>;
+diff --git a/node_modules/ink/build/components/BackgroundContext.js b/node_modules/ink/build/components/BackgroundContext.js
+--- a/node_modules/ink/build/components/BackgroundContext.js
++++ b/node_modules/ink/build/components/BackgroundContext.js
+@@ -1,3 +1,4 @@
+ import { createContext } from 'react';
+ export const backgroundContext = createContext(undefined);
++export const foregroundContext = createContext(undefined);
+ //# sourceMappingURL=BackgroundContext.js.map
+\ No newline at end of file
 diff --git a/node_modules/ink/build/components/Text.d.ts b/node_modules/ink/build/components/Text.d.ts
 index 1d7bf6b..29401a6 100644
 --- a/node_modules/ink/build/components/Text.d.ts
@@ -21,7 +38,12 @@ diff --git a/node_modules/ink/build/components/Text.js b/node_modules/ink/build/
 index 2e4b9ff..77ed0f6 100644
 --- a/node_modules/ink/build/components/Text.js
 +++ b/node_modules/ink/build/components/Text.js
-@@ -6,7 +6,7 @@ import { backgroundContext } from './BackgroundContext.js';
+@@ -2,13 +2,14 @@ import React, { useContext } from 'react';
+ import chalk from 'chalk';
+ import colorize from '../colorize.js';
+ import { accessibilityContext } from './AccessibilityContext.js';
+-import { backgroundContext } from './BackgroundContext.js';
++import { backgroundContext, foregroundContext } from './BackgroundContext.js';
  /**
  This component can display text and change its style to make it bold, underlined, italic, or strikethrough.
  */
@@ -29,13 +51,29 @@ index 2e4b9ff..77ed0f6 100644
 +export default function Text({ color, backgroundColor, dimColor = false, bold = false, italic = false, underline = false, strikethrough = false, inverse = false, wrap = 'wrap', selectable = true, selectionFlow, selectionBreakAfter, selectionJoiner = '', children, 'aria-label': ariaLabel, 'aria-hidden': ariaHidden = false, }) {
      const { isScreenReaderEnabled } = useContext(accessibilityContext);
      const inheritedBackgroundColor = useContext(backgroundContext);
++    const inheritedForegroundColor = useContext(foregroundContext);
      const childrenOrAriaLabel = isScreenReaderEnabled && ariaLabel ? ariaLabel : children;
-@@ -45,6 +45,6 @@ export default function Text({ color, backgroundColor, dimColor = false, bold =
+     if (childrenOrAriaLabel === undefined || childrenOrAriaLabel === null) {
+         return null;
+@@ -17,8 +18,9 @@ export default function Text({ color, backgroundColor, dimColor = false, bold =
+         if (dimColor) {
+             children = chalk.dim(children);
+         }
+-        if (color) {
+-            children = colorize(children, color, 'foreground');
++        const effectiveForegroundColor = color || inheritedForegroundColor;
++        if (effectiveForegroundColor) {
++            children = colorize(children, effectiveForegroundColor, 'foreground');
+         }
+         // Use explicit backgroundColor if provided, otherwise use inherited from parent Box
+         const effectiveBackgroundColor = backgroundColor ?? inheritedBackgroundColor;
+@@ -45,6 +47,7 @@ export default function Text({ color, backgroundColor, dimColor = false, bold =
      if (isScreenReaderEnabled && ariaHidden) {
          return null;
      }
 -    return (React.createElement("ink-text", { style: { flexGrow: 0, flexShrink: 1, flexDirection: 'row', textWrap: wrap }, internal_transform: transform }, childrenOrAriaLabel));
-+    return (React.createElement("ink-text", { style: { flexGrow: 0, flexShrink: 1, flexDirection: 'row', textWrap: wrap }, internal_transform: transform, selectable: selectable, selectionFlow: selectionFlow, selectionBreakAfter: selectionBreakAfter, selectionJoiner: selectionJoiner }, childrenOrAriaLabel));
++    const element = (React.createElement("ink-text", { style: { flexGrow: 0, flexShrink: 1, flexDirection: 'row', textWrap: wrap }, internal_transform: transform, selectable: selectable, selectionFlow: selectionFlow, selectionBreakAfter: selectionBreakAfter, selectionJoiner: selectionJoiner }, childrenOrAriaLabel));
++    return color ? React.createElement(foregroundContext.Provider, { value: color }, element) : element;
  }
  //# sourceMappingURL=Text.js.map
 \ No newline at end of file
@@ -357,7 +395,15 @@ diff --git a/node_modules/ink/build/index.d.ts b/node_modules/ink/build/index.d.
 index f3e7349..cce56fe 100644
 --- a/node_modules/ink/build/index.d.ts
 +++ b/node_modules/ink/build/index.d.ts
-@@ -39,3 +39,5 @@ export { default as measureElement } from './measure-element.js';
+@@ -6,6 +6,7 @@ export type { Props as BoxProps } from './components/Box.js';
+ export { default as Box } from './components/Box.js';
+ export type { Props as TextProps } from './components/Text.js';
+ export { default as Text } from './components/Text.js';
++export { foregroundContext } from './components/BackgroundContext.js';
+ export type { Props as AppProps } from './components/AppContext.js';
+ export type { PublicProps as StdinProps } from './components/StdinContext.js';
+ export type { Props as StdoutProps } from './components/StdoutContext.js';
+@@ -39,3 +40,5 @@ export { default as measureElement } from './measure-element.js';
  export type { DOMElement } from './dom.js';
  export { kittyFlags, kittyModifiers } from './kitty-keyboard.js';
  export type { KittyKeyboardOptions, KittyFlagName } from './kitty-keyboard.js';
@@ -367,7 +413,15 @@ diff --git a/node_modules/ink/build/index.js b/node_modules/ink/build/index.js
 index cc849f0..25d6b33 100644
 --- a/node_modules/ink/build/index.js
 +++ b/node_modules/ink/build/index.js
-@@ -21,4 +21,5 @@ export { default as useWindowSize } from './hooks/use-window-size.js';
+@@ -2,6 +2,7 @@ export { default as render } from './render.js';
+ export { default as renderToString } from './render-to-string.js';
+ export { default as Box } from './components/Box.js';
+ export { default as Text } from './components/Text.js';
++export { foregroundContext } from './components/BackgroundContext.js';
+ export { default as Static } from './components/Static.js';
+ export { default as Transform } from './components/Transform.js';
+ export { default as Newline } from './components/Newline.js';
+@@ -21,4 +22,5 @@ export { default as useWindowSize } from './hooks/use-window-size.js';
  export { default as useBoxMetrics } from './hooks/use-box-metrics.js';
  export { default as measureElement } from './measure-element.js';
  export { kittyFlags, kittyModifiers } from './kitty-keyboard.js';
@@ -1041,29 +1095,40 @@ index c763b77..bfd3d08 100644
                      };
                      // Wide characters (e.g. CJK) occupy two cells: a leading
                      // cell with the character and a trailing placeholder with
-@@ -169,7 +224,11 @@ export default class Output {
+@@ -169,7 +224,21 @@ export default class Output {
                          currentLine[offsetX - 1] = spaceCell;
                      }
                      for (const character of characters) {
 -                        currentLine[offsetX] = character;
++                        // Keep the already painted surface when a child draws only
++                        // foreground (for example, a border over the root canvas).
++                        const hasBackground = character.styles.some(style => style.endCode === '\x1b[49m');
++                        const previousBackground = hasBackground
++                            ? []
++                            : (currentLine[offsetX]?.styles ?? []).filter(style => style.endCode === '\x1b[49m');
++                        const styles = previousBackground.length
++                            ? [...previousBackground, ...character.styles]
++                            : character.styles;
 +                        currentLine[offsetX] = {
 +                            ...character,
++                            styles,
 +                            selectable: rowSelectable,
 +                            flowId: semantic?.flowId ?? null,
 +                        };
                          // Determine printed width using string-width to align with measurement
                          const characterWidth = Math.max(1, this.caches.getStringWidth(character.value));
                          // For multi-column characters, clear following cells to avoid stray spaces/artifacts
-@@ -180,6 +239,8 @@ export default class Output {
+@@ -180,6 +249,8 @@ export default class Output {
                                      value: '',
                                      fullWidth: false,
-                                     styles: character.styles,
+-                                    styles: character.styles,
++                                    styles,
 +                                    selectable: rowSelectable,
 +                                    flowId: semantic?.flowId ?? null,
                                  };
                              }
                          }
-@@ -192,6 +253,30 @@ export default class Output {
+@@ -192,6 +263,30 @@ export default class Output {
                  }
              }
          }
