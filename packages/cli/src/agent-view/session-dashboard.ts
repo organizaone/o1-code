@@ -9,19 +9,52 @@ import type { AgentSessionRow, AgentSessionStatus } from './session-catalog.js';
 import { loadAgentSessionExcerpt } from './session-catalog.js';
 import { O1CodeDark } from '../ui/themes/o1-code-dark.js';
 import { O1CodeLight } from '../ui/themes/o1-code-light.js';
+import { themeManager } from '../ui/themes/theme-manager.js';
 import { getDashboardCopy, type DashboardCopy } from './dashboard-copy.js';
 
 const CSI = '\x1b[';
 function ansiColor(hex: string, background = false): string {
-  const match = /^#([0-9a-f]{2})([0-9a-f]{2})([0-9a-f]{2})$/iu.exec(hex);
-  if (!match || process.env['NO_COLOR']) return '';
+  if (process.env['NO_COLOR']) return '';
+  const named: Record<string, number> = {
+    black: 30,
+    red: 31,
+    green: 32,
+    yellow: 33,
+    blue: 34,
+    magenta: 35,
+    purple: 35,
+    cyan: 36,
+    white: 37,
+    gray: 90,
+    grey: 90,
+    bluebright: 94,
+  };
+  const code = named[hex.toLowerCase()];
+  if (code !== undefined) return `${CSI}${code + (background ? 10 : 0)}m`;
+  const short = /^#([0-9a-f])([0-9a-f])([0-9a-f])$/iu.exec(hex);
+  const normalized = short
+    ? `#${short[1]}${short[1]}${short[2]}${short[2]}${short[3]}${short[3]}`
+    : hex;
+  const match = /^#([0-9a-f]{2})([0-9a-f]{2})([0-9a-f]{2})$/iu.exec(normalized);
+  if (!match) return '';
   return `${CSI}${background ? 48 : 38};2;${parseInt(match[1], 16)};${parseInt(match[2], 16)};${parseInt(match[3], 16)}m`;
 }
 
-function dashboardColors(type: 'dark' | 'light') {
-  const theme = type === 'light' ? O1CodeLight : O1CodeDark;
+function dashboardColors(type: 'dark' | 'light', name?: string) {
+  const builtIn = themeManager
+    .getAvailableThemes()
+    .some((candidate) => !candidate.isCustom && candidate.name === name);
+  const theme =
+    (builtIn ? themeManager.findThemeByName(name) : undefined) ??
+    (type === 'light' ? O1CodeLight : O1CodeDark);
+  const base =
+    ansiColor(theme.semanticColors.background.primary, true) +
+    ansiColor(theme.colors.Foreground);
+  const terminalReset = process.env['NO_COLOR'] ? '' : `${CSI}0m`;
   return {
-    reset: process.env['NO_COLOR'] ? '' : `${CSI}0m`,
+    base,
+    terminalReset,
+    reset: terminalReset + base,
     bold: process.env['NO_COLOR'] ? '' : `${CSI}1m`,
     selected:
       ansiColor(theme.extendedColors.ui.brand, true) +
@@ -45,6 +78,7 @@ export interface DashboardViewport {
   detailFocused?: boolean;
   message?: string;
   theme?: 'dark' | 'light';
+  themeName?: string;
   language?: string;
 }
 
@@ -63,7 +97,7 @@ export function renderAgentSessionDashboard(
   view: DashboardViewport,
 ): string {
   const width = Math.max(8, view.columns - 1);
-  const color = dashboardColors(view.theme ?? 'dark');
+  const color = dashboardColors(view.theme ?? 'dark', view.themeName);
   const copy = getDashboardCopy(view.language ?? 'en');
   const inner = width - 4;
   const bodyHeight = Math.max(1, view.rows - 4);
@@ -186,13 +220,17 @@ export function renderAgentSessionDashboard(
         ? `${copy.filter} ${search}`
         : copy.pressSearch);
   lines.push(spread(shortcuts, searchHint, inner));
-  return [
-    `╭${'─'.repeat(width - 2)}╮`,
-    ...lines
-      .slice(0, Math.max(0, view.rows - 2))
-      .map((line) => frameLine(line, width)),
-    `╰${'─'.repeat(width - 2)}╯`,
-  ].join('\n');
+  return (
+    color.base +
+    [
+      `╭${'─'.repeat(width - 2)}╮`,
+      ...lines
+        .slice(0, Math.max(0, view.rows - 2))
+        .map((line) => frameLine(line, width)),
+      `╰${'─'.repeat(width - 2)}╯`,
+    ].join('\n') +
+    color.terminalReset
+  );
 }
 
 export async function runAgentSessionDashboard(
@@ -200,6 +238,7 @@ export async function runAgentSessionDashboard(
   currentSessionId: string,
   theme: 'dark' | 'light' = 'dark',
   language = 'en',
+  themeName?: string,
 ): Promise<string | undefined> {
   const stdin = process.stdin;
   const stdout = process.stdout;
@@ -225,8 +264,9 @@ export async function runAgentSessionDashboard(
         .includes(search.toLocaleLowerCase()),
     );
   const render = () => {
+    const color = dashboardColors(theme, themeName);
     stdout.write(
-      `${CSI}H${CSI}2J${renderAgentSessionDashboard(rows, {
+      `${color.base}${CSI}H${CSI}2J${renderAgentSessionDashboard(rows, {
         columns: stdout.columns || 80,
         rows: stdout.rows || 24,
         selected,
@@ -236,6 +276,7 @@ export async function runAgentSessionDashboard(
         detailFocused,
         message,
         theme,
+        themeName,
         language,
       })}`,
     );
@@ -271,7 +312,9 @@ export async function runAgentSessionDashboard(
       stdin.off('keypress', onKey);
       stdin.setRawMode?.(false);
       stdin.pause();
-      stdout.write(`${CSI}?25h${CSI}?1049l`);
+      stdout.write(
+        `${dashboardColors(theme, themeName).terminalReset}${CSI}?25h${CSI}?1049l`,
+      );
       resolve(target);
     };
     const onKey = (character: string, key: readline.Key) => {

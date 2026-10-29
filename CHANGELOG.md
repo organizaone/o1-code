@@ -7,6 +7,11 @@ follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Fixed
+
+- Full-screen themes paint their own canvas and use readable foreground and palette colours, including when the terminal has a different background. The session dashboard follows the active built-in theme.
+- The footer shows the selected effort without a redundant reasoning label.
+
 ## [0.21.8] - 2026-10-27
 
 ### Fixed

@@ -1257,6 +1257,8 @@ describe('Agent View supervisor process helpers', () => {
       sessionState: 'needs_input',
       waitingFor: 'approval',
       model: 'mimo-v2.6-flash',
+      theme: 'dark',
+      themeName: 'Ayu',
       at: '2026-07-17T00:00:01.000Z',
     });
     await expect(
@@ -1271,6 +1273,8 @@ describe('Agent View supervisor process helpers', () => {
     ).resolves.toMatchObject({
       waitingFor: 'approval',
       model: 'mimo-v2.6-flash',
+      theme: 'dark',
+      themeName: 'Ayu',
       lastActivityAt: '2026-07-17T00:00:01.000Z',
     });
 
@@ -1283,6 +1287,22 @@ describe('Agent View supervisor process helpers', () => {
     await expect(
       readAgentViewActivity(result.sessionId, { globalDir }),
     ).resolves.toMatchObject({ dashboardRequestId: 'navigation-1' });
+
+    await handler.workerEvent?.({
+      type: 'state',
+      sessionId: result.sessionId,
+      token,
+      sessionState: 'needs_input',
+      waitingFor: 'approval',
+      theme: 'light',
+      themeName: '\x1b[31munsafe',
+      at: '2026-07-17T00:00:01.500Z',
+    });
+    const legacyActivity = await readAgentViewActivity(result.sessionId, {
+      globalDir,
+    });
+    expect(legacyActivity).toMatchObject({ theme: 'light' });
+    expect(legacyActivity).not.toHaveProperty('themeName');
 
     const blockedState = await readAgentViewSessionState(result.sessionId, {
       globalDir,

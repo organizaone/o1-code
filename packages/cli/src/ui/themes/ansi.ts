@@ -22,8 +22,8 @@ const ansiColors: ColorsTheme = {
   AccentRedDim: 'red',
   DiffAdded: '#003300',
   DiffRemoved: '#4D0000',
-  Comment: 'gray',
-  Gray: 'gray',
+  Comment: 'white',
+  Gray: 'white',
   GradientColors: ['cyan', 'green'],
 };
 

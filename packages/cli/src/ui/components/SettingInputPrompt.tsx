@@ -5,12 +5,13 @@
  */
 
 import { Box, Text } from 'ink';
-import { useState } from 'react';
+import { useContext, useState } from 'react';
 import { theme } from '../semantic-colors.js';
 import { TextInput } from './shared/TextInput.js';
 import { t } from '../../i18n/index.js';
 import { useKeypress, type Key } from '../hooks/useKeypress.js';
 import { renderSoftwareCursor } from '../utils/software-cursor.js';
+import { ThemeCanvasContext } from '../contexts/theme-canvas-context.js';
 
 type SettingInputPromptProps = {
   settingName: string;
@@ -40,6 +41,7 @@ const PasswordInput = ({
   onSubmit: () => void;
   placeholder: string;
 }) => {
+  const canvasBackground = useContext(ThemeCanvasContext);
   useKeypress(
     (key: Key) => {
       if (key.paste) {
@@ -83,7 +85,7 @@ const PasswordInput = ({
 
   const maskedValue = '*'.repeat(value.length);
   const displayValue = maskedValue || '';
-  const cursorChar = renderSoftwareCursor(' ');
+  const cursorChar = renderSoftwareCursor(' ', canvasBackground);
 
   return (
     <Box>

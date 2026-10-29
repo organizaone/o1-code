@@ -52,6 +52,7 @@ export interface AgentViewWorkerStateReport {
   lastResult?: string;
   model?: string;
   theme?: 'dark' | 'light';
+  themeName?: string;
   language?: string;
 }
 

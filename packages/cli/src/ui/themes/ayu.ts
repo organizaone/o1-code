@@ -17,12 +17,12 @@ const ayuDarkColors: ColorsTheme = {
   AccentGreen: '#AAD94C',
   AccentYellow: '#FFB454',
   AccentRed: '#F26D78',
-  AccentYellowDim: '#8B7530',
-  AccentRedDim: '#8B3A4A',
+  AccentYellowDim: '#a69560',
+  AccentRedDim: '#bb8b94',
   DiffAdded: '#293022',
   DiffRemoved: '#3D1215',
-  Comment: '#646A71',
-  Gray: '#3D4149',
+  Comment: '#93979c',
+  Gray: '#94979b',
   GradientColors: ['#FFB454', '#F26D78'],
 };
 

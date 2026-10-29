@@ -20,7 +20,7 @@
  */
 
 import type { MutableRefObject, ReactNode } from 'react';
-import { useCallback, useLayoutEffect, useRef } from 'react';
+import { useCallback, useContext, useLayoutEffect, useRef } from 'react';
 import { Box, Text, type DOMElement, useBoxMetrics, useCursor } from 'ink';
 import type { TextBuffer } from './shared/text-buffer.js';
 import { TextInputMouseController } from './shared/TextInputMouseController.js';
@@ -35,6 +35,7 @@ import { glyphs, TOP_FRAME } from '../glyphs.js';
 import { measureElementPosition } from '../utils/measure-element-position.js';
 import { visualRangeToText } from '../utils/input-mouse.js';
 import { setSelectionTextSource } from '../selection/selection-text-sources.js';
+import { ThemeCanvasContext } from '../contexts/theme-canvas-context.js';
 import {
   renderSoftwareCursor,
   terminalShowsInputCursor,
@@ -50,6 +51,7 @@ const LABEL_RESERVED_COLUMNS = 7;
 // ─── Types ──────────────────────────────────────────────────
 
 export interface RenderLineOptions {
+  canvasBackground?: string;
   /** The text content of this visual line. */
   lineText: string;
   /** Whether the cursor is on this visual line. */
@@ -115,6 +117,7 @@ export function defaultRenderLine({
   isOnCursorLine,
   cursorCol,
   showCursor,
+  canvasBackground,
 }: RenderLineOptions): ReactNode {
   if (!isOnCursorLine || !showCursor || terminalShowsInputCursor()) {
     return <Text>{lineText || ' '}</Text>;
@@ -127,7 +130,7 @@ export function defaultRenderLine({
     return (
       <Text>
         {lineText}
-        {renderSoftwareCursor(' ')}
+        {renderSoftwareCursor(' ', canvasBackground)}
       </Text>
     );
   }
@@ -139,7 +142,7 @@ export function defaultRenderLine({
   return (
     <Text>
       {before}
-      {renderSoftwareCursor(cursorChar)}
+      {renderSoftwareCursor(cursorChar, canvasBackground)}
       {after}
     </Text>
   );
@@ -225,6 +228,7 @@ export const BaseTextInput = ({
   mouseEnabled = false,
   selectableLinesRef,
 }: BaseTextInputProps): ReactNode => {
+  const canvasBackground = useContext(ThemeCanvasContext);
   // ── Keyboard handling ──
 
   const handleKey = useCallback(
@@ -439,8 +443,7 @@ export const BaseTextInput = ({
         paddingX={1}
       >
         {resolvedPrefix}
-        {/* No background fill: the input area blends into the terminal's own
-            background so it stays consistent across terminals and themes. */}
+        {/* The input inherits the active canvas without an extra fill. */}
         <Box
           flexGrow={1}
           flexShrink={1}
@@ -459,7 +462,10 @@ export const BaseTextInput = ({
             {buffer.text.length === 0 && placeholder ? (
               showCursor && !terminalShowsInputCursor() ? (
                 <Text>
-                  {renderSoftwareCursor(placeholder.slice(0, 1))}
+                  {renderSoftwareCursor(
+                    placeholder.slice(0, 1),
+                    canvasBackground,
+                  )}
                   <Text color={extendedTheme.text.placeholder}>
                     {placeholder.slice(1)}
                   </Text>
@@ -485,6 +491,7 @@ export const BaseTextInput = ({
                       absoluteVisualIndex,
                       buffer,
                       scrollVisualRow,
+                      canvasBackground,
                     })}
                   </Box>
                 );

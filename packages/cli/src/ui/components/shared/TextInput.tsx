@@ -14,8 +14,9 @@ import { cpSlice, cpLen } from '../../utils/textUtils.js';
 import { theme } from '../../semantic-colors.js';
 import { Colors } from '../../colors.js';
 import type { Key } from '../../hooks/useKeypress.js';
-import { useCallback, useRef, useEffect, useState } from 'react';
+import { useCallback, useContext, useRef, useEffect, useState } from 'react';
 import { renderSoftwareCursor } from '../../utils/software-cursor.js';
+import { ThemeCanvasContext } from '../../contexts/theme-canvas-context.js';
 
 export interface TextInputProps {
   value: string;
@@ -75,6 +76,7 @@ export function TextInput({
   allowExternalEditor = true,
   mask,
 }: TextInputProps) {
+  const canvasBackground = useContext(ThemeCanvasContext);
   const allowMultiline = height > 1;
   const [cursorVisible, setCursorVisible] = useState(isActive);
 
@@ -220,7 +222,10 @@ export function TextInput({
           {buffer.text.length === 0 && placeholder ? (
             shouldRenderCursor ? (
               <Text>
-                {renderSoftwareCursor(placeholder.slice(0, 1))}
+                {renderSoftwareCursor(
+                  placeholder.slice(0, 1),
+                  canvasBackground,
+                )}
                 <Text color={Colors.Gray}>{placeholder.slice(1)}</Text>
               </Text>
             ) : (
@@ -264,7 +269,10 @@ export function TextInput({
                         relativeVisualColForHighlight,
                         relativeVisualColForHighlight + 1,
                       ) || ' ';
-                    const highlighted = renderSoftwareCursor(charToHighlight);
+                    const highlighted = renderSoftwareCursor(
+                      charToHighlight,
+                      canvasBackground,
+                    );
                     display =
                       cpSlice(display, 0, relativeVisualColForHighlight) +
                       highlighted +
@@ -273,7 +281,8 @@ export function TextInput({
                     relativeVisualColForHighlight === cpLen(display) &&
                     cpLen(display) === inputWidth
                   ) {
-                    display = display + renderSoftwareCursor(' ');
+                    display =
+                      display + renderSoftwareCursor(' ', canvasBackground);
                   }
                 }
               }

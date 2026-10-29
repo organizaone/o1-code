@@ -54,6 +54,27 @@ describe('renderSoftwareCursor', () => {
     expect(rendered).not.toContain('\u001b[7m');
   });
 
+  it('uses the painted application surface when it differs from the terminal', () => {
+    vi.spyOn(process, 'platform', 'get').mockReturnValue('linux');
+    vi.stubEnv('TMUX', undefined);
+    expect(renderSoftwareCursor('x', '#f7f9fc')).toContain(
+      '\u001b[48;2;58;58;58m',
+    );
+    expect(renderSoftwareCursor('x', '#0a1220')).toContain(
+      '\u001b[48;2;212;212;212m',
+    );
+    expect(renderSoftwareCursor('x', '#f7f9fc')).toContain(
+      '\u001b[38;2;255;255;255m',
+    );
+    expect(renderSoftwareCursor('x', '#0a1220')).toContain(
+      '\u001b[38;2;0;0;0m',
+    );
+    const surrounding = chalk.hex('#162033')(
+      `a${renderSoftwareCursor('x', '#f7f9fc')}b`,
+    );
+    expect(surrounding).toContain('\u001b[38;2;22;32;51m\u001b[49mb');
+  });
+
   it('keeps the Windows IME composition cell free of a fixed background', () => {
     vi.spyOn(process, 'platform', 'get').mockReturnValue('win32');
     const rendered = renderSoftwareCursor('x');

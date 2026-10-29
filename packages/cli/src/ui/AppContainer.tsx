@@ -4289,8 +4289,10 @@ export const AppContainer = (props: AppContainerProps) => {
     !!(settings.corruptedPath && !settings.corruptionDialogDismissed);
   dialogsVisibleRef.current = dialogsVisible;
 
+  const agentSessionActiveTheme = themeManager.getActiveTheme();
   const agentSessionTheme =
-    themeManager.getActiveTheme().type === 'light' ? 'light' : 'dark';
+    agentSessionActiveTheme.type === 'light' ? 'light' : 'dark';
+  const agentSessionThemeName = agentSessionActiveTheme.name;
   const agentSessionLanguage = getCurrentLanguage();
   const agentSessionTurnFailed =
     streamingState === StreamingState.Idle &&
@@ -4311,11 +4313,13 @@ export const AppContainer = (props: AppContainerProps) => {
       cwd: config.getTargetDir(),
       model: currentModel,
       theme: agentSessionTheme,
+      themeName: agentSessionThemeName,
       language: agentSessionLanguage,
       lastResult: agentSessionTurnFailed ? 'failed' : undefined,
     });
   }, [
     agentSessionTheme,
+    agentSessionThemeName,
     agentSessionLanguage,
     agentSessionTurnFailed,
     agentSessionIsWorking,

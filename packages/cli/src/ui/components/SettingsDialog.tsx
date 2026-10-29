@@ -5,10 +5,11 @@
  */
 
 import type React from 'react';
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { useState, useEffect, useRef, useCallback, useContext } from 'react';
 import { Box, Text } from 'ink';
 import wrapAnsi from 'wrap-ansi';
 import { extendedTheme, theme } from '../semantic-colors.js';
+import { ThemeCanvasContext } from '../contexts/theme-canvas-context.js';
 import { glyphs } from '../glyphs.js';
 import { useTerminalSize } from '../hooks/useTerminalSize.js';
 import type { LoadedSettings, Settings } from '../../config/settings.js';
@@ -169,6 +170,7 @@ export function SettingsDialog({
   width,
   config,
 }: SettingsDialogProps): React.JSX.Element {
+  const canvasBackground = useContext(ThemeCanvasContext);
   const { columns } = useTerminalSize();
   const panelWidth = Math.max(1, columns - 4);
   const sideHelp = columns >= 120 && (availableTerminalHeight ?? 24) >= 14;
@@ -1328,7 +1330,8 @@ export function SettingsDialog({
                   {searchQuery ? (
                     <Text color={theme.text.primary}>{searchQuery}</Text>
                   ) : null}
-                  {focusZone === 'search' && renderSoftwareCursor(' ')}
+                  {focusZone === 'search' &&
+                    renderSoftwareCursor(' ', canvasBackground)}
                   {searchQuery ? null : (
                     <Text color={extendedTheme.text.placeholder}>
                       {t('Search settings…')}
@@ -1418,7 +1421,9 @@ export function SettingsDialog({
                 // Show edit buffer with advanced cursor highlighting
                 displayValue =
                   before +
-                  (cursorVisible ? renderSoftwareCursor(cursor) : cursor) +
+                  (cursorVisible
+                    ? renderSoftwareCursor(cursor, canvasBackground)
+                    : cursor) +
                   after;
               } else if (
                 isNumericSettingType(item.type) ||

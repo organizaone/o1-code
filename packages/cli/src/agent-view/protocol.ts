@@ -101,6 +101,9 @@ export interface AgentViewActivityFile {
   schemaVersion: 1;
   summary?: string;
   model?: string;
+  theme?: 'dark' | 'light';
+  themeName?: string;
+  language?: string;
   dashboardRequestId?: string;
   waitingFor?: string;
   inputKind?: AgentViewInputKind;
@@ -205,6 +208,7 @@ export type AgentViewWorkerEvent =
       lastResult?: string;
       model?: string;
       theme?: 'dark' | 'light';
+      themeName?: string;
       language?: string;
       promptId?: string;
       at?: string;
