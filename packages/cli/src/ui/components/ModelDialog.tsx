@@ -709,7 +709,13 @@ export function ModelDialog({
     (key) => {
       // The editor owns its keys while it replaces the picker.
       if (editingModelList) return;
-      if (canEditModelList && key.ctrl && key.name === 'e') {
+      if (
+        canEditModelList &&
+        key.name === 'e' &&
+        !key.ctrl &&
+        !key.meta &&
+        !key.paste
+      ) {
         setEditingModelList(true);
         return;
       }
@@ -1117,6 +1123,12 @@ export function ModelDialog({
     ],
   );
 
+  const editListHint = t(' · e edit list');
+  const editKeyIndex = editListHint.indexOf('e');
+  const navigationHint =
+    effortOptions.length > 0
+      ? t('↑↓ navigate · ←→ effort · enter select · esc close')
+      : t('↑↓ navigate · enter select · esc close');
   const hasModels = MODEL_OPTIONS.length > 0;
   // The subtitle points at the dot, so it only shows when a row carries one.
   const hasCurrentModel = MODEL_OPTIONS.some(
@@ -1219,7 +1231,7 @@ export function ModelDialog({
             value={formatModalities(highlightedEntry.model.modalities)}
           />
           <DetailRow
-            label={t('Context Window')}
+            label={t('Context')}
             value={formatContextWindow(
               highlightedEntry.model.contextWindowSize,
             )}
@@ -1266,10 +1278,25 @@ export function ModelDialog({
 
       <Box marginTop={1} flexDirection="column">
         <Text color={theme.text.secondary}>
-          {(effortOptions.length > 0
-            ? t('↑↓ navigate · ←→ effort · enter select · esc close')
-            : t('↑↓ navigate · enter select · esc close')) +
-            (canEditModelList ? t(' · ctrl+e edit list') : '')}
+          {navigationHint.split(/(↑↓|←→|enter|esc)/).map((part, index) =>
+            /^(↑↓|←→|enter|esc)$/.test(part) ? (
+              <Text bold key={index}>
+                {part}
+              </Text>
+            ) : (
+              part
+            ),
+          )}
+          {canEditModelList &&
+            (editKeyIndex < 0 ? (
+              editListHint
+            ) : (
+              <>
+                {editListHint.slice(0, editKeyIndex)}
+                <Text bold>{editListHint[editKeyIndex]}</Text>
+                {editListHint.slice(editKeyIndex + 1)}
+              </>
+            ))}
         </Text>
       </Box>
     </Box>

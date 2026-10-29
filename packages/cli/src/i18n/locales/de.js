@@ -1318,6 +1318,7 @@ export default {
   '(not set)': '(nicht gesetzt)',
   Modality: 'Modalität',
   'Context Window': 'Kontextfenster',
+  Context: 'Kontext',
   text: 'Text',
   'text-only': 'nur Text',
   image: 'Bild',
@@ -2965,7 +2966,7 @@ export default {
     'Die Anbieterliste konnte nicht gelesen werden · ctrl+r ruft die Modelle erneut ab',
   'ctrl+r fetches the models again': 'ctrl+r ruft die Modelle erneut ab',
   'Edit model list': 'Modelliste bearbeiten',
-  ' · ctrl+e edit list': ' · ctrl+e bearbeitet die Liste',
+  ' · e edit list': ' · e bearbeitet die Liste',
   'Model list updated.': 'Modellliste aktualisiert.',
   "'{{model}}' is the current model. Keep it in the list, or switch models with /model first.":
     "'{{model}}' ist das aktuelle Modell. Belassen Sie es in der Liste oder wechseln Sie zuerst mit /model das Modell.",

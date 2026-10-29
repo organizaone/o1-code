@@ -16,6 +16,8 @@ import { useKeypress } from '../hooks/useKeypress.js';
 import { ConfigContext } from '../contexts/ConfigContext.js';
 import { SettingsContext } from '../contexts/SettingsContext.js';
 import { ModelListEditDialog } from './ModelListEditDialog.js';
+import { glyphs } from '../glyphs.js';
+import { KeypressProvider } from '../contexts/KeypressContext.js';
 
 type UseKeypressMockOptions = { isActive: boolean };
 
@@ -60,12 +62,14 @@ const renderDialog = ({
   authType = AuthType.USE_ANTHROPIC,
   tunnel = false,
   apiKey = 'device-token',
+  realKeys = false,
 }: {
   onClose?: () => void;
   onSaved?: () => void;
   authType?: AuthType;
   tunnel?: boolean;
   apiKey?: string;
+  realKeys?: boolean;
 } = {}) => {
   const baseUrl =
     authType === AuthType.USE_ANTHROPIC
@@ -113,7 +117,7 @@ const renderDialog = ({
     refreshAuth: vi.fn().mockResolvedValue(undefined),
   } as unknown as Config;
 
-  const result = render(
+  const dialog = (
     <SettingsContext.Provider value={mockSettings}>
       <ConfigContext.Provider value={mockConfig}>
         <ModelListEditDialog
@@ -121,7 +125,14 @@ const renderDialog = ({
           onSaved={() => onSaved()}
         />
       </ConfigContext.Provider>
-    </SettingsContext.Provider>,
+    </SettingsContext.Provider>
+  );
+  const result = render(
+    realKeys ? (
+      <KeypressProvider kittyProtocolEnabled={false}>{dialog}</KeypressProvider>
+    ) : (
+      dialog
+    ),
   );
 
   return { ...result, onClose, onSaved, mockConfig };
@@ -218,10 +229,45 @@ describe('ModelListEditDialog', () => {
         .split('\n')
         .some((line) => line.includes('search') && line.includes('│')),
     ).toBe(true);
-    expect(frame).toMatch(/●︎\s+model-a/);
-    expect(frame).toMatch(/●︎\s+model-b/);
-    expect(frame).toMatch(/○︎\s+model-c/);
+    for (const [name, marker] of [
+      ['model-a', glyphs().dot],
+      ['model-b', glyphs().dot],
+      ['model-c', glyphs().hollow],
+    ]) {
+      expect(
+        frame
+          .split('\n')
+          .some((line) => line.includes(marker) && line.includes(name)),
+      ).toBe(true);
+    }
+    const lastModel = frame.indexOf('model-c');
+    const customLabel = frame.indexOf('Custom');
+    const customInput = frame.indexOf('model-id');
+    expect(lastModel).toBeGreaterThanOrEqual(0);
+    expect(customLabel).toBeGreaterThan(lastModel);
+    expect(customInput).toBeGreaterThan(customLabel);
     expect(frame).toContain('ctrl+r fetches the models again');
+    unmount();
+  });
+
+  it('keeps typed e in the custom input when returning from search and the list', async () => {
+    const actual = await vi.importActual<
+      typeof import('../hooks/useKeypress.js')
+    >('../hooks/useKeypress.js');
+    vi.mocked(useKeypress).mockImplementation(actual.useKeypress);
+    const { lastFrame, stdin, onClose, unmount } = renderDialog({
+      realKeys: true,
+    });
+    await act(async () => {
+      await Promise.resolve();
+    });
+    await act(async () => stdin.write('\t'));
+    await act(async () => stdin.write('\x1b[B'));
+    await act(async () => stdin.write('\t'));
+    await act(async () => stdin.write('e'));
+    const frame = lastFrame() ?? '';
+    expect(frame).toMatch(/Custom[\s\S]*>\s*e/);
+    expect(onClose).not.toHaveBeenCalled();
     unmount();
   });
 

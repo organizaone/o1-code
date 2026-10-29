@@ -5,7 +5,7 @@
  */
 
 import type React from 'react';
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useContext, useEffect, useRef, useState } from 'react';
 import { Box, Text } from 'ink';
 import {
   buildInstallPlan,
@@ -27,6 +27,7 @@ import type {
 import { createLoadedSettingsAdapter } from '../../config/loadedSettingsAdapter.js';
 import { useConfig } from '../contexts/ConfigContext.js';
 import { useSettings } from '../contexts/SettingsContext.js';
+import { UIStateContext } from '../contexts/UIStateContext.js';
 import { useKeypress } from '../hooks/useKeypress.js';
 import { extendedTheme, theme } from '../semantic-colors.js';
 import { glyphs } from '../glyphs.js';
@@ -56,6 +57,7 @@ export function ModelListEditDialog({
 }: ModelListEditDialogProps): React.JSX.Element {
   const config = useConfig();
   const settings = useSettings();
+  const uiState = useContext(UIStateContext);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [isKeyValid, setIsKeyValid] = useState(false);
   // One keystroke can reach the dialog twice before the picker unmounts it.
@@ -245,7 +247,8 @@ export function ModelListEditDialog({
       borderStyle={glyphs().borderStyle}
       borderColor={extendedTheme.ui.brand}
       flexDirection="column"
-      padding={1}
+      paddingX={1}
+      paddingY={uiState && uiState.terminalHeight <= 24 ? 0 : 1}
       width="100%"
     >
       <Box flexDirection="row">
@@ -270,6 +273,7 @@ export function ModelListEditDialog({
         showKeyStatus={false}
         onKeyStatusChange={setIsKeyValid}
         minVisibleModelRows={MODEL_CATALOG_MIN_VISIBLE_ROWS}
+        customInputAfterList
       />
       {(flow.state.apiKeyError || errorMessage) && (
         <Box marginTop={1}>

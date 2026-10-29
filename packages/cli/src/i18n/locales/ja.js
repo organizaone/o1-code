@@ -1064,6 +1064,7 @@ export default {
   'Select Model': 'モデルを選択',
   Modality: 'モダリティ',
   'Context Window': 'コンテキストウィンドウ',
+  Context: 'コンテキスト',
   text: 'テキスト',
   'text-only': 'テキストのみ',
   image: '画像',
@@ -2716,7 +2717,7 @@ export default {
     'プロバイダーの一覧を読み込めませんでした · ctrl+r でモデルを再取得',
   'ctrl+r fetches the models again': 'ctrl+r でモデルを再取得',
   'Edit model list': 'モデル一覧を編集',
-  ' · ctrl+e edit list': ' · ctrl+e で一覧を編集',
+  ' · e edit list': ' · e で一覧を編集',
   'Model list updated.': 'モデル一覧を更新しました。',
   "'{{model}}' is the current model. Keep it in the list, or switch models with /model first.":
     "'{{model}}' は現在のモデルです。一覧に残すか、先に /model でモデルを切り替えてください。",

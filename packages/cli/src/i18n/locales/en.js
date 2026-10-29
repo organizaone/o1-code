@@ -2056,6 +2056,7 @@ export default {
   '(not set)': '(not set)',
   Modality: 'Modality',
   'Context Window': 'Context Window',
+  Context: 'Context',
   text: 'text',
   'text-only': 'text-only',
   image: 'image',
@@ -2369,7 +2370,7 @@ export default {
     'The provider list could not be read · ctrl+r fetches the models again',
   'ctrl+r fetches the models again': 'ctrl+r fetches the models again',
   'Edit model list': 'Edit model list',
-  ' · ctrl+e edit list': ' · ctrl+e edit list',
+  ' · e edit list': ' · e edit list',
   'Model list updated.': 'Model list updated.',
   "'{{model}}' is the current model. Keep it in the list, or switch models with /model first.":
     "'{{model}}' is the current model. Keep it in the list, or switch models with /model first.",

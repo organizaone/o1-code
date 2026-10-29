@@ -9,6 +9,8 @@ follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Fixed
 
+- The model picker uses `E` to edit the provider's model list, avoiding terminal shortcut conflicts, and shortens the context label to align the details.
+- The model-list editor places custom IDs below the selectable catalog, with a clear label.
 - Theme selection hides the conversation frame in full-screen mode and restores it when closed.
 
 ## [0.21.10] - 2026-10-29
