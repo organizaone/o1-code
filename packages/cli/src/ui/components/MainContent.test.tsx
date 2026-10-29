@@ -930,6 +930,27 @@ describe('<MainContent />', () => {
       expect(lastFrame()).toContain('╭');
     });
 
+    it('hides the conversation frame while /theme is open and restores it on close', async () => {
+      const state = createUIState({
+        useTerminalBuffer: true,
+        availableTerminalHeight: 10,
+        history: [{ id: 1, type: 'user', text: 'previous conversation' }],
+        messageQueue: ['queued message'],
+      });
+      const { lastFrame, rerender } = renderMainContent(state);
+      expect(lastFrame()).toContain('HISTORY:1');
+
+      rerender(mainContentTree({ ...state, isThemeDialogOpen: true }));
+      await new Promise((resolve) => setImmediate(resolve));
+      expect(lastFrame()).toBe('');
+
+      rerender(mainContentTree(state));
+      await new Promise((resolve) => setImmediate(resolve));
+      expect(lastFrame()).toContain('HISTORY:1');
+      expect(lastFrame()).toContain('queued message');
+      expect(lastFrame()).toContain('╭');
+    });
+
     it('hides the conversation frame while /usage is open and restores it on close', async () => {
       const state = createUIState({
         useTerminalBuffer: true,

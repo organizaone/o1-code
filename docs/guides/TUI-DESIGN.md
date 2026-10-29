@@ -153,7 +153,7 @@ Top to bottom, in full-screen mode:
 
 While a tool waits for approval, or a dialog is open, the input, activity line and footer are not
 rendered; the approval box or dialog takes their place. Provider selection,
-authentication progress and authentication errors also hide the full-screen
+authentication progress, authentication errors and theme selection also hide the full-screen
 conversation frame, including on unauthenticated startup. Closing authentication
 restores the transcript and queue. In scrollback mode and screen-reader mode
 the header is not pinned, and the update notice renders as its own box above the input.
