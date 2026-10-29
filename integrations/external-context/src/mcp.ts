@@ -34,10 +34,10 @@ interface ToolRuntime {
 export function createExternalContextMcpServer(
   runtime: ToolRuntime,
 ): McpServer {
-  const server = new McpServer({
-    name: 'external-context',
-    version: '1.0.0',
-  });
+  const server = new McpServer(
+    { name: 'external-context', version: '1.0.0' },
+    { maxToolInputElements: 10_000 },
+  );
 
   server.registerTool(
     'context_search',

@@ -442,7 +442,7 @@ const createMcpServer = (diffManager: DiffManager) => {
       name: 'o1-code-companion-mcp-server',
       version: '1.0.0',
     },
-    { capabilities: { logging: {} } },
+    { capabilities: { logging: {} }, maxToolInputElements: 10_000 },
   );
   server.registerTool(
     'openDiff',

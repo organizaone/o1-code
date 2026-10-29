@@ -9,6 +9,8 @@ follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Fixed
 
+- Updated vulnerable runtime and development dependencies. SDK option lists and IDE open-file lists now reject oversized inputs before validating their entries. MCP tool arguments are limited to 10,000 combined object fields and array elements.
+- ACP requests with invalid parameters now return the standard JSON-RPC invalid-parameters error (`-32602`).
 - Full-screen themes paint their own canvas and use readable foreground and palette colours, including when the terminal has a different background. The session dashboard follows the active built-in theme.
 - The footer shows the selected effort without a redundant reasoning label.
 

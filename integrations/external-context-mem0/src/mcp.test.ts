@@ -20,6 +20,19 @@ afterEach(async () => {
 });
 
 describe('Mem0 External Context MCP server', () => {
+  it('rejects oversized tool inputs before schema validation', async () => {
+    const search = vi.fn().mockResolvedValue([]);
+    const client = await connect(search);
+    const result = await client.callTool({
+      name: 'context_search',
+      arguments: { query: 'test', extra: Array(10_001).fill(null) },
+    });
+    expect(result.isError).toBe(true);
+    expect(JSON.stringify(result.content)).toContain(
+      'arguments contain more than the maximum',
+    );
+    expect(search).not.toHaveBeenCalled();
+  });
   it('exposes only the strict External Context Profile v1 search tool', async () => {
     const client = await connect(vi.fn().mockResolvedValue([]));
     const tools = await client.listTools();

@@ -59,7 +59,7 @@ export class MiniMaxOpenAICompatibleProvider extends DefaultOpenAICompatibleProv
   ): OpenAI.Chat.ChatCompletionCreateParams {
     const baseRequest = super.buildRequest(request, userPromptId);
     baseRequest.tools = baseRequest.tools?.map((tool) =>
-      tool.function.parameters === undefined
+      tool.type === 'function' && tool.function.parameters === undefined
         ? {
             ...tool,
             function: {

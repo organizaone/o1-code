@@ -2,6 +2,7 @@ import { z } from 'zod';
 import type { CanUseTool } from './types.js';
 import type { SubagentConfig } from './protocol.js';
 import { PERMISSION_MODES } from './permission-mode.js';
+import { MAX_OPTION_ARRAY_ITEMS } from './schema-limits.js';
 
 const RESERVED_CLI_FLAGS = new Set([
   '--input-format',
@@ -74,11 +75,11 @@ export const McpOAuthConfigSchema = z
       .min(1, 'clientId must be a non-empty string')
       .optional(),
     clientSecret: z.string().optional(),
-    scopes: z.array(z.string()).optional(),
+    scopes: z.array(z.string()).max(MAX_OPTION_ARRAY_ITEMS).optional(),
     redirectUri: z.string().optional(),
     authorizationUrl: z.string().optional(),
     tokenUrl: z.string().optional(),
-    audiences: z.array(z.string()).optional(),
+    audiences: z.array(z.string()).max(MAX_OPTION_ARRAY_ITEMS).optional(),
     tokenParamName: z.string().optional(),
     registrationUrl: z.string().optional(),
   })
@@ -96,7 +97,7 @@ export const McpOAuthConfigSchema = z
 export const CLIMcpServerConfigSchema = z.object({
   // For stdio transport
   command: z.string().optional(),
-  args: z.array(z.string()).optional(),
+  args: z.array(z.string()).max(MAX_OPTION_ARRAY_ITEMS).optional(),
   env: z.record(z.string(), z.string()).optional(),
   cwd: z.string().optional(),
   // For SSE transport
@@ -112,8 +113,8 @@ export const CLIMcpServerConfigSchema = z.object({
   trust: z.boolean().optional(),
   // Metadata
   description: z.string().optional(),
-  includeTools: z.array(z.string()).optional(),
-  excludeTools: z.array(z.string()).optional(),
+  includeTools: z.array(z.string()).max(MAX_OPTION_ARRAY_ITEMS).optional(),
+  excludeTools: z.array(z.string()).max(MAX_OPTION_ARRAY_ITEMS).optional(),
   extensionName: z.string().optional(),
   // OAuth configuration
   oauth: McpOAuthConfigSchema.optional(),
@@ -164,7 +165,7 @@ export const RunConfigSchema = z.object({
 export const SubagentConfigSchema = z.object({
   name: z.string().min(1, 'Name must be a non-empty string'),
   description: z.string().min(1, 'Description must be a non-empty string'),
-  tools: z.array(z.string()).optional(),
+  tools: z.array(z.string()).max(MAX_OPTION_ARRAY_ITEMS).optional(),
   systemPrompt: z.string().min(1, 'System prompt must be a non-empty string'),
   model: z.string().optional(),
   runConfig: RunConfigSchema.partial().optional(),
@@ -218,9 +219,9 @@ export const QueryOptionsSchema = z
       .optional(),
     logLevel: z.enum(['debug', 'info', 'warn', 'error']).optional(),
     maxSessionTurns: z.number().int().optional(),
-    coreTools: z.array(z.string()).optional(),
-    excludeTools: z.array(z.string()).optional(),
-    allowedTools: z.array(z.string()).optional(),
+    coreTools: z.array(z.string()).max(MAX_OPTION_ARRAY_ITEMS).optional(),
+    excludeTools: z.array(z.string()).max(MAX_OPTION_ARRAY_ITEMS).optional(),
+    allowedTools: z.array(z.string()).max(MAX_OPTION_ARRAY_ITEMS).optional(),
     authType: z
       .enum(['openai', 'openai-responses', 'anthropic', 'gemini', 'vertex-ai'])
       .optional(),
@@ -231,16 +232,22 @@ export const QueryOptionsSchema = z
             !!(
               val &&
               typeof val === 'object' &&
+              'name' in val &&
+              'description' in val &&
+              'systemPrompt' in val &&
               val.name &&
               val.description &&
-              val.systemPrompt
+              val.systemPrompt &&
+              (!('tools' in val) ||
+                !Array.isArray(val.tools) ||
+                val.tools.length <= MAX_OPTION_ARRAY_ITEMS)
             ),
           {
-            message:
-              'agents must be an array of SubagentConfig objects with non-empty name, description, and systemPrompt',
+            message: `agents must have non-empty name, description, and systemPrompt, with at most ${MAX_OPTION_ARRAY_ITEMS} tools`,
           },
         ),
       )
+      .max(MAX_OPTION_ARRAY_ITEMS)
       .optional(),
     effort: z.enum(['low', 'medium', 'high', 'xhigh', 'max']).optional(),
     includePartialMessages: z.boolean().optional(),
@@ -256,21 +263,22 @@ export const QueryOptionsSchema = z
           message: 'includeDirectories items cannot contain commas',
         }),
       )
+      .max(MAX_OPTION_ARRAY_ITEMS)
       .optional(),
     extraArgs: z
       .array(z.string().min(1, 'extraArgs items cannot be empty'))
-      .refine(
-        (args) =>
-          !args.some((arg) => RESERVED_CLI_FLAGS.has(arg.split('=')[0] ?? '')),
-        (args) => {
-          const blocked = args.find((arg) =>
-            RESERVED_CLI_FLAGS.has(arg.split('=')[0] ?? ''),
-          );
-          return {
+      .max(MAX_OPTION_ARRAY_ITEMS)
+      .superRefine((args, ctx) => {
+        const blocked = args.find((arg) =>
+          RESERVED_CLI_FLAGS.has(arg.split('=')[0] ?? ''),
+        );
+        if (blocked) {
+          ctx.addIssue({
+            code: 'custom',
             message: `extraArgs cannot contain reserved flag: ${blocked}`,
-          };
-        },
-      )
+          });
+        }
+      })
       .optional(),
     extensions: z
       .array(
@@ -278,6 +286,7 @@ export const QueryOptionsSchema = z
           message: 'extensions items cannot contain commas',
         }),
       )
+      .max(MAX_OPTION_ARRAY_ITEMS)
       .optional(),
     allowedMcpServerNames: z
       .array(
@@ -285,6 +294,7 @@ export const QueryOptionsSchema = z
           message: 'allowedMcpServerNames items cannot contain commas',
         }),
       )
+      .max(MAX_OPTION_ARRAY_ITEMS)
       .optional(),
     fallbackModel: z
       .array(
@@ -305,6 +315,7 @@ export const QueryOptionsSchema = z
           message: 'disabledSlashCommands items cannot contain commas',
         }),
       )
+      .max(MAX_OPTION_ARRAY_ITEMS)
       .optional(),
     timeout: TimeoutConfigSchema.optional(),
   })

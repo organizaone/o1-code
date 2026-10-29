@@ -1,6 +1,6 @@
 {
   "name": "@organizaone/o1-code-sdk",
-  "version": "0.21.9",
+  "version": "0.21.10",
   "description": "TypeScript SDK for programmatic access to o1-code CLI",
   "main": "./dist/index.cjs",
   "module": "./dist/index.mjs",
@@ -71,8 +71,8 @@
     "node": ">=22.0.0"
   },
   "dependencies": {
-    "@modelcontextprotocol/sdk": "^1.30.0",
-    "zod": "^3.25.0"
+    "@modelcontextprotocol/sdk": "^1.32.0",
+    "zod": "^4.6.6"
   },
   "devDependencies": {
     "@organizaone/o1-code-acp-bridge": "file:../acp-bridge",

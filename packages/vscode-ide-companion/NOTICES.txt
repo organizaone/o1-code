@@ -198,7 +198,7 @@ This file contains third-party software notices and license terms.
 
 
 ============================================================
-@modelcontextprotocol/sdk@1.31.0
+@modelcontextprotocol/sdk@1.32.0
 (git+https://github.com/modelcontextprotocol/typescript-sdk.git)
 
 MIT License
@@ -850,7 +850,7 @@ SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 
 ============================================================
-body-parser@2.3.0
+body-parser@2.4.0
 (https://github.com/expressjs/body-parser)
 
 (The MIT License)
@@ -908,7 +908,7 @@ SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 
 ============================================================
-content-type@2.0.0
+content-type@2.1.0
 (https://github.com/jshttp/content-type)
 
 (The MIT License)
@@ -1143,7 +1143,7 @@ SOFTWARE.
 
 
 ============================================================
-iconv-lite@0.7.2
+iconv-lite@0.7.3
 (https://github.com/pillarjs/iconv-lite.git)
 
 Copyright (c) 2011 Alexander Shtuchkin
@@ -1254,7 +1254,7 @@ THE SOFTWARE.
 
 
 ============================================================
-qs@6.16.0
+qs@6.17.0
 (https://github.com/ljharb/qs.git)
 
 BSD 3-Clause License
@@ -1802,6 +1802,33 @@ THE SOFTWARE.
 
 
 ============================================================
+iconv-lite@0.7.2
+(https://github.com/pillarjs/iconv-lite.git)
+
+Copyright (c) 2011 Alexander Shtuchkin
+
+Permission is hereby granted, free of charge, to any person obtaining
+a copy of this software and associated documentation files (the
+"Software"), to deal in the Software without restriction, including
+without limitation the rights to use, copy, modify, merge, publish,
+distribute, sublicense, and/or sell copies of the Software, and to
+permit persons to whom the Software is furnished to do so, subject to
+the following conditions:
+
+The above copyright notice and this permission notice shall be
+included in all copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
+EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
+MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
+NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE
+LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION
+OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION
+WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+
+
+
+============================================================
 unpipe@1.0.0
 (https://github.com/stream-utils/unpipe)
 
@@ -1837,6 +1864,34 @@ type-is@2.1.0
 
 Copyright (c) 2014 Jonathan Ong <me@jongleberry.com>
 Copyright (c) 2014-2015 Douglas Christopher Wilson <doug@somethingdoug.com>
+
+Permission is hereby granted, free of charge, to any person obtaining
+a copy of this software and associated documentation files (the
+'Software'), to deal in the Software without restriction, including
+without limitation the rights to use, copy, modify, merge, publish,
+distribute, sublicense, and/or sell copies of the Software, and to
+permit persons to whom the Software is furnished to do so, subject to
+the following conditions:
+
+The above copyright notice and this permission notice shall be
+included in all copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED 'AS IS', WITHOUT WARRANTY OF ANY KIND,
+EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
+MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.
+IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY
+CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT,
+TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE
+SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+
+
+============================================================
+content-type@2.0.0
+(https://github.com/jshttp/content-type)
+
+(The MIT License)
+
+Copyright (c) 2015 Douglas Christopher Wilson
 
 Permission is hereby granted, free of charge, to any person obtaining
 a copy of this software and associated documentation files (the
@@ -2286,6 +2341,41 @@ THE SOFTWARE.
 
 
 ============================================================
+qs@6.16.0
+(https://github.com/ljharb/qs.git)
+
+BSD 3-Clause License
+
+Copyright (c) 2014, Nathan LaFreniere and other [contributors](https://github.com/ljharb/qs/graphs/contributors)
+All rights reserved.
+
+Redistribution and use in source and binary forms, with or without
+modification, are permitted provided that the following conditions are met:
+
+1. Redistributions of source code must retain the above copyright notice, this
+   list of conditions and the following disclaimer.
+
+2. Redistributions in binary form must reproduce the above copyright notice,
+   this list of conditions and the following disclaimer in the documentation
+   and/or other materials provided with the distribution.
+
+3. Neither the name of the copyright holder nor the names of its
+   contributors may be used to endorse or promote products derived from
+   this software without specific prior written permission.
+
+THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
+AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE
+FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
+DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
+SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER
+CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY,
+OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+
+
+============================================================
 range-parser@1.2.1
 (https://github.com/jshttp/range-parser)
 
@@ -2650,7 +2740,7 @@ SOFTWARE.
 
 
 ============================================================
-zod@3.25.76
+zod@4.6.6
 (git+https://github.com/colinhacks/zod.git)
 
 MIT License
@@ -5975,33 +6065,6 @@ Creative Commons Attribution 4.0 International (CC-BY-4.0)
 Documentation in this project (excluding specifications) is licensed under
 CC-BY-4.0. See https://creativecommons.org/licenses/by/4.0/legalcode for
 the full license text.
-
-
-============================================================
-zod@4.4.3
-(git+https://github.com/colinhacks/zod.git)
-
-MIT License
-
-Copyright (c) 2025 Colin McDonnell
-
-Permission is hereby granted, free of charge, to any person obtaining a copy
-of this software and associated documentation files (the "Software"), to deal
-in the Software without restriction, including without limitation the rights
-to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-copies of the Software, and to permit persons to whom the Software is
-furnished to do so, subject to the following conditions:
-
-The above copyright notice and this permission notice shall be included in all
-copies or substantial portions of the Software.
-
-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
-SOFTWARE.
 
 
 ============================================================
@@ -15096,7 +15159,7 @@ THE SOFTWARE.
 
 
 ============================================================
-openai@5.11.0
+openai@6.49.0
 (https://github.com/openai/openai-node)
 
                                  Apache License
@@ -15287,7 +15350,7 @@ openai@5.11.0
       same "printed page" as the copyright notice for easier
       identification within third-party archives.
 
-   Copyright 2025 OpenAI
+   Copyright 2026 OpenAI
 
    Licensed under the Apache License, Version 2.0 (the "License");
    you may not use this file except in compliance with the License.
@@ -16518,7 +16581,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 
 ============================================================
-undici@7.29.1
+undici@7.30.1
 (git+https://github.com/nodejs/undici.git)
 
 MIT License
@@ -22805,7 +22868,7 @@ SOFTWARE.
 
 
 ============================================================
-dompurify@3.4.14
+dompurify@3.4.17
 (git://github.com/cure53/DOMPurify.git)
 
 
@@ -27191,7 +27254,7 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
 
 
 ============================================================
-markdown-it@14.2.0
+markdown-it@14.3.3
 (https://github.com/markdown-it/markdown-it)
 
 Copyright (c) 2014 Vitaly Puzrin, Alex Kocharin.

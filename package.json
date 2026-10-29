@@ -1,7 +1,7 @@
 {
   "name": "o1-code-monorepo",
   "private": true,
-  "version": "0.21.9",
+  "version": "0.21.10",
   "license": "Apache-2.0",
   "packageManager": "pnpm@11.24.0+sha512.bd27e345e976dcb0be0b7a1228217b049a817e21b1f355c90dbe7dc46671895a8bc1e6d06c24554505ea93ea0b45f489a27ec1bfbc8de6a9659fca0f16fa0000",
   "engines": {
@@ -18,7 +18,7 @@
     "url": "git+https://github.com/organizaone/o1-code.git"
   },
   "config": {
-    "sandboxImageUri": "ghcr.io/organizaone/o1-code:0.21.9"
+    "sandboxImageUri": "ghcr.io/organizaone/o1-code:0.21.10"
   },
   "scripts": {
     "start": "node scripts/start.js",
@@ -92,11 +92,16 @@
     "@types/react-dom": "^19.2.0",
     "axios": "^1.19.0",
     "@simple-git/argv-parser": "2.0.1",
-    "@modelcontextprotocol/sdk": "1.31.0",
+    "@modelcontextprotocol/sdk": "1.32.0",
+    "@azure/msal-node": "7.1.0",
+    "body-parser": "2.4.0",
+    "dompurify": "3.4.17",
+    "markdown-it@^14.0.0": "14.3.3",
     "@grpc/grpc-js": "1.14.5",
     "proxy-addr": "2.0.8",
     "shell-quote": "1.11.0",
-    "undici": "7.29.1",
+    "systeminformation": "5.33.16",
+    "undici": "7.30.1",
     "browserslist": "4.28.7",
     "source-map-js": "1.2.2",
     "js-yaml": "4.3.2",
@@ -170,7 +175,7 @@
     "vitest": "^4.1.11",
     "yaml": "^2.8.1",
     "yargs": "^17.7.2",
-    "zod": "3.25.76"
+    "zod": "4.6.6"
   },
   "dependencies": {
     "@testing-library/dom": "^10.4.1",

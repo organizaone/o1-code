@@ -37,6 +37,19 @@ const args = {
 };
 
 describe('Mem0 deletion MCP contract', () => {
+  it('rejects oversized tool inputs before schema validation', async () => {
+    const target = provider();
+    const client = await connect(target);
+    const result = await client.callTool({
+      name: 'context_get',
+      arguments: { memoryId: 'record-1', extra: Array(10_001).fill(null) },
+    });
+    expect(result.isError).toBe(true);
+    expect(JSON.stringify(result.content)).toContain(
+      'arguments contain more than the maximum',
+    );
+    expect(target.get).not.toHaveBeenCalled();
+  });
   it('exposes exactly two strict tools and prohibits destructive replay', async () => {
     const client = await connect(provider());
     const { tools } = await client.listTools();

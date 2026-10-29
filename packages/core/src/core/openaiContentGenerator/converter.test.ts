@@ -32,6 +32,18 @@ import { isOpenAIReasoningThoughtPart } from '../../utils/thoughtUtils.js';
 import { getGenAiUsageProvenance } from '../../telemetry/gen-ai-usage.js';
 import { SchemaValidator } from '../../utils/schemaValidator.js';
 
+function functionTool(tool: OpenAI.Chat.ChatCompletionTool | undefined) {
+  if (tool?.type !== 'function') throw new Error('Expected a function tool');
+  return tool.function;
+}
+
+function functionCall(
+  call: OpenAI.Chat.ChatCompletionMessageToolCall | undefined,
+) {
+  if (call?.type !== 'function') throw new Error('Expected a function call');
+  return call.function;
+}
+
 describe('OpenAIContentConverter', () => {
   let converter: typeof OpenAIContentConverter;
   let requestContext: RequestContext;
@@ -1422,7 +1434,7 @@ describe('OpenAIContentConverter', () => {
         requestContext,
       );
       const assistant = messages.find(hasOpenAIToolCalls);
-      const name = assistant?.tool_calls[0]?.function.name;
+      const name = functionCall(assistant?.tool_calls[0]).name;
 
       expect(name).toMatch(/^[A-Za-z][A-Za-z0-9_-]*$/);
       expect(name).not.toContain('.');
@@ -3467,7 +3479,7 @@ describe('OpenAIContentConverter', () => {
 
       expect(assistant?.tool_calls).toHaveLength(1);
       expect(assistant?.tool_calls?.[0].id).toBe('dup_id_0001');
-      expect(assistant?.tool_calls?.[0].function.arguments).toBe(
+      expect(functionCall(assistant?.tool_calls?.[0]).arguments).toBe(
         JSON.stringify({ file_path: 'a.ts' }),
       );
     });
@@ -4215,6 +4227,53 @@ describe('OpenAIContentConverter', () => {
   });
 
   describe('convertOpenAIResponseToLlm', () => {
+    it('ignores custom tool calls while retaining text and function calls', () => {
+      const response = converter.convertOpenAIResponseToLlm(
+        {
+          id: 'mixed-tools',
+          object: 'chat.completion',
+          created: 1,
+          model: 'test-model',
+          choices: [
+            {
+              index: 0,
+              finish_reason: 'tool_calls',
+              logprobs: null,
+              message: {
+                role: 'assistant',
+                content: 'Ready',
+                refusal: null,
+                tool_calls: [
+                  {
+                    id: 'custom-call',
+                    type: 'custom',
+                    custom: { name: 'custom', input: 'raw input' },
+                  },
+                  {
+                    id: 'function-call',
+                    type: 'function',
+                    function: { name: 'read_file', arguments: '{"path":"a"}' },
+                  },
+                ],
+              },
+            },
+          ],
+        },
+        requestContext,
+      );
+
+      expect(response.candidates?.[0]?.content?.parts).toEqual([
+        { text: 'Ready' },
+        {
+          functionCall: {
+            id: 'function-call',
+            name: 'read_file',
+            args: { path: 'a' },
+          },
+        },
+      ]);
+    });
+
     it.each([
       '"file_path"',
       '[]',
@@ -6731,7 +6790,7 @@ describe('OpenAIContentConverter', () => {
 
       const result = await converter.convertLlmToolsToOpenAI(tools);
 
-      expect(result.map(({ function: declaration }) => declaration)).toEqual([
+      expect(result.map(functionTool)).toEqual([
         { name: 'supported', description: '' },
         { name: 'open', description: '' },
         { name: 'draft_2020', description: '' },
@@ -6831,7 +6890,7 @@ describe('OpenAIContentConverter', () => {
         'openapi_30',
       );
 
-      expect(result.map(({ function: declaration }) => declaration)).toEqual([
+      expect(result.map(functionTool)).toEqual([
         {
           name: 'patterned',
           description: '',
@@ -6870,7 +6929,7 @@ describe('OpenAIContentConverter', () => {
 
       const result = await converter.convertLlmToolsToOpenAI(tools);
 
-      expect(result.map(({ function: declaration }) => declaration)).toEqual([
+      expect(result.map(functionTool)).toEqual([
         {
           name: 'first',
           description: '',
@@ -6962,7 +7021,10 @@ describe('OpenAIContentConverter', () => {
       ] as Tool[];
 
       const result = await converter.convertLlmToolsToOpenAI(agentLikeTools);
-      const params = result[0]!.function.parameters as Record<string, unknown>;
+      const params = functionTool(result[0]).parameters as Record<
+        string,
+        unknown
+      >;
       expect(params['additionalProperties']).toBeUndefined();
       expect(params['$schema']).toBeUndefined();
       // Required stays exactly as authored — optional fields remain optional.
@@ -6988,7 +7050,10 @@ describe('OpenAIContentConverter', () => {
       ] as Tool[];
 
       const result = await converter.convertLlmToolsToOpenAI(strictTools);
-      const params = result[0]!.function.parameters as Record<string, unknown>;
+      const params = functionTool(result[0]).parameters as Record<
+        string,
+        unknown
+      >;
       expect(params['additionalProperties']).toBe(false);
     });
 
@@ -7052,7 +7117,7 @@ describe('OpenAIContentConverter', () => {
       const result = await converter.convertLlmToolsToOpenAI(callableTools);
 
       expect(result).toHaveLength(1);
-      expect(result[0].function.name).toBe('dynamic_tool');
+      expect(functionTool(result[0]).name).toBe('dynamic_tool');
     });
 
     it('should preserve functions without description and skip functions without name', async () => {
@@ -7078,10 +7143,10 @@ describe('OpenAIContentConverter', () => {
       const result = await converter.convertLlmToolsToOpenAI(llmTools);
 
       expect(result).toHaveLength(2);
-      expect(result[0].function.name).toBe('valid_tool');
-      expect(result[0].function.description).toBe('A valid tool');
-      expect(result[1].function.name).toBe('missing_description');
-      expect(result[1].function.description).toBe('');
+      expect(functionTool(result[0]).name).toBe('valid_tool');
+      expect(functionTool(result[0]).description).toBe('A valid tool');
+      expect(functionTool(result[1]).name).toBe('missing_description');
+      expect(functionTool(result[1]).description).toBe('');
     });
 
     it('should handle tools without functionDeclarations', async () => {
@@ -7107,7 +7172,7 @@ describe('OpenAIContentConverter', () => {
       const result = await converter.convertLlmToolsToOpenAI(llmTools);
 
       expect(result).toHaveLength(1);
-      expect(result[0].function.parameters).toBeUndefined();
+      expect(functionTool(result[0]).parameters).toBeUndefined();
     });
 
     it('should not mutate original parametersJsonSchema', async () => {
@@ -7130,8 +7195,8 @@ describe('OpenAIContentConverter', () => {
       const result = await converter.convertLlmToolsToOpenAI(mcpTools);
 
       // Verify the result is a copy, not the same reference
-      expect(result[0].function.parameters).not.toBe(originalSchema);
-      expect(result[0].function.parameters).toEqual(originalSchema);
+      expect(functionTool(result[0]).parameters).not.toBe(originalSchema);
+      expect(functionTool(result[0]).parameters).toEqual(originalSchema);
     });
   });
 
