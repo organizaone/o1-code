@@ -51,6 +51,19 @@ afterEach(async () => {
 });
 
 describe('external context MCP server', () => {
+  it('rejects oversized tool inputs before schema validation', async () => {
+    const provider = searchProvider();
+    const client = await connect({ config: config(), provider });
+    const result = await client.callTool({
+      name: 'context_search',
+      arguments: { query: 'test', extra: Array(10_001).fill(null) },
+    });
+    expect(result.isError).toBe(true);
+    expect(JSON.stringify(result.content)).toContain(
+      'arguments contain more than the maximum',
+    );
+    expect(provider.search).not.toHaveBeenCalled();
+  });
   it('registers only a provider-bound retrieval tool', async () => {
     const client = await connect({
       config: config(),

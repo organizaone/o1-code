@@ -226,5 +226,13 @@ describe('MiniMaxOpenAICompatibleProvider', () => {
         },
       ]);
     });
+
+    it('passes custom tools through without treating them as function tools', () => {
+      const customTool: OpenAI.Chat.ChatCompletionTool = {
+        type: 'custom',
+        custom: { name: 'custom_tool', format: { type: 'text' } },
+      };
+      expect(buildWithTools([customTool]).tools).toEqual([customTool]);
+    });
   });
 });

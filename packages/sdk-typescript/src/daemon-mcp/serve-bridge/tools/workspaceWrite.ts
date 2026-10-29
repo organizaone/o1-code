@@ -10,6 +10,7 @@ import { formatJsonResult, formatToolError } from '../../formatters.js';
 import type { BridgeState } from '../types.js';
 import { handler, resolveSessionId } from '../helpers.js';
 import { PERMISSION_MODES } from '../../../types/permission-mode.js';
+import { MAX_OPTION_ARRAY_ITEMS } from '../../../types/schema-limits.js';
 
 const SAFE_LOCAL_APPROVAL_MODES = new Set(['plan', 'default']);
 const GLOBAL_SCOPE_APPROVAL_MODES = PERMISSION_MODES.filter(
@@ -243,9 +244,14 @@ export function workspaceWriteTools(state: BridgeState): any[] {
           .enum(['workspace', 'global'])
           .optional()
           .describe('Agent scope (required for create).'),
-        tools: z.array(z.string()).optional().describe('Allowed tool names.'),
+        tools: z
+          .array(z.string())
+          .max(MAX_OPTION_ARRAY_ITEMS)
+          .optional()
+          .describe('Allowed tool names.'),
         disallowed_tools: z
           .array(z.string())
+          .max(MAX_OPTION_ARRAY_ITEMS)
           .optional()
           .describe('Disallowed tool names.'),
         model: z.string().optional().describe('Model ID for the agent.'),

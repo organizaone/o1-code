@@ -55,6 +55,21 @@ function textOf(result: unknown): string {
 }
 
 describe('node_repl MCP server', () => {
+  it('rejects oversized tool inputs before schema validation', async () => {
+    const { client, close } = await connected();
+    try {
+      const result = await client.callTool({
+        name: 'node_repl',
+        arguments: { code: '1', extra: Array(10_001).fill(null) },
+      });
+      expect(result.isError).toBe(true);
+      expect(textOf(result)).toContain(
+        'arguments contain more than the maximum',
+      );
+    } finally {
+      await close();
+    }
+  });
   it('exposes the five focused tools with correct schemas', async () => {
     const { client, close } = await connected();
     try {

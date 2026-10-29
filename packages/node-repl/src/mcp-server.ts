@@ -179,7 +179,7 @@ export function createNodeReplMcpServer(context: NodeReplServerContext): {
       name: 'node-repl',
       version: resolvePackageVersion(),
     },
-    { instructions: NODE_REPL_INSTRUCTIONS },
+    { instructions: NODE_REPL_INSTRUCTIONS, maxToolInputElements: 10_000 },
   );
 
   server.registerTool(

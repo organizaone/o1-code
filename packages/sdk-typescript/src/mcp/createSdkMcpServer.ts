@@ -12,6 +12,8 @@ import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import type { SdkMcpToolDefinition } from './tool.js';
 import { validateToolName } from './tool.js';
 
+const MAX_TOOL_INPUT_ELEMENTS = 10_000;
+
 /**
  * Options for creating an SDK MCP server
  */
@@ -86,6 +88,7 @@ export function createSdkMcpServer(
   const server = new McpServer(
     { name, version },
     {
+      maxToolInputElements: MAX_TOOL_INPUT_ELEMENTS,
       capabilities: {
         tools: tools ? {} : undefined,
       },

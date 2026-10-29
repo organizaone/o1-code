@@ -5,6 +5,8 @@
  */
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { Client } from '@modelcontextprotocol/sdk/client/index.js';
+import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js';
 import type * as vscode from 'vscode';
 import * as fs from 'node:fs/promises';
 import type * as os from 'node:os';
@@ -593,6 +595,31 @@ describe('IDEServer HTTP endpoints', () => {
   afterEach(async () => {
     await ideServer.stop();
     vi.restoreAllMocks();
+  });
+
+  it('rejects oversized MCP tool inputs before validating the schema', async () => {
+    const client = new Client({ name: 'test', version: '1.0.0' });
+    const transport = new StreamableHTTPClientTransport(
+      new URL(`http://127.0.0.1:${port}/mcp`),
+      { requestInit: { headers: { Authorization: 'Bearer test-auth-token' } } },
+    );
+    try {
+      await client.connect(transport);
+      const result = await client.callTool({
+        name: 'openDiff',
+        arguments: {
+          filePath: '/test/file',
+          newContent: 'test',
+          extra: Array(10_001).fill(null),
+        },
+      });
+      expect(result.isError).toBe(true);
+      expect(JSON.stringify(result.content)).toContain(
+        'arguments contain more than the maximum',
+      );
+    } finally {
+      await client.close();
+    }
   });
 
   it('should deny requests with an origin header', async () => {

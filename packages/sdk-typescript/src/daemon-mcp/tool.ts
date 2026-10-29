@@ -9,19 +9,30 @@
  */
 
 import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js';
-import type { z, ZodRawShape, ZodObject, ZodTypeAny } from 'zod';
+import type { z, ZodRawShape, ZodObject } from 'zod';
+/* eslint-disable import/no-internal-modules -- Zod exposes this public compatibility entry point. */
+import type {
+  z as z3,
+  ZodRawShape as Zod3RawShape,
+  ZodObject as Zod3Object,
+} from 'zod/v3';
+/* eslint-enable import/no-internal-modules */
+
+type ToolShape = ZodRawShape | Zod3RawShape;
+type ToolInput<Schema extends ToolShape> = Schema extends ZodRawShape
+  ? z.infer<ZodObject<Schema>>
+  : Schema extends Zod3RawShape
+    ? z3.infer<Zod3Object<Schema>>
+    : never;
 
 /**
  * SDK MCP Tool Definition with Zod schema type inference
  */
-export type SdkMcpToolDefinition<Schema extends ZodRawShape = ZodRawShape> = {
+export type SdkMcpToolDefinition<Schema extends ToolShape = ToolShape> = {
   name: string;
   description: string;
   inputSchema: Schema;
-  handler: (
-    args: z.infer<ZodObject<Schema, 'strip', ZodTypeAny>>,
-    extra: unknown,
-  ) => Promise<CallToolResult>;
+  handler: (args: ToolInput<Schema>, extra: unknown) => Promise<CallToolResult>;
 };
 
 /**
@@ -43,14 +54,11 @@ export type SdkMcpToolDefinition<Schema extends ZodRawShape = ZodRawShape> = {
  * );
  * ```
  */
-export function tool<Schema extends ZodRawShape>(
+export function tool<Schema extends ToolShape>(
   name: string,
   description: string,
   inputSchema: Schema,
-  handler: (
-    args: z.infer<ZodObject<Schema, 'strip', ZodTypeAny>>,
-    extra: unknown,
-  ) => Promise<CallToolResult>,
+  handler: (args: ToolInput<Schema>, extra: unknown) => Promise<CallToolResult>,
 ): SdkMcpToolDefinition<Schema> {
   if (!name || typeof name !== 'string') {
     throw new Error('Tool name must be a non-empty string');

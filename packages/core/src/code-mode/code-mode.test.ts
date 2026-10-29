@@ -211,12 +211,16 @@ describe('CodeModeOnly exposure', () => {
 
     expect(declarations.map((item) => item.name)).toEqual(['agent', 'exec']);
     const openai = await convertLlmToolsToOpenAI(tools);
-    expect(openai.map((item) => item.function.name)).toEqual(['agent', 'exec']);
+    const functions = openai.map((item) => {
+      if (item.type !== 'function') throw new Error('Expected a function tool');
+      return item.function;
+    });
+    expect(functions.map((item) => item.name)).toEqual(['agent', 'exec']);
     const anthropic = await new AnthropicContentConverter(
       'test-model',
     ).convertLlmToolsToAnthropic(tools);
     expect(anthropic.map((item) => item.name)).toEqual(['agent', 'exec']);
-    expect(openai[1]?.function.description).toContain('tools.read_file');
+    expect(functions[1]?.description).toContain('tools.read_file');
     expect(anthropic[1]?.description).toContain('tools.read_file');
   });
 

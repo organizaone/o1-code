@@ -53,7 +53,7 @@ export const IdeContextSchema = z.object({
       /**
        * The list of files that are currently open.
        */
-      openFiles: z.array(FileSchema).optional(),
+      openFiles: z.array(FileSchema).max(10_000).optional(),
       /**
        * Whether the workspace is trusted.
        */

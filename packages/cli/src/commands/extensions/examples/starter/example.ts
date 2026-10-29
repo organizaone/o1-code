@@ -8,10 +8,10 @@ import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
 import { z } from 'zod';
 
-const server = new McpServer({
-  name: 'writing-companion-server',
-  version: '1.0.0',
-});
+const server = new McpServer(
+  { name: 'writing-companion-server', version: '1.0.0' },
+  { maxToolInputElements: 10_000 },
+);
 
 // A self-contained tool (no network access needed) that counts the words and
 // characters in a passage. Useful for hitting a length target.

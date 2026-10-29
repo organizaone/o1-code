@@ -1393,7 +1393,7 @@ export function convertOpenAIResponseToLlm(
     // Handle tool calls
     if (choice.message.tool_calls) {
       for (const toolCall of choice.message.tool_calls) {
-        if (toolCall.function) {
+        if ('function' in toolCall && toolCall.function) {
           let args: Record<string, unknown> = {};
           if (toolCall.function.arguments) {
             const parsed = safeJsonParse<unknown>(
