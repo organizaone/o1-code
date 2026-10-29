@@ -193,7 +193,7 @@ export function createNodeReplMcpServer(context: NodeReplServerContext): {
         idempotentHint: false,
         openWorldHint: true,
       },
-      inputSchema: {
+      inputSchema: z.strictObject({
         code: z.string().min(1).describe('JavaScript source to execute.'),
         timeout_ms: z
           .number()
@@ -217,7 +217,7 @@ export function createNodeReplMcpServer(context: NodeReplServerContext): {
           .max(MAX_TITLE_LENGTH)
           .optional()
           .describe('Optional short label for this cell.'),
-      },
+      }),
     },
     async (
       { code, timeout_ms, yield_time_ms, title },
@@ -297,7 +297,7 @@ export function createNodeReplMcpServer(context: NodeReplServerContext): {
         idempotentHint: true,
         openWorldHint: true,
       },
-      inputSchema: {
+      inputSchema: z.strictObject({
         cell_id: cellIdSchema,
         yield_time_ms: z
           .number()
@@ -305,7 +305,7 @@ export function createNodeReplMcpServer(context: NodeReplServerContext): {
           .min(1)
           .max(MAX_YIELD_TIME_MS)
           .optional(),
-      },
+      }),
     },
     async ({ cell_id, yield_time_ms }): Promise<CallToolResult> => {
       const cell = activeCell;
@@ -344,7 +344,7 @@ export function createNodeReplMcpServer(context: NodeReplServerContext): {
         idempotentHint: false,
         openWorldHint: true,
       },
-      inputSchema: {
+      inputSchema: z.strictObject({
         cell_id: cellIdSchema,
         yield_time_ms: z
           .number()
@@ -352,7 +352,7 @@ export function createNodeReplMcpServer(context: NodeReplServerContext): {
           .min(1)
           .max(MAX_YIELD_TIME_MS)
           .optional(),
-      },
+      }),
     },
     async ({ cell_id, yield_time_ms }): Promise<CallToolResult> => {
       const cell = activeCell;
@@ -403,7 +403,7 @@ export function createNodeReplMcpServer(context: NodeReplServerContext): {
         idempotentHint: true,
         openWorldHint: false,
       },
-      inputSchema: {},
+      inputSchema: z.strictObject({}),
     },
     async (): Promise<CallToolResult> => {
       if (activeCell) {
@@ -442,12 +442,12 @@ export function createNodeReplMcpServer(context: NodeReplServerContext): {
         idempotentHint: true,
         openWorldHint: false,
       },
-      inputSchema: {
+      inputSchema: z.strictObject({
         path: z
           .string()
           .min(1)
           .describe('Absolute path to a node_modules directory.'),
-      },
+      }),
     },
     async ({ path: modulePath }): Promise<CallToolResult> => {
       try {

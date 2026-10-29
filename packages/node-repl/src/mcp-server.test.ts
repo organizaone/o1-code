@@ -82,6 +82,9 @@ describe('node_repl MCP server', () => {
         'node_repl_reset',
         'node_repl_wait',
       ]);
+      for (const tool of tools) {
+        expect(tool.inputSchema['additionalProperties']).toBe(false);
+      }
       const repl = tools.find((t) => t.name === 'node_repl');
       expect(repl?.inputSchema['required']).toEqual(['code']);
       expect(repl?.inputSchema['additionalProperties']).toBe(false);
@@ -117,6 +120,26 @@ describe('node_repl MCP server', () => {
       expect(
         tools.find((t) => t.name === 'node_repl_cancel')?.annotations,
       ).toMatchObject({ idempotentHint: false, openWorldHint: true });
+    } finally {
+      await close();
+    }
+  });
+
+  it.each([
+    ['node_repl', { code: '1' }],
+    ['node_repl_wait', { cell_id: '00000000-0000-4000-8000-000000000000' }],
+    ['node_repl_cancel', { cell_id: '00000000-0000-4000-8000-000000000000' }],
+    ['node_repl_reset', {}],
+    ['node_repl_add_node_module_dir', { path: '/tmp/node_modules' }],
+  ])('rejects unknown arguments for %s', async (name, args) => {
+    const { client, close } = await connected();
+    try {
+      const result = await client.callTool({
+        name,
+        arguments: { ...args, unexpected: true },
+      });
+      expect(result.isError).toBe(true);
+      expect(textOf(result).toLowerCase()).toContain('unrecognized');
     } finally {
       await close();
     }
