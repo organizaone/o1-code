@@ -162,6 +162,20 @@ const renderComponent = (
 };
 
 describe('<DetailRow />', () => {
+  it('aligns values for short Portuguese labels', () => {
+    const frame =
+      renderInk(
+        <InkBox flexDirection="column">
+          <DetailRow label="Modalidade" value="text" />
+          <DetailRow label="Contexto" value="tokens" />
+          <DetailRow label="Base URL" value="url" />
+        </InkBox>,
+      ).lastFrame() ?? '';
+    const lines = frame.split('\n');
+    expect(lines[0]?.indexOf('text')).toBe(lines[1]?.indexOf('tokens'));
+    expect(lines[1]?.indexOf('tokens')).toBe(lines[2]?.indexOf('url'));
+  });
+
   it('keeps a space between a long label and its value', () => {
     const frame = renderInk(
       <DetailRow label="Janela de Contexto" value="1,000,000 tokens" />,
@@ -746,7 +760,7 @@ describe('<ModelDialog />', () => {
 
     expect(getByText('Modality:')).toBeDefined();
     expect(getByText('text · image · video')).toBeDefined();
-    expect(getByText('Context Window:')).toBeDefined();
+    expect(getByText('Context:')).toBeDefined();
     expect(getByText('1,000,000 tokens')).toBeDefined();
   });
 
@@ -2125,11 +2139,11 @@ describe('<ModelDialog /> model list editing', () => {
   // The real hook keeps only the latest handler; the mock keeps every render's.
   const latestKeyHandler = () => mockedUseKeypress.mock.calls.at(-1)![0];
 
-  const pressCtrlE = () => {
+  const pressE = () => {
     act(() => {
       latestKeyHandler()({
         name: 'e',
-        ctrl: true,
+        ctrl: false,
         meta: false,
         shift: false,
         paste: false,
@@ -2157,11 +2171,11 @@ describe('<ModelDialog /> model list editing', () => {
       </SettingsContext.Provider>,
     ).lastFrame() ?? '';
 
-  it('opens the account model list editor on ctrl+e', () => {
+  it('opens the account model list editor on e', () => {
     reachesOrganizaOneMock.mockReturnValue(true);
     renderComponent({}, accountConfig);
 
-    pressCtrlE();
+    pressE();
 
     expect(reachesOrganizaOneMock).toHaveBeenCalledWith(
       expect.objectContaining({ apiKey: 'device-token' }),
@@ -2173,6 +2187,24 @@ describe('<ModelDialog /> model list editing', () => {
     expect(modelListEditDialogMock.mock.calls[0][0].onSaved).toEqual(
       expect.any(Function),
     );
+  });
+
+  it.each([
+    { ctrl: true, meta: false, paste: false },
+    { ctrl: false, meta: true, paste: false },
+    { ctrl: false, meta: false, paste: true },
+  ])('does not open the editor for modified or pasted e: %o', (modifiers) => {
+    reachesOrganizaOneMock.mockReturnValue(true);
+    renderComponent({}, accountConfig);
+    act(() => {
+      latestKeyHandler()({
+        name: 'e',
+        shift: false,
+        sequence: 'e',
+        ...modifiers,
+      });
+    });
+    expect(modelListEditDialogMock).not.toHaveBeenCalled();
   });
 
   it.each([
@@ -2212,20 +2244,20 @@ describe('<ModelDialog /> model list editing', () => {
           apiKey: 'api-key-without-expiration',
         }),
       } as Partial<Config>);
-      pressCtrlE();
+      pressE();
       expect(modelListEditDialogMock).toHaveBeenCalledOnce();
     },
   );
 
-  it('keeps ctrl+e quiet without an OrganizaOne connection', () => {
+  it('keeps e quiet without an OrganizaOne connection', () => {
     renderComponent({}, accountConfig);
 
-    pressCtrlE();
+    pressE();
 
     expect(modelListEditDialogMock).not.toHaveBeenCalled();
   });
 
-  it('shows the ctrl+e hint for an OrganizaOne connection and hides it otherwise', () => {
+  it('shows the e hint for an OrganizaOne connection and hides it otherwise', () => {
     reachesOrganizaOneMock.mockReturnValue(true);
     const first = renderComponent({}, accountConfig);
     expect(
@@ -2234,7 +2266,7 @@ describe('<ModelDialog /> model list editing', () => {
         first.mockSettings,
         first.mockHistoryManager,
       ),
-    ).toContain('ctrl+e edit list');
+    ).toContain('e edit list');
 
     reachesOrganizaOneMock.mockReturnValue(false);
     const second = renderComponent({}, accountConfig);
@@ -2244,13 +2276,13 @@ describe('<ModelDialog /> model list editing', () => {
         second.mockSettings,
         second.mockHistoryManager,
       ),
-    ).not.toContain('ctrl+e');
+    ).not.toContain('e edit list');
   });
 
   it('keeps the picker open on escape while the editor is showing', () => {
     reachesOrganizaOneMock.mockReturnValue(true);
     const { props } = renderComponent({}, accountConfig);
-    pressCtrlE();
+    pressE();
 
     act(() => {
       latestKeyHandler()({
@@ -2269,7 +2301,7 @@ describe('<ModelDialog /> model list editing', () => {
   it('returns to the picker when the editor closes', () => {
     reachesOrganizaOneMock.mockReturnValue(true);
     renderComponent({}, accountConfig);
-    pressCtrlE();
+    pressE();
     mockedSelect.mockClear();
 
     act(() => {
@@ -2282,7 +2314,7 @@ describe('<ModelDialog /> model list editing', () => {
   it('re-reads the configured models after the editor saves', () => {
     reachesOrganizaOneMock.mockReturnValue(true);
     const { mockConfig } = renderComponent({}, accountConfig);
-    pressCtrlE();
+    pressE();
     const reads = mockConfig.getAllConfiguredModels as ReturnType<typeof vi.fn>;
     const callsBeforeSave = reads.mock.calls.length;
 
@@ -2296,7 +2328,7 @@ describe('<ModelDialog /> model list editing', () => {
   it('reports the saved list in the conversation', () => {
     reachesOrganizaOneMock.mockReturnValue(true);
     const { mockHistoryManager } = renderComponent({}, accountConfig);
-    pressCtrlE();
+    pressE();
 
     act(() => {
       modelListEditDialogMock.mock.calls[0][0].onSaved();

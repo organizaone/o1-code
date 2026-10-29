@@ -434,9 +434,11 @@ never leaves; it only shortens from the start.
   switch (`↑↓ navigate · ←→ effort · enter select · esc close`). A tier the next model lacks shows
   as its nearest one. With an OrganizaOne connection (account login, API key or
   tunnel, using Anthropic or either OpenAI API), the footer adds
-  `ctrl+e edit list`, which replaces the picker with the provider model catalog
+  `e edit list`, which replaces the picker with the provider model catalog
   (`auth/ModelListEditDialog.tsx`): the list is fetched on open, ctrl+r fetches it
-  again, and the save refuses to drop the model in use. Discovery uses the active
+  again, custom IDs appear in a labeled field below the selectable list, and the
+  save refuses to drop the model in use. Without a list, the manual-only input
+  stays available. Discovery uses the active
   connection; saving preserves its authentication, protocol and other providers.
   Tunnel endpoints and temporary keys are never saved by the editor.
 - **Effort** (`EffortDialog.tsx`): `default` first (the model/provider decides, and the saved tier

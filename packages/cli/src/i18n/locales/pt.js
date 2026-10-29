@@ -1117,7 +1117,7 @@ export default {
     'Não foi possível ler a lista do provedor · ctrl+r busca os modelos de novo',
   'ctrl+r fetches the models again': 'ctrl+r busca os modelos de novo',
   'Edit model list': 'Editar lista de modelos',
-  ' · ctrl+e edit list': ' · ctrl+e edita a lista',
+  ' · e edit list': ' · e edita a lista',
   'Model list updated.': 'Lista de modelos atualizada.',
   "'{{model}}' is the current model. Keep it in the list, or switch models with /model first.":
     "'{{model}}' é o modelo atual. Mantenha-o na lista ou troque de modelo com /model antes.",
@@ -2074,6 +2074,7 @@ export default {
   '(not set)': '(não definido)',
   Modality: 'Modalidade',
   'Context Window': 'Janela de Contexto',
+  Context: 'Contexto',
   text: 'texto',
   'text-only': 'somente texto',
   image: 'imagem',

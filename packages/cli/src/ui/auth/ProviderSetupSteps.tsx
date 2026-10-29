@@ -404,6 +404,7 @@ function ModelIdsStep({
   minVisibleModelRows,
   draftModelIds,
   onDraftChange,
+  customInputAfterList = false,
   additionalChromeRows = 0,
   availableHeight,
 }: {
@@ -419,6 +420,7 @@ function ModelIdsStep({
   draftModelIds?: string[];
   /** Hears every edit when changes are not synced to the flow. */
   onDraftChange?: (modelIds: string[]) => void;
+  customInputAfterList?: boolean;
   /** Models to check on a first setup, when nothing was chosen before. */
   preselect?: string[];
   /** The provider accepted the key while listing its models. */
@@ -486,6 +488,8 @@ function ModelIdsStep({
     errorRows +
     searchRows +
     Number(showSelectionSummary) +
+    Number(customInputAfterList) +
+    (customInputAfterList ? 1 - gap + (borderless ? 2 : 1) : 0) +
     3;
   const modelRows =
     budget === undefined
@@ -649,7 +653,9 @@ function ModelIdsStep({
 
       if (key.name === 'down') {
         setFocusedModelIndex((index) =>
-          Math.max(0, Math.min(index + 1, filteredModelOptions.length - 1)),
+          customInputAfterList && index >= filteredModelOptions.length - 1
+            ? MODEL_CUSTOM_INPUT_FOCUS_INDEX
+            : Math.max(0, Math.min(index + 1, filteredModelOptions.length - 1)),
         );
         return;
       }
@@ -685,15 +691,24 @@ function ModelIdsStep({
   );
 
   if (hasSelectableModels) {
-    return (
-      <Box marginTop={gap} flexDirection="column" width={width} flexShrink={0}>
+    const customInput = (
+      <Box flexDirection="column">
+        {customInputAfterList && (
+          <Text color={theme.text.primary} bold>
+            {t('Custom')}:
+          </Text>
+        )}
         <Box
-          marginTop={0}
-          borderStyle={borderless ? undefined : glyphs().borderStyle}
-          borderBottom={!borderless}
-          borderTop={false}
-          borderLeft={false}
-          borderRight={false}
+          borderStyle={
+            borderless && !customInputAfterList
+              ? undefined
+              : glyphs().borderStyle
+          }
+          borderBottom={!borderless || customInputAfterList}
+          borderTop={customInputAfterList}
+          borderLeft={customInputAfterList}
+          borderRight={customInputAfterList}
+          paddingX={customInputAfterList ? 1 : 0}
           borderColor={
             focusedModelIndex === MODEL_CUSTOM_INPUT_FOCUS_INDEX
               ? extendedTheme.ui.brand
@@ -706,21 +721,33 @@ function ModelIdsStep({
             value={customModelIdsText}
             onChange={handleCustomModelIdsChange}
             onSubmit={handleSubmitModelIds}
-            onDown={() => {
-              setFocusedModelIndex(MODEL_SEARCH_INPUT_FOCUS_INDEX);
-            }}
-            onTab={() => {
-              setFocusedModelIndex(MODEL_SEARCH_INPUT_FOCUS_INDEX);
-            }}
+            onUp={
+              customInputAfterList && filteredModelOptions.length > 0
+                ? () => setFocusedModelIndex(filteredModelOptions.length - 1)
+                : undefined
+            }
+            onDown={() => setFocusedModelIndex(MODEL_SEARCH_INPUT_FOCUS_INDEX)}
+            onTab={() => setFocusedModelIndex(MODEL_SEARCH_INPUT_FOCUS_INDEX)}
             placeholder="model-id"
             height={inputHeight}
             inputWidth={
-              width === undefined ? undefined : Math.max(1, width - 2)
+              width === undefined
+                ? undefined
+                : Math.max(1, width - (customInputAfterList ? 6 : 2))
             }
             isActive={focusedModelIndex === MODEL_CUSTOM_INPUT_FOCUS_INDEX}
           />
         </Box>
-        <Box marginBottom={compact ? 0 : 1} />
+      </Box>
+    );
+    return (
+      <Box marginTop={gap} flexDirection="column" width={width} flexShrink={0}>
+        {!customInputAfterList && (
+          <>
+            {customInput}
+            <Box marginBottom={compact ? 0 : 1} />
+          </>
+        )}
         <Box marginTop={0} flexDirection="column">
           {showSearchLabel && (
             <Text color={extendedTheme.text.muted}>
@@ -838,6 +865,7 @@ function ModelIdsStep({
             {showVerified && ` · ${t('key valid')} ${glyphs().done}`}
           </Text>
         </Box>
+        {customInputAfterList && <Box marginTop={1}>{customInput}</Box>}
         {flow.state.modelIdsError && (
           <Box marginTop={gap}>
             <Text color={theme.status.error} wrap="truncate-end">
@@ -950,6 +978,7 @@ function DiscoveringModelIdsStep({
   showKeyStatus,
   onKeyStatusChange,
   minVisibleModelRows,
+  customInputAfterList,
   availableHeight,
 }: {
   config: ProviderConfig;
@@ -957,6 +986,7 @@ function DiscoveringModelIdsStep({
   showKeyStatus?: boolean;
   onKeyStatusChange?: (isValid: boolean) => void;
   minVisibleModelRows?: number;
+  customInputAfterList?: boolean;
   availableHeight?: number;
 }): React.JSX.Element {
   const uiState = useContext(UIStateContext);
@@ -1140,6 +1170,7 @@ function DiscoveringModelIdsStep({
         keyVerified={snapshot.verified && requiresApiKey(config)}
         showKeyStatus={showKeyStatus}
         minVisibleModelRows={minVisibleModelRows}
+        customInputAfterList={customInputAfterList}
         availableHeight={availableHeight}
         additionalChromeRows={listFailed ? noticeGap + 1 : 0}
         preselect={
@@ -1392,6 +1423,8 @@ export interface ProviderSetupStepsProps {
   onKeyStatusChange?: (isValid: boolean) => void;
   /** Preferred catalog rows when the owning dialog has no height limit. */
   minVisibleModelRows?: number;
+  /** Place the custom model IDs below a selectable catalog. */
+  customInputAfterList?: boolean;
   /** Rows left after the owning dialog's frame, header and notices. */
   availableHeight?: number;
 }
@@ -1401,6 +1434,7 @@ export function ProviderSetupSteps({
   showKeyStatus,
   onKeyStatusChange,
   minVisibleModelRows,
+  customInputAfterList,
   availableHeight,
 }: ProviderSetupStepsProps): React.JSX.Element | null {
   const { provider, step } = flow.state;
@@ -1530,6 +1564,7 @@ export function ProviderSetupSteps({
             showKeyStatus={showKeyStatus}
             onKeyStatusChange={onKeyStatusChange}
             minVisibleModelRows={minVisibleModelRows}
+            customInputAfterList={customInputAfterList}
             availableHeight={availableHeight}
           />
         );
@@ -1540,6 +1575,7 @@ export function ProviderSetupSteps({
           flow={flow}
           showKeyStatus={showKeyStatus}
           minVisibleModelRows={minVisibleModelRows}
+          customInputAfterList={customInputAfterList}
           availableHeight={availableHeight}
         />
       );

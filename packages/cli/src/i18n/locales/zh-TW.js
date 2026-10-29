@@ -1622,6 +1622,7 @@ export default {
   '(not set)': '(未設置)',
   Modality: '模態',
   'Context Window': '上下文窗口',
+  Context: '上下文',
   text: '文本',
   'text-only': '純文本',
   image: '圖像',
@@ -2644,7 +2645,7 @@ export default {
     '無法讀取提供商清單 · ctrl+r 重新取得模型',
   'ctrl+r fetches the models again': 'ctrl+r 重新取得模型',
   'Edit model list': '編輯模型清單',
-  ' · ctrl+e edit list': ' · ctrl+e 編輯清單',
+  ' · e edit list': ' · e 編輯清單',
   'Model list updated.': '模型清單已更新。',
   "'{{model}}' is the current model. Keep it in the list, or switch models with /model first.":
     "'{{model}}' 是目前模型。請將其保留在清單中，或先用 /model 切換模型。",

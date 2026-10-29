@@ -1268,6 +1268,7 @@ export default {
   '(not set)': '(не задано)',
   Modality: 'Модальность',
   'Context Window': 'Контекстное окно',
+  Context: 'Контекст',
   text: 'текст',
   'text-only': 'только текст',
   image: 'изображение',
@@ -2928,7 +2929,7 @@ export default {
     'Не удалось прочитать список провайдеров · ctrl+r повторно загружает модели',
   'ctrl+r fetches the models again': 'ctrl+r повторно загружает модели',
   'Edit model list': 'Изменить список моделей',
-  ' · ctrl+e edit list': ' · ctrl+e изменяет список',
+  ' · e edit list': ' · e изменяет список',
   'Model list updated.': 'Список моделей обновлён.',
   "'{{model}}' is the current model. Keep it in the list, or switch models with /model first.":
     "'{{model}}' — текущая модель. Оставьте её в списке или сначала смените модель через /model.",

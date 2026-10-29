@@ -1352,6 +1352,7 @@ export default {
   '(not set)': '(no establert)',
   Modality: 'Modalitat',
   'Context Window': 'Fin. de context',
+  Context: 'Context',
   text: 'text',
   'text-only': 'només text',
   image: 'imatge',
@@ -3088,7 +3089,7 @@ export default {
     "No s'ha pogut llegir la llista del proveïdor · ctrl+r torna a obtenir els models",
   'ctrl+r fetches the models again': 'ctrl+r torna a obtenir els models',
   'Edit model list': 'Editar la llista de models',
-  ' · ctrl+e edit list': ' · ctrl+e edita la llista',
+  ' · e edit list': ' · e edita la llista',
   'Model list updated.': 'Llista de models actualitzada.',
   "'{{model}}' is the current model. Keep it in the list, or switch models with /model first.":
     "'{{model}}' és el model actual. Manten-lo a la llista o canvieu de model amb /model abans.",

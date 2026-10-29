@@ -1371,6 +1371,7 @@ export default {
   '(not set)': '(non défini)',
   Modality: 'Modalité',
   'Context Window': 'Fenêtre de contexte',
+  Context: 'Contexte',
   text: 'texte',
   'text-only': 'texte uniquement',
   image: 'image',
@@ -2961,7 +2962,7 @@ export default {
     "La liste des fournisseurs n'a pas pu être lue · ctrl+r récupère à nouveau les modèles",
   'ctrl+r fetches the models again': 'ctrl+r récupère à nouveau les modèles',
   'Edit model list': 'Modifier la liste des modèles',
-  ' · ctrl+e edit list': ' · ctrl+e modifie la liste',
+  ' · e edit list': ' · e modifie la liste',
   'Model list updated.': 'Liste des modèles mise à jour.',
   "'{{model}}' is the current model. Keep it in the list, or switch models with /model first.":
     "'{{model}}' est le modèle actuel. Gardez-le dans la liste ou changez de modèle avec /model d'abord.",

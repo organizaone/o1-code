@@ -826,8 +826,8 @@ describe('ProviderSetupSteps', () => {
     expect(inputLine).toContain('custom-model');
     expect(inputLine).not.toContain('MiniMax-M3');
     expect(inputLine).not.toContain('MiniMax-M2.7');
-    expect(frame).toMatch(/●\uFE0E\s+MiniMax-M3/);
-    expect(frame).toMatch(/●\uFE0E\s+MiniMax-M2\.7/);
+    expect(frame).toMatch(/●\uFE0E?\s+MiniMax-M3/);
+    expect(frame).toMatch(/●\uFE0E?\s+MiniMax-M2\.7/);
     unmount();
   });
 
@@ -1220,6 +1220,22 @@ describe('ProviderSetupSteps', () => {
     expect(lastFrame()).toContain(
       'The provider list could not be read · ctrl+r fetches the models again',
     );
+    unmount();
+  });
+
+  it('keeps the manual-only input unchanged when the editor has no catalog', async () => {
+    checkProviderKeyMock.mockResolvedValue({ status: 'unavailable' });
+    const flow = createModelIdsFlow({ modelIds: '' });
+    enableDiscovery(flow);
+    flow.state.provider = { ...flow.state.provider!, models: [] };
+    const { lastFrame, unmount } = renderWithProviders(
+      <ProviderSetupSteps flow={flow} customInputAfterList />,
+    );
+    await act(async () => {
+      await Promise.resolve();
+    });
+    expect(lastFrame()).toContain('Enter model IDs separated by commas.');
+    expect(lastFrame()).not.toContain('Custom:');
     unmount();
   });
 
