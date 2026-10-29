@@ -255,6 +255,9 @@ jobs:
         working-directory: 'packages/web-shell'
         run: 'npx vitest run --config vitest.config.ts'
 
+      - name: 'Exported MCP result fallback'
+        run: 'node --test packages/web-templates/src/export-html/document-mcp-app.test.mjs'
+
   smoke:
     name: 'Brand and smoke'
     needs: ['classify', 'build']

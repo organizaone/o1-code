@@ -203,6 +203,7 @@ export default defineConfig(({ mode }) => ({
         'vaul',
         '@organizaone/o1-code-sdk',
         /^@organizaone\/o1-code-sdk\//,
+        '@modelcontextprotocol/ext-apps/app-bridge',
         '@datafe-open/markdown-chart',
         '@datafe-open/markdown-chart-echarts',
         '@datafe-open/markdown-chart-react',
