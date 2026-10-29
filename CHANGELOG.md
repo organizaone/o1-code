@@ -7,6 +7,10 @@ follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Fixed
+
+- Theme selection hides the conversation frame in full-screen mode and restores it when closed.
+
 ## [0.21.10] - 2026-10-29
 
 ### Fixed

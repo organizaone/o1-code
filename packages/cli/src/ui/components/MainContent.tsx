@@ -605,6 +605,7 @@ export const MainContent = ({
       uiState.isAgentsManagerDialogOpen ||
       uiState.isSettingsDialogOpen ||
       uiState.isModelDialogOpen ||
+      uiState.isThemeDialogOpen ||
       uiState.isStatsDialogOpen ||
       uiState.isResumeDialogOpen ||
       uiState.isDeleteDialogOpen ||

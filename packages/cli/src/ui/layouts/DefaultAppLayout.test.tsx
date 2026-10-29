@@ -218,6 +218,29 @@ describe('DefaultAppLayout', () => {
     }
   });
 
+  it('keeps the theme canvas across the viewport while the theme dialog is open', () => {
+    mockedUseAgentViewState.mockReturnValue({
+      activeView: 'main',
+      agents: new Map(),
+    });
+    dialogManagerMockState.authChrome = true;
+    const previousTheme = themeManager.getActiveTheme().name;
+    themeManager.setActiveTheme('O1-Code Light');
+    try {
+      const { lastFrame, unmount } = renderLayout({
+        ...baseUIState,
+        useTerminalBuffer: true,
+        dialogsVisible: true,
+        isThemeDialogOpen: true,
+        terminalHeight: 24,
+      });
+      expect(frameHeight(lastFrame() ?? '')).toBe(24);
+      unmount();
+    } finally {
+      themeManager.setActiveTheme(previousTheme);
+    }
+  });
+
   it('repaints the canvas when the active theme changes', () => {
     mockedUseAgentViewState.mockReturnValue({
       activeView: 'main',

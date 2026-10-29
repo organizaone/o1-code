@@ -124,6 +124,11 @@ export const DefaultAppLayout: React.FC = () => {
         <Box
           flexDirection="column"
           width={terminalWidth}
+          minHeight={
+            uiState.useTerminalBuffer && uiState.isThemeDialogOpen
+              ? uiState.terminalHeight
+              : undefined
+          }
           backgroundColor={
             uiState.useTerminalBuffer
               ? theme.background.primary || undefined
