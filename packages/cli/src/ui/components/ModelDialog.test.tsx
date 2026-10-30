@@ -202,11 +202,11 @@ describe('<ModelDialog />', () => {
   });
 
   it('says the current model is marked and shows the key hints', () => {
-    const { getByText } = renderComponent();
+    const { getByText, container } = renderComponent();
     expect(getByText(/the current one is marked/)).toBeDefined();
-    expect(
-      getByText('↑↓ navigate · ←→ effort · enter select · esc close'),
-    ).toBeDefined();
+    expect(container.textContent).toContain(
+      '↑↓ navigate · ←→ effort · enter select · esc close',
+    );
   });
 
   it('does not claim a mark when the current model is not listed', () => {

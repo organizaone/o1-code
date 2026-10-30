@@ -77,6 +77,11 @@ o1-code mcp add --scope user --transport http my-server http://localhost:3000/mc
 >
 > If a server supports both, prefer **HTTP** over **SSE**.
 
+HTTP and SSE connections support redirects within the same origin and default-port HTTP-to-HTTPS
+upgrades on the same host. Configure the final URL directly if a server redirects to another host
+or port; unsafe redirects are rejected so custom headers, session identifiers and request bodies
+are not forwarded to that destination.
+
 ### Configure via `settings.json` vs `o1-code mcp add`
 
 Both approaches produce the same `mcpServers` entries in your `settings.json`—use whichever you prefer.

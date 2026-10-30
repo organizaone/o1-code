@@ -17,6 +17,7 @@ follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Fixed
 
+- MCP HTTP and SSE connections reject unsafe redirects, preventing custom headers and request bodies from being forwarded to other hosts or ports. Same-origin redirects and default-port HTTP-to-HTTPS upgrades on the same host remain supported.
 - Updating an npm installation relaunches its original launcher instead of a different, older installation found on `PATH`.
 - New conversations use the activated update even when an older sessions controller is still running; existing conversations retain their original version until restarted.
 - Managed npm updates verify the runtime before activation or cache reuse, repair broken cached payloads while retaining them for recovery, and retry transient Windows pointer-file locks without reporting false success.
