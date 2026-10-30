@@ -9,6 +9,7 @@
 // then extensively hand-corrected for Taiwan vocabulary conventions.
 // This file is the authoritative source — do not overwrite with auto-generated output.
 export default {
+  '{{count}} characters copied': '已複製 {{count}} 個字元',
   'O1-Code was updated': 'O1-Code 已更新',
   'The update failed': '更新失敗',
   Update: '更新',

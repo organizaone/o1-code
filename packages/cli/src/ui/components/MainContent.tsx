@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { Box, Static, type DOMElement } from 'ink';
+import { Box, Static, Text, type DOMElement } from 'ink';
 import type { AgentResultDisplay } from '@organizaone/o1-code-core/tools/tools.js';
 import {
   memo,
@@ -57,6 +57,8 @@ import { ContentMouseController } from '../context-menu/ContentMouseController.j
 import { useContextMenu } from '../context-menu/ContextMenuContext.js';
 import { measureElementPosition } from '../utils/measure-element-position.js';
 import { getSelectionTextSource } from '../selection/selection-text-sources.js';
+import { t } from '../../i18n/index.js';
+import { theme } from '../semantic-colors.js';
 
 // Limit LLM messages to a very high number of lines to mitigate performance
 // issues in the worst case if we somehow get an enormous model response.
@@ -177,6 +179,12 @@ export const MainContent = ({
 }: MainContentProps) => {
   const { version } = useAppContext();
   const uiState = useUIState();
+  const [copyNotice, setCopyNotice] = useState<{ count: number } | null>(null);
+  useEffect(() => {
+    if (copyNotice === null) return;
+    const timer = setTimeout(() => setCopyNotice(null), 3000);
+    return () => clearTimeout(timer);
+  }, [copyNotice]);
   const { allExpanded: fullDetail } = useThoughtExpanded();
   const streamingState = uiState.streamingState;
   const showScrollbar = uiState.showScrollbar ?? true;
@@ -698,7 +706,20 @@ export const MainContent = ({
             scrollRef.current?.hitTestScrollbar(location) ?? false
           }
           selectionQueryRef={selectionQueryRef}
+          onSelectionCopied={(count) => setCopyNotice({ count })}
         />
+        {copyNotice !== null && (
+          <Box position="absolute" top={0} left={2}>
+            <Text
+              color={theme.text.primary}
+              backgroundColor={theme.background.primary}
+            >
+              {t('{{count}} characters copied', {
+                count: String(copyNotice.count),
+              })}
+            </Text>
+          </Box>
+        )}
         <ShowMoreLines constrainHeight={uiState.constrainHeight} />
       </OverflowProvider>
     );

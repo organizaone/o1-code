@@ -7117,6 +7117,7 @@ describe('AgentTool', () => {
       queueExternalInput: ReturnType<typeof vi.fn>;
       wakeExternalInputWaiters: ReturnType<typeof vi.fn>;
       appendActivity: ReturnType<typeof vi.fn>;
+      finishActivity: ReturnType<typeof vi.fn>;
       registerResidentAgent: ReturnType<typeof vi.fn>;
       unregisterResidentAgent: ReturnType<typeof vi.fn>;
       restartCompletedAgent: ReturnType<typeof vi.fn>;
@@ -7177,6 +7178,7 @@ describe('AgentTool', () => {
         queueExternalInput: vi.fn(),
         wakeExternalInputWaiters: vi.fn(),
         appendActivity: vi.fn(),
+        finishActivity: vi.fn(),
         registerResidentAgent: vi.fn(),
         unregisterResidentAgent: vi.fn().mockReturnValue(true),
         restartCompletedAgent: vi.fn().mockReturnValue(restartedEntry),

@@ -270,6 +270,8 @@ export interface BackgroundActivity {
   description: string;
   /** Emission timestamp (ms). */
   at: number;
+  callId?: string;
+  status?: 'running' | 'completed' | 'failed';
 }
 
 /**
@@ -1075,6 +1077,23 @@ export class BackgroundTaskRegistry {
       next.splice(0, next.length - MAX_RECENT_ACTIVITIES);
     }
     entry.recentActivities = next;
+    this.emitActivityChange(entry);
+  }
+
+  finishActivity(agentId: string, callId: string, success: boolean): void {
+    const entry = this.agents.get(agentId);
+    if (!entry || entry.status !== 'running') return;
+    const activities = entry.recentActivities;
+    const status = success ? 'completed' : 'failed';
+    if (
+      !activities?.some(
+        (activity) => activity.callId === callId && activity.status !== status,
+      )
+    )
+      return;
+    entry.recentActivities = activities.map((activity) =>
+      activity.callId === callId ? { ...activity, status } : activity,
+    );
     this.emitActivityChange(entry);
   }
 

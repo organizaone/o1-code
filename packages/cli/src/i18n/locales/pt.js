@@ -7,6 +7,7 @@
 // Portuguese translations for O1-Code CLI (pt-BR)
 
 export default {
+  '{{count}} characters copied': '{{count}} caracteres copiados',
   'Clipboard images are unavailable in this session. Attach the image file directly.':
     'As imagens da área de transferência estão indisponíveis nesta sessão. Anexe o arquivo de imagem diretamente.',
   '← back · x stop': '← voltar · x parar',

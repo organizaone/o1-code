@@ -7,6 +7,7 @@
 // Traductions françaises pour O1-Code CLI
 
 export default {
+  '{{count}} characters copied': '{{count}} caractères copiés',
   'O1-Code was updated': 'O1-Code a été mis à jour',
   'The update failed': 'La mise à jour a échoué',
   Update: 'Mise à jour',

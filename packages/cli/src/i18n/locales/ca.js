@@ -7,6 +7,7 @@
 // Traduccions en català per al CLI de O1-Code per Jordi Mas i Hernàndez <jmas@softcatala.org>
 
 export default {
+  '{{count}} characters copied': '{{count}} caràcters copiats',
   'O1-Code was updated': 'O1-Code actualitzat',
   'The update failed': "L'actualització ha fallat",
   Update: 'Actualització',

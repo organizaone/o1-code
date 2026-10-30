@@ -14,6 +14,7 @@ import {
   AgentEventEmitter,
   AgentEventType,
   type AgentToolCallEvent,
+  type AgentToolResultEvent,
 } from './runtime/agent-events.js';
 import { AgentTerminateMode } from './runtime/agent-types.js';
 import { AgentHeadless, ContextState } from './runtime/agent-headless.js';
@@ -1185,13 +1186,22 @@ export class BackgroundAgentResumeService {
           name: event.name,
           description: event.description,
           at: event.timestamp,
+          callId: event.callId,
+          status: 'running',
         });
+      };
+      const onToolResult = (
+        event: Pick<AgentToolResultEvent, 'callId' | 'success'>,
+      ) => {
+        registry.finishActivity(meta.agentId, event.callId, event.success);
       };
       const onUsageMetadata = () => {
         refreshLiveStats();
       };
 
       bgEmitter.on(AgentEventType.TOOL_CALL, onToolCall);
+      bgEmitter.on(AgentEventType.TOOL_RESULT, onToolResult);
+      bgEmitter.on(AgentEventType.TOOL_STATUS, onToolResult);
       bgEmitter.on(AgentEventType.USAGE_METADATA, onUsageMetadata);
 
       // Bridge permission prompts to the parent's Background tasks UI when
@@ -1223,6 +1233,8 @@ export class BackgroundAgentResumeService {
         registry.unregisterResidentAgent(meta.agentId, residentController);
         residentRegistered = false;
         bgEmitter.off(AgentEventType.TOOL_CALL, onToolCall);
+        bgEmitter.off(AgentEventType.TOOL_RESULT, onToolResult);
+        bgEmitter.off(AgentEventType.TOOL_STATUS, onToolResult);
         bgEmitter.off(AgentEventType.USAGE_METADATA, onUsageMetadata);
         cleanupApprovalBridge?.();
         cleanupOwnedMonitorNotifications?.();

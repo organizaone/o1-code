@@ -3720,12 +3720,25 @@ class AgentToolInvocation extends BaseToolInvocation<AgentParams, ToolResult> {
             name: event.name,
             description: event.description,
             at: event.timestamp,
+            callId: event.callId,
+            status: 'running',
           });
+        };
+        const onToolResult = (
+          event: Pick<AgentToolResultEvent, 'callId' | 'success'>,
+        ) => {
+          registry.finishActivity(
+            hookOpts.agentId,
+            event.callId,
+            event.success,
+          );
         };
         const onUsageMetadata = () => {
           refreshLiveStats();
         };
         bgEmitter.on(AgentEventType.TOOL_CALL, onToolCall);
+        bgEmitter.on(AgentEventType.TOOL_RESULT, onToolResult);
+        bgEmitter.on(AgentEventType.TOOL_STATUS, onToolResult);
         bgEmitter.on(AgentEventType.USAGE_METADATA, onUsageMetadata);
 
         // Bridge permission prompts to the parent session's Background tasks
@@ -3808,6 +3821,8 @@ class AgentToolInvocation extends BaseToolInvocation<AgentParams, ToolResult> {
           );
           residentRegistered = false;
           bgEmitter.off(AgentEventType.TOOL_CALL, onToolCall);
+          bgEmitter.off(AgentEventType.TOOL_RESULT, onToolResult);
+          bgEmitter.off(AgentEventType.TOOL_STATUS, onToolResult);
           bgEmitter.off(AgentEventType.USAGE_METADATA, onUsageMetadata);
           cleanupApprovalBridge?.();
           cleanupOwnedMonitorNotifications();
@@ -4477,12 +4492,21 @@ class AgentToolInvocation extends BaseToolInvocation<AgentParams, ToolResult> {
           name: event.name,
           description: event.description,
           at: event.timestamp,
+          callId: event.callId,
+          status: 'running',
         });
+      };
+      const onFgToolResult = (
+        event: Pick<AgentToolResultEvent, 'callId' | 'success'>,
+      ) => {
+        registry.finishActivity(hookOpts.agentId, event.callId, event.success);
       };
       const onFgUsageMetadata = () => {
         refreshFgLiveStats();
       };
       runtimeEventEmitter.on(AgentEventType.TOOL_CALL, onFgToolCall);
+      runtimeEventEmitter.on(AgentEventType.TOOL_RESULT, onFgToolResult);
+      runtimeEventEmitter.on(AgentEventType.TOOL_STATUS, onFgToolResult);
       runtimeEventEmitter.on(AgentEventType.USAGE_METADATA, onFgUsageMetadata);
 
       // Nested foreground launches under a backgrounded ancestor (a fork or
@@ -4657,6 +4681,8 @@ class AgentToolInvocation extends BaseToolInvocation<AgentParams, ToolResult> {
           // error path with cleanup noise.
         }
         runtimeEventEmitter.off(AgentEventType.TOOL_CALL, onFgToolCall);
+        runtimeEventEmitter.off(AgentEventType.TOOL_RESULT, onFgToolResult);
+        runtimeEventEmitter.off(AgentEventType.TOOL_STATUS, onFgToolResult);
         runtimeEventEmitter.off(
           AgentEventType.USAGE_METADATA,
           onFgUsageMetadata,

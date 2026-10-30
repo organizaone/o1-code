@@ -71,6 +71,25 @@ describe('WelcomeScreen', () => {
     expect(rows[0]).toContain('real work');
   });
 
+  it('does not show a named session without messages', () => {
+    const frame = render(
+      <WelcomeScreen
+        sessions={[
+          {
+            ...session('empty', '', 1),
+            customTitle: 'Empty session',
+            messageCount: 0,
+          },
+          session('a', 'real work', 2),
+        ]}
+        currentSessionId="now"
+        now={NOW}
+      />,
+    ).lastFrame();
+    expect(frame).not.toContain('Empty session');
+    expect(frame).toContain('real work');
+  });
+
   it('lists up to three recent sessions, not the current one', () => {
     const frame = render(
       <WelcomeScreen

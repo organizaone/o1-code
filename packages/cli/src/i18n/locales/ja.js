@@ -7,6 +7,7 @@
 // Japanese translations for O1-Code CLI
 
 export default {
+  '{{count}} characters copied': '{{count}} 文字をコピーしました',
   'O1-Code was updated': 'O1-Code を更新しました',
   'The update failed': '更新に失敗しました',
   Update: 'アップデート',

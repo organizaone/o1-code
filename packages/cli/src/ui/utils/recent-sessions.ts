@@ -21,10 +21,23 @@ const cache = new Map<string, SessionListItem[]>();
 export async function primeRecentSessions(cwd: string): Promise<void> {
   if (cache.has(cwd)) return;
   try {
-    const result = await new SessionService(cwd).listSessions({
+    const service = new SessionService(cwd);
+    const result = await service.listSessions({
       size: SESSIONS_TO_READ,
     });
-    cache.set(cwd, result.items);
+    const items = await Promise.all(
+      result.items.map(async (session) =>
+        !session.prompt.trim() && session.customTitle?.trim()
+          ? {
+              ...session,
+              messageCount: await service.countSessionMessages(
+                session.sessionId,
+              ),
+            }
+          : session,
+      ),
+    );
+    cache.set(cwd, items);
   } catch {
     cache.set(cwd, []);
   }
