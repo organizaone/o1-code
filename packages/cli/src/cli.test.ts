@@ -1485,7 +1485,7 @@ describe('bootstrap import boundaries', () => {
   });
 
   it.skipIf(process.platform === 'win32')(
-    'reloads the CLI through a stable shim after an update',
+    'reloads a standalone installation through its stable shim after an update',
     () => {
       const tempDir = mkdtempSync(path.join(tmpdir(), 'o1-code-cli-update-'));
       const wrongDir = mkdtempSync(path.join(tmpdir(), 'o1-code-cli-wrong-'));
@@ -1505,7 +1505,7 @@ describe('bootstrap import boundaries', () => {
         );
         writeFileSync(
           path.join(oldDir, 'cli.js'),
-          `import { chmodSync, rmSync, writeFileSync } from 'node:fs';\nwriteFileSync(${JSON.stringify(binPath)}, ${JSON.stringify(`#!/bin/sh\nexec "${process.execPath}" "${path.join(newDir, 'entry.mjs')}" "$@"\n`)});\nchmodSync(${JSON.stringify(binPath)}, 0o755);\nrmSync(${JSON.stringify(oldDir)}, { recursive: true, force: true });\nprocess.exit(44);\n`,
+          `import { chmodSync, rmSync, writeFileSync } from 'node:fs';\nwriteFileSync(${JSON.stringify(binPath)}, ${JSON.stringify(`#!/bin/sh\nO1CODE_LAUNCHER_PATH="$0" exec "${process.execPath}" "${path.join(newDir, 'entry.mjs')}" "$@"\n`)});\nchmodSync(${JSON.stringify(binPath)}, 0o755);\nrmSync(${JSON.stringify(oldDir)}, { recursive: true, force: true });\nprocess.exit(44);\n`,
         );
         writeFileSync(
           path.join(newDir, 'cli.js'),
@@ -1513,7 +1513,7 @@ describe('bootstrap import boundaries', () => {
         );
         writeFileSync(
           binPath,
-          `#!/bin/sh\nexec "${process.execPath}" "${path.join(oldDir, 'entry.mjs')}" "$@"\n`,
+          `#!/bin/sh\nO1CODE_LAUNCHER_PATH="$0" exec "${process.execPath}" "${path.join(oldDir, 'entry.mjs')}" "$@"\n`,
         );
         chmodSync(binPath, 0o755);
         writeFileSync(
