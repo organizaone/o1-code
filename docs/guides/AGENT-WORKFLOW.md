@@ -42,6 +42,11 @@ whatever equivalents your harness provides.
 
 ## Execution & Progress
 
+- Name working branches `<type>/<short-description>` in lowercase kebab case,
+  based on the change: `feature/`, `fix/`, `docs/`, `refactor/`, `test/`,
+  `chore/`, `hotfix/`, or `release/`. For example, `fix/session-resume` or
+  `docs/npm-install`. Do not use the author or tool name as the type. This
+  naming convention does not change the project's pull-request flow into `main`.
 - Track multi-step work in a visible task list: one entry per step, marked in
   progress or done as you go. The list is the source of truth for what remains
   — do not keep it only in your head.
