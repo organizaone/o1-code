@@ -1820,6 +1820,34 @@ describe('BackgroundTaskRegistry', () => {
     expect(cb).not.toHaveBeenCalled();
   });
 
+  it('finishes only the matching concurrent activity and notifies observers', () => {
+    const registry = new BackgroundTaskRegistry();
+    registry.register(makeRegistration('a'));
+    registry.appendActivity('a', {
+      name: 'Read',
+      description: 'one',
+      at: 1,
+      callId: 'one',
+      status: 'running',
+    });
+    registry.appendActivity('a', {
+      name: 'Read',
+      description: 'two',
+      at: 2,
+      callId: 'two',
+      status: 'running',
+    });
+    const onChange = vi.fn();
+    registry.setActivityChangeCallback(onChange);
+    registry.finishActivity('a', 'one', true);
+    expect(
+      registry.get('a')?.recentActivities?.map((activity) => activity.status),
+    ).toEqual(['completed', 'running']);
+    expect(onChange).toHaveBeenCalledTimes(1);
+    registry.finishActivity('a', 'two', false);
+    expect(registry.get('a')?.recentActivities?.[1]?.status).toBe('failed');
+  });
+
   it('appendActivity builds a rolling buffer capped at 10', () => {
     registry.register({
       agentId: 'a',

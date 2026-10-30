@@ -40,6 +40,7 @@ export type AgentEvent =
   | 'stream_text'
   | 'tool_call'
   | 'tool_result'
+  | 'tool_status'
   | 'tool_responses_finalized'
   | 'tool_output_update'
   | 'tool_waiting_approval'
@@ -58,6 +59,7 @@ export enum AgentEventType {
   STREAM_TEXT = 'stream_text',
   TOOL_CALL = 'tool_call',
   TOOL_RESULT = 'tool_result',
+  TOOL_STATUS = 'tool_status',
   TOOL_RESPONSES_FINALIZED = 'tool_responses_finalized',
   TOOL_OUTPUT_UPDATE = 'tool_output_update',
   TOOL_WAITING_APPROVAL = 'tool_waiting_approval',
@@ -142,6 +144,12 @@ export interface AgentToolResultEvent {
   boundaryArtifact?: ToolResultBoundaryArtifact;
   durationMs?: number;
   timestamp: number;
+}
+
+export interface AgentToolStatusEvent {
+  subagentId: string;
+  callId: string;
+  success: boolean;
 }
 
 export interface AgentToolResponsesFinalizedEvent {
@@ -251,6 +259,7 @@ export interface AgentEventMap {
   [AgentEventType.STREAM_TEXT]: AgentStreamTextEvent;
   [AgentEventType.TOOL_CALL]: AgentToolCallEvent;
   [AgentEventType.TOOL_RESULT]: AgentToolResultEvent;
+  [AgentEventType.TOOL_STATUS]: AgentToolStatusEvent;
   [AgentEventType.TOOL_RESPONSES_FINALIZED]: AgentToolResponsesFinalizedEvent;
   [AgentEventType.TOOL_OUTPUT_UPDATE]: AgentToolOutputUpdateEvent;
   [AgentEventType.TOOL_WAITING_APPROVAL]: AgentApprovalRequestEvent;

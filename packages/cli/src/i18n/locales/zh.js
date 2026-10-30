@@ -7,6 +7,7 @@
 // Chinese translations for O1-Code CLI
 
 export default {
+  '{{count}} characters copied': '已复制 {{count}} 个字符',
   'O1-Code was updated': 'O1-Code 已更新',
   'The update failed': '更新失败',
   Update: '更新',

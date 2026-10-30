@@ -787,6 +787,13 @@ const AgentDetailBody: React.FC<{
   const liveActivity =
     activities.length > 0 ? activities[activities.length - 1] : undefined;
   const historyActivities = activities.slice(0, -1);
+  const activityMarker = (activity: (typeof activities)[number]) => {
+    if (activity.status === 'completed') return '✓';
+    if (activity.status === 'failed') return '✕';
+    if (activity.status === 'running' && entry.status === 'running')
+      return glyphs().dot;
+    return '·';
+  };
   const liveFullLabel = liveActivity
     ? sanitizeMultilineForDisplay(
         formatActivityLabel(liveActivity.name, liveActivity.description),
@@ -906,7 +913,7 @@ const AgentDetailBody: React.FC<{
             // the history rows. Unicode chevrons rendered with inconsistent
             // width broke alignment in some fonts. History rows stay one
             // line; only the live row below wraps.
-            const prefix = '  ';
+            const prefix = `${activityMarker(a)} `;
             // `sanitizeMultilineForDisplay` (not just `escapeAnsiCtrlCodes`)
             // because bare C0 controls (\r, BS, BEL, DEL) pass through the
             // ANSI-sequence escape and could still corrupt the row.
@@ -935,7 +942,9 @@ const AgentDetailBody: React.FC<{
             // layout drops the prefix's trailing space when they arrive as
             // separate segments (`> Shell` → `>Shell`).
             <Box key="live">
-              <Text color={theme.text.primary}>{`> ${liveLabel}`}</Text>
+              <Text
+                color={theme.text.primary}
+              >{`${activityMarker(liveActivity)} ${liveLabel}`}</Text>
             </Box>
           )}
         </Fragment>

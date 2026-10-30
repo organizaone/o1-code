@@ -2083,6 +2083,41 @@ describe('BackgroundTasksDialog', () => {
   });
 
   describe('subagent observability', () => {
+    it('distinguishes completed, failed, and concurrently running activities', () => {
+      const h = setup([
+        entry({
+          recentActivities: [
+            {
+              name: 'read_file',
+              description: 'done.ts',
+              at: 1,
+              status: 'completed',
+            },
+            {
+              name: 'read_file',
+              description: 'running.ts',
+              at: 2,
+              status: 'running',
+            },
+            {
+              name: 'read_file',
+              description: 'failed.ts',
+              at: 3,
+              status: 'failed',
+            },
+          ],
+        }),
+      ]);
+      h.call(() => h.probe.current!.actions.openDialog());
+      h.call(() => h.probe.current!.actions.enterDetail());
+      h.pressKey({ name: 'right' });
+      h.pressKey({ name: 'right' });
+      const frame = h.lastFrame() ?? '';
+      expect(frame).toMatch(/✓\s+.*done\.ts/);
+      expect(frame).toMatch(/●\uFE0E?\s+.*running\.ts/);
+      expect(frame).toMatch(/✕\s+.*failed\.ts/);
+    });
+
     it('renders the newest activity in full across wrapped lines instead of truncating', () => {
       // A command far wider than the 80-col harness terminal. The tail
       // marker can only appear in the frame if the live row wraps instead

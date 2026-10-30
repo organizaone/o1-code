@@ -2115,6 +2115,7 @@ export class AgentCore {
         );
       }
     };
+    const completedStatusEmitted = new Set<string>();
     const scheduler = new CoreToolScheduler({
       config: this.runtimeContext,
       shouldObserveProducer: (callId) => !emittedCallIds.has(callId),
@@ -2209,6 +2210,22 @@ export class AgentCore {
           if (!pendingToolCallStarts.delete(callId)) continue;
           executionRequestByCallId.set(callId, call.request);
           emitToolCallStart(call.request);
+        }
+
+        for (const call of calls) {
+          if (
+            (call.status === 'success' ||
+              call.status === 'error' ||
+              call.status === 'cancelled') &&
+            !completedStatusEmitted.has(call.request.callId)
+          ) {
+            completedStatusEmitted.add(call.request.callId);
+            this.eventEmitter?.emit(AgentEventType.TOOL_STATUS, {
+              subagentId: this.subagentId,
+              callId: call.request.callId,
+              success: call.status === 'success',
+            });
+          }
         }
 
         const awaitingByCallId = new Map(

@@ -7,6 +7,12 @@ follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Fixed
+
+- Subagent activity distinguishes running, completed, and failed tool calls, including parallel calls.
+- Right-clicking outside an in-app text selection copies it and reports the number of characters copied.
+- The welcome screen excludes named sessions with no messages from recent sessions.
+
 ## [0.21.11] - 2026-10-29
 
 ### Fixed

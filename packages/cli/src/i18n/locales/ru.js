@@ -8,6 +8,7 @@
 // Ключ служит одновременно ключом перевода и текстом по умолчанию
 
 export default {
+  '{{count}} characters copied': 'Скопировано символов: {{count}}',
   'O1-Code was updated': 'O1-Code обновлён',
   'The update failed': 'Не удалось обновить',
   Update: 'Обновление',

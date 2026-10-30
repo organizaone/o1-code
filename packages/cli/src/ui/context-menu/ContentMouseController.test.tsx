@@ -160,7 +160,10 @@ describe('ContentMouseController', () => {
       ex: number;
       ey: number;
     },
-    options: { hitTestScrollbar?: () => boolean } = {},
+    options: {
+      hitTestScrollbar?: () => boolean;
+      onSelectionCopied?: (count: number) => void;
+    } = {},
   ): Mounted {
     let latestMenu: Mounted['getMenu'] extends () => infer R ? R : never = null;
     let latestSelectedIndex = 0;
@@ -187,6 +190,7 @@ describe('ContentMouseController', () => {
           getViewportRect={() => viewportRect}
           hitTestScrollbar={options.hitTestScrollbar ?? (() => false)}
           selectionQueryRef={selectionQueryRef}
+          onSelectionCopied={options.onSelectionCopied}
         />
         <MenuProbe />
       </ContextMenuProvider>,
@@ -467,18 +471,46 @@ describe('ContentMouseController', () => {
       expect(getMenu()).toBeNull();
     });
 
-    it('a right-press over another cell re-opens the menu there', () => {
-      const { fire, getMenu } = mount({ sx: 5, sy: 0, ex: 8, ey: 0 });
-      fire(makeEvent('right-press', 2, 1)); // over the link
-      expect(getMenu()!.items.map((item) => item.id)).toEqual([
-        'open-link',
-        'copy-link',
-        'copy-selection',
-      ]);
-      fire(makeEvent('right-press', 7, 1)); // plain cell, selection active
-      expect(getMenu()!.items.map((item) => item.id)).toEqual([
-        'copy-selection',
-      ]);
+    it('copies the active selection when right-clicking outside it', async () => {
+      const notify = vi.fn();
+      const { fire, getMenu } = mount(
+        { sx: 5, sy: 0, ex: 8, ey: 0 },
+        { onSelectionCopied: notify },
+      );
+      fire(makeEvent('right-press', 2, 1));
+      await act(async () => {});
+      expect(copyToClipboard).toHaveBeenCalledWith('here');
+      expect(notify).toHaveBeenCalledWith(4);
+      expect(getMenu()).toBeNull();
+    });
+
+    it('copies the selection even when the click is outside the history viewport', async () => {
+      viewportRect = { x: 5, y: 0, width: 4, height: 1 };
+      const notify = vi.fn();
+      const { fire, getMenu } = mount(
+        { sx: 5, sy: 0, ex: 8, ey: 0 },
+        { onSelectionCopied: notify },
+      );
+      fire(makeEvent('right-press', 2, 1));
+      await act(async () => {});
+      expect(copyToClipboard).toHaveBeenCalledWith('here');
+      expect(notify).toHaveBeenCalledWith(4);
+      expect(getMenu()).toBeNull();
+    });
+
+    it('does not report a successful copy when the clipboard rejects it', async () => {
+      vi.mocked(copyToClipboard).mockRejectedValueOnce(
+        new Error('clipboard unavailable'),
+      );
+      const notify = vi.fn();
+      const { fire } = mount(
+        { sx: 5, sy: 0, ex: 8, ey: 0 },
+        { onSelectionCopied: notify },
+      );
+      fire(makeEvent('right-press', 2, 1));
+      await act(async () => {});
+      expect(notify).not.toHaveBeenCalled();
+      expect(mocks.warn).toHaveBeenCalled();
     });
 
     it('Copy Selection copies the text snapshotted at menu-open time', () => {

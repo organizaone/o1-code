@@ -8,6 +8,7 @@
 // The key serves as both the translation key and the default English text
 
 export default {
+  '{{count}} characters copied': '{{count}} characters copied',
   'Clipboard images are unavailable in this session. Attach the image file directly.':
     'Clipboard images are unavailable in this session. Attach the image file directly.',
   '← back · x stop': '← back · x stop',

@@ -127,6 +127,7 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({
     .filter(
       (session) =>
         session.sessionId !== currentSessionId &&
+        session.messageCount !== 0 &&
         (session.customTitle?.trim() || session.prompt.trim()),
     )
     .slice(0, MAX_RECENT_SESSIONS);

@@ -45,6 +45,7 @@ export interface ContentMouseControllerProps {
   hitTestScrollbar: (location: { col: number; row: number }) => boolean;
   /** Live selection query for the "Copy Selection" item (optional). */
   selectionQueryRef?: MutableRefObject<SelectionQuery | null>;
+  onSelectionCopied?: (characterCount: number) => void;
 }
 
 const debugLogger = createDebugLogger('CONTENT_MOUSE');
@@ -270,6 +271,29 @@ export function ContentMouseController(
         return;
       }
 
+      const point = mapPoint(event);
+      if (event.name === 'right-press' && point) {
+        const query = propsRef.current.selectionQueryRef?.current;
+        const range = query?.getRange();
+        const inside =
+          range &&
+          (point.y > range.sy ||
+            (point.y === range.sy && point.x >= range.sx)) &&
+          (point.y < range.ey || (point.y === range.ey && point.x <= range.ex));
+        if (range && !inside) {
+          const text = query?.getText();
+          if (text) {
+            void copyToClipboard(text)
+              .then(() =>
+                propsRef.current.onSelectionCopied?.([...text].length),
+              )
+              .catch((error: unknown) =>
+                debugLogger.warn('Failed to copy selected text:', error),
+              );
+            return;
+          }
+        }
+      }
       const rect = propsRef.current.getViewportRect();
       if (!rect) return;
       if (
@@ -277,7 +301,6 @@ export function ContentMouseController(
       ) {
         return;
       }
-      const point = mapPoint(event);
       if (!point || !pointInViewport(point, rect)) return;
 
       // ── Right-click: build and open the context menu ─────────────────

@@ -272,17 +272,42 @@ export function getAgentDashboardLines(
       'muted',
     );
   } else if (tab === 'activity') {
-    title(t('Current event'));
-    if (current)
+    const active = [...activities]
+      .reverse()
+      .find(
+        (activity) =>
+          activity.status === 'running' && entry.status === 'running',
+      );
+    title(active ? t('Current event') : t('Recent activity'));
+    if (active)
+      add(`› ${dashboardActivity(active.name, active.description)}`, 'running');
+    else if (current)
       add(dashboardActivity(current.name, current.description), 'code');
     else add(t('No activity recorded'), 'muted');
     title(t('Progress'));
-    for (const activity of activities.slice(0, -1)) {
+    for (const activity of activities) {
+      const active =
+        activity.status === 'running' && entry.status === 'running';
+      const marker =
+        activity.status === 'completed'
+          ? '✓'
+          : activity.status === 'failed'
+            ? '✕'
+            : active
+              ? glyphs().dot
+              : '·';
       add(
         dashboardSingleLine(
-          dashboardActivity(activity.name, activity.description),
+          `${marker} ${dashboardActivity(activity.name, activity.description)}`,
           width,
         ),
+        activity.status === 'completed'
+          ? 'success'
+          : activity.status === 'failed'
+            ? 'error'
+            : active
+              ? 'running'
+              : 'secondary',
       );
     }
     alerts();

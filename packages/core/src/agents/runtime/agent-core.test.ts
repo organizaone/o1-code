@@ -554,6 +554,54 @@ describe('AgentCore approval response deduplication', () => {
     return { core, errorSpy };
   }
 
+  it('reports each parallel tool completion before the whole batch finishes', async () => {
+    const { core } = buildApprovalCore();
+    const statuses: Array<{ callId: string; success: boolean }> = [];
+    core.getEventEmitter().on(AgentEventType.TOOL_STATUS, (event) => {
+      statuses.push(event);
+    });
+    const request = {
+      callId: 'fast',
+      name: 'read_file',
+      args: {},
+      isClientInitiated: true,
+      prompt_id: 'parallel',
+    };
+    const slow = { ...request, callId: 'slow', name: 'run_shell_command' };
+    const scheduleSpy = vi
+      .spyOn(CoreToolScheduler.prototype, 'schedule')
+      .mockImplementation(async function (this: CoreToolScheduler) {
+        const scheduler = this as unknown as {
+          onToolCallsUpdate?: (calls: ToolCall[]) => void;
+        };
+        const update = [
+          { status: 'success', request },
+          { status: 'executing', request: slow },
+        ] as unknown as ToolCall[];
+        scheduler.onToolCallsUpdate?.(update);
+        scheduler.onToolCallsUpdate?.(update);
+      });
+    const abortController = new AbortController();
+    const processing = core.processFunctionCalls(
+      [
+        { id: 'fast', name: 'read_file', args: {} },
+        { id: 'slow', name: 'run_shell_command', args: {} },
+      ],
+      abortController,
+      'parallel',
+      1,
+      [{ name: 'read_file' }, { name: 'run_shell_command' }],
+    );
+    try {
+      await vi.waitFor(() => expect(statuses).toHaveLength(1));
+      expect(statuses[0]).toMatchObject({ callId: 'fast', success: true });
+    } finally {
+      abortController.abort();
+      await processing;
+      scheduleSpy.mockRestore();
+    }
+  });
+
   it('emits scheduler-resolved tool identity for bridged calls', async () => {
     const { core } = buildApprovalCore();
     const toolCallEvents: AgentToolCallEvent[] = [];
