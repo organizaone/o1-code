@@ -33,7 +33,10 @@ import { useAgentViewState } from '../contexts/AgentViewContext.js';
 import { useTerminalSize } from '../hooks/useTerminalSize.js';
 import { StreamingState } from '../types.js';
 import { getStickyTodoMaxVisibleItemsForMode } from '../utils/todoSnapshot.js';
-import { getDialogMaxHeight } from '../utils/layoutUtils.js';
+import {
+  getApplicationUpdateDialogMaxHeight,
+  getDialogMaxHeight,
+} from '../utils/layoutUtils.js';
 import { getLayoutTier, sideMargin } from '../utils/layout-tier.js';
 import { useBackgroundTaskViewState } from '../contexts/BackgroundTaskViewContext.js';
 import { theme } from '../semantic-colors.js';
@@ -74,6 +77,20 @@ export const DefaultAppLayout: React.FC = () => {
   const isFullScreenAuth =
     uiState.useTerminalBuffer &&
     Boolean(uiState.auth?.isAuthDialogOpen || uiState.auth?.authError);
+  const inlineDialogMaxHeight = getDialogMaxHeight(
+    uiState.terminalHeight,
+    uiState.staticExtraHeight,
+    uiState.useTerminalBuffer ? getFixedHeaderHeight(terminalWidth) : 0,
+  );
+  const updateDialogMaxHeight = getApplicationUpdateDialogMaxHeight(
+    uiState.terminalHeight,
+    uiState.staticExtraHeight,
+    uiState.useTerminalBuffer ? getFixedHeaderHeight(terminalWidth) : 0,
+    (uiState.ctrlCPressedOnce ? 2 : 0) + (uiState.ctrlDPressedOnce ? 2 : 0),
+  );
+  const isCompactUpdate =
+    uiState.applicationUpdate?.visible &&
+    updateDialogMaxHeight > inlineDialogMaxHeight;
   const dialogMaxHeight = isFullScreenAuth
     ? Math.max(
         1,
@@ -82,11 +99,9 @@ export const DefaultAppLayout: React.FC = () => {
           (uiState.ctrlCPressedOnce ? 2 : 0) -
           (uiState.ctrlDPressedOnce ? 2 : 0),
       )
-    : getDialogMaxHeight(
-        uiState.terminalHeight,
-        uiState.staticExtraHeight,
-        uiState.useTerminalBuffer ? getFixedHeaderHeight(terminalWidth) : 0,
-      );
+    : isCompactUpdate
+      ? updateDialogMaxHeight
+      : inlineDialogMaxHeight;
   const dialogHeight = uiState.constrainHeight ? dialogMaxHeight : undefined;
   const shouldShowStickyTodos =
     uiState.stickyTodos !== null &&
@@ -153,11 +168,13 @@ export const DefaultAppLayout: React.FC = () => {
           ) : (
             <ScrollContext.Provider value={scrollActions}>
               {/* Main view: conversation history + main composer / dialogs */}
-              <MainContent
-                footerRef={footerRef}
-                inputLinesRef={inputLinesRef}
-                scrollActionsRef={scrollActionsRef}
-              />
+              {!(isCompactUpdate && uiState.useTerminalBuffer) && (
+                <MainContent
+                  footerRef={footerRef}
+                  inputLinesRef={inputLinesRef}
+                  scrollActionsRef={scrollActionsRef}
+                />
+              )}
               <Box flexDirection="column" ref={uiState.mainControlsRef}>
                 {!uiState.useTerminalBuffer &&
                   !uiState.dialogsVisible &&

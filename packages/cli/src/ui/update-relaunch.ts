@@ -73,7 +73,14 @@ export async function updateBeforeRelaunch(
       }
       const success = await handleAutoUpdate(
         result.info,
-        settings,
+        relaunchOnFailure
+          ? {
+              merged: {
+                ...settings.merged,
+                general: { ...settings.merged.general, enableAutoUpdate: true },
+              },
+            }
+          : settings,
         projectRoot,
       );
       writeStderrLine(

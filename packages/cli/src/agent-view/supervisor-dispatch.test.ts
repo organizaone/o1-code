@@ -40,7 +40,40 @@ describe('dispatchAgentViewSession', () => {
   });
 
   afterEach(async () => {
+    vi.unstubAllEnvs();
     await fs.rm(tempDir, { recursive: true, force: true });
+  });
+
+  it('starts a newly dispatched session through the current npm bootstrap instead of the old supervisor bundle', async () => {
+    const bootstrap = path.join(tempDir, 'cli-entry.js');
+    await fs.writeFile(bootstrap, '');
+    const oldArgv = [...process.argv];
+    process.argv[1] = path.join(tempDir, 'old-runtime', 'cli.js');
+    vi.stubEnv('DEV', false);
+    vi.stubEnv('O1CODE_CLI', bootstrap);
+    vi.stubEnv('O1CODE_MANAGED_NPM_PIN', 'old-supervisor-pin');
+    vi.stubEnv('O1CODE_STARTUP_VERSION', '1.0.0');
+    try {
+      const result = await dispatchAgentViewSession('', '/repo/pkg', {
+        globalDir: tempDir,
+        promptInArgv: false,
+      });
+      const launch = await readAgentViewLaunch(result.sessionId, {
+        globalDir: tempDir,
+      });
+      expect(launch?.argv.slice(0, 2)).toEqual([
+        process.execPath,
+        await fs.realpath(bootstrap),
+      ]);
+      expect(launch?.env).toMatchObject({
+        CLI_VERSION: '',
+        O1CODE_MANAGED_NPM_PIN: '',
+        O1CODE_STARTUP_VERSION: '',
+      });
+      expect(process.env['O1CODE_MANAGED_NPM_PIN']).toBe('old-supervisor-pin');
+    } finally {
+      process.argv.splice(0, process.argv.length, ...oldArgv);
+    }
   });
 
   it('writes shared-cwd launch and roster metadata', async () => {

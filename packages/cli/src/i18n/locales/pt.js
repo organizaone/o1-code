@@ -7,6 +7,40 @@
 // Portuguese translations for O1-Code CLI (pt-BR)
 
 export default {
+  'The conversation could not be saved for restart. Keep this session open and try again.':
+    'Não foi possível salvar a conversa para reiniciar. Mantenha esta sessão aberta e tente novamente.',
+  'Close this session and update using the instructions below.':
+    'Feche esta sessão e atualize seguindo as instruções abaixo.',
+  'Prepare update': 'Preparar atualização',
+  'Conversation recording is disabled. Keep this conversation open; updates take effect after you close and open the app.':
+    'A gravação de conversas está desativada. Mantenha esta conversa aberta; as atualizações serão aplicadas após fechar e abrir o aplicativo.',
+  'The update is prepared, but restarting failed: {{error}}. Open the app again to resume your saved conversation.':
+    'A atualização está preparada, mas não foi possível reiniciar: {{error}}. Abra o aplicativo novamente para retomar sua conversa salva.',
+  'Enable automatic update checks and prepare npm updates while idle.':
+    'Verificar atualizações automaticamente e preparar atualizações npm enquanto estiver ocioso.',
+  '{{product}} update': 'Atualização do {{product}}',
+  'A new version is available': 'Uma nova versão está disponível',
+  'Preparing the update': 'Preparando a atualização',
+  'Ready to restart': 'Tudo pronto para reiniciar',
+  'The update could not be prepared': 'Não foi possível preparar a atualização',
+  Restarting: 'Reiniciando',
+  'Update and restart': 'Atualizar e reiniciar',
+  'Restart and update': 'Reiniciar e atualizar',
+  'Continue using': 'Continuar usando',
+  'Try again': 'Tentar novamente',
+  Later: 'Depois',
+  'Update now, or continue and update the next time you open the app.':
+    'Atualize agora ou continue e atualize na próxima vez que abrir o aplicativo.',
+  'You can continue using the app. The update takes effect after restarting.':
+    'Você pode continuar usando. A atualização será aplicada após reiniciar.',
+  'The update is prepared. Restart now, or apply it the next time you open the app.':
+    'A atualização está preparada. Reinicie agora ou aplique na próxima abertura.',
+  'Your current version is still available.':
+    'Sua versão atual continua disponível.',
+  'Opening the prepared version.': 'Abrindo a versão preparada.',
+  '↑↓ choose · enter select · esc later':
+    '↑↓ escolher · enter selecionar · esc depois',
+  'PgUp/PgDn details · esc later': 'PgUp/PgDn detalhes · esc depois',
   '{{count}} characters copied': '{{count}} caracteres copiados',
   'Clipboard images are unavailable in this session. Attach the image file directly.':
     'As imagens da área de transferência estão indisponíveis nesta sessão. Anexe o arquivo de imagem diretamente.',

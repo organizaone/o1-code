@@ -8,6 +8,8 @@ import { spawn, type ChildProcess } from 'node:child_process';
 import * as fs from 'node:fs/promises';
 import { randomUUID } from 'node:crypto';
 import * as path from 'node:path';
+import semver from 'semver';
+import { getCliVersion } from '../utils/version.js';
 import {
   attachAgentViewSupervisorTerminal,
   callAgentViewSupervisor,
@@ -34,7 +36,10 @@ import {
   readAgentViewSupervisor,
   writeAgentViewSupervisor,
 } from './supervisor-store.js';
-import { buildCurrentO1CodeCliArgv } from './current-cli-argv.js';
+import {
+  buildCurrentO1CodeCliArgv,
+  buildFreshO1CodeWorkerLaunch,
+} from './current-cli-argv.js';
 
 export const INTERNAL_AGENT_VIEW_SUPERVISOR_ARG =
   '--internal-agent-view-supervisor';
@@ -84,36 +89,65 @@ export interface RunAgentViewSupervisorOptions {
 export async function ensureAgentViewSupervisor(
   options: EnsureAgentViewSupervisorOptions = {},
 ): Promise<AgentViewSupervisorClientHandle> {
+  const minimumVersion = await getCliVersion();
   const socketPath = getAgentViewSupervisorSocketPath({
     ...(options.globalDir ? { globalDir: options.globalDir } : {}),
   });
-  if (await canReachSupervisor(socketPath, options)) {
+  const status = await readReachableSupervisorStatus(socketPath, options);
+  if (
+    status !== undefined &&
+    supervisorSupportsVersion(status, minimumVersion)
+  ) {
     return createSupervisorHandle(
       socketPath,
       undefined,
       await readSupervisorAuthToken(options),
     );
   }
+  if (status !== undefined) throw supervisorUpgradePending();
 
-  return withSupervisorStartLock(options, socketPath, async () => {
-    if (await canReachSupervisor(socketPath, options)) {
+  return withSupervisorStartLock(
+    options,
+    socketPath,
+    async () => {
+      const lockedStatus = await readReachableSupervisorStatus(
+        socketPath,
+        options,
+      );
+      if (
+        lockedStatus !== undefined &&
+        supervisorSupportsVersion(lockedStatus, minimumVersion)
+      ) {
+        return createSupervisorHandle(
+          socketPath,
+          undefined,
+          await readSupervisorAuthToken(options),
+        );
+      }
+      if (lockedStatus !== undefined) {
+        // Legacy owner-disconnect handlers stop live conversations even when
+        // shutdown requests keepWorkers. Open this updated client directly.
+        throw supervisorUpgradePending();
+      }
+      const startedProcess = (options.spawnProcess ?? defaultSpawnSupervisor)([
+        INTERNAL_AGENT_VIEW_SUPERVISOR_ARG,
+      ]);
+      startedProcess.unref?.();
+      await waitForSpawnedSupervisorReady(
+        startedProcess,
+        socketPath,
+        options,
+        minimumVersion,
+      );
       return createSupervisorHandle(
         socketPath,
-        undefined,
+        startedProcess,
         await readSupervisorAuthToken(options),
       );
-    }
-    const startedProcess = (options.spawnProcess ?? defaultSpawnSupervisor)([
-      INTERNAL_AGENT_VIEW_SUPERVISOR_ARG,
-    ]);
-    startedProcess.unref?.();
-    await waitForSpawnedSupervisorReady(startedProcess, socketPath, options);
-    return createSupervisorHandle(
-      socketPath,
-      startedProcess,
-      await readSupervisorAuthToken(options),
-    );
-  });
+    },
+    true,
+    minimumVersion,
+  );
 }
 
 export async function connectExistingAgentViewSupervisor(
@@ -340,6 +374,7 @@ async function waitForSpawnedSupervisorReady(
   startedProcess: ChildProcess,
   socketPath: string,
   options: EnsureAgentViewSupervisorOptions,
+  minimumVersion: string,
 ): Promise<void> {
   const waitAbort = new AbortController();
   let cleanup = () => {};
@@ -361,7 +396,7 @@ async function waitForSpawnedSupervisorReady(
 
   try {
     await Promise.race([
-      waitForSupervisor(socketPath, options, waitAbort.signal),
+      waitForSupervisor(socketPath, options, waitAbort.signal, minimumVersion),
       startupFailure,
     ]);
   } finally {
@@ -385,6 +420,7 @@ async function withSupervisorStartLock(
   socketPath: string,
   startSupervisor: () => Promise<AgentViewSupervisorClientHandle>,
   allowStaleLockCleanup = true,
+  minimumVersion?: string,
 ): Promise<AgentViewSupervisorClientHandle> {
   const lockPath = getSupervisorStartLockPath(options);
   await fs.mkdir(path.dirname(lockPath), { recursive: true });
@@ -393,13 +429,19 @@ async function withSupervisorStartLock(
   } catch (error) {
     if (!isAlreadyExistsError(error)) throw error;
     try {
-      await waitForSupervisor(socketPath, options);
+      await waitForSupervisor(socketPath, options, undefined, minimumVersion);
       return createSupervisorHandle(
         socketPath,
         undefined,
         await readSupervisorAuthToken(options),
       );
     } catch (waitError) {
+      if (
+        waitError instanceof Error &&
+        'code' in waitError &&
+        waitError.code === 'supervisor_upgrade_pending'
+      )
+        throw waitError;
       if (!allowStaleLockCleanup) throw waitError;
       await fs.rm(lockPath, { recursive: true, force: true });
       return withSupervisorStartLock(
@@ -407,6 +449,7 @@ async function withSupervisorStartLock(
         socketPath,
         startSupervisor,
         false,
+        minimumVersion,
       );
     }
   }
@@ -436,16 +479,54 @@ function isAlreadyExistsError(error: unknown): boolean {
 async function canReachSupervisor(
   socketPath: string,
   options: EnsureAgentViewSupervisorOptions,
+  minimumVersion?: string,
 ): Promise<boolean> {
+  const result = await readReachableSupervisorStatus(socketPath, options);
+  return (
+    result !== undefined && supervisorSupportsVersion(result, minimumVersion)
+  );
+}
+
+function supervisorSupportsVersion(
+  result: unknown,
+  minimumVersion?: string,
+): boolean {
+  if (!minimumVersion || !semver.valid(minimumVersion)) return true;
+  if (typeof result !== 'object' || result === null) return false;
+  if (
+    'workerBootstrapUpdates' in result &&
+    result.workerBootstrapUpdates === true
+  ) {
+    return (
+      'protocolVersion' in result &&
+      result.protocolVersion === AGENT_VIEW_PROTOCOL_VERSION &&
+      'workerEntrypoint' in result &&
+      result.workerEntrypoint === buildFreshO1CodeWorkerLaunch([]).entrypoint &&
+      'workerNodePath' in result &&
+      result.workerNodePath === process.execPath
+    );
+  }
+  return (
+    'cliVersion' in result &&
+    typeof result.cliVersion === 'string' &&
+    Boolean(semver.valid(result.cliVersion)) &&
+    semver.gte(result.cliVersion, minimumVersion)
+  );
+}
+
+async function readReachableSupervisorStatus(
+  socketPath: string,
+  options: EnsureAgentViewSupervisorOptions,
+): Promise<unknown> {
   try {
     const response = await requestStatus(
       socketPath,
       250,
       await readSupervisorAuthToken(options),
     );
-    return response.ok;
+    return response.ok ? response.result : undefined;
   } catch {
-    return false;
+    return undefined;
   }
 }
 
@@ -453,6 +534,7 @@ async function waitForSupervisor(
   socketPath: string,
   options: EnsureAgentViewSupervisorOptions,
   signal?: AbortSignal,
+  minimumVersion?: string,
 ): Promise<void> {
   const deadlineMs =
     Date.now() + SUPERVISOR_READY_RETRIES * SUPERVISOR_READY_DELAY_MS;
@@ -460,13 +542,26 @@ async function waitForSupervisor(
     if (signal?.aborted) {
       throw new Error('Agent View supervisor startup was cancelled.');
     }
-    if (await canReachSupervisor(socketPath, options)) return;
+    const status = await readReachableSupervisorStatus(socketPath, options);
+    if (status !== undefined) {
+      if (supervisorSupportsVersion(status, minimumVersion)) return;
+      throw supervisorUpgradePending();
+    }
     if (signal?.aborted) {
       throw new Error('Agent View supervisor startup was cancelled.');
     }
     await delay(SUPERVISOR_READY_DELAY_MS);
   }
   throw new Error('Agent View supervisor did not become ready.');
+}
+
+function supervisorUpgradePending(): Error & { code: string } {
+  return Object.assign(
+    new Error(
+      'The previous version is still managing open conversations. Session switching will resume after that version closes.',
+    ),
+    { code: 'supervisor_upgrade_pending' },
+  );
 }
 
 function requestStatus(

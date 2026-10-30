@@ -11,6 +11,7 @@ import { createHash } from 'node:crypto';
 import * as fs from 'node:fs';
 import * as fsPromises from 'node:fs/promises';
 import * as path from 'node:path';
+import { setTimeout as delay } from 'node:timers/promises';
 import { promisify } from 'node:util';
 import lockfile from 'proper-lockfile';
 import semver from 'semver';
@@ -180,15 +181,76 @@ async function validateInstallation(
   await fsPromises.access(path.join(root, 'cli.js'));
 }
 
-async function smokeTest(prefix: string): Promise<void> {
+async function smokeTest(prefix: string, version: string): Promise<void> {
   const env = { ...process.env };
-  delete env['CLI_VERSION'];
-  delete env['O1CODE_RELAUNCH_ARGS'];
+  for (const key of [
+    'CLI_VERSION',
+    'O1CODE_RELAUNCH_ARGS',
+    'O1CODE_MANAGED_NPM_PIN',
+    'O1CODE_MANAGED_NPM_UPDATE_VERSION',
+  ]) {
+    delete env[key];
+  }
   await execFileAsync(
     process.execPath,
     [path.join(packageDir(prefix), 'cli-entry.js'), '--help'],
     { encoding: 'utf8', env, timeout: 10_000 },
   );
+  const { stdout } = await execFileAsync(
+    process.execPath,
+    [path.join(packageDir(prefix), 'cli.js'), '--version'],
+    { encoding: 'utf8', env, timeout: 10_000 },
+  );
+  if (stdout.trim() !== version) {
+    throw new Error(
+      `Installed runtime version ${JSON.stringify(stdout.trim())} did not match ${version}`,
+    );
+  }
+}
+
+async function replaceBrokenInstallation(
+  update: ManagedNpmUpdate,
+): Promise<void> {
+  const quarantine = await fsPromises.mkdtemp(
+    path.join(
+      path.dirname(update.versionDir),
+      `.broken-${path.basename(update.versionDir)}-`,
+    ),
+  );
+  const preserved = path.join(quarantine, 'payload');
+  await fsPromises.rename(update.versionDir, preserved);
+  try {
+    await fsPromises.rename(update.stagingDir, update.versionDir);
+  } catch (promotionError) {
+    try {
+      await fsPromises.rename(preserved, update.versionDir);
+    } catch (rollbackError) {
+      throw new Error(
+        `Update repair failed: ${String(promotionError)}. Rollback failed: ${String(rollbackError)}. Preserved installation: ${preserved}`,
+        { cause: promotionError },
+      );
+    }
+    throw promotionError;
+  }
+}
+
+async function renameActivePointer(
+  source: string,
+  destination: string,
+): Promise<void> {
+  for (let attempt = 0; ; attempt += 1) {
+    try {
+      await fsPromises.rename(source, destination);
+      return;
+    } catch (error) {
+      const code = (error as NodeJS.ErrnoException | null)?.code;
+      if (attempt >= 5 || !['EPERM', 'EACCES', 'EBUSY'].includes(code ?? '')) {
+        throw error;
+      }
+      // Windows readers and scanners can briefly deny atomic replacement.
+      await delay(50 * 2 ** attempt);
+    }
+  }
 }
 
 async function readActiveVersion(
@@ -318,7 +380,7 @@ export async function activateManagedNpmUpdate(
   }
 
   await validateInstallation(update.stagingDir, version);
-  await smokeTest(update.stagingDir);
+  await smokeTest(update.stagingDir, version);
 
   const activeFile = path.join(update.launcherRoot, 'active.json');
   const release = await lockfile.lock(activeFile, {
@@ -351,10 +413,14 @@ export async function activateManagedNpmUpdate(
           path.join(update.launcherRoot, 'versions', activeVersion),
           activeVersion,
         );
+        await smokeTest(
+          path.join(update.launcherRoot, 'versions', activeVersion),
+          activeVersion,
+        );
         await cleanupManagedNpmUpdate(update);
         return;
       } catch {
-        // Replace a pointer whose payload is missing or incomplete.
+        // Replace a pointer whose payload can no longer execute.
       }
     }
 
@@ -362,8 +428,19 @@ export async function activateManagedNpmUpdate(
       await fsPromises.rename(update.stagingDir, update.versionDir);
     } catch (error) {
       if (!fs.existsSync(update.versionDir)) throw error;
-      await validateInstallation(update.versionDir, version);
-      await cleanupManagedNpmUpdate(update);
+      let reusable = false;
+      try {
+        await validateInstallation(update.versionDir, version);
+        await smokeTest(update.versionDir, version);
+        reusable = true;
+      } catch {
+        // Keep failed payloads for recovery without touching other versions.
+      }
+      if (reusable) {
+        await cleanupManagedNpmUpdate(update);
+      } else {
+        await replaceBrokenInstallation(update);
+      }
     }
 
     const temporaryActivePath = `${activeFile}.${process.pid}`;
@@ -378,7 +455,7 @@ export async function activateManagedNpmUpdate(
         }),
         { mode: 0o600 },
       );
-      await fsPromises.rename(temporaryActivePath, activeFile);
+      await renameActivePointer(temporaryActivePath, activeFile);
     } finally {
       await fsPromises.rm(temporaryActivePath, { force: true });
     }

@@ -68,9 +68,7 @@ const { createHash } = await import('node:crypto');
 const { homedir, tmpdir } = await import('node:os');
 const { parseEnv } = await import('node:util');
 const { fileURLToPath, pathToFileURL } = await import('node:url');
-const { delimiter, dirname, join, parse, resolve, sep } = await import(
-  'node:path'
-);
+const { dirname, join, resolve } = await import('node:path');
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const currentEntryPath = realpathSync(fileURLToPath(import.meta.url));
@@ -311,47 +309,10 @@ if (isInProcessFastPath()) {
 } else {
   const { spawnSync } = await import('node:child_process');
   const UPDATE_COMPLETE_EXIT_CODE = 44;
-  const launcherNames =
-    process.platform === 'win32'
-      ? ['o1-code.cmd', 'o1-code.exe', 'o1-code']
-      : ['o1-code'];
-  const entryPath = resolve(process.argv[1]);
-  const entryRootLength = parse(entryPath).root.length;
-  const launcherFromEnv = standaloneShim;
+  // npm must re-enter this installation with this Node, even when PATH names
+  // a different version-manager installation. Standalone keeps its bundled Node.
+  const launcher = validStandaloneShim;
   delete process.env['O1CODE_LAUNCHER_PID'];
-  const launcherCandidates = process.env['PATH']
-    ?.split(delimiter)
-    .flatMap((dir) => launcherNames.map((name) => join(dir, name)))
-    .filter((candidate) => existsSync(candidate));
-  const launcher =
-    launcherFromEnv && existsSync(launcherFromEnv)
-      ? launcherFromEnv
-      : launcherCandidates
-          ?.map((candidate) => {
-            if (resolve(candidate) === entryPath) {
-              return { candidate, score: Number.MAX_SAFE_INTEGER };
-            }
-            try {
-              if (realpathSync(candidate) === realpathSync(entryPath)) {
-                return { candidate, score: Number.MAX_SAFE_INTEGER };
-              }
-            } catch {
-              // Fall back to matching the installation prefix.
-            }
-            let parent = resolve(dirname(candidate));
-            while (
-              parent.length > entryRootLength &&
-              entryPath !== parent &&
-              !entryPath.startsWith(`${parent}${sep}`)
-            ) {
-              const next = dirname(parent);
-              if (next === parent) break;
-              parent = next;
-            }
-            return { candidate, score: parent.length };
-          })
-          .filter(({ score }) => score > entryRootLength)
-          .sort((a, b) => b.score - a.score)[0]?.candidate;
   const env = {
     ...process.env,
     O1CODE_LAUNCHER_PID: String(process.pid),
@@ -389,7 +350,7 @@ if (isInProcessFastPath()) {
     // Node's escaping: a launcher path with cmd metacharacters would be split
     // into extra commands. The update itself already landed, so skip the
     // relaunch instead.
-    if (!launcher || (viaCmd && UNSAFE_CMD_CHARS.test(launcher))) {
+    if (viaCmd && UNSAFE_CMD_CHARS.test(launcher)) {
       process.stderr.write(
         'Update successful! The new version will be used on your next run.\n',
       );
@@ -418,10 +379,14 @@ if (isInProcessFastPath()) {
               windowsVerbatimArguments: true,
             },
           )
-        : spawnSync(launcher, [], {
-            stdio: 'inherit',
-            env: relaunchEnv,
-          });
+        : spawnSync(
+            launcher ?? process.execPath,
+            launcher ? [] : [currentEntryPath],
+            {
+              stdio: 'inherit',
+              env: relaunchEnv,
+            },
+          );
       if (relaunchResult.signal) {
         process.kill(process.pid, relaunchResult.signal);
       } else {

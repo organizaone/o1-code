@@ -76,6 +76,18 @@ describe('updateBeforeRelaunch', () => {
     );
   });
 
+  it('allows an explicit update without changing disabled automatic update settings', async () => {
+    const disabled = {
+      merged: { general: { enableAutoUpdate: false } },
+    } as LoadedSettings;
+    handleAutoUpdate.mockResolvedValue(true);
+    await updateBeforeRelaunch(disabled, '/repo', true);
+    expect(
+      handleAutoUpdate.mock.calls[0][1].merged.general.enableAutoUpdate,
+    ).toBe(true);
+    expect(disabled.merged.general?.enableAutoUpdate).toBe(false);
+  });
+
   it.each([
     ['explicit update', true, true],
     ['background update-on-exit', false, false],

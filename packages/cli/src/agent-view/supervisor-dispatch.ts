@@ -19,10 +19,7 @@ import {
   writeAgentViewWorker,
 } from './supervisor-store.js';
 import { createAgentViewWorkerSidebandEnv } from './worker-sideband.js';
-import {
-  buildCurrentO1CodeCliArgv,
-  getCurrentO1CodeCliEntrypoint,
-} from './current-cli-argv.js';
+import { buildFreshO1CodeWorkerLaunch } from './current-cli-argv.js';
 
 interface DispatchOptions {
   globalDir?: string;
@@ -71,22 +68,26 @@ export async function dispatchAgentViewSession(
   };
   try {
     await writeAgentViewSessionState(state, options);
+    const workerLaunch = buildNativeWorkerLaunch(
+      sessionId,
+      options.promptInArgv === false ? undefined : prompt,
+      options.approvalMode,
+    );
     await writeAgentViewLaunch(
       {
         schemaVersion: 1,
         sessionId,
-        argv: buildNativeWorkerArgv(
-          sessionId,
-          options.promptInArgv === false ? undefined : prompt,
-          options.approvalMode,
-        ),
-        env: createAgentViewWorkerSidebandEnv({
-          sessionId,
-          sidebandEndpoint: options.sidebandEndpoint ?? '',
-          token,
-          activeCwd: resolvedCwd,
-        }),
-        entrypoint: getCurrentO1CodeCliEntrypoint(),
+        argv: workerLaunch.argv,
+        env: {
+          ...createAgentViewWorkerSidebandEnv({
+            sessionId,
+            sidebandEndpoint: options.sidebandEndpoint ?? '',
+            token,
+            activeCwd: resolvedCwd,
+          }),
+          ...workerLaunch.env,
+        },
+        entrypoint: workerLaunch.entrypoint,
         projectCwd: resolvedCwd,
         activeCwd: resolvedCwd,
         includeDirectories: [],
@@ -193,12 +194,12 @@ async function cleanupFailedDispatchCreation(
   }
 }
 
-function buildNativeWorkerArgv(
+function buildNativeWorkerLaunch(
   sessionId: string,
   prompt?: string,
   approvalMode?: string,
-): string[] {
-  return buildCurrentO1CodeCliArgv([
+): ReturnType<typeof buildFreshO1CodeWorkerLaunch> {
+  return buildFreshO1CodeWorkerLaunch([
     '--session-id',
     sessionId,
     ...(approvalMode ? [`--approval-mode=${approvalMode}`] : []),

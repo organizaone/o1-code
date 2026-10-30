@@ -213,6 +213,9 @@ settings (`ui.customAsciiArt`, `ui.hideBanner`, …) are gone and ignored if pre
   highlights are the first sentence of each entry of the version's `CHANGELOG.md` section, which
   the bundle carries as `release-notes.json`; the version the last run opened is kept in
   `~/.o1-code/last-seen-version`.
+  A prepared npm payload does not change the running session's version. The interactive update
+  dialog distinguishes preparation from restart; the first run of the new version retains the
+  existing `What's new` notice.
 - **Provider error being retried** (`messages/ProviderRetryBox.tsx`): red box, the reason, a live
   `Retrying in Ns — esc to give up (attempt/max)`, then `Retrying…` with a spinner. The footer shows
   failed meanwhile.
@@ -370,6 +373,37 @@ notices (shortened to `↑ v… · /update` and `● MCP · /mcp`), and the path
 never leaves; it only shortens from the start.
 
 ## Dialogs and selection
+
+- **Application updates** (`ApplicationUpdateDialog.tsx`, `hooks/use-application-update.ts`):
+  discovery presents a choice when the session is idle, with no executing tools, active PTY, queued
+  submissions or running background tasks. Other dialogs, nonempty input and attachment preparation
+  or unsent attachments delay presentation.
+  The content-sized panel is at most 92 columns wide within the available dialog budget, bordered
+  in brand (red for a failure). It names the running and target versions and distinguishes
+  available, preparing, ready, failed and restarting states. Arrows and Enter select the action;
+  Escape means Later, including during preparation. Later dismisses that target for the running
+  application and cancels a pending restart; `/update` explicitly reopens it. Automatic preparation
+  of supported npm updates starts only while idle and when `general.enableAutoUpdate` is enabled.
+  Applying remains an explicit choice until the next natural startup. Preparing/restarting never
+  offer another apply action. Selected items use the shared brand arrow and bold primary text.
+  Short terminals reduce secondary chrome before the version transition and actions; failure
+  details and manual instructions remain reachable with Page Up/Page Down and Home/End. No fake
+  download percentage is shown. Headless and ACP commands retain text output.
+  If the normal dialog budget has fewer than six rows, the update temporarily uses the transcript
+  area in viewport mode so its version and both choices remain visible; larger layouts keep history.
+  Screen-reader mode also hides competing notification/footer rows for a compact update, while
+  retaining its mounted history to avoid replaying Static output.
+  With conversation recording disabled, the primary action prepares the update without restarting;
+  a ready payload offers Later. Before restarting a recorded npm conversation, flush and verify its
+  saved transcript, validate the launcher, and recheck idle state and the pending restart choice. Keep the
+  current approval mode and execution options; an empty new conversation retains its session ID
+  without requesting a nonexistent transcript.
+
+  ![Installed application with a prepared update and explicit restart choices](../images/tui-application-update.png)
+
+  ![Update version and both actions visible in a 60 by 12 terminal](../images/tui-application-update-compact.png)
+
+  These captures come from the real macOS application with controlled registry and provider responses.
 
 - **Agent sessions** (`agent-view/session-dashboard.ts`): `/agents` (alias
   `/sessions`) is a full-screen terminal controller view. Open it with the command

@@ -214,6 +214,24 @@ describe('ScreenReaderAppLayout', () => {
     expect(output).not.toContain('DialogManager 20');
   });
 
+  it('reserves compact update choices without competing footer and history rows', () => {
+    dialogManagerMockState.lineCount = 6;
+    const { lastFrame } = renderLayout({
+      ...baseUIState,
+      dialogsVisible: true,
+      terminalHeight: 10,
+      staticExtraHeight: 3,
+      ctrlCPressedOnce: true,
+      applicationUpdate: { visible: true } as UIState['applicationUpdate'],
+    });
+    const frame = lastFrame() ?? '';
+    expect(frame).toContain('DialogManager 6');
+    expect(frame).not.toContain('MainContent');
+    expect(frame).not.toContain('Footer');
+    expect(frame).not.toContain('Notifications');
+    expect(frameHeight(frame)).toBeLessThanOrEqual(10);
+  });
+
   it('does not cap a tall dialog when height constraints are disabled', () => {
     dialogManagerMockState.lineCount = 20;
     const terminalHeight = 8;

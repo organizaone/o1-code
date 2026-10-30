@@ -7,6 +7,7 @@
 
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { createHash } from 'node:crypto';
+import { EventEmitter } from 'node:events';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import * as os from 'node:os';
@@ -24,6 +25,12 @@ import {
 } from './standalone-update.js';
 
 const mockFetch = vi.hoisted(() => vi.fn());
+const childProcess = vi.hoisted(() => ({ execFile: vi.fn() }));
+vi.mock('node:child_process', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('node:child_process')>();
+  childProcess.execFile.mockImplementation(actual.execFile);
+  return { ...actual, execFile: childProcess.execFile };
+});
 vi.mock('../utils/load-undici.js', () => ({
   loadUndici: async () => ({ fetch: mockFetch }),
 }));
@@ -462,10 +469,23 @@ describe('standalone-update', () => {
       ).toBe(false);
     }
 
-    async function serveArchive(options: { badChecksum?: boolean } = {}) {
+    async function serveArchive(
+      options: { badChecksum?: boolean; runtime?: boolean } = {},
+    ) {
       const fixture = path.join(tempDir, 'fixture');
       fs.mkdirSync(path.join(fixture, 'o1-code'), { recursive: true });
       fs.writeFileSync(path.join(fixture, 'o1-code', 'manifest.json'), '{}');
+      if (options.runtime) {
+        fs.mkdirSync(path.join(fixture, 'o1-code', 'node', 'bin'), {
+          recursive: true,
+        });
+        fs.mkdirSync(path.join(fixture, 'o1-code', 'lib'));
+        fs.writeFileSync(
+          path.join(fixture, 'o1-code', 'node', 'bin', 'node'),
+          '',
+        );
+        fs.writeFileSync(path.join(fixture, 'o1-code', 'lib', 'cli.js'), '');
+      }
       const archivePath = path.join(tempDir, 'release.tar.gz');
       await tar.c({ gzip: true, cwd: fixture, file: archivePath }, ['o1-code']);
       const archive = fs.readFileSync(archivePath);
@@ -482,6 +502,38 @@ describe('standalone-update', () => {
         return new Response('', { status: 404 });
       });
     }
+
+    it('preserves the current installation when the downloaded runtime reports another version', async () => {
+      vi.stubEnv('O1CODE_UPDATE_BASE_URL', baseUrl);
+      vi.stubEnv('SHELL', '');
+      const isolatedInstall = path.join(tempDir, 'isolated', 'lib', 'o1-code');
+      fs.mkdirSync(isolatedInstall, { recursive: true });
+      fs.writeFileSync(
+        path.join(isolatedInstall, 'manifest.json'),
+        originalManifest,
+      );
+      await serveArchive({ runtime: true });
+      childProcess.execFile.mockImplementationOnce(
+        (_command, _args, _options, callback) => {
+          const child = new EventEmitter();
+          queueMicrotask(() => callback(null, '0.1.0\n', ''));
+          return child;
+        },
+      );
+
+      await expect(
+        performStandaloneUpdate(isolatedInstall, '1.2.3'),
+      ).rejects.toThrow('expected 1.2.3');
+      expect(
+        fs.readFileSync(path.join(isolatedInstall, 'manifest.json'), 'utf8'),
+      ).toBe(originalManifest);
+      expect(fs.existsSync(`${isolatedInstall}.old`)).toBe(false);
+      expect(
+        fs.existsSync(
+          path.join(path.dirname(isolatedInstall), '.o1-code-update.lock'),
+        ),
+      ).toBe(false);
+    });
 
     it.each([baseUrl, `${baseUrl}/`, `  ${baseUrl}///  `])(
       'downloads and verifies every resource from the configured root %s',

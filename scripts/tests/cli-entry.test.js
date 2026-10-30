@@ -165,9 +165,70 @@ describe('scripts/cli-entry.js production entry', () => {
     }
   });
 
+  it('relaunches the updated npm installation instead of another installation on PATH', async () => {
+    const fs = await vi.importActual('node:fs');
+    const path = await import('node:path');
+    const os = await vi.importActual('node:os');
+    const { spawnSync } = await vi.importActual('node:child_process');
+    const fixture = fs.mkdtempSync(path.join(os.tmpdir(), 'o1-code-relaunch-'));
+    const current = path.join(fixture, 'current');
+    const stale = path.join(fixture, 'stale', 'bin');
+    fs.mkdirSync(current, { recursive: true });
+    fs.mkdirSync(stale, { recursive: true });
+    const bootstrap = path.join(current, 'cli-entry.js');
+    fs.copyFileSync(new URL('../cli-entry.js', import.meta.url), bootstrap);
+    fs.writeFileSync(
+      path.join(current, 'package.json'),
+      JSON.stringify({ type: 'module', version: '2.0.0' }),
+    );
+    fs.writeFileSync(
+      path.join(current, 'cli.js'),
+      `if (process.env.O1CODE_SKIP_UPDATE_CHECK_ONCE !== 'true') process.exit(44);
+console.log(JSON.stringify({version: '2.0.0', args: process.argv.slice(2), startup: process.env.O1CODE_STARTUP_VERSION}));
+`,
+    );
+    const isWindows = process.platform === 'win32';
+    fs.writeFileSync(
+      path.join(stale, isWindows ? 'o1-code.cmd' : 'o1-code'),
+      isWindows ? '@echo off\r\necho STALE\r\n' : '#!/bin/sh\necho STALE\n',
+      { mode: 0o755 },
+    );
+    const env = {
+      ...process.env,
+      PATH: `${stale}${path.delimiter}${process.env.PATH ?? ''}`,
+      O1CODE_HOME: path.join(fixture, 'home'),
+      O1CODE_STARTUP_VERSION: '1.0.0',
+    };
+    for (const key of [
+      'CLI_VERSION',
+      'O1CODE_LAUNCHER_PATH',
+      'O1CODE_RELAUNCH_ARGS',
+      'O1CODE_MANAGED_NPM_PIN',
+      'O1CODE_SKIP_UPDATE_CHECK_ONCE',
+    ]) {
+      delete env[key];
+    }
+    try {
+      const result = spawnSync(
+        process.execPath,
+        [bootstrap, '--fixture-update', 'path with spaces'],
+        { encoding: 'utf8', env, timeout: 10_000 },
+      );
+      expect(result.status, result.stderr).toBe(0);
+      expect(result.stderr).toBe('');
+      expect(result.stdout).not.toContain('STALE');
+      expect(JSON.parse(result.stdout.trim())).toEqual({
+        version: '2.0.0',
+        args: ['--fixture-update', 'path with spaces'],
+        startup: '2.0.0',
+      });
+    } finally {
+      fs.rmSync(fixture, { recursive: true, force: true });
+    }
+  });
+
   describe('post-update relaunch through a Windows .cmd launcher', () => {
-    // npm's global bin on Windows is a .cmd shim, so every managed update
-    // relaunches through cmd.exe.
+    // Standalone installations need their shim to retain the bundled Node.
     const launcher = 'C:\\Users\\test\\AppData\\Roaming\\npm\\o1-code.cmd';
     const platform = Object.getOwnPropertyDescriptor(process, 'platform');
     let inheritedShim;

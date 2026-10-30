@@ -142,6 +142,7 @@ import { ICON } from './constants.js';
 import type { RestoreOption } from './components/RewindSelector.js';
 import { Box, measureElement } from 'ink';
 import type { Content } from '@google/genai';
+import { updateEventEmitter } from '../utils/updateEventEmitter.js';
 
 // Mock useStdout to capture terminal title writes
 let mockStdout: { write: ReturnType<typeof vi.fn> };
@@ -676,6 +677,40 @@ describe('AppContainer State Management', () => {
     } finally {
       await mockConfig.shutdown();
     }
+  });
+
+  it('defers the update dialog while clipboard attachment preparation is active', async () => {
+    mockSettings.merged.general = { enableAutoUpdate: false };
+    const app = render(
+      <AppContainer
+        config={mockConfig}
+        settings={mockSettings}
+        version="1.0.0"
+        initializationResult={mockInitResult}
+      />,
+    );
+    await flushConfigInitialization();
+    act(() => capturedUIActions.setAttachmentPreparationActive(true));
+    act(() => {
+      updateEventEmitter.emit('update-available', {
+        message: 'Update available',
+        update: {
+          current: '1.0.0',
+          latest: '2.0.0',
+          type: 'minor',
+          name: '@organizaone/o1-code',
+        },
+      });
+    });
+    await vi.waitFor(() => {
+      expect(capturedUIState.applicationUpdate?.state).toBeDefined();
+    });
+    expect(capturedUIState.applicationUpdate?.visible).toBe(false);
+    act(() => capturedUIActions.setAttachmentPreparationActive(false));
+    await vi.waitFor(() => {
+      expect(capturedUIState.applicationUpdate?.visible).toBe(true);
+    });
+    app.unmount();
   });
 
   describe('speculative tool results', () => {

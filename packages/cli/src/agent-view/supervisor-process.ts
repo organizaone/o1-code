@@ -9,6 +9,7 @@ import type { Socket } from 'node:net';
 import * as os from 'node:os';
 import * as path from 'node:path';
 import * as fs from 'node:fs';
+import { getCliVersion } from '../utils/version.js';
 import {
   AgentViewAttachLeaseManager,
   DEFAULT_AGENT_VIEW_ATTACH_LEASE_TTL_MS,
@@ -70,10 +71,7 @@ import {
   createAgentViewWorkerSidebandEnv,
   O1CODE_AGENT_VIEW_TOKEN,
 } from './worker-sideband.js';
-import {
-  buildCurrentO1CodeCliArgv,
-  getCurrentO1CodeCliEntrypoint,
-} from './current-cli-argv.js';
+import { buildFreshO1CodeWorkerLaunch } from './current-cli-argv.js';
 import {
   canAgentViewHibernate,
   canAgentViewQueueFollowUp,
@@ -320,8 +318,12 @@ class AgentViewSupervisorProcessHandler
     notifyAgentViewSubscribers(this.subscribers);
   }
 
-  status() {
+  async status() {
     return {
+      cliVersion: await getCliVersion(),
+      workerBootstrapUpdates: true,
+      workerEntrypoint: buildFreshO1CodeWorkerLaunch([]).entrypoint,
+      workerNodePath: process.execPath,
       protocolVersion: AGENT_VIEW_PROTOCOL_VERSION,
       pid: process.pid,
       socketPath: this.socketPath,
@@ -774,6 +776,10 @@ class AgentViewSupervisorProcessHandler
       let host: AgentViewPtyHostHandle | undefined;
       try {
         await writeAgentViewSessionState(adoptingState, store);
+        const workerLaunch = buildResumeWorkerLaunch(
+          adoption.resumeSessionId,
+          adoption.approvalMode,
+        );
         await writeAgentViewLaunch(
           {
             schemaVersion: 1,
@@ -781,17 +787,17 @@ class AgentViewSupervisorProcessHandler
             // --resume needs the spelling the native session store knows;
             // sessionId is the canonical (directory-safe) form.
             resumeSessionId: adoption.resumeSessionId,
-            argv: buildResumeWorkerArgv(
-              adoption.resumeSessionId,
-              adoption.approvalMode,
-            ),
-            env: createAgentViewWorkerSidebandEnv({
-              sessionId: adoption.sessionId,
-              sidebandEndpoint: this.socketPath,
-              token,
-              activeCwd,
-            }),
-            entrypoint: getCurrentO1CodeCliEntrypoint(),
+            argv: workerLaunch.argv,
+            env: {
+              ...createAgentViewWorkerSidebandEnv({
+                sessionId: adoption.sessionId,
+                sidebandEndpoint: this.socketPath,
+                token,
+                activeCwd,
+              }),
+              ...workerLaunch.env,
+            },
+            entrypoint: workerLaunch.entrypoint,
             projectCwd,
             activeCwd,
             ...(adoption.approvalMode
@@ -4561,13 +4567,13 @@ function stringArrayParam(
     : [];
 }
 
-function buildResumeWorkerArgv(
+function buildResumeWorkerLaunch(
   sessionId: string,
   approvalMode?: string,
-): string[] {
+): ReturnType<typeof buildFreshO1CodeWorkerLaunch> {
   // Attached form: the id stays one token even if it starts with '-', so
   // the argument parser can never drop or reinterpret it as a flag.
-  return buildCurrentO1CodeCliArgv([
+  return buildFreshO1CodeWorkerLaunch([
     `--resume=${sessionId}`,
     ...(approvalMode ? [`--approval-mode=${approvalMode}`] : []),
   ]);
@@ -4577,18 +4583,20 @@ function refreshResumeWorkerLaunch(
   launch: AgentViewLaunchFile,
   token?: string,
 ): AgentViewLaunchFile {
+  const workerLaunch = buildResumeWorkerLaunch(
+    launch.resumeSessionId ?? launch.sessionId,
+    launch.approvalMode,
+  );
   return {
     ...launch,
-    entrypoint: getCurrentO1CodeCliEntrypoint(),
+    entrypoint: workerLaunch.entrypoint,
     // --resume must keep the original spelling: the native session store
     // is case-sensitive and the canonical id may rewrite it.
-    argv: buildResumeWorkerArgv(
-      launch.resumeSessionId ?? launch.sessionId,
-      launch.approvalMode,
-    ),
+    argv: workerLaunch.argv,
     env: {
       ...launch.env,
       ...getResumeWorkerSandboxEnv(launch.sandbox),
+      ...workerLaunch.env,
       ...(token === undefined ? {} : { [O1CODE_AGENT_VIEW_TOKEN]: token }),
     },
   };

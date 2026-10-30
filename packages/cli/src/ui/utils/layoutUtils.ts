@@ -81,3 +81,21 @@ export const getDialogMaxHeight = (
       MAIN_CONTENT_HEIGHT_RESERVATION -
       pinnedHeaderHeight,
   );
+
+export const getApplicationUpdateDialogMaxHeight = (
+  terminalHeight: number,
+  staticExtraHeight: number,
+  pinnedHeaderHeight: number,
+  exitWarningHeight: number,
+): number => {
+  const inlineHeight = getDialogMaxHeight(
+    terminalHeight,
+    staticExtraHeight,
+    pinnedHeaderHeight,
+  );
+  // A version, two choices and their frame need six rows. Give a compact
+  // update the transcript's rows instead of clipping its primary actions.
+  return inlineHeight < 6
+    ? Math.max(1, terminalHeight - pinnedHeaderHeight - exitWarningHeight)
+    : inlineHeight;
+};

@@ -7,6 +7,21 @@ follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Added
+
+- Application updates open a dialog when the terminal is idle, showing the current and new versions with restart or Later actions. Long failure details and manual instructions remain scrollable in short terminals.
+
+### Changed
+
+- Automatic npm updates prepare in the background only when the agent and tools are idle. `/update` opens the same flow even when automatic updates are disabled; choosing Later during preparation cancels a pending restart.
+
+### Fixed
+
+- Updating an npm installation relaunches its original launcher instead of a different, older installation found on `PATH`.
+- New conversations use the activated update even when an older sessions controller is still running; existing conversations retain their original version until restarted.
+- Managed npm updates verify the runtime before activation or cache reuse, repair broken cached payloads while retaining them for recovery, and retry transient Windows pointer-file locks without reporting false success.
+- Standalone updates reject a downloaded runtime whose version differs from the requested release before replacing the installation.
+
 ## [0.21.12] - 2026-10-30
 
 ### Fixed

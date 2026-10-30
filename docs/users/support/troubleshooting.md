@@ -34,7 +34,7 @@ This guide provides solutions to common issues and debugging tips, including top
 ## Frequently asked questions (FAQs)
 
 - **Q: How do I update O1-Code to the latest version?**
-  - A: O1-Code checks npm for a newer release at startup and updates itself unless `general.enableAutoUpdate` is `false`. To update by hand, run `/update` inside O1-Code or `npm install -g @organizaone/o1-code@latest`. If you run it from a clone, pull the latest changes, then run `corepack pnpm install --frozen-lockfile`, `npm run build -- --cli-only` and `npm run bundle`.
+  - A: O1-Code checks for a newer release at startup when `general.enableAutoUpdate` is enabled. An update dialog appears when the session is idle, with no tools running. It shows the current and available versions and lets you restart to update or choose **Later**. Supported npm installations can prepare the update in the background while idle; the prepared version takes effect on the next startup. `/update` opens the same flow, including when automatic updates are disabled. See [Application updates](#application-updates) below for installation-specific recovery. If you run from a clone, pull the latest changes, then run `corepack pnpm install --frozen-lockfile`, `npm run build -- --cli-only` and `npm run bundle`.
 
 - **Q: Where are the O1-Code configuration or settings files stored?**
   - A: The O1-Code configuration is stored in two `settings.json` files:
@@ -54,6 +54,125 @@ This guide provides solutions to common issues and debugging tips, including top
     - Example: `o1-code --safe-mode`
     - Alternative: set the environment variable `O1CODE_SAFE_MODE=true` if the CLI cannot accept flags.
     - Note: "MCP servers" here means servers configured in `settings.json` / project `.mcp.json` — local, ambient state that safe mode is meant to isolate against. MCP servers you explicitly supply for the current invocation (an embedding ACP client's `session/new` `mcpServers`, or `--mcp-config`) are not local/ambient state and are still honored under safe mode.
+
+## Application updates
+
+The update dialog waits until the agent, tools, queued messages and background tasks have finished.
+It also waits for other dialogs to close and for the input to be empty. Use arrows and Enter to
+choose an action; Escape means **Later**. Run `/update` to reopen a dismissed update. A dismissed
+version does not repeatedly reopen its dialog in the same application session.
+
+With `general.enableAutoUpdate: true`, supported npm installations can download and verify an update
+while idle. **Preparing the update** refers to that work; **Ready to restart** means the new files
+are prepared, while the current session still runs its original version. Choosing **Later** during
+preparation cancels a requested restart and allows preparation to finish. It does not cancel your
+conversation. A prepared update applies the next time you open O1-Code. Other installation types
+offer the appropriate restart action or manual instructions instead of npm background preparation.
+
+Setting `general.enableAutoUpdate` to `false` disables automatic startup checks and preparation.
+You can still run `/update` and explicitly choose to update. A failed preparation shows its reason
+and keeps the current version available. Retry through the dialog, or follow its manual instructions;
+Page Up/Page Down scroll longer details, and Home/End reach their beginning or end.
+
+If conversation recording is disabled, **Prepare update** downloads the npm update without closing
+the current conversation. Apply it on your next natural startup. For npm installations, restarting a
+recorded conversation keeps its saved history and current approval mode, together with the original
+execution options.
+An empty new conversation can restart without requiring a saved transcript.
+
+### The base npm version differs from the application version
+
+An npm installation retains its original launcher and prepares application versions separately under
+`~/.o1-code/updates/npm/` (under `O1CODE_HOME` when configured). For example, `npm list -g` can show
+`0.21.10` while `o1-code --version` and the running application show `0.21.12`. This is expected when
+the launcher has selected a verified managed update. The npm package listing alone does not show
+which application payload runs.
+
+Verify a fresh launch from a new terminal outside an existing O1-Code session:
+
+```bash
+o1-code --version
+o1-code --help
+```
+
+Both checks matter: a readable package manifest is insufficient if the underlying code cannot start.
+An already-running session and commands it launches may intentionally retain their original version
+until restarted. A new conversation opened after activation should use the updated version even when
+the sessions controller remains open. If a legacy controller is still managing older conversations,
+the updated application opens a direct session until that controller exits; it does not stop those
+conversations to replace the controller. Updated controllers launch new conversations through the
+current bootstrap only for the same installation and Node runtime. Updating a different Node
+installation also does not change the installation your current terminal resolves.
+
+### An update finishes but a fresh launch still runs the old version
+
+First identify the actual command and npm prefix. On macOS or Linux:
+
+```bash
+type -a o1-code node npm
+npm config get prefix
+npm root -g
+```
+
+In Windows PowerShell:
+
+```powershell
+Get-Command o1-code,node,npm -All | Select-Object Name,Source
+npm.cmd config get prefix
+npm.cmd root -g
+```
+
+Use `.cmd` wrappers when PowerShell's execution policy blocks npm's `.ps1` wrapper. Compare these
+paths with the Node version manager and installation you intended to use. A second installation
+earlier on `PATH` can hide the one you updated. Select the intended Node version with your manager,
+open a new terminal, and retry `/update` from that installation. To reinstall its base npm package,
+use the matching npm in that same environment:
+
+```bash
+npm install --global @organizaone/o1-code@latest
+```
+
+On Windows use `npm.cmd install --global @organizaone/o1-code@latest`. Check the prefix before
+running the command, then repeat the fresh `--version` and `--help` checks afterward. Replacing the
+base launcher invalidates its previous managed-update selection; a fresh launch then uses the
+reinstalled base until another managed update is prepared.
+
+Manager-specific details explain why paths can differ:
+
+- [nvm](https://github.com/nvm-sh/nvm#usage) keeps global packages with each Node installation;
+  switching Node can select a different copy of O1-Code.
+- [Scoop's Node manifest](https://github.com/ScoopInstaller/Main/blob/master/bucket/nodejs-lts.json)
+  configures persistent npm directories. The global prefix can be outside the directory containing
+  `node.exe`; inspect npm's resolved prefix rather than assuming those directories are adjacent.
+- [nvm-windows](https://github.com/nvm-windows/nvm/wiki/Common-Issues) documents conflicts when an
+  earlier Node installation takes precedence on `PATH`.
+  Its version 2 shim policy can also block a newly installed module before O1-Code starts. If its
+  diagnostics report `NVM4306` for the package you installed, use the manager's specific module trust
+  and reshim commands (`nvm firewall trust module o1-code`, then `nvm reshim`); this is separate from
+  downloading an application update.
+- [Volta](https://docs.volta.sh/guide/understanding) routes package commands through shims and pins
+  tools to a Node engine. Use the manager's intended command rather than another npm found on `PATH`.
+
+### Preparation fails, or a cached update cannot start
+
+Keep the error text and installation paths when reporting the problem. Include the OS, Node/npm
+versions, Node manager, command-resolution results, current and target O1-Code versions, and whether
+the failure happened during preparation or restart. Registry/network failures and filesystem errors
+require different remedies.
+
+The managed npm updater checks the downloaded runtime and any cached payload before reuse. A broken
+same-version payload is retained under a unique `.broken-VERSION-*/payload` directory beside the
+managed version directories while a verified replacement is promoted. If promotion fails, it tries
+to restore the previous directory; an unsuccessful restoration reports the retained recovery path.
+Preserve that path when seeking help. There is no need to erase all settings, the manager's complete
+`node_modules`, or the entire update directory as a first recovery step.
+
+On Windows, file locks can prevent the final update selection from being replaced. The updater
+retries transient `EPERM`, `EACCES` and `EBUSY` errors for a bounded period; a persistent failure is
+reported instead of being called a successful update. Resolve the specific file access reported by
+the error, then retry. Similar rename failures are documented in
+[npm's issue tracker](https://github.com/npm/cli/issues/9021); that failure class does not establish
+the cause of every update problem.
 
 ## Terminal layout and Windows commands
 

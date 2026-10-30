@@ -7,6 +7,7 @@
 import type { SlashCommand } from './types.js';
 import { CommandKind } from './types.js';
 import { t } from '../../i18n/index.js';
+import { updateEventEmitter } from '../../utils/updateEventEmitter.js';
 
 export const updateCommand: SlashCommand = {
   name: 'update',
@@ -114,14 +115,8 @@ export const updateCommand: SlashCommand = {
           )}`,
         };
       }
-      const canAutoUpdate =
-        installInfo.updateCommand ||
-        (installInfo.isStandalone && installInfo.standaloneDir);
-      if (isAutoUpdateEnabled && canAutoUpdate) {
-        await relaunchForUpdate();
-        return;
-      }
-      return manualInstructions();
+      updateEventEmitter.emit('update-available', info, true);
+      return;
     }
 
     if (installInfo.isStandalone && installInfo.standaloneDir) {

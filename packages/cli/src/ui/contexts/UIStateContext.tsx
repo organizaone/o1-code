@@ -34,6 +34,7 @@ import type { SessionStatsState } from '../contexts/SessionContext.js';
 import type { PendingMcpServer } from '../hooks/useMcpApproval.js';
 import type { ExtensionUpdateState } from '../state/extensions.js';
 import type { UpdateObject } from '../utils/updateCheck.js';
+import type { useApplicationUpdate } from '../hooks/use-application-update.js';
 
 import { type UseHistoryManagerReturn } from '../hooks/useHistoryManager.js';
 import type { RemoteStatus } from '../../remote/remote-controller.js';
@@ -186,6 +187,7 @@ export interface UIState {
   currentIDE: IdeInfo | null;
   startupIdeConnectionStatus: StartupIdeConnectionStatus;
   updateInfo: UpdateObject | null;
+  applicationUpdate?: ReturnType<typeof useApplicationUpdate>;
   showIdeRestartPrompt: boolean;
   ideTrustRestartReason: RestartReason;
   isRestarting: boolean;

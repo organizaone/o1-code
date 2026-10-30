@@ -8,6 +8,40 @@
 // The key serves as both the translation key and the default English text
 
 export default {
+  'The conversation could not be saved for restart. Keep this session open and try again.':
+    'The conversation could not be saved for restart. Keep this session open and try again.',
+  'Close this session and update using the instructions below.':
+    'Close this session and update using the instructions below.',
+  'Prepare update': 'Prepare update',
+  'Conversation recording is disabled. Keep this conversation open; updates take effect after you close and open the app.':
+    'Conversation recording is disabled. Keep this conversation open; updates take effect after you close and open the app.',
+  'The update is prepared, but restarting failed: {{error}}. Open the app again to resume your saved conversation.':
+    'The update is prepared, but restarting failed: {{error}}. Open the app again to resume your saved conversation.',
+  'Enable automatic update checks and prepare npm updates while idle.':
+    'Enable automatic update checks and prepare npm updates while idle.',
+  '{{product}} update': '{{product}} update',
+  'A new version is available': 'A new version is available',
+  'Preparing the update': 'Preparing the update',
+  'Ready to restart': 'Ready to restart',
+  'The update could not be prepared': 'The update could not be prepared',
+  Restarting: 'Restarting',
+  'Update and restart': 'Update and restart',
+  'Restart and update': 'Restart and update',
+  'Continue using': 'Continue using',
+  'Try again': 'Try again',
+  Later: 'Later',
+  'Update now, or continue and update the next time you open the app.':
+    'Update now, or continue and update the next time you open the app.',
+  'You can continue using the app. The update takes effect after restarting.':
+    'You can continue using the app. The update takes effect after restarting.',
+  'The update is prepared. Restart now, or apply it the next time you open the app.':
+    'The update is prepared. Restart now, or apply it the next time you open the app.',
+  'Your current version is still available.':
+    'Your current version is still available.',
+  'Opening the prepared version.': 'Opening the prepared version.',
+  '↑↓ choose · enter select · esc later':
+    '↑↓ choose · enter select · esc later',
+  'PgUp/PgDn details · esc later': 'PgUp/PgDn details · esc later',
   '{{count}} characters copied': '{{count}} characters copied',
   'Clipboard images are unavailable in this session. Attach the image file directly.':
     'Clipboard images are unavailable in this session. Attach the image file directly.',

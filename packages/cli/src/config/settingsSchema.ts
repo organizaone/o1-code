@@ -524,7 +524,7 @@ const SETTINGS_SCHEMA = {
         requiresRestart: false,
         default: true,
         description:
-          'Enable automatic update checks and installations on startup.',
+          'Enable automatic update checks and prepare npm updates while idle.',
         showInDialog: true,
       },
       showSessionRecap: {
