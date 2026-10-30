@@ -221,7 +221,7 @@ describe('handleAutoUpdate', () => {
 
     await expect(update).resolves.toBe(false);
     expect(emitSpy).toHaveBeenCalledWith('update-failed', {
-      message: 'Automatic update failed. Please try updating manually.',
+      message: expect.stringContaining('An error occurred'),
     });
   });
 
@@ -242,7 +242,7 @@ describe('handleAutoUpdate', () => {
 
     await expect(update).resolves.toBe(false);
     expect(emitSpy).toHaveBeenCalledWith('update-failed', {
-      message: 'Automatic update failed. Please try updating manually.',
+      message: expect.stringContaining('Spawn error'),
     });
   });
 

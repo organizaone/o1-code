@@ -386,6 +386,28 @@ describe('DefaultAppLayout', () => {
     expect(output).not.toContain('DialogManager 20');
   });
 
+  it('gives a compact update its actions instead of reserving the transcript rows', () => {
+    mockedUseAgentViewState.mockReturnValue({
+      activeView: 'main',
+      agents: new Map(),
+    });
+    dialogManagerMockState.columns = 60;
+    dialogManagerMockState.lineCount = 6;
+    const { lastFrame } = renderLayout({
+      ...baseUIState,
+      dialogsVisible: true,
+      useTerminalBuffer: true,
+      terminalWidth: 60,
+      terminalHeight: 12,
+      staticExtraHeight: 6,
+      applicationUpdate: { visible: true } as UIState['applicationUpdate'],
+    });
+    const frame = lastFrame() ?? '';
+    expect(frame).toContain('DialogManager 6');
+    expect(frame).not.toContain('MainContent');
+    expect(frameHeight(frame)).toBeLessThanOrEqual(12);
+  });
+
   it.each([
     [true, false, false, 18],
     [false, false, false, 13],

@@ -32,7 +32,7 @@ const UPDATE_FAILED_MESSAGE =
 
 export async function handleAutoUpdate(
   info: UpdateObject | null,
-  settings: LoadedSettings,
+  settings: Pick<LoadedSettings, 'merged'>,
   projectRoot: string,
   spawnFn: typeof spawn = spawnWrapper,
 ): Promise<boolean | undefined> {
@@ -146,7 +146,7 @@ export async function handleAutoUpdate(
   });
   let errorOutput = '';
   updateProcess.stderr?.on('data', (data) => {
-    errorOutput += data.toString();
+    errorOutput = (errorOutput + data.toString()).slice(-4000);
   });
 
   return new Promise<boolean>((resolve) => {
@@ -163,7 +163,9 @@ export async function handleAutoUpdate(
       } catch (error) {
         debugLogger.warn('Automatic update failed:', error);
         updateEventEmitter.emit('update-failed', {
-          message: t(UPDATE_FAILED_MESSAGE),
+          message: t('Update failed: {{error}}', {
+            error: error instanceof Error ? error.message : String(error),
+          }),
         });
         resolve(false);
       }

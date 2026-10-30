@@ -2463,6 +2463,11 @@ export const InputPrompt: React.FC<InputPromptProps> = ({
     tabsVisible: categoryTabsVisible,
   });
   const setInputOverlayKey = uiActions.setInputOverlayKey;
+  const setDraftHasAttachments = uiActions.setDraftHasAttachments;
+  useEffect(() => {
+    setDraftHasAttachments?.(attachments.length > 0);
+    return () => setDraftHasAttachments?.(false);
+  }, [attachments.length, setDraftHasAttachments]);
   useEffect(() => {
     setInputOverlayKey?.(
       `${inputOverlayKey}|slash-menu:${showSlashMenu}:${slashMenuPanelOpen}:${slashMenuHeight}|attachments:${attachments.length}|preparation:${attachmentPreparation.state}|notice:${attachmentPreparation.notice ?? ''}|paste:${pasteProgress?.active ?? false}`,

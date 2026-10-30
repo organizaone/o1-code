@@ -24,6 +24,8 @@ import type {
   AgentViewSupervisorServerHandle,
 } from './supervisor-server.js';
 import { createAgentViewSupervisorServer } from './supervisor-server.js';
+import { getCliVersion } from '../utils/version.js';
+import { buildFreshO1CodeWorkerLaunch } from './current-cli-argv.js';
 import {
   readAgentViewSupervisor,
   writeAgentViewSupervisor,
@@ -47,6 +49,134 @@ afterEach(async () => {
 });
 
 describe('Agent View supervisor runner', () => {
+  it.each(['0.0.1', undefined])(
+    'leaves an outdated or unversioned supervisor (%s) intact for existing sessions',
+    async (cliVersion) => {
+      const { globalDir, socketPath } = await makeSupervisorPath();
+      const shutdown = vi.fn();
+      const oldServer = createAgentViewSupervisorServer(
+        {
+          status: () => ({ cliVersion }),
+          list: () => [],
+          shutdown,
+        },
+        { socketPath },
+      );
+      await oldServer.listen();
+      cleanupServers.push(oldServer);
+      const spawnProcess = vi.fn();
+      await expect(
+        ensureAgentViewSupervisor({ globalDir, spawnProcess }),
+      ).rejects.toMatchObject({ code: 'supervisor_upgrade_pending' });
+      expect(shutdown).not.toHaveBeenCalled();
+      expect(spawnProcess).not.toHaveBeenCalled();
+    },
+  );
+
+  it('reuses a controller that supports fresh worker bootstraps across package versions', async () => {
+    const { globalDir, socketPath } = await makeSupervisorPath();
+    const shutdown = vi.fn();
+    const server = createAgentViewSupervisorServer(
+      {
+        status: () => ({
+          cliVersion: '0.0.1',
+          protocolVersion: 1,
+          workerBootstrapUpdates: true,
+          workerEntrypoint: buildFreshO1CodeWorkerLaunch([]).entrypoint,
+          workerNodePath: process.execPath,
+        }),
+        list: () => [],
+        shutdown,
+      },
+      { socketPath },
+    );
+    await server.listen();
+    cleanupServers.push(server);
+    const spawnProcess = vi.fn();
+    await ensureAgentViewSupervisor({ globalDir, spawnProcess });
+    expect(shutdown).not.toHaveBeenCalled();
+    expect(spawnProcess).not.toHaveBeenCalled();
+  });
+
+  it('keeps a newer supervisor when an older client connects', async () => {
+    const { globalDir, socketPath } = await makeSupervisorPath();
+    const shutdown = vi.fn();
+    const server = createAgentViewSupervisorServer(
+      {
+        status: () => ({ cliVersion: '999.0.0' }),
+        list: () => [],
+        shutdown,
+      },
+      { socketPath },
+    );
+    await server.listen();
+    cleanupServers.push(server);
+    const spawnProcess = vi.fn();
+    await ensureAgentViewSupervisor({ globalDir, spawnProcess });
+    expect(shutdown).not.toHaveBeenCalled();
+    expect(spawnProcess).not.toHaveBeenCalled();
+  });
+
+  it.each(['workerEntrypoint', 'workerNodePath'])(
+    'does not reuse another installation or Node runtime (%s)',
+    async (changed) => {
+      const { globalDir, socketPath } = await makeSupervisorPath();
+      const shutdown = vi.fn();
+      const server = createAgentViewSupervisorServer(
+        {
+          status: () => ({
+            cliVersion: '999.0.0',
+            protocolVersion: 1,
+            workerBootstrapUpdates: true,
+            workerEntrypoint: buildFreshO1CodeWorkerLaunch([]).entrypoint,
+            workerNodePath: process.execPath,
+            [changed]: '/another/installation/entry.js',
+          }),
+          list: () => [],
+          shutdown,
+        },
+        { socketPath },
+      );
+      await server.listen();
+      cleanupServers.push(server);
+      const spawnProcess = vi.fn();
+      await expect(
+        ensureAgentViewSupervisor({ globalDir, spawnProcess }),
+      ).rejects.toMatchObject({ code: 'supervisor_upgrade_pending' });
+      expect(shutdown).not.toHaveBeenCalled();
+      expect(spawnProcess).not.toHaveBeenCalled();
+    },
+  );
+
+  it('defers legacy controller replacement while another foreground conversation is alive', async () => {
+    const { globalDir, socketPath } = await makeSupervisorPath();
+    const shutdown = vi.fn();
+    const server = createAgentViewSupervisorServer(
+      {
+        status: () => ({ cliVersion: '0.0.1' }),
+        list: () => [
+          {
+            state: {
+              processState: 'alive',
+              foregroundOwnerId: 'another-terminal',
+              attachState: 'attached',
+            },
+          },
+        ],
+        shutdown,
+      },
+      { socketPath },
+    );
+    await server.listen();
+    cleanupServers.push(server);
+    const spawnProcess = vi.fn();
+    await expect(
+      ensureAgentViewSupervisor({ globalDir, spawnProcess }),
+    ).rejects.toMatchObject({ code: 'supervisor_upgrade_pending' });
+    expect(shutdown).not.toHaveBeenCalled();
+    expect(spawnProcess).not.toHaveBeenCalled();
+  });
+
   it('returns undefined when no existing supervisor is reachable', async () => {
     const { globalDir } = await makeSupervisorPath();
 
@@ -71,7 +201,7 @@ describe('Agent View supervisor runner', () => {
     if (!handle) throw new Error('Expected existing supervisor handle.');
     expect(handle.socketPath).toBe(socketPath);
     expect(handle.startedProcess).toBeUndefined();
-    await expect(handle.status()).resolves.toEqual({ state: 'ready' });
+    await expect(handle.status()).resolves.toMatchObject({ state: 'ready' });
   });
 
   it('connects to an existing supervisor without spawning a process', async () => {
@@ -93,7 +223,7 @@ describe('Agent View supervisor runner', () => {
     expect(spawnProcess).not.toHaveBeenCalled();
     expect(handle.socketPath).toBe(socketPath);
     expect(handle.startedProcess).toBeUndefined();
-    await expect(handle.status()).resolves.toEqual({ state: 'ready' });
+    await expect(handle.status()).resolves.toMatchObject({ state: 'ready' });
   });
 
   it('spawns through the injected process factory and waits for readiness', async () => {
@@ -120,7 +250,7 @@ describe('Agent View supervisor runner', () => {
     expect(startedProcess.unref).toHaveBeenCalledOnce();
     expect(handle.socketPath).toBe(socketPath);
     expect(handle.startedProcess).toBe(startedProcess);
-    await expect(handle.status()).resolves.toEqual({ state: 'spawned' });
+    await expect(handle.status()).resolves.toMatchObject({ state: 'spawned' });
   });
 
   it('rejects promptly when the spawned supervisor emits an error', async () => {
@@ -205,7 +335,7 @@ describe('Agent View supervisor runner', () => {
     });
     handler.status.mockClear();
 
-    await expect(handle.status()).resolves.toEqual({ state: 'ok' });
+    await expect(handle.status()).resolves.toMatchObject({ state: 'ok' });
     expect(handler.status).toHaveBeenCalledWith(undefined);
 
     await expect(handle.list('/workspace/project')).resolves.toEqual([
@@ -445,7 +575,16 @@ function createFakeSupervisor(
   socketPath: string,
   handler: AgentViewSupervisorHandler,
 ): AgentViewSupervisorServerHandle {
-  return createAgentViewSupervisorServer(handler, { socketPath });
+  return createAgentViewSupervisorServer(
+    {
+      ...handler,
+      status: async (params) => ({
+        ...((await handler.status(params)) as Record<string, unknown>),
+        cliVersion: await getCliVersion(),
+      }),
+    },
+    { socketPath },
+  );
 }
 
 function createFakeProcess(): ChildProcess {

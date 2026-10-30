@@ -52,6 +52,45 @@ const renderDialogManager = (
   );
 
 describe('DialogManager', () => {
+  it('keeps the update version and both choices visible in a 60 by 12 terminal', () => {
+    const { lastFrame } = renderDialogManager(
+      createUIState({
+        constrainHeight: true,
+        useTerminalBuffer: true,
+        terminalWidth: 60,
+        terminalHeight: 12,
+        staticExtraHeight: 6,
+        applicationUpdate: {
+          visible: true,
+          state: {
+            info: {
+              message: 'Update available',
+              update: {
+                current: '1.0.0',
+                latest: '2.0.0',
+                name: '@organizaone/o1-code',
+                type: 'major',
+              },
+            },
+            phase: 'ready',
+            canPrepare: true,
+            canRestart: true,
+            instructions: [],
+          },
+          apply: vi.fn(),
+          dismiss: vi.fn(),
+        },
+      }),
+      {},
+    );
+    const frame = lastFrame() ?? '';
+    expect(frame).toContain('1.0.0');
+    expect(frame).toContain('2.0.0');
+    expect(frame).toContain('Restart and update');
+    expect(frame).toContain('Later');
+    expect(frame.split('\n').length).toBeLessThanOrEqual(8);
+  });
+
   it('lets the agent dashboard use the terminal width beyond the old dialog cap', () => {
     const agent: AgentTask = {
       id: 'agent-wide',

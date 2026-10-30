@@ -34,6 +34,44 @@ export function buildCurrentO1CodeCliArgv(args: readonly string[]): string[] {
   return [process.execPath, entrypoint, ...args];
 }
 
+export function buildFreshO1CodeWorkerLaunch(args: readonly string[]): {
+  argv: string[];
+  entrypoint: string;
+  env: Record<string, string>;
+} {
+  const bootstrap = process.env['O1CODE_CLI'];
+  if (
+    process.env['DEV'] !== 'true' &&
+    bootstrap &&
+    path.isAbsolute(bootstrap) &&
+    bootstrap.endsWith('.js')
+  ) {
+    try {
+      if (fs.statSync(bootstrap).isFile()) {
+        const entrypoint = fs.realpathSync(bootstrap);
+        return {
+          argv: [process.execPath, entrypoint, ...args],
+          entrypoint,
+          // Launch env overrides the old supervisor's session pin. Existing
+          // bootstraps treat empty values as absent and select the active update.
+          env: {
+            CLI_VERSION: '',
+            O1CODE_STARTUP_VERSION: '',
+            O1CODE_MANAGED_NPM_PIN: '',
+          },
+        };
+      }
+    } catch {
+      // A missing or inaccessible bootstrap cannot replace a working entrypoint.
+    }
+  }
+  return {
+    argv: buildCurrentO1CodeCliArgv(args),
+    entrypoint: getCurrentO1CodeCliEntrypoint(),
+    env: {},
+  };
+}
+
 function findLocalTsxCli(entrypoint: string): string | undefined {
   const root = path.resolve(path.dirname(entrypoint), '..', '..');
   const tsxCli = path.join(root, 'node_modules', 'tsx', 'dist', 'cli.mjs');

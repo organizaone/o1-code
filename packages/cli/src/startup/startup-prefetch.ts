@@ -18,7 +18,6 @@ import {
   CUSTOM_SANDBOX_IMAGE_ENV_VAR,
   HOST_UPDATE_RELAUNCH_ENV_VAR,
   SKIP_UPDATE_CHECK_ENV_VAR,
-  requestUpdateOnExit,
 } from '../utils/processUtils.js';
 
 const debugLogger = createDebugLogger('STARTUP_PREFETCH');
@@ -164,14 +163,10 @@ export function startPostRenderPrefetches(
           classifyUpdateCheckError,
           describeUpdateCheckFailure,
         },
-        { handleAutoUpdate },
-        { getInstallationInfo },
         { updateEventEmitter },
         { t },
       ] = await Promise.all([
         import('../ui/utils/updateCheck.js'),
-        import('../ui/handleAutoUpdate.js'),
-        import('../utils/installationInfo.js'),
         import('../utils/updateEventEmitter.js'),
         import('../i18n/index.js'),
       ]);
@@ -185,7 +180,6 @@ export function startPostRenderPrefetches(
       try {
         const result = await checkForUpdatesDetailed();
         if (result.status === 'update') {
-          const projectRoot = config.getProjectRoot();
           const hostUpdateRelaunch = process.env[HOST_UPDATE_RELAUNCH_ENV_VAR];
           if (hostUpdateRelaunch === 'true') {
             updateEventEmitter.emit('update-info', {
@@ -203,31 +197,9 @@ export function startPostRenderPrefetches(
             });
             return;
           }
-          const installationInfo = getInstallationInfo(projectRoot, true);
-          if (installationInfo.packageManager === 'npm') {
-            void handleAutoUpdate(result.info, settings, projectRoot);
-            return;
-          }
-          if (
-            installationInfo.updateCommand ||
-            (installationInfo.isStandalone && installationInfo.standaloneDir)
-          ) {
-            if (requestUpdateOnExit()) {
-              updateEventEmitter.emit('update-info', {
-                message: `${result.info.message}\n${t(
-                  'The update will be installed after you exit this session.',
-                )}`,
-              });
-            } else {
-              updateEventEmitter.emit('update-info', {
-                message: `${result.info.message}\n${t(
-                  'Run /update to install the update.',
-                )}`,
-              });
-            }
-          } else {
-            void handleAutoUpdate(result.info, settings, projectRoot);
-          }
+          // The UI owns the live idle/tool state; discovery alone cannot
+          // authorize installation while the user is starting a turn.
+          updateEventEmitter.emit('update-available', result.info);
         } else if (
           result.status === 'error' &&
           classifyUpdateCheckError(result.error) === 'not_published'

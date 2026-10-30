@@ -1952,6 +1952,11 @@ describe('InputPrompt', () => {
     });
 
     it('keeps generated attachment references out of submitted provenance', async () => {
+      const reportDraftAttachments = vi.fn();
+      mockedUseUIActions.mockReturnValue({
+        ...mockedUseUIActions(),
+        setDraftHasAttachments: reportDraftAttachments,
+      });
       const imagePath = path.join(
         'test',
         'project',
@@ -1971,6 +1976,9 @@ describe('InputPrompt', () => {
 
       stdin.write(isWindows ? '\x1Bv' : '\x16');
       await wait();
+      await waitFor(() =>
+        expect(reportDraftAttachments).toHaveBeenLastCalledWith(true),
+      );
       stdin.write('\r');
 
       await waitFor(() => {
@@ -1982,6 +1990,9 @@ describe('InputPrompt', () => {
           },
         );
       });
+      await waitFor(() =>
+        expect(reportDraftAttachments).toHaveBeenLastCalledWith(false),
+      );
       unmount();
     });
 

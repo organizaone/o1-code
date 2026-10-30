@@ -107,7 +107,7 @@
           }
         },
         "enableAutoUpdate": {
-          "description": "Enable automatic update checks and installations on startup.",
+          "description": "Enable automatic update checks and prepare npm updates while idle.",
           "type": "boolean",
           "default": true
         },

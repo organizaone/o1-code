@@ -25,6 +25,7 @@ export interface UIActions {
   setAttachmentPreparationActive: (active: boolean) => void;
   /** The input reports what it shows below itself, so the layout re-measures. */
   setInputOverlayKey: (key: string) => void;
+  setDraftHasAttachments?: (hasAttachments: boolean) => void;
   openThemeDialog: () => void;
   openEditorDialog: () => void;
   openMemoryDialog: () => void;

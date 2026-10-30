@@ -30,6 +30,16 @@ the release workflow publishes the npm package and GitHub release only.
 
 In this order.
 
+### Application updates
+
+[Issue #128](https://github.com/organizaone/o1-code/issues/128) covers the idle update dialog,
+verified npm preparation and explicit restart with saved conversation and approval mode. Fresh
+launches select the updated payload while existing conversations retain their runtime. Legacy
+session controllers remain alive and updated clients use direct sessions until they exit.
+The [update architecture and regression procedure](docs/developers/application-updates.md) records
+the installation, cache, file-lock and Node-manager contracts. Native Windows 10/x64 and corporate
+endpoint policies remain outside the completed Windows 11 ARM64/x64-emulation validation.
+
 ### Remaining Windows process helpers
 
 Windows sleep requests, browser opening and clipboard reads use optional native bindings to Windows

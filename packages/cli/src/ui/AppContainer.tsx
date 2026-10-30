@@ -187,7 +187,7 @@ import {
   titleStatusPrefix,
   writeTerminalTitle,
 } from './utils/windowTitle.js';
-import { clearScreen } from '../utils/stdioHelpers.js';
+import { clearScreen, writeStderrLine } from '../utils/stdioHelpers.js';
 import { useTextBuffer } from './components/shared/text-buffer.js';
 import { useLogger } from './hooks/useLogger.js';
 import { useLlmStream, type CancelSubmitInfo } from './hooks/use-llm-stream.js';
@@ -223,6 +223,13 @@ import { migrateTomlCommands } from '../services/command-migration-tool.js';
 import { sendNotification } from '../services/notificationService.js';
 import { type UpdateObject } from './utils/updateCheck.js';
 import { setUpdateHandler } from './handleAutoUpdate.js';
+import { useApplicationUpdate } from './hooks/use-application-update.js';
+import { getInstallationInfo } from '../utils/installationInfo.js';
+import { relaunchForUpdate } from '../utils/processUtils.js';
+import {
+  verifyUpdatedNpmLauncher,
+  relaunchUpdatedNpmApplication,
+} from './managed-update-restart.js';
 import { takeWhatsNew, whatsNewNotice } from './utils/whats-new.js';
 import { registerCleanup, runExitCleanup } from '../utils/cleanup.js';
 import {
@@ -881,6 +888,14 @@ export const AppContainer = (props: AppContainerProps) => {
     useState<boolean>(false);
   const [historyRemountKey, setHistoryRemountKey] = useState(0);
   const [updateInfo, setUpdateInfo] = useState<UpdateObject | null>(null);
+  const [draftHasAttachments, setDraftHasAttachments] = useState(false);
+  const [attachmentPreparationActive, setAttachmentPreparationActiveState] =
+    useState(false);
+  const attachmentPreparationActiveRef = useRef(false);
+  const setAttachmentPreparationActive = useCallback((active: boolean) => {
+    attachmentPreparationActiveRef.current = active;
+    setAttachmentPreparationActiveState(active);
+  }, []);
   const [isTrustedFolder, setIsTrustedFolder] = useState<boolean | undefined>(
     config.isTrustedFolder(),
   );
@@ -4242,7 +4257,7 @@ export const AppContainer = (props: AppContainerProps) => {
     history: historyManager.history,
     sessionStats,
   });
-  const dialogsVisible =
+  const otherDialogsVisible =
     showWelcomeBackDialog ||
     shouldShowIdePrompt ||
     shouldShowCommandMigrationNudge ||
@@ -4287,6 +4302,80 @@ export const AppContainer = (props: AppContainerProps) => {
     bgTasksDialogOpen ||
     showWorktreeExitDialog ||
     !!(settings.corruptedPath && !settings.corruptionDialogDismissed);
+  const updateHasTranscriptRef = useRef(false);
+  const verifyApplicationUpdate = useCallback(
+    async (version: string) => {
+      const installation = getInstallationInfo(config.getProjectRoot(), true);
+      if (installation.packageManager === 'npm') {
+        await verifyUpdatedNpmLauncher(version);
+        await config.getChatRecordingService()?.flush();
+        const savedSession = await config
+          .getSessionService()
+          .loadSession(config.getSessionId());
+        if (
+          !savedSession &&
+          historyManager.history.some((item) => item.type === 'user')
+        ) {
+          throw new Error(
+            t(
+              'The conversation could not be saved for restart. Keep this session open and try again.',
+            ),
+          );
+        }
+        updateHasTranscriptRef.current = Boolean(savedSession);
+      }
+    },
+    [config, historyManager.history],
+  );
+  const restartApplicationUpdate = useCallback(async () => {
+    const installation = getInstallationInfo(config.getProjectRoot(), true);
+    if (installation.packageManager === 'npm') {
+      await runExitCleanup();
+      try {
+        process.exit(
+          await relaunchUpdatedNpmApplication(
+            config.getSessionId(),
+            config.getApprovalMode(),
+            updateHasTranscriptRef.current,
+          ),
+        );
+      } catch (error) {
+        writeStderrLine(
+          t(
+            'The update is prepared, but restarting failed: {{error}}. Open the app again to resume your saved conversation.',
+            { error: error instanceof Error ? error.message : String(error) },
+          ),
+        );
+        process.exit(1);
+      }
+    } else {
+      await relaunchForUpdate();
+    }
+  }, [config]);
+  const applicationUpdateFlow = useApplicationUpdate({
+    idle:
+      isConfigInitialized &&
+      streamingState === StreamingState.Idle &&
+      !isProcessing &&
+      !hasExecutingTool &&
+      !activePtyId &&
+      pendingSubmissionCount === 0 &&
+      messageQueue.length === 0 &&
+      !bgTaskEntries.some((entry) => entry.status === 'running'),
+    blocked:
+      otherDialogsVisible ||
+      isFeedbackDialogOpen ||
+      buffer.text.length > 0 ||
+      attachmentPreparationActive ||
+      draftHasAttachments,
+    autoPrepare: settings.merged.general?.enableAutoUpdate !== false,
+    projectRoot: config.getProjectRoot(),
+    settings,
+    allowRestart: Boolean(config.getChatRecordingService()),
+    verifyRestart: verifyApplicationUpdate,
+    restart: restartApplicationUpdate,
+  });
+  const dialogsVisible = otherDialogsVisible || applicationUpdateFlow.visible;
   dialogsVisibleRef.current = dialogsVisible;
 
   const agentSessionActiveTheme = themeManager.getActiveTheme();
@@ -4357,10 +4446,6 @@ export const AppContainer = (props: AppContainerProps) => {
   // What the input shows below itself (suggestions) arrives after the
   // keystroke that caused it, so the input reports it for a re-measure.
   const [inputOverlayKey, setInputOverlayKey] = useState('');
-  const attachmentPreparationActiveRef = useRef(false);
-  const setAttachmentPreparationActive = useCallback((active: boolean) => {
-    attachmentPreparationActiveRef.current = active;
-  }, []);
   const liveAgentPanelLayoutKey = getLiveAgentPanelLayoutKey(
     bgTaskEntries,
     bgLivePanelFocused,
@@ -4395,6 +4480,7 @@ export const AppContainer = (props: AppContainerProps) => {
     // (elapsedClock/currentLoadingPhrase excluded: they change without changing rows.)
     streamingState,
     updateInfo,
+    applicationUpdateFlow.state,
     agentViewState.activeView,
     embeddedShellFocused,
     messageQueue.length,
@@ -5501,6 +5587,7 @@ export const AppContainer = (props: AppContainerProps) => {
       currentIDE,
       startupIdeConnectionStatus,
       updateInfo,
+      applicationUpdate: applicationUpdateFlow,
       showIdeRestartPrompt,
       ideTrustRestartReason,
       isRestarting,
@@ -5652,6 +5739,7 @@ export const AppContainer = (props: AppContainerProps) => {
       currentIDE,
       startupIdeConnectionStatus,
       updateInfo,
+      applicationUpdateFlow,
       showIdeRestartPrompt,
       ideTrustRestartReason,
       isRestarting,
@@ -5704,6 +5792,7 @@ export const AppContainer = (props: AppContainerProps) => {
   const uiActions: UIActions = useMemo(
     () => ({
       setInputOverlayKey,
+      setDraftHasAttachments,
       setAttachmentPreparationActive,
       openThemeDialog,
       openEditorDialog,

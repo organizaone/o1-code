@@ -233,7 +233,7 @@ describe('startupPrefetch', () => {
     );
   });
 
-  it('installs npm updates in the background after first render', async () => {
+  it('offers npm updates without installing before the UI checks idle state', async () => {
     const config = makeConfig();
     const settings = makeSettings();
     mockCheckForUpdatesDetailed.mockResolvedValue({
@@ -248,14 +248,11 @@ describe('startupPrefetch', () => {
 
     await vi.dynamicImportSettled();
 
-    expect(mockHandleAutoUpdate).toHaveBeenCalledWith(
-      {
-        message: 'Update available',
-        update: { latest: '2.0.0' },
-      },
-      settings,
-      '/repo',
-    );
+    expect(mockUpdateEventEmit).toHaveBeenCalledWith('update-available', {
+      message: 'Update available',
+      update: { latest: '2.0.0' },
+    });
+    expect(mockHandleAutoUpdate).not.toHaveBeenCalled();
     expect(mockRequestUpdateOnExit).not.toHaveBeenCalled();
   });
 
@@ -276,7 +273,11 @@ describe('startupPrefetch', () => {
     startPostRenderPrefetches(makeConfig(), makeSettings());
     await vi.dynamicImportSettled();
 
-    expect(mockHandleAutoUpdate).toHaveBeenCalledOnce();
+    expect(mockUpdateEventEmit).toHaveBeenCalledWith(
+      'update-available',
+      expect.objectContaining({ message: 'Update available' }),
+    );
+    expect(mockHandleAutoUpdate).not.toHaveBeenCalled();
     expect(mockRequestUpdateOnExit).not.toHaveBeenCalled();
   });
 
@@ -298,12 +299,13 @@ describe('startupPrefetch', () => {
     startPostRenderPrefetches(makeConfig(), makeSettings());
     await vi.dynamicImportSettled();
 
-    expect(mockUpdateEventEmit).toHaveBeenCalledWith('update-info', {
-      message: 'Update available\nRun /update to install the update.',
-    });
+    expect(mockUpdateEventEmit).toHaveBeenCalledWith(
+      'update-available',
+      expect.objectContaining({ message: 'Update available' }),
+    );
   });
 
-  it('defers standalone updates until the session exits', async () => {
+  it('offers standalone updates without scheduling an unconfirmed exit update', async () => {
     const config = makeConfig();
     mockCheckForUpdatesDetailed.mockResolvedValue({
       status: 'update',
@@ -323,7 +325,11 @@ describe('startupPrefetch', () => {
 
     await vi.dynamicImportSettled();
 
-    expect(mockRequestUpdateOnExit).toHaveBeenCalledTimes(1);
+    expect(mockRequestUpdateOnExit).not.toHaveBeenCalled();
+    expect(mockUpdateEventEmit).toHaveBeenCalledWith(
+      'update-available',
+      expect.objectContaining({ message: 'Update available' }),
+    );
     expect(mockHandleAutoUpdate).not.toHaveBeenCalled();
   });
 

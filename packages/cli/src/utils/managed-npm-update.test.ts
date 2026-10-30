@@ -6,6 +6,7 @@
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import * as fs from 'node:fs';
+import * as fsPromises from 'node:fs/promises';
 import * as os from 'node:os';
 import * as path from 'node:path';
 import {
@@ -22,6 +23,12 @@ import { mockCompromisedLock } from '../test-utils/mock-compromised-lock.js';
 // Real child_process, with execFileSync replaceable per test: it is how the
 // updater asks npm for its global configuration.
 const childProcess = vi.hoisted(() => ({ execFileSync: vi.fn() }));
+const fileSystem = vi.hoisted(() => ({ rename: vi.fn() }));
+vi.mock('node:fs/promises', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('node:fs/promises')>();
+  fileSystem.rename.mockImplementation(actual.rename);
+  return { ...actual, rename: fileSystem.rename };
+});
 vi.mock('node:child_process', async (importOriginal) => {
   const actual = await importOriginal<typeof import('node:child_process')>();
   childProcess.execFileSync.mockImplementation(actual.execFileSync);
@@ -50,7 +57,10 @@ function writeInstallation(prefix: string, version: string): void {
     path.join(packageRoot, 'package.json'),
     JSON.stringify({ name: '@organizaone/o1-code', version }),
   );
-  fs.writeFileSync(path.join(packageRoot, 'cli.js'), '');
+  fs.writeFileSync(
+    path.join(packageRoot, 'cli.js'),
+    `if (process.argv.includes('--version')) process.stdout.write(${JSON.stringify(`${version}\n`)});\n`,
+  );
   fs.writeFileSync(
     path.join(packageRoot, 'cli-entry.js'),
     `if (process.argv.includes('--version')) process.stdout.write('${version}\\n'); else await import('./cli.js');\n`,
@@ -396,6 +406,271 @@ describe('managed npm update', () => {
     expect(fs.existsSync(first.versionDir)).toBe(true);
     expect(fs.existsSync(first.stagingDir)).toBe(false);
     expect(fs.existsSync(second.stagingDir)).toBe(false);
+  });
+
+  it('repairs a corrupt cached target without changing the previous active version', async () => {
+    const root = makeTemporaryDirectory();
+    const updateRoot = path.join(root, 'updates');
+    const bootstrap = writeBaseInstallation(root);
+    const previous = prepareManagedNpmUpdate('1.1.0', bootstrap, updateRoot);
+    writeInstallation(previous.stagingDir, '1.1.0');
+    await activateManagedNpmUpdate(previous, '1.1.0', bootstrap);
+    const previousBundle = path.join(
+      previous.versionDir,
+      'node_modules/@organizaone/o1-code/cli.js',
+    );
+    const previousContents = fs.readFileSync(previousBundle, 'utf8');
+    const update = prepareManagedNpmUpdate('2.0.0', bootstrap, updateRoot);
+    writeInstallation(update.stagingDir, '2.0.0');
+    writeInstallation(update.versionDir, '2.0.0');
+    const targetBundle = path.join(
+      update.versionDir,
+      'node_modules/@organizaone/o1-code/cli.js',
+    );
+    const corruptContents = "throw new Error('Corrupt cached runtime');\n";
+    fs.writeFileSync(targetBundle, corruptContents);
+
+    await activateManagedNpmUpdate(update, '2.0.0', bootstrap);
+
+    expect(fs.readFileSync(targetBundle, 'utf8')).not.toBe(corruptContents);
+    expect(fs.readFileSync(previousBundle, 'utf8')).toBe(previousContents);
+    const versionsDir = path.dirname(update.versionDir);
+    const quarantine = fs
+      .readdirSync(versionsDir)
+      .find((entry) => entry.startsWith('.broken-2.0.0-'));
+    expect(quarantine).toBeDefined();
+    expect(
+      fs.readFileSync(
+        path.join(
+          versionsDir,
+          quarantine!,
+          'payload/node_modules/@organizaone/o1-code/cli.js',
+        ),
+        'utf8',
+      ),
+    ).toBe(corruptContents);
+    expect(
+      JSON.parse(
+        fs.readFileSync(path.join(update.launcherRoot, 'active.json'), 'utf8'),
+      ),
+    ).toMatchObject({ version: '2.0.0' });
+  });
+
+  it('rejects a staged runtime whose version differs from its package manifest', async () => {
+    const root = makeTemporaryDirectory();
+    const bootstrap = writeBaseInstallation(root);
+    const update = prepareManagedNpmUpdate(
+      '2.0.0',
+      bootstrap,
+      path.join(root, 'updates'),
+    );
+    writeInstallation(update.stagingDir, '2.0.0');
+    fs.writeFileSync(
+      path.join(update.stagingDir, 'node_modules/@organizaone/o1-code/cli.js'),
+      "process.stdout.write('1.0.0\\n');\n",
+    );
+
+    await expect(
+      activateManagedNpmUpdate(update, '2.0.0', bootstrap),
+    ).rejects.toThrow('runtime version');
+    expect(fs.existsSync(path.join(update.launcherRoot, 'active.json'))).toBe(
+      false,
+    );
+  });
+
+  it('restores the cached target and active pointer when repair promotion fails', async () => {
+    const root = makeTemporaryDirectory();
+    const updateRoot = path.join(root, 'updates');
+    const bootstrap = writeBaseInstallation(root);
+    const previous = prepareManagedNpmUpdate('1.1.0', bootstrap, updateRoot);
+    writeInstallation(previous.stagingDir, '1.1.0');
+    await activateManagedNpmUpdate(previous, '1.1.0', bootstrap);
+    const activeFile = path.join(previous.launcherRoot, 'active.json');
+    const previousActive = fs.readFileSync(activeFile, 'utf8');
+    const update = prepareManagedNpmUpdate('2.0.0', bootstrap, updateRoot);
+    writeInstallation(update.stagingDir, '2.0.0');
+    writeInstallation(update.versionDir, '2.0.0');
+    const targetBundle = path.join(
+      update.versionDir,
+      'node_modules/@organizaone/o1-code/cli.js',
+    );
+    const corruptContents = "throw new Error('Corrupt cached runtime');\n";
+    fs.writeFileSync(targetBundle, corruptContents);
+    const renameMock = vi.mocked(fsPromises.rename);
+    const originalRename = renameMock.getMockImplementation()!;
+    renameMock.mockImplementation(async (source, destination) => {
+      if (source === update.stagingDir && destination === update.versionDir) {
+        throw new Error('Repair promotion denied');
+      }
+      await originalRename(source, destination);
+    });
+    try {
+      await expect(
+        activateManagedNpmUpdate(update, '2.0.0', bootstrap),
+      ).rejects.toThrow('Repair promotion denied');
+    } finally {
+      renameMock.mockImplementation(originalRename);
+    }
+    expect(fs.readFileSync(targetBundle, 'utf8')).toBe(corruptContents);
+    expect(fs.readFileSync(activeFile, 'utf8')).toBe(previousActive);
+    expect(fs.existsSync(update.stagingDir)).toBe(true);
+  });
+
+  it('retains quarantine and reports recovery details if repair rollback also fails', async () => {
+    const root = makeTemporaryDirectory();
+    const bootstrap = writeBaseInstallation(root);
+    const update = prepareManagedNpmUpdate(
+      '2.0.0',
+      bootstrap,
+      path.join(root, 'updates'),
+    );
+    writeInstallation(update.stagingDir, '2.0.0');
+    writeInstallation(update.versionDir, '2.0.0');
+    const corruptContents = "throw new Error('Corrupt cached runtime');\n";
+    fs.writeFileSync(
+      path.join(update.versionDir, 'node_modules/@organizaone/o1-code/cli.js'),
+      corruptContents,
+    );
+    const renameMock = vi.mocked(fsPromises.rename);
+    const originalRename = renameMock.getMockImplementation()!;
+    renameMock.mockImplementation(async (source, destination) => {
+      if (destination === update.versionDir) {
+        throw new Error(
+          source === update.stagingDir
+            ? 'Repair promotion denied'
+            : 'Repair rollback denied',
+        );
+      }
+      await originalRename(source, destination);
+    });
+    try {
+      await expect(
+        activateManagedNpmUpdate(update, '2.0.0', bootstrap),
+      ).rejects.toThrow(
+        /Repair promotion denied.*Repair rollback denied.*payload/s,
+      );
+    } finally {
+      renameMock.mockImplementation(originalRename);
+    }
+    const versionsDir = path.dirname(update.versionDir);
+    const quarantine = fs
+      .readdirSync(versionsDir)
+      .find((entry) => entry.startsWith('.broken-2.0.0-'));
+    expect(quarantine).toBeDefined();
+    expect(
+      fs.readFileSync(
+        path.join(
+          versionsDir,
+          quarantine!,
+          'payload/node_modules/@organizaone/o1-code/cli.js',
+        ),
+        'utf8',
+      ),
+    ).toBe(corruptContents);
+    expect(fs.existsSync(path.join(update.launcherRoot, 'active.json'))).toBe(
+      false,
+    );
+  });
+
+  it('does not retain a higher active version with a broken runtime', async () => {
+    const root = makeTemporaryDirectory();
+    const updateRoot = path.join(root, 'updates');
+    const bootstrap = writeBaseInstallation(root);
+    const previous = prepareManagedNpmUpdate('3.0.0', bootstrap, updateRoot);
+    writeInstallation(previous.stagingDir, '3.0.0');
+    await activateManagedNpmUpdate(previous, '3.0.0', bootstrap);
+    fs.writeFileSync(
+      path.join(
+        previous.versionDir,
+        'node_modules/@organizaone/o1-code/cli.js',
+      ),
+      "throw new Error('Corrupt higher runtime');\n",
+    );
+    const update = prepareManagedNpmUpdate('2.0.0', bootstrap, updateRoot);
+    writeInstallation(update.stagingDir, '2.0.0');
+
+    await activateManagedNpmUpdate(update, '2.0.0', bootstrap);
+
+    expect(
+      JSON.parse(
+        fs.readFileSync(path.join(update.launcherRoot, 'active.json'), 'utf8'),
+      ),
+    ).toMatchObject({ version: '2.0.0' });
+  });
+
+  it('retries a temporarily locked active pointer without reinstalling its payload', async () => {
+    const root = makeTemporaryDirectory();
+    const bootstrap = writeBaseInstallation(root);
+    const update = prepareManagedNpmUpdate(
+      '2.0.0',
+      bootstrap,
+      path.join(root, 'updates'),
+    );
+    writeInstallation(update.stagingDir, '2.0.0');
+    const activeFile = path.join(update.launcherRoot, 'active.json');
+    const renameMock = vi.mocked(fsPromises.rename);
+    const originalRename = renameMock.getMockImplementation()!;
+    let pointerAttempts = 0;
+    renameMock.mockImplementation(async (source, destination) => {
+      if (destination === activeFile) {
+        pointerAttempts += 1;
+        if (pointerAttempts <= 2) {
+          throw Object.assign(new Error('Pointer is locked'), {
+            code: 'EPERM',
+          });
+        }
+      }
+      await originalRename(source, destination);
+    });
+    try {
+      await activateManagedNpmUpdate(update, '2.0.0', bootstrap);
+    } finally {
+      renameMock.mockImplementation(originalRename);
+    }
+    expect(pointerAttempts).toBe(3);
+    expect(JSON.parse(fs.readFileSync(activeFile, 'utf8'))).toMatchObject({
+      version: '2.0.0',
+    });
+    expect(fs.existsSync(update.versionDir)).toBe(true);
+    expect(fs.existsSync(`${activeFile}.${process.pid}`)).toBe(false);
+  });
+
+  it('preserves the previous pointer after bounded retries of a permanently locked replacement', async () => {
+    const root = makeTemporaryDirectory();
+    const updateRoot = path.join(root, 'updates');
+    const bootstrap = writeBaseInstallation(root);
+    const previous = prepareManagedNpmUpdate('1.1.0', bootstrap, updateRoot);
+    writeInstallation(previous.stagingDir, '1.1.0');
+    await activateManagedNpmUpdate(previous, '1.1.0', bootstrap);
+    const activeFile = path.join(previous.launcherRoot, 'active.json');
+    const previousActive = fs.readFileSync(activeFile, 'utf8');
+    const update = prepareManagedNpmUpdate('2.0.0', bootstrap, updateRoot);
+    writeInstallation(update.stagingDir, '2.0.0');
+    const renameMock = vi.mocked(fsPromises.rename);
+    const originalRename = renameMock.getMockImplementation()!;
+    const locked = Object.assign(new Error('Pointer remains locked'), {
+      code: 'EPERM',
+    });
+    let pointerAttempts = 0;
+    renameMock.mockImplementation(async (source, destination) => {
+      if (destination === activeFile) {
+        pointerAttempts += 1;
+        throw locked;
+      }
+      await originalRename(source, destination);
+    });
+    try {
+      await expect(
+        activateManagedNpmUpdate(update, '2.0.0', bootstrap),
+      ).rejects.toBe(locked);
+    } finally {
+      renameMock.mockImplementation(originalRename);
+    }
+    expect(pointerAttempts).toBe(6);
+    expect(fs.readFileSync(activeFile, 'utf8')).toBe(previousActive);
+    expect(fs.existsSync(previous.versionDir)).toBe(true);
+    expect(fs.existsSync(update.versionDir)).toBe(true);
+    expect(fs.existsSync(`${activeFile}.${process.pid}`)).toBe(false);
   });
 
   it('isolates payloads for different launchers', async () => {

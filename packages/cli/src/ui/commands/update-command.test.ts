@@ -4,8 +4,20 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { createMockCommandContext } from '../../test-utils/mockCommandContext.js';
+import { updateEventEmitter } from '../../utils/updateEventEmitter.js';
+
+const receiveUpdate = vi.fn();
+const availableUpdate = {
+  message: 'Update available: 1.2.3',
+  update: {
+    current: '1.2.2',
+    latest: '1.2.3',
+    name: '@organizaone/o1-code',
+    type: 'patch',
+  },
+};
 
 const checkForUpdatesDetailed = vi.fn();
 const relaunchForUpdate = vi.fn();
@@ -78,12 +90,10 @@ describe('updateCommand', () => {
     relaunchForUpdate.mockReset();
     delete process.env['O1CODE_CUSTOM_SANDBOX_IMAGE'];
     delete process.env['O1CODE_HOST_UPDATE_RELAUNCH'];
+    updateEventEmitter.on('update-available', receiveUpdate);
     checkForUpdatesDetailed.mockResolvedValue({
       status: 'update',
-      info: {
-        message: 'Update available: 1.2.3',
-        update: { latest: '1.2.3' },
-      },
+      info: availableUpdate,
     });
     getInstallationInfo.mockReturnValue({
       isStandalone: false,
@@ -91,13 +101,21 @@ describe('updateCommand', () => {
     });
   });
 
-  it('hands an interactive update off to the parent process', async () => {
+  afterEach(() => {
+    updateEventEmitter.off('update-available', receiveUpdate);
+  });
+
+  it('opens the interactive update dialog without relaunching', async () => {
     const commandContext = context('interactive');
 
     const result = await updateCommand.action!(commandContext, '');
 
     expect(result).toBeUndefined();
-    expect(relaunchForUpdate).toHaveBeenCalledTimes(1);
+    expect(receiveUpdate).toHaveBeenCalledExactlyOnceWith(
+      availableUpdate,
+      true,
+    );
+    expect(relaunchForUpdate).not.toHaveBeenCalled();
     expect(
       commandContext.services.settings.merged.general?.enableAutoUpdate,
     ).toBeUndefined();
@@ -114,26 +132,26 @@ describe('updateCommand', () => {
         'Update available: 1.2.3\nRun the following to update:\n  npm install -g @organizaone/o1-code@1.2.3',
     });
     expect(relaunchForUpdate).not.toHaveBeenCalled();
+    expect(receiveUpdate).not.toHaveBeenCalled();
   });
 
-  it('returns manual instructions in interactive mode when auto-update is disabled', async () => {
+  it('opens the dialog for an explicit request even when background updates are disabled', async () => {
     const commandContext = context('interactive', false);
 
     const result = await updateCommand.action!(commandContext, '');
 
-    expect(result).toEqual({
-      type: 'message',
-      messageType: 'info',
-      content:
-        'Update available: 1.2.3\nRun the following to update:\n  npm install -g @organizaone/o1-code@1.2.3',
-    });
+    expect(result).toBeUndefined();
+    expect(receiveUpdate).toHaveBeenCalledExactlyOnceWith(
+      availableUpdate,
+      true,
+    );
     expect(relaunchForUpdate).not.toHaveBeenCalled();
     expect(
       commandContext.services.settings.merged.general?.enableAutoUpdate,
     ).toBe(false);
   });
 
-  it('does not update standalone installs in interactive mode when auto-update is disabled', async () => {
+  it('opens the dialog without installing standalone updates when background updates are disabled', async () => {
     getInstallationInfo.mockReturnValue({
       isStandalone: true,
       standaloneDir: '/tmp/o1-code',
@@ -144,17 +162,16 @@ describe('updateCommand', () => {
       '',
     );
 
-    expect(result).toEqual({
-      type: 'message',
-      messageType: 'info',
-      content:
-        'Update available: 1.2.3\nManual update required. Please reinstall O1-Code.',
-    });
+    expect(result).toBeUndefined();
+    expect(receiveUpdate).toHaveBeenCalledExactlyOnceWith(
+      availableUpdate,
+      true,
+    );
     expect(relaunchForUpdate).not.toHaveBeenCalled();
     expect(performStandaloneUpdate).not.toHaveBeenCalled();
   });
 
-  it('hands standalone updates off to the parent process', async () => {
+  it('opens the interactive dialog for standalone installations', async () => {
     getInstallationInfo.mockReturnValue({
       isStandalone: true,
       standaloneDir: '/tmp/o1-code',
@@ -164,36 +181,45 @@ describe('updateCommand', () => {
     const result = await updateCommand.action!(commandContext, '');
 
     expect(result).toBeUndefined();
-    expect(relaunchForUpdate).toHaveBeenCalledTimes(1);
+    expect(receiveUpdate).toHaveBeenCalledExactlyOnceWith(
+      availableUpdate,
+      true,
+    );
+    expect(relaunchForUpdate).not.toHaveBeenCalled();
+    expect(performStandaloneUpdate).not.toHaveBeenCalled();
   });
 
-  it('does not mutate enableAutoUpdate when relaunching throws', async () => {
+  it('does not relaunch or mutate background-update preferences when opening the dialog', async () => {
     const commandContext = context('interactive');
     relaunchForUpdate.mockImplementation(() => {
       throw new Error('spawn failed');
     });
 
-    await expect(updateCommand.action!(commandContext, '')).rejects.toThrow(
-      'spawn failed',
+    await expect(
+      updateCommand.action!(commandContext, ''),
+    ).resolves.toBeUndefined();
+    expect(receiveUpdate).toHaveBeenCalledExactlyOnceWith(
+      availableUpdate,
+      true,
     );
+    expect(relaunchForUpdate).not.toHaveBeenCalled();
     expect(
       commandContext.services.settings.merged.general?.enableAutoUpdate,
     ).toBeUndefined();
   });
 
-  it('falls back to manual guidance in interactive mode when auto-update cannot act', async () => {
+  it('opens the dialog for manual instructions when this installation cannot update itself', async () => {
     getInstallationInfo.mockReturnValue({
       isStandalone: false,
     });
 
     const result = await updateCommand.action!(context('interactive'), '');
 
-    expect(result).toEqual({
-      type: 'message',
-      messageType: 'info',
-      content:
-        'Update available: 1.2.3\nManual update required. Please reinstall O1-Code.',
-    });
+    expect(result).toBeUndefined();
+    expect(receiveUpdate).toHaveBeenCalledExactlyOnceWith(
+      availableUpdate,
+      true,
+    );
     expect(relaunchForUpdate).not.toHaveBeenCalled();
   });
 
@@ -206,6 +232,7 @@ describe('updateCommand', () => {
       content:
         'Update available: 1.2.3\nRun the following to update:\n  npm install -g @organizaone/o1-code@1.2.3',
     });
+    expect(receiveUpdate).not.toHaveBeenCalled();
   });
 
   it('keeps explicitly configured sandbox images user-managed', async () => {
@@ -222,6 +249,7 @@ describe('updateCommand', () => {
           'Update available: 1.2.3\nThis session uses the custom sandbox image example.com/custom-o1-code:1.0.0. Update that image and restart O1-Code.',
       });
       expect(relaunchForUpdate).not.toHaveBeenCalled();
+      expect(receiveUpdate).not.toHaveBeenCalled();
     } finally {
       delete process.env['O1CODE_CUSTOM_SANDBOX_IMAGE'];
     }
@@ -234,6 +262,7 @@ describe('updateCommand', () => {
 
     expect(result).toBeUndefined();
     expect(relaunchForUpdate).toHaveBeenCalledTimes(1);
+    expect(receiveUpdate).not.toHaveBeenCalled();
   });
 
   it('respects disabled auto-update for a supported host installation', async () => {

@@ -18,7 +18,10 @@ import { BtwMessage } from '../components/messages/BtwMessage.js';
 import { useUIState } from '../contexts/UIStateContext.js';
 import { StreamingState } from '../types.js';
 import { getStickyTodoMaxVisibleItemsForMode } from '../utils/todoSnapshot.js';
-import { getDialogMaxHeight } from '../utils/layoutUtils.js';
+import {
+  getApplicationUpdateDialogMaxHeight,
+  getDialogMaxHeight,
+} from '../utils/layoutUtils.js';
 import { getLayoutTier, sideMargin } from '../utils/layout-tier.js';
 import { useBackgroundTaskViewState } from '../contexts/BackgroundTaskViewContext.js';
 
@@ -31,10 +34,22 @@ export const ScreenReaderAppLayout: React.FC = () => {
     uiState.terminalHeight,
     uiState.useTerminalBuffer,
   );
-  const dialogMaxHeight = getDialogMaxHeight(
+  const inlineDialogMaxHeight = getDialogMaxHeight(
     uiState.terminalHeight,
     uiState.staticExtraHeight,
   );
+  const updateDialogMaxHeight = getApplicationUpdateDialogMaxHeight(
+    uiState.terminalHeight,
+    uiState.staticExtraHeight,
+    0,
+    (uiState.ctrlCPressedOnce ? 2 : 0) + (uiState.ctrlDPressedOnce ? 2 : 0),
+  );
+  const isCompactUpdate =
+    uiState.applicationUpdate?.visible &&
+    updateDialogMaxHeight > inlineDialogMaxHeight;
+  const dialogMaxHeight = isCompactUpdate
+    ? updateDialogMaxHeight
+    : inlineDialogMaxHeight;
   const dialogHeight = uiState.constrainHeight ? dialogMaxHeight : undefined;
   const shouldShowStickyTodos =
     uiState.stickyTodos !== null &&
@@ -51,9 +66,13 @@ export const ScreenReaderAppLayout: React.FC = () => {
       {!uiState.dialogsVisible && uiState.updateInfo && (
         <UpdateNotification message={uiState.updateInfo.message} />
       )}
-      <Notifications />
-      <Footer />
-      <Box flexGrow={1} overflow="hidden">
+      {!isCompactUpdate && <Notifications />}
+      {!isCompactUpdate && <Footer />}
+      <Box
+        flexGrow={isCompactUpdate ? 0 : 1}
+        height={isCompactUpdate ? 0 : undefined}
+        overflow="hidden"
+      >
         <MainContent />
       </Box>
 

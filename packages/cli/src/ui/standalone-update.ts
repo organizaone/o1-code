@@ -439,7 +439,11 @@ function spawnAndCapture(
  * Verifies the new installation can actually run by invoking --version.
  * Prevents replacing a working install with a broken binary.
  */
-async function smokeTest(newInstallDir: string, target: string): Promise<void> {
+async function smokeTest(
+  newInstallDir: string,
+  target: string,
+  expectedVersion: string,
+): Promise<void> {
   const resolvedInstallDir = path.resolve(newInstallDir);
   const nodeBin = target.startsWith('win')
     ? path.join(resolvedInstallDir, 'node', 'node.exe')
@@ -468,6 +472,11 @@ async function smokeTest(newInstallDir: string, target: string): Promise<void> {
   if (!SEMVER_RE.test(version)) {
     throw new Error(
       `Smoke test failed: unexpected version output "${version}"`,
+    );
+  }
+  if (normalizeVersion(version) !== normalizeVersion(expectedVersion)) {
+    throw new Error(
+      `Smoke test failed: runtime reported ${JSON.stringify(version)}, expected ${expectedVersion.replace(/^v/, '')}`,
     );
   }
   debugLogger.info(`Smoke test passed: ${version}`);
@@ -1064,7 +1073,7 @@ export async function performStandaloneUpdate(
     }
 
     debugLogger.info('Running smoke test...');
-    await smokeTest(newInstallDir, target);
+    await smokeTest(newInstallDir, target, versionPath);
 
     debugLogger.info('Replacing installation...');
     updateResult = atomicReplace(standaloneDir, newInstallDir, lockPath);

@@ -13,6 +13,7 @@ import { MCPServerApprovalDialog } from './mcp/MCPServerApprovalDialog.js';
 import { ShellConfirmationDialog } from './ShellConfirmationDialog.js';
 import { ConsentPrompt } from './ConsentPrompt.js';
 import { ProviderUpdatePrompt } from './ProviderUpdatePrompt.js';
+import { ApplicationUpdateDialog } from './ApplicationUpdateDialog.js';
 import { SettingInputPrompt } from './SettingInputPrompt.js';
 import { PluginChoicePrompt } from './PluginChoicePrompt.js';
 import { ThemeDialog } from './ThemeDialog.js';
@@ -60,7 +61,10 @@ import { Help } from './Help.js';
 import { BackgroundTasksDialog } from './background-view/BackgroundTasksDialog.js';
 import { useBackgroundTaskViewState } from '../contexts/BackgroundTaskViewContext.js';
 import { t } from '../../i18n/index.js';
-import { getDialogMaxHeight } from '../utils/layoutUtils.js';
+import {
+  getApplicationUpdateDialogMaxHeight,
+  getDialogMaxHeight,
+} from '../utils/layoutUtils.js';
 import { getFixedHeaderHeight } from './Header.js';
 import { getLayoutTier, sideMargin } from '../utils/layout-tier.js';
 import { getReasoningEffortsForConfig } from '../../acp-integration/model-configuration.js';
@@ -194,6 +198,26 @@ export const DialogManager = ({
         onConfirm={request.onConfirm}
         terminalWidth={terminalWidth}
         availableTerminalHeight={constrainedDialogHeight}
+      />
+    );
+  }
+  if (uiState.applicationUpdate?.visible && uiState.applicationUpdate.state) {
+    return (
+      <ApplicationUpdateDialog
+        state={uiState.applicationUpdate.state}
+        availableHeight={getApplicationUpdateDialogMaxHeight(
+          terminalHeight,
+          staticExtraHeight,
+          uiState.useTerminalBuffer
+            ? getFixedHeaderHeight(uiState.terminalWidth)
+            : 0,
+          (uiState.ctrlCPressedOnce ? 2 : 0) +
+            (uiState.ctrlDPressedOnce ? 2 : 0),
+        )}
+        onApply={() => {
+          void uiState.applicationUpdate?.apply();
+        }}
+        onLater={uiState.applicationUpdate.dismiss}
       />
     );
   }
