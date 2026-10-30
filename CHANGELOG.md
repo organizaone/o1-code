@@ -7,6 +7,8 @@ follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.22.1] - 2026-10-30
+
 ### Added
 
 - Application updates open a dialog when the terminal is idle, showing the current and new versions with restart or Later actions. Long failure details and manual instructions remain scrollable in short terminals.
@@ -757,7 +759,8 @@ The first release of o1-code, a coding agent for the terminal.
 - `o1-code serve` runs a local daemon with a REST API and the Web Shell, a browser interface.
 - Editor companions for VS Code and Zed.
 
-[Unreleased]: https://github.com/organizaone/o1-code/compare/v0.21.12...HEAD
+[Unreleased]: https://github.com/organizaone/o1-code/compare/v0.22.1...HEAD
+[0.22.1]: https://github.com/organizaone/o1-code/compare/v0.21.12...v0.22.1
 [0.21.12]: https://github.com/organizaone/o1-code/compare/v0.21.11...v0.21.12
 [0.21.11]: https://github.com/organizaone/o1-code/compare/v0.21.10...v0.21.11
 [0.21.10]: https://github.com/organizaone/o1-code/compare/v0.21.8...v0.21.10
