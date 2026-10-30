@@ -12,11 +12,11 @@ OpenAI-compatible or Anthropic endpoint, given by its URL.
 ## Install
 
 ```bash
-npm install -g @organizaone/o1-code
+npm install -g @organizaone/o1-code@latest
 ```
 
 Requires Node.js 22 or later, on Windows, macOS or Linux. No administrator rights and no compiler.
-To try it without installing, run `npx @organizaone/o1-code`.
+To try it without installing, run `npx @organizaone/o1-code@latest`.
 
 ## First run
 
@@ -36,8 +36,8 @@ o1-code
    add input validation to the signup form and write a test for it
    ```
 
-3. **Approve.** o1-code shows what it is about to change or run and asks first. `Shift+Tab` switches
-   the approval mode; `/help` lists the commands.
+3. **Approve.** o1-code asks before edits and commands that require approval, according to your
+   selected mode. `Shift+Tab` switches the approval mode; `/help` lists the commands.
 
 ## What you get
 
@@ -50,11 +50,13 @@ o1-code
 - **Extensible.** Skills, hooks, sub-agents, custom commands, output styles, themes and
   extensions.
 - **Memory and context.** `AGENTS.md` project instructions, automatic memory, session resume and
-  compaction.
+  compaction. Use `/agents` to browse and switch between workspace conversations while work continues
+  in other managed sessions.
 - **Beyond the terminal.** Headless runs with `o1-code -p "..."`, the `o1-code serve` daemon with a
   browser Web Shell, and editor integration for VS Code, Zed and JetBrains IDEs.
 - **Localized.** English and Brazilian Portuguese reviewed by hand, plus other locales.
-- **No telemetry.** Nothing is collected; your prompts go only to the provider you configure.
+- **Telemetry is opt-in.** OpenTelemetry exports are disabled by default and use the collector you
+  configure. Your prompts and code go to the provider you configure.
 
 ## Learn more
 

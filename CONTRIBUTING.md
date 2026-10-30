@@ -27,7 +27,10 @@ rules are in [`docs/guides/STACK-O1-CODE.md`](./docs/guides/STACK-O1-CODE.md).
 
 ## Make a change
 
-1. Branch from `main`. Keep one logical change per commit.
+1. Branch from `main` using a name that identifies the type of change, such as
+   `feature/session-search`, `fix/session-resume`, or `docs/npm-install`. See the
+   [branch naming convention](./docs/guides/AGENT-WORKFLOW.md#execution--progress).
+   Keep one logical change per commit.
 2. Write the test first when behavior changes. Product tests run per package, never from the root:
    `cd packages/core && npx vitest run src/path/file.test.ts`.
 3. Before you open the pull request, run:
