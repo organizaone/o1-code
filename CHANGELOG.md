@@ -7,6 +7,8 @@ follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.21.12] - 2026-10-30
+
 ### Fixed
 
 - Subagent activity distinguishes running, completed, and failed tool calls, including parallel calls.
@@ -739,7 +741,8 @@ The first release of o1-code, a coding agent for the terminal.
 - `o1-code serve` runs a local daemon with a REST API and the Web Shell, a browser interface.
 - Editor companions for VS Code and Zed.
 
-[Unreleased]: https://github.com/organizaone/o1-code/compare/v0.21.11...HEAD
+[Unreleased]: https://github.com/organizaone/o1-code/compare/v0.21.12...HEAD
+[0.21.12]: https://github.com/organizaone/o1-code/compare/v0.21.11...v0.21.12
 [0.21.11]: https://github.com/organizaone/o1-code/compare/v0.21.10...v0.21.11
 [0.21.10]: https://github.com/organizaone/o1-code/compare/v0.21.8...v0.21.10
 [0.21.2]: https://github.com/organizaone/o1-code/compare/v0.21.1...v0.21.2
