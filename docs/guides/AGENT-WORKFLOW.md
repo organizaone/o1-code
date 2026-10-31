@@ -28,11 +28,6 @@ whatever equivalents your harness provides.
 - For non-trivial features (three or more steps, or any architectural
   decision), interview the user about implementation, UX, and trade-offs
   before writing code.
-- For terminal interface changes, ask whether the user wants an interactive
-  CLI mock before implementation. When the user requests one, build a mock
-  with representative states and working keyboard navigation, review it with
-  the user, and refine it until approved before changing the product UI. Do
-  not ask again when the user has already requested the mock.
 - Never attempt a multi-file refactor in a single pass. Break it into phases of
   at most **five files**. Complete a phase, verify it, get approval, then
   continue. Verification here defers to `TASK-COMPLETION.md`. In autonomous
@@ -40,13 +35,81 @@ whatever equivalents your harness provides.
   the phase checkpoint is a report, not a stop — the agent continues unless an
   escalation rule applies.
 
+## Gitflow and Branch Names
+
+Use [Gitflow](https://nvie.com/posts/a-successful-git-branching-model/):
+`main` is the production line and `develop` integrates work for the next
+release. The project's existing production branch may be named `master`;
+do not rename it just to match this guide. Branches created for worktrees
+follow the same rules.
+
+| Branch | Start from | Merge into | Purpose and name |
+|---|---|---|---|
+| `feature/<description>` | `develop` | `develop` | Routine work, including features, fixes, tests, docs and maintenance. |
+| `release/<version>` | `develop` | `main` and `develop` | Stabilize a specific release; accept fixes, documentation and release preparation, not new features. |
+| `hotfix/<version>` | `main` | `main` and `develop` | Urgent production correction outside the normal release. |
+
+Tag the release or hotfix on `main` after integration, following
+`VERSIONING.md`. Bring hotfixes into any active release branch as well so
+the pending release cannot reintroduce the defect. Complete the merge and
+documentation obligations in `TASK-COMPLETION.md`; this model does not itself
+authorize a release or deployment.
+
+### When `develop` does not exist
+
+- Check for `develop` locally and on the relevant remote before deciding it is
+  absent. If the remote cannot be checked, its absence is unverified: do not
+  assume the fallback applies. If `develop` exists only on the remote, use it
+  as the integration branch, not the fallback.
+- When `develop` is absent locally and on the relevant remote, or locally in a
+  repository with no remote, use the
+  project's existing production branch (`main` or `master`) as the base and
+  integration target for `feature/` and `release/` branches. A `hotfix/` also
+  starts from and returns to that production branch; there is no second merge
+  into a nonexistent `develop`. Carry hotfixes into any active release branch.
+- Identify the production branch from project instructions or the remote's
+  default branch. If both `main` and `master` exist and the production branch
+  cannot be established, ask rather than guessing. In a local-only repository,
+  check local branches; if neither production branch exists, follow explicit
+  project or user instructions instead of creating one by assumption.
+- This is a fallback, not full Gitflow: report it in the task outcome. Do not
+  create `develop`, change the default branch, or migrate the repository's
+  strategy merely to satisfy this guide. Respect an explicit project or user
+  instruction for a different integration branch or workflow.
+
+### Naming rules
+
+- Use `<major>.<minor>.<patch>` for release and hotfix branch versions, for
+  example `release/1.2.0` and `hotfix/1.2.1`; derive the version from the
+  planned release rather than inventing it. Use `feature/<description>` or,
+  when an issue is associated with the work,
+  `feature/<issue-id>-<description>`.
+- Use lowercase ASCII letters, digits and single hyphens in a feature
+  description; make it short, specific and meaningful, with no extra slash.
+  Use English for the description. Examples: `feature/export-reports`,
+  `feature/123-fix-empty-response`, `feature/abc-42-branch-names`.
+- Include the issue identifier when one exists for this work, lowercased and
+  separated from the description by a hyphen. Do not invent an identifier or
+  create an issue merely to name a branch.
+- Validate the complete name with `git check-ref-format --branch <name>` and
+  check local and relevant remote branches for collisions before creation. If
+  the name is taken, add a meaningful qualifier to the description; never
+  overwrite or reuse an unrelated branch. Git validity alone does not prove
+  compliance with this convention.
+- Continue on an existing branch assigned to the task without renaming it
+  merely to satisfy this rule. Respect a branch name explicitly supplied by
+  the user or a project convention documented in its agent instructions;
+  record a different project convention under the copied guide's deviations.
+  Do not rename a shared branch without coordinating with its users.
+
+Git defines [reference-name validity](https://git-scm.com/docs/git-check-ref-format),
+not these categories. The exact name formats above are this guide's Gitflow
+convention.
+[Conventional Commits](https://www.conventionalcommits.org/en/v1.0.0/) specifies
+commit messages, not branch names; commit messages follow `COMMITS.md`.
+
 ## Execution & Progress
 
-- Name working branches `<type>/<short-description>` in lowercase kebab case,
-  based on the change: `feature/`, `fix/`, `docs/`, `refactor/`, `test/`,
-  `chore/`, `hotfix/`, or `release/`. For example, `fix/session-resume` or
-  `docs/npm-install`. Do not use the author or tool name as the type. This
-  naming convention does not change the project's pull-request flow into `main`.
 - Track multi-step work in a visible task list: one entry per step, marked in
   progress or done as you go. The list is the source of truth for what remains
   — do not keep it only in your head.
@@ -166,4 +229,13 @@ test structure) live in that stack's document. This section defines the
 
 ## Deviations in this project
 
-None.
+- **Integration uses `main`.** This project keeps a single protected mainline and integrates every
+  change through a pull request into `main`, with a linear history and passing CI fast gates, as
+  specified in `AGENTS.md` and `TASK-COMPLETION.md`. Do not create `develop` or require a second
+  integration into it. The branch naming rules above apply to new work branches.
+- **No container deployment gate.** `LOCAL-DEPLOY.md` is not adopted here. The CLI smoke test is
+  `node scripts/o1/smoke.mjs`; see `TASK-COMPLETION.md` for the gates before a push.
+- **Terminal interface mock.** For terminal interface changes, ask whether the user wants an
+  interactive CLI mock before implementation. When requested, build a mock with representative
+  states and working keyboard navigation, review it with the user, and refine it until approved
+  before changing the product UI. Do not ask again when the user has already requested the mock.

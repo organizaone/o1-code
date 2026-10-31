@@ -27,9 +27,9 @@ rules are in [`docs/guides/STACK-O1-CODE.md`](./docs/guides/STACK-O1-CODE.md).
 
 ## Make a change
 
-1. Branch from `main` using a name that identifies the type of change, such as
-   `feature/session-search`, `fix/session-resume`, or `docs/npm-install`. See the
-   [branch naming convention](./docs/guides/AGENT-WORKFLOW.md#execution--progress).
+1. Branch from `main` using a name that identifies the work, such as
+   `feature/session-search`, `feature/fix-session-resume`, or `feature/docs-npm-install`. See the
+   [branch naming convention](./docs/guides/AGENT-WORKFLOW.md#gitflow-and-branch-names).
    Keep one logical change per commit.
 2. Write the test first when behavior changes. Product tests run per package, never from the root:
    `cd packages/core && npx vitest run src/path/file.test.ts`.
@@ -49,7 +49,7 @@ rules are in [`docs/guides/STACK-O1-CODE.md`](./docs/guides/STACK-O1-CODE.md).
 4. Update the docs in `docs/users/` when a user would notice the change, and add an entry under
    `[Unreleased]` in [`CHANGELOG.md`](./CHANGELOG.md).
 5. Commit messages follow [`docs/guides/COMMITS.md`](./docs/guides/COMMITS.md):
-   `<Verb> <Area>: <description>`, in English, with no co-author lines.
+   `<type>(<scope>): <description>`, with an optional scope, in English, with no co-author lines.
 
 The full cycle is in [`docs/guides/TASK-COMPLETION.md`](./docs/guides/TASK-COMPLETION.md).
 

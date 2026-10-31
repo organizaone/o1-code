@@ -86,6 +86,7 @@ A failure at Steps 1, 2, 3 or 6 aborts the cycle. After fixing the underlying pr
 ## Step 5 — Version
 
 - The rules for choosing the bump level (`MAJOR`, `MINOR`, `PATCH`) are defined in `VERSIONING.md`.
+- Before selecting or applying `MAJOR`, complete the compatibility evidence hard gate in `VERSIONING.md`; apply its separate policy for `0.y.z` and pre-releases. An unresolved compatibility question blocks the bump until resolved.
 - The mechanism for applying the bump (which file holds the version, which command updates it) is defined by the stack documentation of the project.
 - **Prerequisite:** the project MUST have a version mechanism configured before the first completion cycle. If no mechanism exists, this step fails — see "Failure Handling".
 - Version files must never be edited manually. Always use the mechanism declared by the stack doc.
@@ -99,12 +100,12 @@ A failure at Steps 1, 2, 3 or 6 aborts the cycle. After fixing the underlying pr
 
 ## Step 7 — Merge
 
-Runs **only when the task's work is merged** into the mainline. A task that ends at a commit ends at Step 6.
+Runs **only when the task's work is merged** into its integration branch. Under Gitflow (`AGENT-WORKFLOW.md`), that is normally `develop` for a feature; release and hotfix integration also reaches `main`. When `develop` is absent, use the production branch as described in that guide. A task that ends at a commit ends at Step 6. Do not duplicate task changelog entries when a release or hotfix is merged into its other target.
 
 - **Add the changelog entry now, not at release time.** If the project keeps a changelog, the merge is when someone still remembers what the change does. Written later, from a diff, an entry becomes a list of file names — which is exactly the entry nobody reads.
 - **Write it for whoever uses the product**, not for whoever wrote the code: what behaviour changed, and where it is visible. A defect entry says what was going wrong, because that is what tells a reader whether it affected them.
 - **Group it under an unreleased heading.** Several tasks usually ship in one release, so the entry lands under a heading such as `[Unreleased]`, which is renamed to the version and date when that release is tagged. Writing entries directly under a version fails as soon as two merges share it.
-- **The rename at tag time is a documentation-only commit** (`Update changelog: release X.Y.Z`). It is the one commit allowed to name a version — the version *is* what it records — and it follows the documentation-only exception below.
+- **The rename at tag time is a documentation-only commit** (`docs(changelog): release X.Y.Z`). It is the one commit allowed to name a version — the version *is* what it records — and it follows the documentation-only exception below.
 - **Reconcile the backlog with reality.** Mark what this task closed, with the evidence. Remove what stopped making sense — an item kept out of politeness costs attention every time someone reads the list.
 - **Delete the design specs and plans the work was built from.** A working paper left in the repository describes the system as intended, not as shipped, and gets cited as truth later. The changelog entry and the updated guides are the record; whatever reasoning in the spec still matters is moved into them before the file goes.
 - Changelog, backlog and spec-removal edits are committed on the branch **before** the merge, so the merge carries them.
@@ -120,7 +121,7 @@ Runs **only when the task's work is merged** into the mainline. A task that ends
 | Version | Project has no version mechanism                          | Abort cycle. Stop and report to the user. Mechanism must be created before any cycle can run. |
 | Version | Wrong bump level applied                                  | Revert the bump. Restart from Step 5.                        |
 | Commit  | Pre-commit hook or format failure                         | Fix the underlying issue. Restart from Step 1 (the code changed). |
-| Merge   | Changelog entry missing after a merge                     | Add it in a follow-up commit on the mainline. Do not wait for the release. |
+| Merge   | Changelog entry missing after a merge                     | Add it in a follow-up commit on the integration branch. Do not wait for the release. |
 | Merge   | Backlog left claiming work that is done                   | Correct it with the evidence. A stale backlog is worse than no backlog. |
 
 No commit may exist in history without a successful full cycle, except for the cases in "Documented Exceptions".
@@ -136,7 +137,7 @@ The following cases are the ONLY situations where a commit is allowed without ru
 For an exception commit:
 
 - Steps 1 through 5 are skipped (build, lint, test, docs-sync gate, version).
-- Step 6 still applies: the commit message must follow `COMMITS.md` rules, including the type. An edit to an existing document is `Update`; a new document is `Add`; a deletion is `Remove`. The exception waives Steps 1–5, never the message rules.
+- Step 6 still applies: the commit message must follow `COMMITS.md` rules, including the type. Documentation-only additions, edits and deletions use `docs`; choose the appropriate type for CI/CD and dev-tooling changes. The exception waives Steps 1–5, never the message rules.
 - Mixed changesets (code plus any of the above) are NOT exceptions — run the full cycle.
 
 ## Rules
