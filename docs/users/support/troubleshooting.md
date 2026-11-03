@@ -62,6 +62,10 @@ It also waits for other dialogs to close and for the input to be empty. Use arro
 choose an action; Escape means **Later**. Run `/update` to reopen a dismissed update. A dismissed
 version does not repeatedly reopen its dialog in the same application session.
 
+When a newer version is available, an explicit `/update` also confirms the request in the
+conversation history. If the dialog is deferred while tasks run or the prompt contains text,
+that confirmation remains available; preparation and restart still wait for an idle session.
+
 With `general.enableAutoUpdate: true`, supported npm installations can download and verify an update
 while idle. **Preparing the update** refers to that work; **Ready to restart** means the new files
 are prepared, while the current session still runs its original version. Choosing **Later** during

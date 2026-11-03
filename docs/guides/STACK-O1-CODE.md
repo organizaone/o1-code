@@ -85,6 +85,10 @@ Each one is an observed failure, not a hypothesis.
   resources, and keep image extraction in the shipped `windows-clipboard-worker.js`. Package
   allowlists must carry this worker and its shared chunks. Failed preparation removes only files
   it created. An empty clipboard and an unavailable backend are different outcomes.
+- The npm package bundles Koffi's runtime without its source-build install script and keeps its
+  upstream license. Platform prebuild dependencies must match the exact core pin. Validate a packed
+  installation under npm's strict script policy and load the native binding; a quiet install alone
+  does not establish that clipboard, URL opening or power requests work.
 - An ARM64 prebuild can exist and still fail to load because it imports a missing or mismatched
   `VCRUNTIME140.dll`. Do not infer availability from architecture or file existence, replace system
   DLLs, or assume reinstalling through npm fixes it. Probe execution on a clean guest. Bundled

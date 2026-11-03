@@ -21,6 +21,8 @@ export default {
     'Enable automatic update checks and prepare npm updates while idle.',
   '{{product}} update': '{{product}} update',
   'A new version is available': 'A new version is available',
+  'Update {{current}} → {{latest}}. The update dialog opens when this session is idle and the prompt is empty.':
+    'Update {{current}} → {{latest}}. The update dialog opens when this session is idle and the prompt is empty.',
   'Preparing the update': 'Preparing the update',
   'Ready to restart': 'Ready to restart',
   'The update could not be prepared': 'The update could not be prepared',

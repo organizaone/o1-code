@@ -36,6 +36,15 @@ directory from `PATH`. Before promotion, both the package identity and actual ex
 - A cached payload receives the same checks before reuse. A higher active version is retained only
   if it can still execute.
 
+Failed npm installs retain the last 4,000 characters of stderr in the preparation error so the
+update dialog can show the underlying cause. Failure removes the unsuccessful staging directory
+and leaves the active payload unchanged.
+
+The published package bundles Koffi's JavaScript runtime and upstream license, without its
+source-compilation install script. Exact-version platform binaries remain optional npm dependencies;
+their versions are verified against the core declaration during packaging. This supports npm 12's
+default script policy without blanket script approval. The repository's pnpm build policy is separate.
+
 An invalid same-version cache is moved to a unique quarantine before the verified stage is promoted.
 Failed promotion attempts restore the original directory, and failed rollback reports its retained
 path. Other immutable versions remain available to running conversations. The final `active.json`

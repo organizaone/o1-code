@@ -7,6 +7,12 @@ follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Fixed
+
+- npm installations no longer request approval for Koffi's source-build script; the package includes its runtime and uses matching prebuilt native modules.
+- Failed managed npm updates retain the underlying npm error in the update dialog instead of reporting only an exit code.
+- `/update` confirms available updates in the conversation history even when the update dialog must wait for an idle session.
+
 ## [0.22.1] - 2026-10-30
 
 ### Added
