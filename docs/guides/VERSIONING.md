@@ -223,7 +223,6 @@ Bumping the version (Step 5) and releasing are different events. A release is th
 - `AUTONOMOUS-EXECUTION.md` — The unsupervised mode, which applies a bump at every slice.
 - `COMMITS.md` — Conventional Commit message and type definitions.
 - Stack documentation of the consuming project — Concrete mechanism for applying the bump.
-
 ## Deviations in this project
 
 - **Mechanism.** `npm run release:version -- <major|minor|patch>` at the root. It bumps the root
