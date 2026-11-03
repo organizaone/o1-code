@@ -7,6 +7,8 @@ follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.22.2] - 2026-11-03
+
 ### Fixed
 
 - npm installations no longer request approval for Koffi's source-build script; the package includes its runtime and uses matching prebuilt native modules.
@@ -765,7 +767,8 @@ The first release of o1-code, a coding agent for the terminal.
 - `o1-code serve` runs a local daemon with a REST API and the Web Shell, a browser interface.
 - Editor companions for VS Code and Zed.
 
-[Unreleased]: https://github.com/organizaone/o1-code/compare/v0.22.1...HEAD
+[Unreleased]: https://github.com/organizaone/o1-code/compare/v0.22.2...HEAD
+[0.22.2]: https://github.com/organizaone/o1-code/compare/v0.22.1...v0.22.2
 [0.22.1]: https://github.com/organizaone/o1-code/compare/v0.21.12...v0.22.1
 [0.21.12]: https://github.com/organizaone/o1-code/compare/v0.21.11...v0.21.12
 [0.21.11]: https://github.com/organizaone/o1-code/compare/v0.21.10...v0.21.11
