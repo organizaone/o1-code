@@ -20,6 +20,8 @@ export default {
     'Verificar atualizações automaticamente e preparar atualizações npm enquanto estiver ocioso.',
   '{{product}} update': 'Atualização do {{product}}',
   'A new version is available': 'Uma nova versão está disponível',
+  'Update {{current}} → {{latest}}. The update dialog opens when this session is idle and the prompt is empty.':
+    'Atualização {{current}} → {{latest}}. O diálogo abrirá quando esta sessão estiver ociosa e o campo de mensagem estiver vazio.',
   'Preparing the update': 'Preparando a atualização',
   'Ready to restart': 'Tudo pronto para reiniciar',
   'The update could not be prepared': 'Não foi possível preparar a atualização',

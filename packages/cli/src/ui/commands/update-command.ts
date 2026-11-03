@@ -8,6 +8,7 @@ import type { SlashCommand } from './types.js';
 import { CommandKind } from './types.js';
 import { t } from '../../i18n/index.js';
 import { updateEventEmitter } from '../../utils/updateEventEmitter.js';
+import { MessageType } from '../types.js';
 
 export const updateCommand: SlashCommand = {
   name: 'update',
@@ -116,6 +117,19 @@ export const updateCommand: SlashCommand = {
         };
       }
       updateEventEmitter.emit('update-available', info, true);
+      context.ui.addItem(
+        {
+          type: MessageType.INFO,
+          text: t(
+            'Update {{current}} → {{latest}}. The update dialog opens when this session is idle and the prompt is empty.',
+            {
+              current: info.update.current,
+              latest: info.update.latest,
+            },
+          ),
+        },
+        Date.now(),
+      );
       return;
     }
 

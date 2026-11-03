@@ -359,6 +359,9 @@ function writeDistPackageJson(rootDir, distDir, { includeAudioCapture } = {}) {
       'koffi must use an exact version in core optionalDependencies',
     );
   }
+  const koffiPrebuilds = koffiVersion
+    ? copyKoffiRuntime(rootDir, distDir, koffiVersion)
+    : {};
   // The six `@lydell/node-pty*` platform pins ship in the tarball's
   // optionalDependencies and decide which bundled ConPTY `conpty.dll` /
   // `OpenConsole.exe` real Windows users get. Derive them from
@@ -436,8 +439,10 @@ function writeDistPackageJson(rootDir, distDir, { includeAudioCapture } = {}) {
     ],
     config: rootPackageJson.config,
     dependencies: {},
+    ...(koffiVersion ? { bundledDependencies: ['koffi'] } : {}),
     optionalDependencies: {
       ...(koffiVersion ? { koffi: koffiVersion } : {}),
+      ...koffiPrebuilds,
       ...(includeAudioCapture
         ? { '@organizaone/o1-code-audio-capture': rootPackageJson.version }
         : {}),
@@ -467,6 +472,61 @@ function writeDistPackageJson(rootDir, distDir, { includeAudioCapture } = {}) {
     path.join(distDir, 'package.json'),
     JSON.stringify(distPackageJson, null, 2) + '\n',
   );
+}
+
+function copyKoffiRuntime(rootDir, distDir, version) {
+  const require = createRequire(
+    path.join(rootDir, 'packages/core/package.json'),
+  );
+  const source = path.dirname(require.resolve('koffi'));
+  const manifest = JSON.parse(
+    fs.readFileSync(path.join(source, 'package.json'), 'utf8'),
+  );
+  if (manifest.name !== 'koffi' || manifest.version !== version) {
+    throw new Error('Installed koffi does not match the core version');
+  }
+  const prebuilds = manifest.optionalDependencies ?? {};
+  if (
+    !Object.keys(prebuilds).length ||
+    Object.entries(prebuilds).some(
+      ([name, pin]) => !name.startsWith('@koromix/koffi-') || pin !== version,
+    )
+  ) {
+    throw new Error('Koffi prebuilds must match the runtime version');
+  }
+  const destination = path.join(distDir, 'node_modules/koffi');
+  fs.mkdirSync(destination, { recursive: true });
+  const runtimeFiles = [
+    'index.cjs',
+    'index.js',
+    'index.d.ts',
+    'indirect.cjs',
+    'indirect.js',
+    'LICENSE.txt',
+    'README.md',
+    'src/koffi/index.cjs',
+    'src/koffi/index.js',
+    'src/koffi/indirect.cjs',
+    'src/koffi/indirect.js',
+    'src/koffi/src/static.cjs',
+    'src/koffi/src/static.js',
+  ];
+  for (const file of runtimeFiles) {
+    fs.mkdirSync(path.dirname(path.join(destination, file)), {
+      recursive: true,
+    });
+    fs.copyFileSync(path.join(source, file), path.join(destination, file));
+  }
+  // The runtime loads platform packages directly; only the source-build
+  // fallback needs an install script. Keep upstream code and license intact.
+  const runtimeManifest = { ...manifest, files: runtimeFiles };
+  delete runtimeManifest.scripts;
+  delete runtimeManifest.optionalDependencies;
+  fs.writeFileSync(
+    path.join(destination, 'package.json'),
+    JSON.stringify(runtimeManifest, null, 2) + '\n',
+  );
+  return prebuilds;
 }
 
 function assertNoSensitivePackageScanLiterals(distDir) {
@@ -527,6 +587,10 @@ function collectPreparedPackageFiles(distDir) {
     const entryPath = path.join(distDir, entry);
     if (!fs.existsSync(entryPath)) continue;
     collectFiles(entryPath, packageFiles);
+  }
+
+  for (const name of distPackageJson.bundledDependencies ?? []) {
+    collectFiles(path.join(distDir, 'node_modules', name), packageFiles);
   }
 
   return packageFiles;

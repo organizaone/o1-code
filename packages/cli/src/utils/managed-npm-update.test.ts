@@ -136,6 +136,36 @@ describe('global npm configuration', () => {
 });
 
 describe('managed npm update', () => {
+  it('reports npm failure details and removes the unsuccessful stage', async () => {
+    const root = makeTemporaryDirectory();
+    let stage = '';
+    const spawnFn = vi.fn((_command: string, args: readonly string[]) => {
+      stage = args[args.indexOf('--prefix') + 1]!;
+      const child = Object.assign(new EventEmitter(), {
+        stderr: new EventEmitter(),
+      });
+      queueMicrotask(() => {
+        child.stderr.emit(
+          'data',
+          Buffer.from('npm error ESTRICTALLOWSCRIPTS: blocked native script'),
+        );
+        child.emit('close', 1);
+      });
+      return child as ReturnType<typeof spawn>;
+    });
+    await expect(
+      installManagedNpmUpdate(
+        '2.0.0',
+        writeBaseInstallation(root),
+        path.join(root, 'updates'),
+        spawnFn as unknown as typeof spawn,
+      ),
+    ).rejects.toThrow(
+      'npm install exited with code 1: npm error ESTRICTALLOWSCRIPTS: blocked native script',
+    );
+    expect(fs.existsSync(stage)).toBe(false);
+  });
+
   it('stages an exact version for one launcher', () => {
     const root = makeTemporaryDirectory();
     const update = prepareManagedNpmUpdate(
@@ -267,7 +297,7 @@ describe('managed npm update', () => {
         env: expect.objectContaining({
           NPM_CONFIG_USERCONFIG: path.resolve('config/npmrc'),
         }),
-        stdio: ['ignore', 'ignore', 'inherit'],
+        stdio: ['ignore', 'ignore', 'pipe'],
         timeout: 10 * 60_000,
         windowsHide: true,
       }),

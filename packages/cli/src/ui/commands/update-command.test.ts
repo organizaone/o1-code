@@ -111,6 +111,13 @@ describe('updateCommand', () => {
     const result = await updateCommand.action!(commandContext, '');
 
     expect(result).toBeUndefined();
+    expect(commandContext.ui.addItem).toHaveBeenCalledWith(
+      {
+        type: 'info',
+        text: 'Update 1.2.2 → 1.2.3. The update dialog opens when this session is idle and the prompt is empty.',
+      },
+      expect.any(Number),
+    );
     expect(receiveUpdate).toHaveBeenCalledExactlyOnceWith(
       availableUpdate,
       true,

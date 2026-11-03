@@ -336,6 +336,7 @@ export async function installManagedNpmUpdate(
   }
   try {
     await new Promise<void>((resolve, reject) => {
+      let errorOutput = '';
       const child = spawnFn(
         process.execPath,
         [
@@ -345,15 +346,25 @@ export async function installManagedNpmUpdate(
         {
           cwd: update.stagingDir,
           env,
-          stdio: ['ignore', 'ignore', 'inherit'],
+          stdio: ['ignore', 'ignore', 'pipe'],
           timeout: 10 * 60_000,
           windowsHide: true,
         },
       );
+      child.stderr?.on('data', (data: Buffer) => {
+        errorOutput = (errorOutput + data.toString()).slice(-4000);
+      });
       child.once('error', reject);
       child.once('close', (code) => {
         if (code === 0) resolve();
-        else reject(new Error(`npm install exited with code ${code}`));
+        else {
+          const detail = errorOutput.trim();
+          reject(
+            new Error(
+              `npm install exited with code ${code}${detail ? `: ${detail}` : ''}`,
+            ),
+          );
+        }
       });
     });
     await activateManagedNpmUpdate(update, version, bootstrapPath);

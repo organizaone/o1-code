@@ -1245,6 +1245,33 @@ describe('package asset scripts', () => {
     const core = JSON.parse(readFileSync(corePath, 'utf8'));
     core.optionalDependencies = { koffi: '3.3.2' };
     writeFileSync(corePath, JSON.stringify(core));
+    writeFile(
+      rootDir,
+      'node_modules/koffi/package.json',
+      JSON.stringify({
+        name: 'koffi',
+        version: '3.3.2',
+        main: 'index.cjs',
+        scripts: { install: 'node cnoke.cjs' },
+        optionalDependencies: { '@koromix/koffi-win32-x64': '3.3.2' },
+      }),
+    );
+    for (const file of [
+      'index.cjs',
+      'index.js',
+      'index.d.ts',
+      'indirect.cjs',
+      'indirect.js',
+      'LICENSE.txt',
+      'README.md',
+      'src/koffi/index.cjs',
+      'src/koffi/index.js',
+      'src/koffi/indirect.cjs',
+      'src/koffi/indirect.js',
+      'src/koffi/src/static.cjs',
+      'src/koffi/src/static.js',
+    ])
+      writeFile(rootDir, `node_modules/koffi/${file}`, 'runtime fixture');
     createBundleArtifacts(rootDir);
     stubConsole();
     preparePackage({ rootDir, requireNativeAudioCapture: false });
@@ -1253,6 +1280,24 @@ describe('package asset scripts', () => {
     );
     expect(published.optionalDependencies.koffi).toBe('3.3.2');
     expect(published.dependencies).not.toHaveProperty('koffi');
+    expect(published.bundledDependencies).toEqual(['koffi']);
+    expect(published.optionalDependencies['@koromix/koffi-win32-x64']).toBe(
+      '3.3.2',
+    );
+    const bundled = JSON.parse(
+      readFileSync(
+        path.join(rootDir, 'dist/node_modules/koffi/package.json'),
+        'utf8',
+      ),
+    );
+    expect(bundled.scripts).toBeUndefined();
+    expect(bundled.optionalDependencies).toBeUndefined();
+    expect(
+      readFileSync(
+        path.join(rootDir, 'dist/node_modules/koffi/LICENSE.txt'),
+        'utf8',
+      ),
+    ).toBe('runtime fixture');
   });
 
   it('rejects an unpinned optional Windows power binding', () => {
