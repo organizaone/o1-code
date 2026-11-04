@@ -7,6 +7,8 @@ follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.23.1] - 2026-11-04
+
 ### Fixed
 
 - Loading the bundled `review` skill preserves a new gateway conversation's authenticated tool contract while retaining workflow activation, permission and folder-trust checks.
