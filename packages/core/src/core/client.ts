@@ -1200,6 +1200,7 @@ export class LlmClient {
       return;
     }
 
+    await this.config.prepareGatewayToolDeclarations?.();
     const toolRegistry = this.config.getToolRegistry();
     await toolRegistry.warmAll();
     const codeModeOnly = this.config.getToolMode?.() === ToolMode.CodeModeOnly;
@@ -2368,6 +2369,7 @@ export class LlmClient {
       // startChat is also taken by the compression path (which preserves the
       // session); `/clear` clears the revealed set via resetChat() before
       // calling us.
+      await this.config.prepareGatewayToolDeclarations?.();
       const toolRegistry = this.config.getToolRegistry();
       await profiler.time('tool_registry_warm', () => toolRegistry.warmAll());
       const codeModeOnly =
@@ -2410,7 +2412,12 @@ export class LlmClient {
       this.config.setPromptToolSnapshot?.(
         new Set(
           toolRegistry
-            .getFunctionDeclarations()
+            .getFunctionDeclarations({
+              includeDeferred:
+                reachesOrganizaOne(this.config.getContentGeneratorConfig?.()) &&
+                this.config.getGatewayToolSnapshotPolicy?.() !==
+                  'legacy-eager-v1',
+            })
             .map((declaration) => declaration.name)
             .filter((name): name is string => Boolean(name)),
         ),

@@ -1590,6 +1590,37 @@ describe('Gemini Client (client.ts)', () => {
       );
     });
 
+    it.each([
+      { gateway: true, policy: 'gateway-v1', full: true },
+      { gateway: false, policy: 'gateway-v1', full: false },
+      { gateway: true, policy: 'legacy-eager-v1', full: false },
+    ])(
+      'uses the recorded gateway declaration policy for the stable prompt tool snapshot: %j',
+      async ({ gateway, policy, full }) => {
+        vi.mocked(mockConfig.getContentGeneratorConfig).mockReturnValue({
+          model: gateway ? 'o1gw/account/copilot/2/gpt-6.1-sol' : 'test-model',
+        } as ContentGeneratorConfig);
+        const snapshot = vi.fn();
+        Object.assign(mockConfig, {
+          setPromptToolSnapshot: snapshot,
+          getGatewayToolSnapshotPolicy: () => policy,
+        });
+        vi.mocked(
+          mockConfig.getToolRegistry().getFunctionDeclarations,
+        ).mockImplementation((options) =>
+          options?.includeDeferred
+            ? [{ name: 'skill' }, { name: 'read_file' }, { name: 'workflow' }]
+            : [{ name: 'skill' }],
+        );
+
+        await client.startChat();
+
+        expect(snapshot).toHaveBeenCalledWith(
+          new Set(full ? ['skill', 'read_file', 'workflow'] : ['skill']),
+        );
+      },
+    );
+
     it('does not record context apply stage without SessionStart context', async () => {
       await client.startChat();
 

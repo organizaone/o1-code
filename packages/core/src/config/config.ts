@@ -41,6 +41,7 @@ import {
   openO1Connect,
   type O1ConnectSession,
 } from '../providers/o1-connect/session.js';
+import { reachesOrganizaOne } from '../providers/presets/organizaone.js';
 import type { RemoteViaTunnel } from '../providers/o1-connect/remote.js';
 import {
   setGeneratorReasoningEffort,
@@ -300,6 +301,7 @@ import {
   ChatRecordingService,
   type ChatRecordingFailureEvent,
   type ChatRecordingFailureListener,
+  type GatewayConversationRecordPayload,
 } from '../services/chatRecordingService.js';
 import { CHARS_PER_TOKEN } from '../services/tokenEstimation.js';
 import {
@@ -9298,17 +9300,62 @@ export class Config {
     return this.o1ConnectSession;
   }
 
-  async enableReviewWorkflow(): Promise<void> {
+  private canActivateReviewWorkflow(): boolean {
+    return (
+      !this.shellExecutionSandbox &&
+      this.workflowsEnabled !== false &&
+      isTopLevelSession() &&
+      !this.getBareMode() &&
+      !this.provisionalWorkspace &&
+      this.isTrustedFolder() &&
+      process.env['O1CODE_DISABLE_WORKFLOWS'] !== '1'
+    );
+  }
+
+  private getResumedGatewayConversation():
+    | GatewayConversationRecordPayload
+    | undefined {
+    return [...(this.getResumedSessionData()?.conversation.messages ?? [])]
+      .reverse()
+      .find((row) => {
+        const payload = row.systemPayload as
+          | GatewayConversationRecordPayload
+          | undefined;
+        return (
+          row.subtype === 'gateway_conversation' &&
+          !row.forkedFrom &&
+          row.sessionId === this.getSessionId() &&
+          payload?.actor === 'main' &&
+          payload.conversationId === this.getSessionId()
+        );
+      })?.systemPayload as GatewayConversationRecordPayload | undefined;
+  }
+
+  getGatewayToolSnapshotPolicy(): NonNullable<
+    GatewayConversationRecordPayload['toolSnapshotPolicy']
+  > {
+    const previous = this.getResumedGatewayConversation();
+    return !previous || previous.toolSnapshotPolicy === 'gateway-v1'
+      ? 'gateway-v1'
+      : 'legacy-eager-v1';
+  }
+
+  /** Reserve the schema before the gateway authenticates the first request. */
+  async prepareGatewayToolDeclarations(): Promise<void> {
+    const previous = this.getResumedGatewayConversation();
+    // Old authenticated sessions cannot acquire a schema retroactively. New
+    // records remember whether reservation was part of their actual contract.
+    if (previous && previous.workflowToolDeclared !== true) return;
     if (
-      this.shellExecutionSandbox ||
-      this.workflowsEnabled === false ||
-      !isTopLevelSession() ||
-      this.getBareMode() ||
-      this.provisionalWorkspace ||
-      process.env['O1CODE_DISABLE_WORKFLOWS'] === '1'
+      reachesOrganizaOne(this.getContentGeneratorConfig()) &&
+      this.canActivateReviewWorkflow()
     ) {
-      return;
+      await this.registerWorkflowTool(this.getToolRegistry());
     }
+  }
+
+  async enableReviewWorkflow(): Promise<void> {
+    if (!this.canActivateReviewWorkflow()) return;
     if (await this.registerWorkflowTool(this.getToolRegistry())) {
       this.setWorkflowsEnabled(true);
       await this.getLlmClient().setTools();

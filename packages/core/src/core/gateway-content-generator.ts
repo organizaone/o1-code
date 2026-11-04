@@ -34,6 +34,7 @@ import { getErrorHeader } from '../utils/retryPolicy.js';
 import { getRateLimitErrorDetails } from '../utils/rateLimit.js';
 import { AuthType } from '../utils/auth-type.js';
 import { isSystemReminderContent } from './environmentContext.js';
+import { ToolNames } from '../tools/tool-names.js';
 import {
   takeGatewayTransfer,
   confirmGatewayTransfer,
@@ -304,6 +305,17 @@ export class GatewayContentGenerator implements ContentGenerator {
       model: request.model,
       phase: 'pending',
       contractHash,
+      toolSnapshotPolicy:
+        this.config.getGatewayToolSnapshotPolicy?.() ?? 'gateway-v1',
+      ...(request.config?.tools?.some(
+        (tool) =>
+          'functionDeclarations' in tool &&
+          tool.functionDeclarations?.some(
+            (declaration) => declaration.name === ToolNames.WORKFLOW,
+          ),
+      )
+        ? { workflowToolDeclared: true as const }
+        : {}),
     };
     const recorder = this.config.getChatRecordingService();
     state.busy = true;
