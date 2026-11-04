@@ -50,6 +50,26 @@ import {
 import { reachesOrganizaOne } from '@organizaone/o1-code-core/providers/presets/organizaone.js';
 import { ModelListEditDialog } from '../auth/ModelListEditDialog.js';
 import type { HistoryItemWithoutId } from '../types.js';
+import {
+  assertGatewayTransferCompatible,
+  confirmGatewayTransfer,
+  gatewayTransferFingerprint,
+  isGatewayAccountChange,
+  stageGatewayTransfer,
+} from '@organizaone/o1-code-core/providers/gateway-transfer.js';
+
+function gatewayModelLabel(model: CoreAvailableModel): string {
+  const gateway = model.capabilities?.gateway;
+  if (!gateway) return model.label;
+  const target = gateway.account ?? gateway.group;
+  if (!target) return model.label;
+  const kind = gateway.group
+    ? t('Group')
+    : model.id.startsWith('o1gw/own/')
+      ? t('Private account')
+      : t('Account');
+  return `${target.provider} · ${target.publicName ? `${target.publicName} · ` : ''}${kind} #${target.id} · ${gateway.nativeModel ?? model.id}`;
+}
 
 function formatModalities(modalities?: InputModalities): string {
   if (!modalities) return t('text-only');
@@ -110,7 +130,10 @@ function parseModelSelectionKey(key: string): {
 export function encodeAuxModelSelector(selected: string): string {
   if (selected.includes('::')) {
     const parsed = parseModelSelectionKey(selected);
-    return `${parsed.authType}:${parsed.modelId}`;
+    const selector = `${parsed.authType}:${parsed.modelId}`;
+    return parsed.modelId.startsWith('o1gw/') && parsed.baseUrl
+      ? `${selector}\0${parsed.baseUrl}`
+      : selector;
   }
   if (selected.startsWith('$runtime|')) {
     const parts = selected.split('|');
@@ -417,8 +440,8 @@ export function ModelDialog({
 
           const title = (
             <Text>
-              <Text>{model.label}</Text>
-              {model.id !== model.label && (
+              <Text>{gatewayModelLabel(model)}</Text>
+              {!model.capabilities?.gateway && model.id !== model.label && (
                 <Text color={theme.text.secondary} italic>
                   {' '}
                   ({model.id})
@@ -461,6 +484,19 @@ export function ModelDialog({
   const errorMessageRows = errorMessage
     ? 2 + errorMessage.split('\n').length
     : 0;
+  const gatewayDetailRows = Math.max(
+    0,
+    ...availableModelEntries.map(({ model }) => {
+      const gateway = model.capabilities?.gateway;
+      return gateway
+        ? Number(Boolean(gateway.inputTokens)) +
+            Number(Boolean(gateway.outputTokens)) +
+            (gateway.group
+              ? 2 + Number(gateway.group.automaticConditions.length > 0)
+              : 0)
+        : 0;
+    }),
+  );
   const maxModelItemsToShow =
     availableTerminalHeight === undefined
       ? MAX_MODEL_ITEMS_TO_SHOW
@@ -471,6 +507,7 @@ export function ModelDialog({
             Math.floor(
               (availableTerminalHeight -
                 MODEL_DIALOG_FIXED_ROWS -
+                gatewayDetailRows -
                 errorMessageRows) /
                 modelOptionRowHeight,
             ),
@@ -789,6 +826,11 @@ export function ModelDialog({
     useState<EffortSelection>(initialEffort);
   const effortOptions = useMemo((): EffortSelection[] => {
     if (isAuxiliaryModelMode || !highlightedEntry) return [];
+    if (
+      highlightedEntry.model.capabilities?.gateway &&
+      !highlightedEntry.model.capabilities.reasoning
+    )
+      return [];
     const tiers = reasoningEffortsForCapability(
       parseModelReasoningCapabilities(
         highlightedEntry.model.capabilities?.reasoning,
@@ -1034,6 +1076,74 @@ export function ModelDialog({
           selectedBaseUrl = parsed.baseUrl;
         }
 
+        const before = config.getContentGeneratorConfig();
+        if (
+          reachesOrganizaOne(before) &&
+          isGatewayAccountChange(before.model, modelId) &&
+          config
+            .getLlmClient()
+            .getHistoryShallow()
+            .some((content) => content.role === 'model')
+        ) {
+          assertGatewayTransferCompatible(before.model, modelId);
+          const normalizeEndpoint = (url: string | undefined) =>
+            url?.replace(/\/+$/, '').replace(/\/v1$/, '');
+          if (
+            selectedAuthType !== before.authType ||
+            normalizeEndpoint(selectedBaseUrl) !==
+              normalizeEndpoint(before.reasoningRouteBaseUrl ?? before.baseUrl)
+          )
+            throw new Error(
+              t(
+                'A conversation transfer must keep the same gateway and protocol.',
+              ),
+            );
+          selectionInFlightRef.current = true;
+          let confirmed: boolean;
+          try {
+            confirmed = await confirmGatewayTransfer(config, {
+              source: before.model,
+              destination: selectedEntry
+                ? gatewayModelLabel(selectedEntry.model)
+                : modelId,
+            });
+          } finally {
+            selectionInFlightRef.current = false;
+          }
+          if (!confirmed) return;
+          stageGatewayTransfer(config, {
+            sessionId: config.getSessionId(),
+            sourceModel: before.model,
+            destinationModel: modelId,
+            sourceFingerprint: gatewayTransferFingerprint(before),
+            onConfirmed: async () => {
+              await config.switchModel(selectedAuthType, modelId, {
+                baseUrl: selectedBaseUrl,
+              });
+              persistModelSelection(
+                settings,
+                modelId,
+                selectedBaseUrl,
+                persistScope,
+              );
+              persistAuthTypeSelection(
+                settings,
+                selectedAuthType,
+                persistScope,
+              );
+            },
+          });
+          reportAuxiliaryModelSelection({
+            type: 'info',
+            text: t(
+              'Transfer authorized for the next message. The current account stays selected until confirmation.',
+            ),
+          });
+          closeLatchRef.current = true;
+          onClose();
+          return;
+        }
+
         selectionInFlightRef.current = true;
         try {
           await config.switchModel(selectedAuthType, modelId, {
@@ -1233,9 +1343,49 @@ export function ModelDialog({
           <DetailRow
             label={t('Context')}
             value={formatContextWindow(
-              highlightedEntry.model.contextWindowSize,
+              highlightedEntry.model.capabilities?.gateway?.contextTokens ??
+                highlightedEntry.model.contextWindowSize,
             )}
           />
+          {highlightedEntry.model.capabilities?.gateway?.inputTokens && (
+            <DetailRow
+              label={t('Input limit')}
+              value={formatContextWindow(
+                highlightedEntry.model.capabilities.gateway.inputTokens,
+              )}
+            />
+          )}
+          {highlightedEntry.model.capabilities?.gateway?.outputTokens && (
+            <DetailRow
+              label={t('Output limit')}
+              value={formatContextWindow(
+                highlightedEntry.model.capabilities.gateway.outputTokens,
+              )}
+            />
+          )}
+          {highlightedEntry.model.capabilities?.gateway?.group && (
+            <Box flexDirection="column">
+              <Text color={theme.text.secondary}>
+                {t('Group members are selected by the gateway.')}
+              </Text>
+              <DetailRow
+                label={t('Continuation')}
+                value={
+                  highlightedEntry.model.capabilities.gateway.group
+                    .continuationPolicy ?? t('(default)')
+                }
+              />
+              {highlightedEntry.model.capabilities.gateway.group
+                .automaticConditions.length > 0 && (
+                <DetailRow
+                  label={t('Automatic')}
+                  value={highlightedEntry.model.capabilities.gateway.group.automaticConditions.join(
+                    ', ',
+                  )}
+                />
+              )}
+            </Box>
+          )}
           <DetailRow
             label="Base URL"
             value={highlightedEntry.model.baseUrl ?? t('(default)')}

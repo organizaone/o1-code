@@ -130,7 +130,9 @@ export class DefaultOpenAICompatibleProvider
       apiKey,
       baseURL: baseUrl,
       timeout,
-      maxRetries,
+      maxRetries: reachesOrganizaOne(this.contentGeneratorConfig)
+        ? 0
+        : maxRetries,
       defaultHeaders,
       ...(runtimeOptions || {}),
       fetch: buildOutboundFetch(

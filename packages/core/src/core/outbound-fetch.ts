@@ -11,6 +11,7 @@ import {
   warnIfDynamicHeadersDisabled,
 } from './outbound-dynamic-headers.js';
 import { recordRateLimitHeaders } from '../providers/organizaone-limits.js';
+import { withGatewayRequestHeaders } from '../providers/gateway-request.js';
 
 type FetchLike = (
   input: string | URL | Request,
@@ -52,7 +53,10 @@ export function buildOutboundFetch(
 ): typeof globalThis.fetch {
   const baseFetch =
     (runtimeFetch as typeof globalThis.fetch | undefined) ?? globalThis.fetch;
-  const wrapped = wrapFetchWithDynamicHeaders(baseFetch, config, customHeaders);
+  const dynamic = wrapFetchWithDynamicHeaders(baseFetch, config, customHeaders);
+  const wrapped = options.recordRateLimits
+    ? withGatewayRequestHeaders(dynamic)
+    : dynamic;
   if (!options.recordRateLimits) return wrapped;
   // The OrganizaOne proxy states the account's windows on every admitted
   // request; they are read here, before the SDK consumes the response.

@@ -7,6 +7,19 @@ follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.23.0] - 2026-11-04
+
+### Added
+
+- Gateway conversations carry a persisted HTTP identity across requests and client restarts. Independent title, summary, compaction and suggestion requests negotiate the server's advertised capabilities and use separate operation identities.
+- Discovered gateway accounts, private accounts and groups retain their complete route IDs, limits and reasoning metadata in the existing model selector. Compatible account transfers require explicit consent and prepare the exact next request with a short-lived, single-use token.
+
+### Fixed
+
+- Gateway memory-agent runs keep an independent conversation identity across their tool rounds, without borrowing the main conversation's history proof or replacing its state.
+- Gateway continuity conflicts and uncertain streams stop without automatic replay or account fallback. Legacy histories, history forks and local compaction that cannot preserve native continuity fail explicitly and retain the local history.
+- The Web Shell publication verifier accepts npm 12's package-name-keyed pack report while retaining support for earlier npm versions and rejecting missing package files.
+
 ## [0.22.2] - 2026-11-03
 
 ### Fixed

@@ -1629,6 +1629,8 @@ export class ContentGenerationPipeline {
       // matching; never throws, so awaiting cannot mask the original error,
       // and it must complete before a fast retry can race the file write.
       await this.invalidateOmniOssCacheOnError(openaiRequest, error);
+      if (reachesOrganizaOne(this.contentGeneratorConfig))
+        return await this.handleError(error, context, request);
       const model = context.model.toLowerCase();
       const wireRequest = openaiRequest as Record<string, unknown> | undefined;
       const chatTemplateKwargs = wireRequest?.['chat_template_kwargs'] as

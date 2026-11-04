@@ -5,6 +5,8 @@
  */
 
 import { z } from 'zod';
+import { createGatewayIndependentRequest } from '../providers/gateway-request.js';
+import { reachesOrganizaOne } from '../providers/presets/organizaone.js';
 import { createChildAbortController } from '../utils/abortController.js';
 import { createDebugLogger } from '../utils/debugLogger.js';
 import { HookAbortError, HookTimeoutError } from './hook-errors.js';
@@ -271,7 +273,8 @@ export class PromptHookRunner {
     try {
       let generator = this.config.getContentGenerator();
       let requestModel = model;
-      let reasoningConfig = this.config.getContentGeneratorConfig().reasoning;
+      let generatorConfig = this.config.getContentGeneratorConfig();
+      let reasoningConfig = generatorConfig.reasoning;
       if (!generator) {
         const error = new Error(
           'ContentGenerator not available - make sure you are authenticated',
@@ -292,6 +295,7 @@ export class PromptHookRunner {
         ]);
         generator = resolved.contentGenerator;
         requestModel = resolved.model;
+        generatorConfig = resolved.contentGeneratorConfig;
         reasoningConfig = resolved.contentGeneratorConfig.reasoning;
       }
 
@@ -328,6 +332,9 @@ export class PromptHookRunner {
         generator.generateContent(
           {
             model: requestModel,
+            ...(reachesOrganizaOne(generatorConfig)
+              ? { gatewayIndependentRequest: createGatewayIndependentRequest() }
+              : {}),
             contents,
             config: requestConfig,
           },

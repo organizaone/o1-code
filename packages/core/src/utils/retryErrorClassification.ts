@@ -51,6 +51,24 @@ export function classifyRetryError(
   error: unknown,
   context: RetryErrorClassificationContext = {},
 ): RetryErrorClassification {
+  if (
+    error instanceof Error &&
+    'code' in error &&
+    error.code === 'gateway_conversation_error'
+  ) {
+    return {
+      kind: 'provider-business',
+      diagnosis: 'fail-fast',
+      reason: 'gateway-continuity',
+      providerCode:
+        'providerCode' in error && typeof error.providerCode === 'string'
+          ? error.providerCode
+          : 'gateway_conversation_error',
+      ...('status' in error && typeof error.status === 'number'
+        ? { statusCode: error.status }
+        : {}),
+    };
+  }
   if (isRetryAbortError(error)) {
     return {
       kind: 'abort',
@@ -82,6 +100,19 @@ export function classifyRetryError(
       kind: 'provider-business',
       diagnosis: 'fail-fast',
       reason: 'allocated-quota-exceeded',
+      ...common,
+    };
+  }
+
+  if (
+    providerCode === 'conversation_unavailable' ||
+    providerCode === 'transfer_unavailable' ||
+    providerCode === 'conversation_transfer_required'
+  ) {
+    return {
+      kind: 'provider-business',
+      diagnosis: 'fail-fast',
+      reason: 'gateway-continuity',
       ...common,
     };
   }

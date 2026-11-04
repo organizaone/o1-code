@@ -109,6 +109,22 @@ store and local detection. The terminal also supports OrganizaOne account login 
 connection codes (`AuthDialog.tsx`, `ProviderSetupSteps.tsx`). Account login and connection codes
 remain disabled in the Web Shell (`serve/server/auth-provider-helpers.ts`).
 
+Gateway continuity ([issue #135](https://github.com/organizaone/o1-code/issues/135))
+uses persisted HTTP conversation IDs, independent auxiliary and memory-agent
+identities, discovered account/group/private route metadata and explicit transfer
+consent in the existing terminal selector. Focused SDK/HTTP fixtures cover routing,
+transfer and uncertain execution. The corrected gateway 11.4.1 and local CLI were
+also exercised on both protocols with one real Business account: repeated turns,
+reasoning/model changes, successive tool rounds, process resume and separate
+memory calls. The live memory calls did not use tools.
+
+Two-real-account transfer, real group failover, native parallel tools, tools inside
+the real memory extractor, pending-tool restart and abrupt process-loss recovery
+remain unproven. Child multi-round identity uses an actual SDK/HTTP fixture with
+simulated AgentHeadless execution. Legacy unknown histories and local transcript
+replacement cannot acquire native continuity proof; see
+[gateway continuity](docs/users/configuration/model-providers.md#organizaone-gateway-continuity).
+
 - **Menu:** OrganizaOne; API key (one alphabetical list: Alibaba Cloud, Anthropic, DeepSeek,
   Google Gemini, Kimi, MiniMax, ModelScope, OpenAI, xAI, Z.AI); Local (Ollama and LM Studio detected on
   their ports, or another local server); Custom (any URL, OpenAI-compatible or Anthropic). The

@@ -4,7 +4,11 @@
   "source": "https://github.com/organizaone/o1-gateway",
   "commit": "a7234d36eca4d9bc6b73c68d26494e21a44b6cae",
   "files": {
-    "lib.mjs": "3f1784b067660cfd2866a023885948f1a246c029ee9a3dc73f1a126072c7d0fb",
+    "lib.mjs": "40dd11dc8bb6135cd8b398310129f8497127479848533b6d9267d3c9bb6d7768",
     "lib.d.mts": "242576aa4d42aa82665f7bd570b5b0f432e2df497e7ed0586ceb850b3fe250e4"
-  }
+  },
+  "upstreamFiles": {
+    "lib.mjs": "3f1784b067660cfd2866a023885948f1a246c029ee9a3dc73f1a126072c7d0fb"
+  },
+  "localPatch": "Disable buffered HTTP replay for requests carrying x-o1gw-conversation-id."
 }

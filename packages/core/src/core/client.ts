@@ -18,6 +18,11 @@ import process from 'node:process';
 
 // Config
 import type { Config } from '../config/config.js';
+import { reachesOrganizaOne } from '../providers/presets/organizaone.js';
+import {
+  createGatewayIndependentRequest,
+  gatewayIndependentInput,
+} from '../providers/gateway-request.js';
 import { ApprovalMode } from '../config/approval-mode.js';
 import { createDebugLogger } from '../utils/debugLogger.js';
 import { cleanupOldToolResults } from '../utils/toolResultCleanup.js';
@@ -1209,7 +1214,11 @@ export class LlmClient {
       );
     }
     const deferredTools = this.resolveDeferredToolsForReminder(deferredSummary);
-    const toolDeclarations = toolRegistry.getFunctionDeclarations();
+    const toolDeclarations = reachesOrganizaOne(
+      this.config.getContentGeneratorConfig?.(),
+    )
+      ? toolRegistry.getFunctionDeclarations({ includeDeferred: true })
+      : toolRegistry.getFunctionDeclarations();
     const tools: Tool[] = [{ functionDeclarations: toolDeclarations }];
     this.getChat().setTools(tools);
     this.queueAddedMcpToolsReminder(deferredTools ?? []);
@@ -2937,6 +2946,8 @@ export class LlmClient {
     lastCompletionTimestamp: number | null,
     opts?: MicrocompactOptions,
   ): Promise<boolean> {
+    if (reachesOrganizaOne(this.config.getContentGeneratorConfig?.()))
+      return false;
     try {
       const projectRoot = this.config.getProjectRoot();
       const targetDir = this.config.getTargetDir?.() ?? projectRoot;
@@ -5172,6 +5183,9 @@ export class LlmClient {
         contents,
         contentGeneratorConfig?.modalities ?? {},
       ).slimmedHistory;
+      const independent = reachesOrganizaOne(contentGeneratorConfig)
+        ? createGatewayIndependentRequest()
+        : undefined;
 
       const apiCall = () => {
         currentAttemptModel = requestModel;
@@ -5179,8 +5193,11 @@ export class LlmClient {
         return contentGenerator.generateContent(
           {
             model: requestModel,
+            ...(independent ? { gatewayIndependentRequest: independent } : {}),
             config: requestConfig,
-            contents: requestContents,
+            contents: independent
+              ? gatewayIndependentInput(requestContents)
+              : requestContents,
           },
           promptId,
         );

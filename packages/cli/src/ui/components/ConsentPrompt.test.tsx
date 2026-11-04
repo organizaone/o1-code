@@ -10,6 +10,9 @@ import { render } from 'ink-testing-library';
 import { ConsentPrompt } from './ConsentPrompt.js';
 import { RadioButtonSelect } from './shared/RadioButtonSelect.js';
 import { MarkdownDisplay } from '../utils/MarkdownDisplay.js';
+import { useKeypress } from '../hooks/useKeypress.js';
+
+vi.mock('../hooks/useKeypress.js', () => ({ useKeypress: vi.fn() }));
 
 vi.mock('./shared/RadioButtonSelect.js', () => ({
   RadioButtonSelect: vi.fn(() => null),
@@ -206,5 +209,36 @@ describe('ConsentPrompt', () => {
       }),
       undefined,
     );
+  });
+
+  it('starts on cancel and handles Escape for an explicit account consent', () => {
+    render(
+      <ConsentPrompt
+        prompt="Authorize this transfer?"
+        onConfirm={onConfirm}
+        terminalWidth={terminalWidth}
+        confirmLabel="Authorize and continue"
+        cancelLabel="Cancel"
+        defaultDeny
+      />,
+    );
+    expect(MockedRadioButtonSelect.mock.calls[0][0]).toMatchObject({
+      initialIndex: 1,
+      items: [
+        { label: 'Authorize and continue', value: true },
+        { label: 'Cancel', value: false },
+      ],
+    });
+    const [onKeypress, options] = vi.mocked(useKeypress).mock.calls[0];
+    expect(options.isActive).toBe(true);
+    onKeypress({
+      name: 'escape',
+      sequence: '\u001b',
+      ctrl: false,
+      meta: false,
+      shift: false,
+      paste: false,
+    });
+    expect(onConfirm).toHaveBeenCalledWith(false);
   });
 });

@@ -24,6 +24,21 @@ import {
 import { AuthType } from '../core/contentGenerator.js';
 import type { RuntimeContentGeneratorView } from './runtime/agent-context.js';
 import { createRuntimeContentGeneratorView } from '../models/content-generator-config.js';
+import { createServer } from 'node:http';
+import { createHash, randomUUID } from 'node:crypto';
+import { mkdtemp, rm } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import type { Content } from '@google/genai';
+import { GatewayContentGenerator } from '../core/gateway-content-generator.js';
+import { createOpenAIContentGenerator } from '../core/openaiContentGenerator/index.js';
+import { preloadRuntimeFetchModule } from '../utils/runtimeFetchOptions.js';
+import type { ChatRecordingService } from '../services/chatRecordingService.js';
+import {
+  getCurrentAgentDepth,
+  getCurrentAgentId,
+  runWithAgentContext,
+} from './runtime/agent-context.js';
 
 vi.mock('../models/content-generator-config.js', async (importOriginal) => {
   const actual =
@@ -86,6 +101,238 @@ describe('runForkedAgent (AgentHeadless path) bound-tool isolation', () => {
     usageStatisticsEnabled: false,
     bareMode: true,
   };
+
+  it('keeps gateway memory agents on independent HTTP identities and supplies parent history only as source material', async () => {
+    const work = await mkdtemp(join(tmpdir(), 'o1-fork-gateway-'));
+    const requests: Array<{
+      id: string | undefined;
+      messages: Array<{ role: string }>;
+    }> = [];
+    const server = createServer(async (request, response) => {
+      let data = '';
+      for await (const chunk of request) data += String(chunk);
+      const body = JSON.parse(data) as {
+        model: string;
+        messages: Array<{ role: string }>;
+      };
+      requests.push({
+        id: request.headers['x-o1gw-conversation-id'] as string | undefined,
+        messages: body.messages,
+      });
+      response.setHeader('content-type', 'application/json');
+      response.end(
+        JSON.stringify({
+          id: 'synthetic-response',
+          object: 'chat.completion',
+          created: 0,
+          model: body.model,
+          choices: [
+            {
+              index: 0,
+              message: { role: 'assistant', content: 'synthetic-reply' },
+              finish_reason: 'stop',
+            },
+          ],
+          usage: { prompt_tokens: 1, completion_tokens: 1, total_tokens: 2 },
+        }),
+      );
+    });
+    await new Promise<void>((resolve) =>
+      server.listen(0, '127.0.0.1', resolve),
+    );
+    const address = server.address();
+    if (!address || typeof address === 'string')
+      throw new Error('Missing test listener');
+    const model = 'o1gw/account/copilot/2/auto';
+    const sessionId = randomUUID();
+    const parent = new ConfigImpl({
+      ...baseParams,
+      model,
+      sessionId,
+      cwd: work,
+      targetDir: work,
+    });
+    const parentRegistry = await parent.createToolRegistry(undefined, {
+      skipDiscovery: true,
+    });
+    const registrySpy = vi
+      .spyOn(parent, 'getToolRegistry')
+      .mockReturnValue(parentRegistry);
+    const generation = {
+      model,
+      authType: AuthType.USE_OPENAI,
+      baseUrl: `http://127.0.0.1:${address.port}/v1`,
+      apiKey: 'synthetic-only',
+    };
+    vi.spyOn(parent, 'getContentGeneratorConfig').mockReturnValue(generation);
+    const recordSessionModel = vi.fn(async () => {});
+    vi.spyOn(parent, 'getChatRecordingService').mockReturnValue({
+      recordGatewayConversation: async () => {},
+      recordSessionModel,
+    } as unknown as ChatRecordingService);
+    await preloadRuntimeFetchModule();
+    const generator = new GatewayContentGenerator(
+      createOpenAIContentGenerator(generation, parent),
+      parent,
+      generation,
+    );
+    vi.spyOn(parent, 'getContentGenerator').mockReturnValue(generator);
+    const extraHistory: Content[] = [
+      { role: 'user', parts: [{ text: 'source-user-marker' }] },
+      {
+        role: 'model',
+        parts: [
+          { text: 'source-assistant-marker' },
+          {
+            functionCall: { id: 'source-call', name: 'source-tool', args: {} },
+          },
+        ],
+      },
+      {
+        role: 'user',
+        parts: [
+          {
+            functionResponse: {
+              id: 'source-call',
+              name: 'source-tool',
+              response: { result: 'source-tool-result-marker' },
+            },
+          },
+        ],
+      },
+    ];
+    const original = structuredClone(extraHistory);
+    const childActors: Array<string | null> = [];
+    const childDepths: number[] = [];
+    const headlessIds: Array<string | undefined> = [];
+    const createSpy = vi
+      .spyOn(AgentHeadless, 'create')
+      .mockImplementation(
+        async (
+          _name,
+          _config,
+          prompt,
+          _model,
+          _run,
+          _tools,
+          _emitter,
+          _hooks,
+          _view,
+          _task,
+          subagentId,
+        ) => {
+          headlessIds.push(subagentId);
+          return {
+            execute: async () => {
+              childActors.push(getCurrentAgentId());
+              childDepths.push(getCurrentAgentDepth());
+              const history: Content[] = [
+                ...(prompt.initialMessages ?? []),
+                { role: 'user', parts: [{ text: 'independent-memory-task' }] },
+              ];
+              await generator.generateContent(
+                {
+                  model,
+                  contents: history,
+                  config: { systemInstruction: 'child-system' },
+                },
+                'child-first',
+              );
+              await generator.generateContent(
+                {
+                  model,
+                  contents: [
+                    ...history,
+                    { role: 'model', parts: [{ text: 'synthetic-reply' }] },
+                    { role: 'user', parts: [{ text: 'child-followup' }] },
+                  ],
+                  config: { systemInstruction: 'child-system' },
+                },
+                'child-second',
+              );
+            },
+            getTerminateMode: () => AgentTerminateMode.GOAL,
+            getFinalText: () => 'done',
+          } as unknown as AgentHeadless;
+        },
+      );
+    try {
+      await generator.generateContent(
+        {
+          model,
+          contents: 'parent-opening',
+          config: { systemInstruction: 'parent-system' },
+        },
+        'parent-first',
+      );
+      const runChild = () =>
+        runForkedAgent({
+          name: 'managed-auto-memory-extractor',
+          config: parent,
+          model,
+          systemPrompt: 'child-system',
+          taskPrompt: 'independent-memory-task',
+          extraHistory,
+        });
+      await Promise.all([
+        runChild(),
+        runWithAgentContext('outer-agent', async () => {
+          await runChild();
+          expect(getCurrentAgentId()).toBe('outer-agent');
+        }),
+      ]);
+      await generator.generateContent(
+        {
+          model,
+          contents: [
+            { role: 'user', parts: [{ text: 'parent-opening' }] },
+            { role: 'model', parts: [{ text: 'synthetic-reply' }] },
+            { role: 'user', parts: [{ text: 'parent-followup' }] },
+          ],
+          config: { systemInstruction: 'parent-system' },
+        },
+        'parent-second',
+      );
+      expect(requests).toHaveLength(6);
+      expect(requests[0].id).toBe(sessionId);
+      expect(requests[5].id).toBe(sessionId);
+      expect(new Set(requests.map((row) => row.id)).size).toBe(3);
+      expect(childActors).toEqual(headlessIds);
+      expect(childActors.every((actor) => typeof actor === 'string')).toBe(
+        true,
+      );
+      expect(childDepths.toSorted()).toEqual([0, 1]);
+      for (const actor of childActors) {
+        const id = createHash('sha256')
+          .update(`${sessionId}\0${actor}`)
+          .digest('hex');
+        const turns = requests.filter((request) => request.id === id);
+        expect(turns).toHaveLength(2);
+        expect(
+          turns[0].messages.every(
+            (message) => message.role === 'user' || message.role === 'system',
+          ),
+        ).toBe(true);
+        expect(JSON.stringify(turns[0].messages)).toContain(
+          'source-assistant-marker',
+        );
+        expect(JSON.stringify(turns[0].messages)).toContain(
+          'source-tool-result-marker',
+        );
+      }
+      expect(getCurrentAgentId()).toBeNull();
+      expect(parent.getModel()).toBe(model);
+      expect(recordSessionModel).toHaveBeenCalledTimes(2);
+      expect(extraHistory).toEqual(original);
+    } finally {
+      createSpy.mockRestore();
+      registrySpy.mockRestore();
+      await parentRegistry.stop();
+      server.closeAllConnections();
+      await new Promise<void>((resolve) => server.close(() => resolve()));
+      await rm(work, { recursive: true, force: true });
+    }
+  }, 15000);
 
   // Spy on AgentHeadless.create at the source module rather than mocking
   // the re-export layer in `agents/index.js` — vitest's module-mock layer

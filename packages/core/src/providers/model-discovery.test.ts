@@ -22,6 +22,82 @@ const respond = (status: number, body: unknown = {}) =>
 const models = { data: [{ id: 'model-a' }, { id: 'model-b' }] };
 
 describe('checkProviderKey', () => {
+  it('keeps equal native models on separate accounts and preserves their advertised limits and efforts', async () => {
+    respond(200, {
+      data: [
+        {
+          id: 'o1gw/account/copilot/2/auto',
+          native_model: 'auto',
+          provider_account: {
+            provider: 'copilot',
+            id: 2,
+            public_name: 'Personal',
+          },
+          context_length: 64000,
+          max_input_tokens: 60000,
+          top_provider: { max_completion_tokens: 4000 },
+        },
+        {
+          id: 'o1gw/account/copilot/3/auto',
+          native_model: 'auto',
+          provider_account: {
+            provider: 'copilot',
+            id: 3,
+            public_name: 'Personal',
+          },
+          context_length: 128000,
+          reasoning: { efforts: ['low', 'high'], default: 'low' },
+        },
+        {
+          id: 'o1gw/group/copilot/1/auto',
+          native_model: 'auto',
+          provider_group: {
+            provider: 'copilot',
+            id: 1,
+            public_name: null,
+            continuation_policy: 'ask',
+            continuation_policies: ['forbid', 'ask', 'automatic'],
+            automatic_conditions: ['limit'],
+          },
+        },
+        {
+          id: 'o1gw/own/copilot/7/auto',
+          native_model: 'auto',
+          provider_account: {
+            provider: 'copilot',
+            id: 7,
+            public_name: 'Private',
+          },
+        },
+      ],
+    });
+    const result = await checkProviderKey({
+      protocol: 'openai',
+      baseUrl: 'https://api.organizaone.com/v1',
+      apiKey: 'synthetic',
+      staticModels: [],
+    });
+    expect(result.status).toBe('ok');
+    if (result.status !== 'ok') throw new Error('Expected model discovery');
+    expect(result.models).toHaveLength(4);
+    expect(result.models[0].id).toBe('o1gw/account/copilot/2/auto');
+    expect(result.models[0].capabilities?.gateway).toMatchObject({
+      nativeModel: 'auto',
+      inputTokens: 60000,
+      outputTokens: 4000,
+      account: { id: 2, publicName: 'Personal' },
+    });
+    expect(result.models[0].capabilities?.reasoning).toBeUndefined();
+    expect(result.models[1].capabilities?.reasoning).toMatchObject({
+      efforts: ['low', 'high'],
+    });
+    expect(result.models[2].capabilities?.gateway?.group).toMatchObject({
+      continuationPolicy: 'ask',
+      continuationPolicies: ['forbid', 'ask', 'automatic'],
+      automaticConditions: ['limit'],
+    });
+    expect(result.models[3].id).toBe('o1gw/own/copilot/7/auto');
+  });
   beforeEach(() => {
     fetchMock.mockReset();
   });

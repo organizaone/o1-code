@@ -345,6 +345,16 @@ export function getReasoningEffortsForConfig(
   config: Config,
 ): readonly ReasoningEffort[] {
   const modelId = config.getModel?.();
+  const generation = config.getContentGeneratorConfig?.();
+  const declared =
+    generation?.authType && modelId
+      ? config.getResolvedModelConfig?.(
+          generation.authType,
+          modelId,
+          generation.reasoningRouteBaseUrl ?? generation.baseUrl,
+        )?.capabilities
+      : undefined;
+  if (declared?.gateway && !declared.reasoning) return [];
   // One tier rule for `/effort` and a workflow agent's per-call effort: this
   // site keeps its own capability lookup and delegates only the rule.
   return reasoningEffortsForCapability(

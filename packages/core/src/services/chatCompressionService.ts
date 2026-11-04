@@ -19,6 +19,8 @@ import {
 import { DEFAULT_TOKEN_LIMIT } from '../core/tokenLimits.js';
 import { getCompressionPrompt } from '../core/prompts.js';
 import { runSideQuery } from '../utils/sideQuery.js';
+import { reachesOrganizaOne } from '../providers/presets/organizaone.js';
+import { GatewayConversationError } from '../providers/gateway-request.js';
 import { resolveModelId } from '../utils/modelId.js';
 import { supportsOpenAIPrefixCaching } from '../core/openaiContentGenerator/prefix-caching.js';
 import { logChatCompression } from '../telemetry/loggers.js';
@@ -521,6 +523,15 @@ export class ChatCompressionService {
     // remaining V8 heap headroom at exactly the moment compaction is trying to
     // reduce memory pressure.
     const curatedHistory = chat.getHistoryShallow(true);
+    if (
+      curatedHistory.length >= 2 &&
+      reachesOrganizaOne(contentGeneratorConfig)
+    ) {
+      throw new GatewayConversationError(
+        'unsupported',
+        'This gateway verifies the full conversation history and does not authorize replacing it with a client summary. The history is preserved. Start a new empty conversation with /new when its context is full.',
+      );
+    }
     if (curatedHistory.length === 0) {
       return {
         newHistory: null,
@@ -804,6 +815,7 @@ export class ChatCompressionService {
         COMPACT_MAX_OUTPUT_TOKENS <=
       contextLimit;
     const canShareCache =
+      !reachesOrganizaOne(config.getContentGeneratorConfig()) &&
       usesMainModel &&
       providerSupportsCacheSharing &&
       hasProviderTokenCount &&

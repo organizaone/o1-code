@@ -336,6 +336,7 @@ function applyResolvedModelConfig(
   if (!inheritCredentials) targetConfig.customHeaders = undefined;
   targetConfig.reasoningRouteBaseUrl = resolvedModel.registryBaseUrl ?? null;
   targetConfig.model = resolvedModel.id;
+  targetConfig.connection = resolvedModel.connection;
   targetConfig.authType = resolvedModel.authType;
   targetConfig.baseUrl =
     authOverrides.baseUrl ??

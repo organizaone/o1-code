@@ -515,6 +515,74 @@ describe('LlmChat', async () => {
   });
 
   describe('sendMessageStream', () => {
+    it('does not replay a gateway stream rejected by local validation', async () => {
+      vi.mocked(mockConfig.getContentGeneratorConfig).mockReturnValue({
+        authType: AuthType.USE_OPENAI,
+        model: 'o1gw/account/copilot/2/auto',
+        baseUrl: 'https://api.organizaone.com/v1',
+      });
+      chat.addHistory({ role: 'user', parts: [{ text: 'previous input' }] });
+      chat.addHistory({
+        role: 'model',
+        parts: [{ text: 'previous valid reply' }],
+      });
+      vi.mocked(mockContentGenerator.generateContentStream).mockImplementation(
+        async () => (async function* () {})(),
+      );
+      const stream = await chat.sendMessageStream(
+        'test-model',
+        { message: 'next' },
+        'gateway-local-validation',
+      );
+      await expect(
+        (async () => {
+          for await (const _chunk of stream) {
+            /* consume */
+          }
+        })(),
+      ).rejects.toBeInstanceOf(InvalidStreamError);
+      expect(mockContentGenerator.generateContentStream).toHaveBeenCalledOnce();
+      expect(JSON.stringify(chat.getHistory())).toContain(
+        'previous valid reply',
+      );
+    });
+
+    it('keeps gateway output at its limit without replaying or replacing it', async () => {
+      vi.mocked(mockConfig.getContentGeneratorConfig).mockReturnValue({
+        authType: AuthType.USE_OPENAI,
+        model: 'o1gw/account/copilot/2/auto',
+        baseUrl: 'https://api.organizaone.com/v1',
+      });
+      vi.mocked(mockContentGenerator.generateContentStream).mockImplementation(
+        async () =>
+          (async function* () {
+            yield {
+              candidates: [
+                {
+                  content: {
+                    role: 'model',
+                    parts: [{ text: 'partial output marker' }],
+                  },
+                  finishReason: 'MAX_TOKENS',
+                },
+              ],
+            } as GenerateContentResponse;
+          })(),
+      );
+      const stream = await chat.sendMessageStream(
+        'test-model',
+        { message: 'next' },
+        'gateway-output-limit',
+      );
+      for await (const _chunk of stream) {
+        /* consume */
+      }
+      expect(mockContentGenerator.generateContentStream).toHaveBeenCalledOnce();
+      expect(JSON.stringify(chat.getHistory())).toContain(
+        'partial output marker',
+      );
+    });
+
     it('releases the sleep inhibitor after the stream is consumed', async () => {
       vi.mocked(mockContentGenerator.generateContentStream).mockResolvedValue(
         (async function* () {

@@ -7,6 +7,21 @@
 // Portuguese translations for O1-Code CLI (pt-BR)
 
 export default {
+  'To continue in this group, we need to send this conversation history to another eligible account. This uses tokens and context on the destination account. Do you authorize?':
+    'Para continuar neste grupo, precisamos enviar o histórico desta conversa a outra conta elegível. Isso utiliza tokens e ocupa contexto da conta de destino. Você autoriza?',
+  Continuation: 'Continuidade',
+  'Private account': 'Conta privada',
+  'A conversation transfer must keep the same gateway and protocol.':
+    'Uma transferência de conversa deve manter o mesmo gateway e protocolo.',
+  'To continue on {{destination}}, we need to send this conversation history. This uses tokens and context on the destination account. Do you authorize?':
+    'Para continuar na conta {{destination}}, precisamos enviar o histórico desta conversa. Isso utiliza tokens e ocupa contexto da conta de destino. Você autoriza?',
+  'Authorize and continue': 'Autorizar e continuar',
+  'Transfer authorized for the next message. The current account stays selected until confirmation.':
+    'Transferência autorizada para a próxima mensagem. A conta atual permanece selecionada até a confirmação.',
+  'Group members are selected by the gateway.':
+    'Os membros do grupo são selecionados pelo gateway.',
+  'Input limit': 'Limite de entrada',
+  'Output limit': 'Limite de saída',
   'The conversation could not be saved for restart. Keep this session open and try again.':
     'Não foi possível salvar a conversa para reiniciar. Mantenha esta sessão aberta e tente novamente.',
   'Close this session and update using the instructions below.':

@@ -29,6 +29,7 @@ import {
 import { PROVIDER_SOURCED_FIELDS } from '../models/constants.js';
 import { preloadRuntimeFetchModule } from '../utils/runtimeFetchOptions.js';
 import type { ReasoningEffort } from './reasoning-effort.js';
+import { reachesOrganizaOne } from '../providers/presets/organizaone.js';
 
 /**
  * Interface abstracting the core content generation functionality.
@@ -51,6 +52,7 @@ import { AuthType } from '../utils/auth-type.js';
 export { AuthType };
 
 export type PromptCacheSharingParameters = GenerateContentParameters & {
+  gatewayIndependentRequest?: import('../providers/gateway-request.js').GatewayIndependentRequest;
   /**
    * Marks reusable history before a non-reusable trailing directive. The
    * final message is deliberately excluded from cache breakpoints.
@@ -532,6 +534,23 @@ export async function createContentGenerator(
   generatorConfig: ContentGeneratorConfig,
   config: Config,
 ): Promise<ContentGenerator> {
+  if (generatorConfig.connection === 'o1-connect') {
+    const session = config.getO1ConnectSession?.();
+    if (!session)
+      throw new Error(
+        'The saved gateway tunnel is not open. Reconnect the provider before using this route.',
+      );
+    if (session) {
+      const { o1ConnectBaseUrlFor } = await import(
+        '../providers/o1-connect/session.js'
+      );
+      generatorConfig.baseUrl = o1ConnectBaseUrlFor(
+        session,
+        generatorConfig.authType,
+      );
+      generatorConfig.apiKey = session.apiKey;
+    }
+  }
   const validation = validateModelConfig(generatorConfig, false);
   if (!validation.valid) {
     throw new Error(validation.errors.map((e) => e.message).join('\n'));
@@ -540,6 +559,15 @@ export async function createContentGenerator(
   const authType = generatorConfig.authType;
   if (!authType) {
     throw new Error('ContentGeneratorConfig must have an authType');
+  }
+  if (
+    reachesOrganizaOne(generatorConfig) &&
+    authType === AuthType.USE_OPENAI_RESPONSES &&
+    generatorConfig.model.startsWith('o1gw/')
+  ) {
+    throw new Error(
+      'This gateway account route supports Messages or Chat Completions. Responses cannot be redirected to another account.',
+    );
   }
 
   // Provider constructors below synchronously build undici-backed fetch
@@ -596,11 +624,18 @@ export async function createContentGenerator(
         loadBaseGenerator(),
         import('./loggingContentGenerator/index.js'),
       ]);
-      return new LoggingContentGenerator(
-        baseGenerator,
-        config,
-        generatorConfig,
-      );
+      if (reachesOrganizaOne(generatorConfig)) {
+        const { refreshGatewayModels } = await import(
+          '../providers/gateway-models.js'
+        );
+        await refreshGatewayModels(config, generatorConfig);
+      }
+      const wrapped = reachesOrganizaOne(generatorConfig)
+        ? new (
+            await import('./gateway-content-generator.js')
+          ).GatewayContentGenerator(baseGenerator, config, generatorConfig)
+        : baseGenerator;
+      return new LoggingContentGenerator(wrapped, config, generatorConfig);
     } catch (error) {
       throw wrapProviderLoadError(error, authType);
     }
