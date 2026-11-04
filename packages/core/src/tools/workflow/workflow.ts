@@ -523,6 +523,7 @@ class WorkflowToolInvocation extends BaseToolInvocation<
     updateOutput?: (output: ToolResultDisplay) => void,
     _shellExecutionConfig?: ShellExecutionConfig,
   ): Promise<WorkflowToolResult> {
+    if (!this.sessionOwned) assertWorkflowExecutionEnabled(this.config);
     const runInBackground = this.params.run_in_background === true;
     if (runInBackground && signal.aborted) {
       return startCancelledResult();
@@ -1765,6 +1766,15 @@ function authoringHintOption(hint: string | null): { authoringHint?: string } {
   return hint ? { authoringHint: hint } : {};
 }
 
+function assertWorkflowExecutionEnabled(config: Config): void {
+  if (config.isWorkflowsEnabled?.() === false) {
+    throw new Error('Workflows are not enabled for this session.');
+  }
+  if (config.isTrustedFolder?.() === false) {
+    throw new Error('Workflows require a trusted folder.');
+  }
+}
+
 export class WorkflowTool extends BaseDeclarativeTool<
   WorkflowParams,
   WorkflowToolResult
@@ -1815,6 +1825,7 @@ export class WorkflowTool extends BaseDeclarativeTool<
   override build(
     params: WorkflowParams,
   ): ToolInvocation<WorkflowParams, WorkflowToolResult> {
+    assertWorkflowExecutionEnabled(this.config);
     // The lock is the Config's, fixed for the session, so this reads the same
     // value the description and schema above were built from.
     if (this.config.isWorkflowNameOnly?.() === true) {

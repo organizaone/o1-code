@@ -122,6 +122,32 @@ function configWithStorage(): { config: Config; storage: Storage } {
 }
 
 describe('WorkflowTool', () => {
+  it('keeps a declared workflow uncallable until activation and after trust is revoked', async () => {
+    const cfg = fakeConfig();
+    let enabled = false;
+    let trusted = true;
+    cfg.isWorkflowsEnabled = () => enabled;
+    cfg.isTrustedFolder = () => trusted;
+    const tool = new WorkflowTool(cfg);
+    expect(() => tool.build({ script: "return 'synthetic';" })).toThrow(
+      'Workflows are not enabled',
+    );
+    enabled = true;
+    const invocation = tool.build({ script: "return 'synthetic';" });
+    trusted = false;
+    expect(() => tool.build({ script: "return 'synthetic';" })).toThrow(
+      'trusted folder',
+    );
+    await expect(
+      invocation.execute(new AbortController().signal),
+    ).rejects.toThrow('trusted folder');
+    trusted = true;
+    enabled = false;
+    await expect(
+      invocation.execute(new AbortController().signal),
+    ).rejects.toThrow('Workflows are not enabled');
+  });
+
   it('has the registered name and display name', () => {
     const tool = new WorkflowTool(fakeConfig());
     expect(tool.name).toBe(ToolNames.WORKFLOW);

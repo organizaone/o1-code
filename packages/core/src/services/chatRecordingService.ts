@@ -636,6 +636,10 @@ export interface GatewayConversationRecordPayload {
   actor: string;
   phase: 'pending' | 'complete' | 'refused' | 'uncertain';
   contractHash?: string;
+  /** Present only when the authenticated request declared the Workflow tool. */
+  workflowToolDeclared?: true;
+  /** Preserve the prompt's tool-whitelist policy across client upgrades. */
+  toolSnapshotPolicy?: 'gateway-v1' | 'legacy-eager-v1';
 }
 
 export function isValidSessionModelPayload(

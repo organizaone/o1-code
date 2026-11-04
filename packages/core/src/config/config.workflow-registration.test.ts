@@ -142,6 +142,48 @@ describe('WorkflowTool registration', () => {
     expect(registry.getAllToolNames()).toContain(ToolNames.WORKFLOW);
   });
 
+  it('prepares the gateway declaration without enabling execution, then activates review without changing it', async () => {
+    delete process.env['O1CODE_ENABLE_WORKFLOWS'];
+    delete process.env['O1CODE_DISABLE_WORKFLOWS'];
+    const cfg = new Config({ ...baseParams, trustedFolder: true });
+    const registry = await cfg.createToolRegistry(undefined, {
+      skipDiscovery: true,
+    });
+    vi.spyOn(cfg, 'getToolRegistry').mockReturnValue(registry);
+    vi.spyOn(cfg, 'getContentGeneratorConfig').mockReturnValue({
+      model: 'o1gw/account/copilot/2/gpt-6.1-sol',
+      baseUrl: 'http://127.0.0.1:1/v1',
+    });
+    const setTools = vi.fn().mockResolvedValue(undefined);
+    vi.spyOn(cfg, 'getLlmClient').mockReturnValue({
+      setTools,
+    } as unknown as ReturnType<Config['getLlmClient']>);
+
+    await cfg.prepareGatewayToolDeclarations();
+    expect(cfg.getGatewayToolSnapshotPolicy()).toBe('gateway-v1');
+    const workflow = await registry.ensureTool(ToolNames.WORKFLOW);
+    expect(workflow).toBeDefined();
+    expect(cfg.isWorkflowsEnabled()).toBe(false);
+    expect(() => workflow!.build({ script: "return 'synthetic';" })).toThrow(
+      'Workflows are not enabled',
+    );
+    const before = registry.getFunctionDeclarations({ includeDeferred: true });
+
+    await cfg.enableReviewWorkflow();
+    await cfg.enableReviewWorkflow();
+
+    expect(cfg.isWorkflowsEnabled()).toBe(true);
+    expect(registry.getFunctionDeclarations({ includeDeferred: true })).toEqual(
+      before,
+    );
+    expect(
+      registry.getAllToolNames().filter((name) => name === ToolNames.WORKFLOW),
+    ).toHaveLength(1);
+    expect(() =>
+      workflow!.build({ script: "return 'synthetic';" }),
+    ).not.toThrow();
+  });
+
   it('O1CODE_DISABLE_WORKFLOWS=1 overrides enable-via-settings', async () => {
     process.env['O1CODE_DISABLE_WORKFLOWS'] = '1';
     delete process.env['O1CODE_ENABLE_WORKFLOWS'];
@@ -152,6 +194,89 @@ describe('WorkflowTool registration', () => {
     });
     expect(registry.getAllToolNames()).not.toContain(ToolNames.WORKFLOW);
   });
+
+  it.each([
+    { workflowsEnabled: false, trustedFolder: true },
+    { trustedFolder: false },
+    { bareMode: true, trustedFolder: true },
+  ])(
+    'does not reserve or activate review under restrictions %j',
+    async (restrictions) => {
+      delete process.env['O1CODE_ENABLE_WORKFLOWS'];
+      delete process.env['O1CODE_DISABLE_WORKFLOWS'];
+      const cfg = new Config({ ...baseParams, ...restrictions });
+      const registry = await cfg.createToolRegistry(undefined, {
+        skipDiscovery: true,
+      });
+      vi.spyOn(cfg, 'getToolRegistry').mockReturnValue(registry);
+      vi.spyOn(cfg, 'getContentGeneratorConfig').mockReturnValue({
+        model: 'o1gw/account/copilot/2/gpt-6.1-sol',
+      });
+      await cfg.prepareGatewayToolDeclarations();
+      await cfg.enableReviewWorkflow();
+      expect(registry.getAllToolNames()).not.toContain(ToolNames.WORKFLOW);
+      expect(cfg.isWorkflowsEnabled()).toBe(false);
+    },
+  );
+
+  it('does not reserve a denied workflow declaration', async () => {
+    delete process.env['O1CODE_ENABLE_WORKFLOWS'];
+    delete process.env['O1CODE_DISABLE_WORKFLOWS'];
+    const cfg = new Config({ ...baseParams, trustedFolder: true });
+    vi.spyOn(cfg, 'getDisabledTools').mockReturnValue(
+      new Set([ToolNames.WORKFLOW]),
+    );
+    const registry = await cfg.createToolRegistry(undefined, {
+      skipDiscovery: true,
+    });
+    vi.spyOn(cfg, 'getToolRegistry').mockReturnValue(registry);
+    vi.spyOn(cfg, 'getContentGeneratorConfig').mockReturnValue({
+      model: 'o1gw/account/copilot/2/gpt-6.1-sol',
+    });
+    await cfg.prepareGatewayToolDeclarations();
+    await cfg.enableReviewWorkflow();
+    expect(registry.getAllToolNames()).not.toContain(ToolNames.WORKFLOW);
+    expect(cfg.isWorkflowsEnabled()).toBe(false);
+  });
+
+  it.each([true, undefined])(
+    'restores only previously declared workflow reservations: %s',
+    async (workflowToolDeclared) => {
+      delete process.env['O1CODE_ENABLE_WORKFLOWS'];
+      delete process.env['O1CODE_DISABLE_WORKFLOWS'];
+      const cfg = new Config({ ...baseParams, trustedFolder: true });
+      const registry = await cfg.createToolRegistry(undefined, {
+        skipDiscovery: true,
+      });
+      vi.spyOn(cfg, 'getToolRegistry').mockReturnValue(registry);
+      vi.spyOn(cfg, 'getContentGeneratorConfig').mockReturnValue({
+        model: 'o1gw/account/copilot/2/gpt-6.1-sol',
+      });
+      vi.spyOn(cfg, 'getResumedSessionData').mockReturnValue({
+        conversation: {
+          messages: [
+            {
+              subtype: 'gateway_conversation',
+              sessionId: cfg.getSessionId(),
+              systemPayload: {
+                actor: 'main',
+                conversationId: cfg.getSessionId(),
+                workflowToolDeclared,
+              },
+            },
+          ],
+        },
+      } as unknown as NonNullable<ReturnType<Config['getResumedSessionData']>>);
+
+      await cfg.prepareGatewayToolDeclarations();
+
+      expect(cfg.getGatewayToolSnapshotPolicy()).toBe('legacy-eager-v1');
+      expect(registry.getAllToolNames().includes(ToolNames.WORKFLOW)).toBe(
+        workflowToolDeclared === true,
+      );
+      expect(cfg.isWorkflowsEnabled()).toBe(false);
+    },
+  );
 });
 
 // FIX-G (Round 4 test Important): regression test for the FIX-8 anti-recursion

@@ -723,6 +723,17 @@ Chat Completions sends standalone runtime reminders separately from the user's
 text, so the gateway can recognize the same observable history after a resume.
 This changes the request projection, preserving every part and the local history.
 
+Loading the bundled `review` skill keeps a new gateway conversation's tool contract.
+When review activation is permitted, the client prepares the `workflow`
+declaration before the first request. Declaring it does not enable execution:
+the skill must still activate workflows, and folder trust, explicit workflow
+opt-out and tool permissions continue to apply. Deferred-tool discovery uses
+the same declared set for the gateway and the prompt in new conversations,
+including after resume. Older sessions retain their original prompt policy;
+previously recorded tool contracts are not extended retroactively.
+Resume with the same interface and configuration; genuinely changed system
+instructions or tool schemas remain protected by the continuity check.
+
 The client verifies `/v1/models` through the selected connection. Account,
 private-account and group routes keep the complete discovered ID as `model`;
 display names do not affect routing. Advertised limits and reasoning capabilities

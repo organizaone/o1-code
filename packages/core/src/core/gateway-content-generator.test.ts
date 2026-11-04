@@ -309,6 +309,35 @@ async function client(
 describe.each([AuthType.USE_OPENAI, AuthType.USE_ANTHROPIC])(
   'gateway HTTP request construction: %s',
   (authType) => {
+    it('records whether workflow was declared without treating its schema as execution permission', async () => {
+      const current = await client(authType);
+      await current.generator.generateContent(
+        {
+          model: current.model,
+          contents: 'first',
+          config: {
+            tools: [
+              {
+                functionDeclarations: [
+                  {
+                    name: 'workflow',
+                    parametersJsonSchema: { type: 'object' },
+                  },
+                ],
+              },
+            ],
+          },
+        },
+        'first',
+      );
+      expect(current.records.at(-1)).toMatchObject({
+        phase: 'complete',
+        workflowToolDeclared: true,
+        toolSnapshotPolicy: 'gateway-v1',
+      });
+      expect(current.config.isWorkflowsEnabled()).toBe(false);
+    });
+
     it.each(['credential', 'headers', 'transport'])(
       'invalidates consent after a change of %s before sending history',
       async (condition) => {
