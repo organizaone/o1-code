@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { AuthType } from '../../core/contentGenerator.js';
+import { AuthType } from '../../utils/auth-type.js';
 import { BRAND } from '../../generated/brand.js';
 import type { ProviderConfig } from '../types.js';
 
@@ -28,7 +28,8 @@ const ORGANIZAONE_HOST = new URL(ORGANIZAONE_ANTHROPIC_BASE_URL).hostname;
 export function isOrganizaOneBaseUrl(baseUrl: string | undefined): boolean {
   if (!baseUrl) return false;
   try {
-    return new URL(baseUrl).hostname.toLowerCase() === ORGANIZAONE_HOST;
+    const hostname = new URL(baseUrl).hostname.toLowerCase();
+    return hostname === ORGANIZAONE_HOST || hostname === 'api.organizago.com';
   } catch {
     return false;
   }
@@ -36,14 +37,22 @@ export function isOrganizaOneBaseUrl(baseUrl: string | undefined): boolean {
 
 /**
  * Whether requests through this configuration reach the OrganizaOne proxy:
- * at its URL, or through its pinned tunnel, whose URL is a loopback address.
+ * at its URL, through its pinned tunnel, or with a discovered reserved route
+ * on a self-hosted gateway.
  */
-export function reachesOrganizaOne(config: {
-  baseUrl?: string;
-  connection?: string;
-}): boolean {
+export function reachesOrganizaOne(
+  config:
+    | {
+        baseUrl?: string;
+        connection?: string;
+        model?: string;
+      }
+    | undefined,
+): boolean {
   return (
-    config.connection === 'o1-connect' || isOrganizaOneBaseUrl(config.baseUrl)
+    config?.connection === 'o1-connect' ||
+    isOrganizaOneBaseUrl(config?.baseUrl) ||
+    config?.model?.startsWith('o1gw/') === true
   );
 }
 

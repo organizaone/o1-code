@@ -16,15 +16,24 @@ const problems = [];
 // pack-time hooks from re-entering this verifier.
 let packed;
 try {
-  packed = new Set(
-    JSON.parse(
-      execSync('npm pack --dry-run --json --ignore-scripts', {
-        cwd: root,
-        encoding: 'utf-8',
-        stdio: ['ignore', 'pipe', 'pipe'],
-      }),
-    )[0].files.map((file) => file.path),
+  const report = JSON.parse(
+    execSync('npm pack --dry-run --json --ignore-scripts', {
+      cwd: root,
+      encoding: 'utf-8',
+      stdio: ['ignore', 'pipe', 'pipe'],
+    }),
   );
+  // npm 12 keys the report by package name; earlier versions return an array.
+  const entry = Array.isArray(report)
+    ? report.find((item) => item.name === pkg.name)
+    : report?.[pkg.name];
+  if (
+    !Array.isArray(entry?.files) ||
+    entry.files.some((file) => typeof file?.path !== 'string')
+  ) {
+    throw new Error('npm pack returned no valid file list for this package');
+  }
+  packed = new Set(entry.files.map((file) => file.path));
 } catch (error) {
   // No list means no membership check, and a published version cannot be
   // replaced: report it and let the run below refuse the publish.

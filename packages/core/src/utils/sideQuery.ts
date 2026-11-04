@@ -14,6 +14,25 @@ import type {
 import type { Config } from '../config/config.js';
 import { DEFAULT_O1CODE_MODEL } from './default-model.js';
 import { SchemaValidator } from './schemaValidator.js';
+import type { GatewayOperationPurpose } from '../providers/gateway-request.js';
+
+function gatewayOperationPurpose(
+  purpose: string | undefined,
+): GatewayOperationPurpose | undefined {
+  switch (purpose) {
+    case 'session-title':
+      return 'title';
+    case 'chat-compression':
+      return 'compaction';
+    case 'prompt-suggestion':
+      return 'suggestion';
+    case 'tool-use-summary':
+    case 'arena-approach-summary':
+      return 'summary';
+    default:
+      return undefined;
+  }
+}
 
 export interface SideQueryJsonOptions<TResponse> {
   contents: Content[];
@@ -232,6 +251,9 @@ export async function runSideQuery<TResponse>(
       model,
       systemInstruction,
       promptId,
+      ...(gatewayOperationPurpose(options.purpose)
+        ? { gatewayPurpose: gatewayOperationPurpose(options.purpose) }
+        : {}),
       config: requestConfig,
       ...(options.maxAttempts !== undefined && {
         maxAttempts: options.maxAttempts,
@@ -254,6 +276,9 @@ export async function runSideQuery<TResponse>(
   const result = await config.getBaseLlmClient().generateText({
     contents: options.contents,
     model,
+    ...(gatewayOperationPurpose(options.purpose)
+      ? { gatewayPurpose: gatewayOperationPurpose(options.purpose) }
+      : {}),
     systemInstruction,
     abortSignal: options.abortSignal,
     promptId,

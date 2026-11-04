@@ -352,6 +352,7 @@ export async function retryWithBackoff<T>(
         authType,
         extraRetryErrorCodes,
       });
+      if (retryDiagnostics.reason === 'gateway-continuity') throw error;
 
       // Cancellation is authoritative: once the caller aborts (or the call
       // throws an abort/cancel error), never schedule another attempt,

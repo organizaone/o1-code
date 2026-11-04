@@ -35,6 +35,7 @@ import {
   type HistoryItemWithoutId,
 } from './types.js';
 import type { RestoreOption } from './components/RewindSelector.js';
+import { useGatewayTransferConfirmation } from './hooks/use-gateway-transfer-confirmation.js';
 import { MessageType, StreamingState } from './types.js';
 import {
   type EditorType,
@@ -4257,7 +4258,9 @@ export const AppContainer = (props: AppContainerProps) => {
     history: historyManager.history,
     sessionStats,
   });
+  const gatewayTransferQuestion = useGatewayTransferConfirmation(config);
   const otherDialogsVisible =
+    !!gatewayTransferQuestion ||
     showWelcomeBackDialog ||
     shouldShowIdePrompt ||
     shouldShowCommandMigrationNudge ||
@@ -5520,7 +5523,7 @@ export const AppContainer = (props: AppContainerProps) => {
       pendingSlashCommandHistoryItems,
       commandContext,
       shellConfirmationRequest,
-      confirmationRequest,
+      confirmationRequest: gatewayTransferQuestion ?? confirmationRequest,
       confirmUpdateExtensionRequests,
       providerUpdateRequest,
       settingInputRequests,
@@ -5674,6 +5677,7 @@ export const AppContainer = (props: AppContainerProps) => {
       commandContext,
       shellConfirmationRequest,
       confirmationRequest,
+      gatewayTransferQuestion,
       confirmUpdateExtensionRequests,
       providerUpdateRequest,
       settingInputRequests,

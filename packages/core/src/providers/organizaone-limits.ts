@@ -11,6 +11,10 @@
 import { fetchWithPolicy } from '../utils/fetch.js';
 import { o1CodeUserAgent } from './client-identity.js';
 import { ORGANIZAONE_CLIENT_HEADERS } from './presets/organizaone.js';
+import {
+  GATEWAY_OPERATION_PURPOSES,
+  type GatewayOperationPurpose,
+} from './gateway-request.js';
 
 const KEY_TIMEOUT_MS = 5000;
 const KEY_MAX_BYTES = 256 * 1024;
@@ -194,6 +198,7 @@ export interface KeyLimitScope {
 }
 
 export interface KeyInfo {
+  conversationOperations?: { version: 1; purposes: GatewayOperationPurpose[] };
   device?: { name?: string; expiresAt?: string };
   timeZone?: string;
   dayReset?: string;
@@ -349,9 +354,24 @@ export function parseKeyInfo(body: unknown): KeyInfo | null {
   const data = body['data'];
   const limits = isRecord(data['limits']) ? data['limits'] : undefined;
   const rawScopes = limits?.['scopes'];
-  if (!Array.isArray(rawScopes)) return null;
+  const operations = data['conversation_operations'];
+  const announcedPurposes = isRecord(operations)
+    ? operations['purposes']
+    : undefined;
+  const conversationOperations =
+    isRecord(operations) &&
+    operations['version'] === 1 &&
+    Array.isArray(announcedPurposes)
+      ? {
+          version: 1 as const,
+          purposes: GATEWAY_OPERATION_PURPOSES.filter((purpose) =>
+            announcedPurposes.includes(purpose),
+          ),
+        }
+      : undefined;
+  if (!Array.isArray(rawScopes) && !conversationOperations) return null;
   const scopes: KeyLimitScope[] = [];
-  for (const entry of rawScopes) {
+  for (const entry of Array.isArray(rawScopes) ? rawScopes : []) {
     if (!isRecord(entry) || !str(entry['scope'])) continue;
     scopes.push({
       scope: entry['scope'] as string,
@@ -384,6 +404,7 @@ export function parseKeyInfo(body: unknown): KeyInfo | null {
       ? { monthReset: str(limits?.['month_reset']) }
       : {}),
     scopes,
+    ...(conversationOperations ? { conversationOperations } : {}),
     plan: readPlan(data['plan']),
     own: own
       ? {

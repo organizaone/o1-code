@@ -155,6 +155,8 @@ import {
   setToolCallPreparations,
 } from './tool-call-preparation.js';
 import { InvalidStreamError } from './invalid-stream-error.js';
+import { reachesOrganizaOne } from '../providers/presets/organizaone.js';
+import { GatewayConversationError } from '../providers/gateway-request.js';
 import type { GoalTurnPermit } from '../goals/goal-protocol.js';
 
 export { InvalidStreamError };
@@ -2822,6 +2824,11 @@ export class LlmChat {
     info: ChatCompressionInfo;
     microcompactMeta?: MicrocompactMeta;
   } {
+    if (reachesOrganizaOne(this.config.getContentGeneratorConfig?.()))
+      throw new GatewayConversationError(
+        'unsupported',
+        'This gateway does not authorize truncating the authenticated history. Keep this conversation and start a new empty one with /new.',
+      );
     // A pre-switch route's count must not anchor fast-compression sizing
     // for the active route.
     this.adoptTokenCountsForRoute();
@@ -3756,6 +3763,7 @@ export class LlmChat {
           } catch (error) {
             lastError = error;
             if (params.config?.abortSignal?.aborted) throw error;
+            if (reachesOrganizaOne(cgConfig)) throw error;
             // This attempt is over; fold what it delivered into the running
             // buffer before any branch below reads it. Doing this here rather
             // than per chunk keeps the overlap scan anchored at the attempt
@@ -3799,6 +3807,7 @@ export class LlmChat {
             ) {
               throw error;
             }
+            if (classification.reason === 'gateway-continuity') throw error;
             const isRateLimit = isRateLimitError(error, extraRetryErrorCodes);
             if (isRateLimit) {
               const details = getRateLimitErrorDetails(error);
@@ -4604,6 +4613,7 @@ export class LlmChat {
         };
         if (
           lastError === null &&
+          !reachesOrganizaOne(cgConfig) &&
           lastFinishReason === FinishReason.MAX_TOKENS &&
           !maxTokensEscalated &&
           !hasUserMaxTokensOverride

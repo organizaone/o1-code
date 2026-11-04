@@ -1048,6 +1048,9 @@ export interface ShellConfirmationRequest {
 export interface ConfirmationRequest {
   prompt: ReactNode;
   onConfirm: (confirm: boolean) => void;
+  confirmLabel?: string;
+  cancelLabel?: string;
+  defaultDeny?: boolean;
 }
 
 export interface LoopDetectionConfirmationRequest {

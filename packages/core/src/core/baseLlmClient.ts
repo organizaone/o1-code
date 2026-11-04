@@ -41,6 +41,12 @@ import { createDebugLogger } from '../utils/debugLogger.js';
 import { resolveModelApiKey } from '../providers/model-api-key.js';
 import type { RuntimeContentGeneratorView } from '../agents/runtime/agent-context.js';
 import { slimCompactionInput } from '../services/compactionInputSlimming.js';
+import { reachesOrganizaOne } from '../providers/presets/organizaone.js';
+import {
+  createGatewayIndependentRequest,
+  gatewayIndependentInput,
+  type GatewayOperationPurpose,
+} from '../providers/gateway-request.js';
 
 const DEFAULT_MAX_ATTEMPTS = 7;
 
@@ -77,6 +83,7 @@ export interface ResolvedGeneratorForModel {
  * Options for the generateText utility function.
  */
 export interface GenerateTextOptions {
+  gatewayPurpose?: GatewayOperationPurpose;
   /** The input prompt or history. */
   contents: Content[];
   /** The specific model to use for this task. */
@@ -170,6 +177,7 @@ function parseLooseJsonObject(text: string): Record<string, unknown> | null {
  * Options for the generateJson utility function.
  */
 export interface GenerateJsonOptions {
+  gatewayPurpose?: GatewayOperationPurpose;
   /** The input prompt or history. */
   contents: Content[];
   /** The required JSON schema for the output. */
@@ -266,8 +274,12 @@ export class BaseLlmClient {
       retryErrorCodes,
       model: requestModel,
     } = await this.resolveForModel(model);
+    const isGateway = reachesOrganizaOne(contentGeneratorConfig);
+    const independent = isGateway
+      ? createGatewayIndependentRequest(options.gatewayPurpose)
+      : undefined;
     const requestContents = slimCompactionInput(
-      contents,
+      isGateway ? gatewayIndependentInput(contents) : contents,
       contentGeneratorConfig.modalities,
     ).slimmedHistory;
 
@@ -276,6 +288,7 @@ export class BaseLlmClient {
         contentGenerator.generateContent(
           {
             model: requestModel,
+            ...(independent ? { gatewayIndependentRequest: independent } : {}),
             config: {
               ...requestConfig,
               tools,
@@ -398,14 +411,19 @@ export class BaseLlmClient {
       retryErrorCodes,
       model: requestModel,
     } = await this.resolveForModel(model, { failClosed: options.failClosed });
+    const isGateway = reachesOrganizaOne(contentGeneratorConfig);
+    const independent = isGateway
+      ? createGatewayIndependentRequest(options.gatewayPurpose)
+      : undefined;
     const requestContents = slimCompactionInput(
-      contents,
+      isGateway ? gatewayIndependentInput(contents) : contents,
       contentGeneratorConfig.modalities,
     ).slimmedHistory;
 
     try {
       const request: PromptCacheSharingParameters = {
         model: requestModel,
+        ...(independent ? { gatewayIndependentRequest: independent } : {}),
         config: requestConfig,
         contents: requestContents,
         ...(options.promptCacheSharing && { promptCacheSharing: true }),
@@ -584,7 +602,9 @@ export class BaseLlmClient {
       await this.createRuntimeViewForModel(
         requested.model,
         selector,
-        opts?.failClosed ?? false,
+        opts?.failClosed === true ||
+          requested.model.startsWith('o1gw/') ||
+          reachesOrganizaOne(mainGeneratorConfig),
         requested.baseUrl,
       );
     const resolvedModel = this.resolveModelAcrossAuthTypes(

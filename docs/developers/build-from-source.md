@@ -54,6 +54,14 @@ cd packages/core && npx vitest run src/path/file.test.ts
 cd packages/cli  && npx vitest run src/path/file.test.tsx
 ```
 
+The scripts gate (`npm run test:scripts`) also checks actual symbolic links and
+directory permissions. On Windows without symbolic-link privileges, run that
+unchanged gate in a Linux filesystem checkout under WSL. A checkout under
+`/mnt/c` does not provide the POSIX permission behavior those tests exercise.
+Use Linux dependencies in that environment; do not replace Windows dependencies
+or skip the failing cases. The Web Shell publication verifier accepts both the
+array report of older npm versions and npm 12's package-name-keyed report.
+
 The full list of commands, the code conventions and the review rules are in
 [`AGENTS.md`](../../AGENTS.md); the toolchain details and the Windows rules are in
 [`docs/guides/STACK-O1-CODE.md`](../guides/STACK-O1-CODE.md). To contribute a change, read

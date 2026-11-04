@@ -28,6 +28,10 @@ import type { Config } from '@organizaone/o1-code-core';
 import { AuthType, DEFAULT_O1CODE_MODEL } from '@organizaone/o1-code-core';
 import type { LoadedSettings } from '../../config/settings.js';
 import { SettingScope } from '../../config/settings.js';
+import {
+  registerGatewayTransferConfirmation,
+  takeGatewayTransfer,
+} from '@organizaone/o1-code-core/providers/gateway-transfer.js';
 
 const DEFAULT_TEST_MODELS = [
   {
@@ -185,6 +189,77 @@ describe('<DetailRow />', () => {
 });
 
 describe('<ModelDialog />', () => {
+  it.each([false, true])(
+    'requires scoped consent before staging an account selection: %s',
+    async (authorize) => {
+      const source = 'o1gw/account/copilot/2/auto';
+      const destination = 'o1gw/account/copilot/3/auto';
+      const baseUrl = 'https://api.organizaone.com/v1';
+      reachesOrganizaOneMock.mockReturnValue(true);
+      const { mockConfig, mockSettings } = renderComponent(
+        {},
+        {
+          getModel: vi.fn(() => source),
+          getSessionId: vi.fn(() => 'synthetic-session'),
+          getContentGeneratorConfig: vi.fn(() => ({
+            model: source,
+            authType: AuthType.USE_ANTHROPIC,
+            baseUrl,
+          })),
+          getLlmClient: vi.fn(() => ({
+            getHistoryShallow: () => [
+              { role: 'model', parts: [{ text: 'completed synthetic reply' }] },
+            ],
+          })) as unknown as Config['getLlmClient'],
+          getAllConfiguredModels: vi.fn(() =>
+            [source, destination].map((id, index) => ({
+              id,
+              label: 'Same label',
+              authType: AuthType.USE_ANTHROPIC,
+              baseUrl,
+              capabilities: {
+                gateway: {
+                  nativeModel: 'auto',
+                  account: {
+                    provider: 'copilot',
+                    id: index + 2,
+                    publicName: 'Same label',
+                  },
+                },
+              },
+            })),
+          ),
+        },
+      );
+      const consent = vi.fn(async () => authorize);
+      const unregister = registerGatewayTransferConfirmation(
+        mockConfig,
+        consent,
+      );
+      try {
+        const props = mockedSelect.mock.calls.at(-1)![0];
+        const choice = props.items.find(
+          (item) =>
+            typeof item.value === 'string' && item.value.includes(destination),
+        )!;
+        await act(async () => props.onSelect(choice.value));
+        expect(consent).toHaveBeenCalledOnce();
+        expect(mockConfig.switchModel).not.toHaveBeenCalled();
+        expect(mockSettings.setValue).not.toHaveBeenCalled();
+        const staged = takeGatewayTransfer(mockConfig);
+        if (authorize)
+          expect(staged).toMatchObject({
+            sourceModel: source,
+            destinationModel: destination,
+          });
+        else expect(staged).toBeUndefined();
+      } finally {
+        unregister();
+        reachesOrganizaOneMock.mockReturnValue(false);
+      }
+    },
+  );
+
   beforeEach(() => {
     vi.clearAllMocks();
     // Ensure env-based fallback models don't leak into this suite from the developer environment.

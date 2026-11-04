@@ -35,7 +35,9 @@ import type {
   GenerateContentResponseUsageMetadata,
   Part,
 } from '@google/genai';
+import { randomUUID } from 'node:crypto';
 import {
+  runWithAgentContext,
   runWithRuntimeContentGenerator,
   type RuntimeContentGeneratorView,
 } from './runtime/agent-context.js';
@@ -65,6 +67,11 @@ import { ToolNames } from '../tools/tool-names.js';
 import { getFunctionResponseParts } from '../services/compactionInputSlimming.js';
 import { runWithChatRecordingSuppressed } from '../utils/chat-recording-suppression-context.js';
 import { createChildAbortController } from '../utils/abortController.js';
+import { reachesOrganizaOne } from '../providers/presets/organizaone.js';
+import {
+  GatewayConversationError,
+  gatewayIndependentInput,
+} from '../providers/gateway-request.js';
 
 const debugLogger = createDebugLogger('FORKED_AGENT');
 
@@ -218,6 +225,11 @@ export function createForkedChat(
   config: Config,
   params: CacheSafeParams,
 ): LlmChat {
+  if (reachesOrganizaOne(config.getContentGeneratorConfig?.()))
+    throw new GatewayConversationError(
+      'unsupported',
+      'This gateway does not authorize cloning a conversation history for a cache-sharing fork. Use an independent task with explicit source material.',
+    );
   const maxHistoryEntries = 40;
   const history =
     params.history.length > maxHistoryEntries
@@ -640,15 +652,11 @@ export async function runForkedAgent(
   const pendingMutatingPaths = new Map<string, string[]>();
   const filesWritten = new Set<string>();
 
-  const initialMessages =
+  const sourceMessages =
     params.extraHistory &&
     (params.extraHistory.length > 0 || params.preserveEmptyExtraHistory)
       ? params.extraHistory
       : undefined;
-  const promptConfig: PromptConfig = {
-    systemPrompt: params.systemPrompt,
-    initialMessages,
-  };
   const modelSelector =
     params.model ?? params.config.getFastModel?.() ?? params.config.getModel();
   const modelRuntime = await buildForkedModelRuntime(
@@ -656,6 +664,18 @@ export async function runForkedAgent(
     yoloConfig,
     modelSelector,
   );
+  const isGateway = reachesOrganizaOne(
+    modelRuntime.runtimeView?.contentGeneratorConfig ??
+      params.config.getContentGeneratorConfig?.(),
+  );
+  const invocationId = isGateway ? `${params.name}-${randomUUID()}` : undefined;
+  const promptConfig: PromptConfig = {
+    systemPrompt: params.systemPrompt,
+    initialMessages:
+      isGateway && sourceMessages
+        ? gatewayIndependentInput(sourceMessages)
+        : sourceMessages,
+  };
   const modelConfig: ModelConfig = {
     model: modelRuntime.model,
   };
@@ -724,15 +744,20 @@ export async function runForkedAgent(
       emitter,
       undefined,
       modelRuntime.runtimeView,
+      undefined,
+      invocationId,
     );
 
     const context = new ContextState();
     context.set('task_prompt', params.taskPrompt);
     context.set('hook_context', '');
-    const execute = () =>
-      runWithForkedModelRuntime(modelRuntime, async () => {
-        await headless.execute(context, executionController.signal);
-      });
+    const execute = () => {
+      const run = () =>
+        runWithForkedModelRuntime(modelRuntime, async () => {
+          await headless.execute(context, executionController.signal);
+        });
+      return invocationId ? runWithAgentContext(invocationId, run) : run();
+    };
 
     try {
       if (params.suppressChatRecording) {

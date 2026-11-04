@@ -13,14 +13,21 @@ that intercepts TLS, so it must not come over one. Update them on purpose, like 
 dependency, and update `VENDOR.json` with the new version and hashes; the test
 `packages/core/src/providers/o1-connect/vendor.test.ts` refuses a copy that does not match.
 
-The local lint-staged configuration checks the library's syntax without formatting it, so
-pre-commit checks preserve the upstream bytes and their recorded hash.
+Prettier excludes the pinned runtime. The vendor test verifies its byte identity
+and loads the relay for execution.
+The local patch disables buffered HTTP replay when `x-o1gw-conversation-id` is present:
+a reused tunnel socket can fail after a native request has already been consumed.
+Other requests retain the upstream behavior. The upstream banner and MIT notice are
+unchanged; `VENDOR.json` records both the original hash and the patched hash. The
+vendor test reverses that single condition to verify the upstream bytes, and exercises
+the real loopback relay against a connection reset after the request body is read.
 
 |                             |                                                                                        |
 | --------------------------- | -------------------------------------------------------------------------------------- |
 | Version                     | 9.9.0 (`// o1-connect-lib 9.9.0`)                                                      |
 | Source                      | `github.com/organizaone/o1-gateway`, commit `a7234d36eca4d9bc6b73c68d26494e21a44b6cae` |
-| `lib.mjs` SHA-256           | `3f1784b067660cfd2866a023885948f1a246c029ee9a3dc73f1a126072c7d0fb`                     |
+| Patched `lib.mjs` SHA-256   | `40dd11dc8bb6135cd8b398310129f8497127479848533b6d9267d3c9bb6d7768`                     |
+| Upstream `lib.mjs` SHA-256  | `3f1784b067660cfd2866a023885948f1a246c029ee9a3dc73f1a126072c7d0fb`                     |
 | `lib.d.mts` SHA-256         | `242576aa4d42aa82665f7bd570b5b0f432e2df497e7ed0586ceb850b3fe250e4`                     |
 | Checked against the gateway | 2026-10-11, `https://api.organizaone.com/client/lib.mjs.sha256` compared with `shasum` |
 

@@ -11,6 +11,7 @@ import { MarkdownDisplay } from '../utils/MarkdownDisplay.js';
 import { RadioButtonSelect } from './shared/RadioButtonSelect.js';
 import { t } from '../../i18n/index.js';
 import { clampDialogHeight } from '../utils/layoutUtils.js';
+import { useKeypress } from '../hooks/useKeypress.js';
 
 type ConsentPromptProps = {
   // If a simple string is given, it will render using markdown by default.
@@ -18,6 +19,9 @@ type ConsentPromptProps = {
   onConfirm: (value: boolean) => void;
   terminalWidth: number;
   availableTerminalHeight?: number;
+  confirmLabel?: string;
+  cancelLabel?: string;
+  defaultDeny?: boolean;
 };
 
 // Border, vertical padding, option margin, and two Yes/No option rows.
@@ -25,6 +29,12 @@ const CONSENT_PROMPT_CHROME_ROWS = 7;
 
 export const ConsentPrompt = (props: ConsentPromptProps) => {
   const { prompt, onConfirm, terminalWidth, availableTerminalHeight } = props;
+  useKeypress(
+    (key) => {
+      if (props.defaultDeny && key.name === 'escape') onConfirm(false);
+    },
+    { isActive: props.defaultDeny === true },
+  );
   const constrainedHeight = clampDialogHeight(availableTerminalHeight);
   const availablePromptRows =
     constrainedHeight === undefined
@@ -71,10 +81,11 @@ export const ConsentPrompt = (props: ConsentPromptProps) => {
       <Box marginTop={1} flexShrink={0}>
         <RadioButtonSelect
           items={[
-            { label: 'Yes', value: true, key: 'Yes' },
-            { label: 'No', value: false, key: 'No' },
+            { label: props.confirmLabel ?? 'Yes', value: true, key: 'Yes' },
+            { label: props.cancelLabel ?? 'No', value: false, key: 'No' },
           ]}
           onSelect={onConfirm}
+          initialIndex={props.defaultDeny ? 1 : 0}
         />
       </Box>
     </Box>

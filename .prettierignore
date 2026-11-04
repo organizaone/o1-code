@@ -33,6 +33,8 @@ packages/desktop-shell/runtime/
 # the next sync. eslint.config.js already ignores packages/mobile-mcp/** for
 # the same reason.
 packages/mobile-mcp/
+# The patched upstream runtime is verified byte for byte by vendor.test.ts.
+packages/core/vendor/o1-connect/lib.mjs
 
 # o1-code: guides copied from agents-defaults; check-guides compares them byte for byte.
 docs/guides/

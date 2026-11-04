@@ -8,6 +8,21 @@
 // The key serves as both the translation key and the default English text
 
 export default {
+  'To continue in this group, we need to send this conversation history to another eligible account. This uses tokens and context on the destination account. Do you authorize?':
+    'To continue in this group, we need to send this conversation history to another eligible account. This uses tokens and context on the destination account. Do you authorize?',
+  Continuation: 'Continuation',
+  'Private account': 'Private account',
+  'A conversation transfer must keep the same gateway and protocol.':
+    'A conversation transfer must keep the same gateway and protocol.',
+  'To continue on {{destination}}, we need to send this conversation history. This uses tokens and context on the destination account. Do you authorize?':
+    'To continue on {{destination}}, we need to send this conversation history. This uses tokens and context on the destination account. Do you authorize?',
+  'Authorize and continue': 'Authorize and continue',
+  'Transfer authorized for the next message. The current account stays selected until confirmation.':
+    'Transfer authorized for the next message. The current account stays selected until confirmation.',
+  'Group members are selected by the gateway.':
+    'Group members are selected by the gateway.',
+  'Input limit': 'Input limit',
+  'Output limit': 'Output limit',
   'The conversation could not be saved for restart. Keep this session open and try again.':
     'The conversation could not be saved for restart. Keep this session open and try again.',
   'Close this session and update using the instructions below.':

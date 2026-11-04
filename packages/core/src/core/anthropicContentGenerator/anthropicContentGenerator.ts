@@ -302,7 +302,9 @@ export class AnthropicContentGenerator implements ContentGenerator {
         : { apiKey: contentGeneratorConfig.apiKey, authToken: null }),
       baseURL,
       timeout: resolveRequestTimeout(contentGeneratorConfig.timeout),
-      maxRetries: contentGeneratorConfig.maxRetries,
+      maxRetries: reachesOrganizaOne(contentGeneratorConfig)
+        ? 0
+        : contentGeneratorConfig.maxRetries,
       defaultHeaders,
       ...runtimeOptions,
       fetch: buildOutboundFetch(
@@ -311,6 +313,7 @@ export class AnthropicContentGenerator implements ContentGenerator {
         this.contentGeneratorConfig.customHeaders,
         {
           recordRateLimits: reachesOrganizaOne({
+            model: contentGeneratorConfig.model,
             baseUrl: resolveEffectiveBaseUrl(contentGeneratorConfig),
             connection: contentGeneratorConfig.connection,
           }),
@@ -584,9 +587,10 @@ export class AnthropicContentGenerator implements ContentGenerator {
    * model switch can change the base URL of this generator's config.
    */
   private talksToOrganizaOne(): boolean {
-    return isOrganizaOneBaseUrl(
-      resolveEffectiveBaseUrl(this.contentGeneratorConfig),
-    );
+    return reachesOrganizaOne({
+      ...this.contentGeneratorConfig,
+      baseUrl: resolveEffectiveBaseUrl(this.contentGeneratorConfig),
+    });
   }
 
   private useGlobalCacheScope(): boolean {
@@ -794,6 +798,7 @@ export class AnthropicContentGenerator implements ContentGenerator {
         ensureLeadingAssistantThinking: thinking?.type === 'enabled',
         modalities: this.contentGeneratorConfig.modalities,
         inlineMediaOnly: reachesOrganizaOne({
+          model: this.contentGeneratorConfig.model,
           baseUrl: resolveEffectiveBaseUrl(this.contentGeneratorConfig),
           connection: this.contentGeneratorConfig.connection,
         }),
@@ -843,7 +848,9 @@ export class AnthropicContentGenerator implements ContentGenerator {
       ) === false;
 
     return {
-      model: this.contentGeneratorConfig.model,
+      model: this.talksToOrganizaOne()
+        ? request.model
+        : this.contentGeneratorConfig.model,
       system,
       messages,
       tools,
@@ -1713,6 +1720,10 @@ export class AnthropicContentGenerator implements ContentGenerator {
     if (hasAssistantPayload || hasFinishReason) {
       return;
     }
+    if (this.talksToOrganizaOne())
+      throw new Error(
+        'The gateway stream ended without a confirmed result. A second request was not sent.',
+      );
 
     debugLogger.warn(
       'Anthropic stream ended without assistant payload or finish reason; ' +

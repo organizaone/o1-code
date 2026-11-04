@@ -6,7 +6,10 @@
 
 import { fetchWithPolicy } from '../utils/fetch.js';
 import type { ModelSpec } from './types.js';
-import type { ModelReasoningCapabilities } from '../models/types.js';
+import type {
+  ModelReasoningCapabilities,
+  GatewayModelMetadata,
+} from '../models/types.js';
 import {
   isReasoningEffort,
   REASONING_EFFORT_TIERS,
@@ -28,6 +31,7 @@ const MAX_MODEL_ID_LENGTH = 256;
 const UNSAFE_MODEL_ID_CHARS = /[,\p{C}\p{Zl}\p{Zp}]/u;
 
 interface DiscoverProviderModelsOptions {
+  gateway?: boolean;
   baseUrl: string;
   apiKey: string;
   staticModels: readonly ModelSpec[];
@@ -46,6 +50,62 @@ interface DiscoveredModel extends DiscoveredLimits {
   id: string;
   created?: number;
   reasoning?: ModelReasoningCapabilities;
+  gateway?: GatewayModelMetadata;
+}
+
+function readGatewayMetadata(item: object): GatewayModelMetadata | undefined {
+  const entry = item as Record<string, unknown>;
+  if (typeof entry['id'] !== 'string' || !entry['id'].startsWith('o1gw/'))
+    return undefined;
+  const record = (value: unknown): Record<string, unknown> =>
+    value !== null && typeof value === 'object' && !Array.isArray(value)
+      ? (value as Record<string, unknown>)
+      : {};
+  const text = (value: unknown) =>
+    typeof value === 'string' &&
+    value.length <= 200 &&
+    !/[\p{C}\p{Zl}\p{Zp}]/u.test(value)
+      ? value
+      : undefined;
+  const strings = (value: unknown) =>
+    Array.isArray(value)
+      ? value.filter((item): item is string => typeof item === 'string')
+      : [];
+  const account = record(entry['provider_account']);
+  const group = record(entry['provider_group']);
+  const top = record(entry['top_provider']);
+  return {
+    nativeModel: text(entry['native_model']),
+    ...(typeof account['provider'] === 'string' &&
+    positiveInteger(account['id'])
+      ? {
+          account: {
+            provider: account['provider'],
+            id: account['id'] as number,
+            publicName: text(account['public_name']),
+          },
+        }
+      : {}),
+    ...(typeof group['provider'] === 'string' && positiveInteger(group['id'])
+      ? {
+          group: {
+            provider: group['provider'],
+            id: group['id'] as number,
+            publicName: text(group['public_name']),
+            continuationPolicy: text(group['continuation_policy']),
+            continuationPolicies: strings(group['continuation_policies']),
+            automaticConditions: strings(group['automatic_conditions']),
+          },
+        }
+      : {}),
+    contextTokens:
+      positiveInteger(entry['context_length']) ??
+      positiveInteger(top['context_length']),
+    inputTokens:
+      positiveInteger(entry['max_input_tokens']) ??
+      positiveInteger(top['max_prompt_tokens']),
+    outputTokens: positiveInteger(top['max_completion_tokens']),
+  };
 }
 
 function positiveInteger(value: unknown): number | undefined {
@@ -66,7 +126,11 @@ function readLimits(item: object): DiscoveredLimits {
     architecture?: { input_modalities?: unknown } | null;
     top_provider?: { max_completion_tokens?: unknown } | null;
   };
-  const contextWindowSize = positiveInteger(context_length);
+  const contextWindowSize =
+    positiveInteger(context_length) ??
+    positiveInteger(
+      (top_provider as { context_length?: unknown } | null)?.context_length,
+    );
   const maxOutputTokens = positiveInteger(top_provider?.max_completion_tokens);
   const inputs = architecture?.input_modalities;
   const modalities = Array.isArray(inputs)
@@ -101,7 +165,10 @@ function isClaudeOwned(item: object): boolean {
  * which is what the proxy applies. Anything else says nothing about effort:
  * absent means unknown, not "no effort".
  */
-function readReasoning(item: object): ModelReasoningCapabilities | undefined {
+function readReasoning(
+  item: object,
+  strictReasoning = false,
+): ModelReasoningCapabilities | undefined {
   const declared = (item as { reasoning?: unknown }).reasoning;
   let efforts: ReasoningEffort[] = [];
   let defaultEffort: ReasoningEffort | undefined;
@@ -116,7 +183,11 @@ function readReasoning(item: object): ModelReasoningCapabilities | undefined {
     if (isReasoningEffort(preset) && efforts.includes(preset)) {
       defaultEffort = preset;
     }
-  } else if (isClaudeOwned(item)) {
+  } else if (
+    !strictReasoning &&
+    isClaudeOwned(item) &&
+    !readGatewayMetadata(item)
+  ) {
     efforts = [...REASONING_EFFORT_TIERS];
   }
   if (efforts.length === 0) return undefined;
@@ -128,7 +199,10 @@ function readReasoning(item: object): ModelReasoningCapabilities | undefined {
   };
 }
 
-function readModels(value: unknown): DiscoveredModel[] | null {
+function readModels(
+  value: unknown,
+  strictReasoning = false,
+): DiscoveredModel[] | null {
   if (!value || typeof value !== 'object' || !('data' in value)) {
     return null;
   }
@@ -160,9 +234,11 @@ function readModels(value: unknown): DiscoveredModel[] | null {
         typeof created === 'number' && Number.isFinite(created) && created >= 0
           ? created
           : undefined;
-      const reasoning = readReasoning(item);
+      const reasoning = readReasoning(item, strictReasoning);
+      const gateway = readGatewayMetadata(item);
       models.push({
         id: trimmedId,
+        ...(gateway ? { gateway } : {}),
         ...(creationTime === undefined ? {} : { created: creationTime }),
         ...(reasoning ? { reasoning } : {}),
         ...readLimits(item),
@@ -221,9 +297,18 @@ function mergeModelSpecs(
   // over the preset: the provider answers for this key, so for the OrganizaOne
   // proxy it is the person's plan. Everything else stays the preset's.
   return orderedModels.map(
-    ({ id, reasoning, created: _created, ...limits }) => ({
-      ...(staticModelsById.get(id) ??
-        (reasoning ? { id, capabilities: { reasoning } } : { id })),
+    ({ id, reasoning, gateway, created: _created, ...limits }) => ({
+      ...staticModelsById.get(id),
+      id,
+      ...(reasoning || gateway
+        ? {
+            capabilities: {
+              ...staticModelsById.get(id)?.capabilities,
+              ...(reasoning ? { reasoning } : {}),
+              ...(gateway ? { gateway } : {}),
+            },
+          }
+        : {}),
       ...limits,
     }),
   );
@@ -306,6 +391,7 @@ function baseModelListRequest(
 
 /** Asks the provider for its models, which also tells whether the key works. */
 export async function checkProviderKey({
+  gateway,
   protocol,
   baseUrl,
   apiKey,
@@ -347,7 +433,12 @@ export async function checkProviderKey({
     // with a page.
     const body: unknown = JSON.parse(result.body.toString('utf8'));
     const models =
-      protocol === 'gemini' ? readGeminiModels(body) : readModels(body);
+      protocol === 'gemini'
+        ? readGeminiModels(body)
+        : readModels(
+            body,
+            gateway === true || isOrganizaOneBaseUrl(normalizedBaseUrl),
+          );
     if (!models) return { status: 'unavailable' };
     return { status: 'ok', models: mergeModelSpecs(models, staticModels) };
   } catch {

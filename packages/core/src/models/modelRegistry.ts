@@ -338,7 +338,8 @@ export class ModelRegistry {
         authType: model.authType,
         isVision: model.capabilities?.vision ?? false,
         contextWindowSize:
-          model.generationConfig.contextWindowSize ?? tokenLimit(model.id),
+          model.generationConfig.contextWindowSize ??
+          (model.capabilities.gateway ? undefined : tokenLimit(model.id)),
         // `modalities` is auto-filled in `resolveModelConfig`, so it is
         // always defined on `ResolvedModelConfig` — no fallback needed here.
         modalities: model.generationConfig.modalities,
@@ -429,7 +430,7 @@ export class ModelRegistry {
     // the parent session's modalities instead of the agent's own.
     if (
       generationConfig.modalities === undefined ||
-      shouldUseCanonicalModalities(config.id)
+      (!config.capabilities?.gateway && shouldUseCanonicalModalities(config.id))
     ) {
       generationConfig.modalities = defaultModalities(config.id);
     }

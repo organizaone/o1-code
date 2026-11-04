@@ -709,6 +709,64 @@ conversation, so any host you send it to can group every request of that
 conversation. Which hosts those are is decided by which provider entries carry
 the header — there is no separate host list to keep in sync with your `baseUrl`.
 
+### OrganizaOne gateway continuity
+
+The OrganizaOne connection sends `x-o1gw-conversation-id` automatically for
+Messages and Chat Completions, including its device-code tunnel. It uses the
+session UUID and records continuity state with the existing chat recorder.
+Chat recording must be enabled. Resume a session created with this support to
+retain its identity and selected route; `/new` starts an empty conversation with
+a new identity. An older history without a continuity record cannot be imported
+automatically. Keep it for reference and start a new conversation.
+
+Chat Completions sends standalone runtime reminders separately from the user's
+text, so the gateway can recognize the same observable history after a resume.
+This changes the request projection, preserving every part and the local history.
+
+The client verifies `/v1/models` through the selected connection. Account,
+private-account and group routes keep the complete discovered ID as `model`;
+display names do not affect routing. Advertised limits and reasoning capabilities
+take precedence over guesses from a native model name. A missing route causes an
+error instead of selecting another account. Reserved conversation routes do not
+support Responses or embeddings.
+Generation settings cannot override the selected route's `model` on the wire.
+
+Independent title, summary, compaction and suggestion producers consult
+`/v1/key` for `conversation_operations` version 1 and its supported purposes.
+They use a separate operation ID and provide conversation material as source input,
+not as an authenticated assistant/tool history. Other independent tasks use a
+separate conversation identity. Cache forks of the main gateway history are
+unavailable. Local history replacement, including `/compress-fast` and automatic
+compaction, is refused because the current native continuity contract cannot
+authenticate that replacement. The original history remains available.
+
+Managed memory-agent runs also use an independent identity for each invocation,
+retained across that agent's tool rounds. Prior conversation material becomes
+explicit source input; the agent does not inherit the main conversation's
+authenticated assistant/tool chain. Concurrent memory tasks keep separate IDs
+and restore the parent agent's context when they finish.
+
+For a completed conversation, selecting another compatible account through
+`/model` asks permission to send the history and consume destination tokens and
+context. Cancel retains the original selection. Authorization applies to the next
+message in this conversation: its serialized body is prepared through
+`/v1/conversations/transfer` immediately before dispatch. The token remains in
+memory, expires within 60 seconds and is dispatched once. The selected account
+changes only after a confirmed response. Private and installation accounts cannot
+be mixed; both provider and native model must match. Groups follow the server's
+advertised continuation policy and confirmation request. A generic 429 never
+authorizes a transfer.
+
+Continuity conflicts, timeouts and stream failures stop without replaying the
+request, replacing its identity or choosing another account. An uncertain request
+also prevents further dispatch on that identity until continuity can be proven;
+starting a new empty conversation is a separate action. Gateway restart recovery
+with pending tools, abrupt process loss or changed Copilot credentials remains
+subject to the server's documented limitations.
+
+Use gateway 11.4.1 or newer for live Copilot model/effort changes with runtime
+reminders; that version corrects verified-history replay for this transition.
+
 ### Atomic field treatment
 
 The following fields are treated as atomic objects - provider values completely replace the entire object, no merging occurs:

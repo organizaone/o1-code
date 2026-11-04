@@ -1031,7 +1031,7 @@ function startLocalServer(o) {
       });
       upstream = current;
       current.on("error", (err) => {
-        if (!replay && !res.headersSent && kept && deadTunnel(err, current.reusedSocket)) {
+        if (!replay && !headers["x-o1gw-conversation-id"] && !res.headersSent && kept && deadTunnel(err, current.reusedSocket)) {
           o.log?.(`${req.method} ${route} retry: the tunnel was gone`);
           const again = () => {
             if (kept && !res.destroyed) forward(true);

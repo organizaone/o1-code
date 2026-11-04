@@ -30,12 +30,29 @@ export type ModelReasoningCapabilities = (
  * Model capabilities configuration
  */
 export interface ModelCapabilities {
+  gateway?: GatewayModelMetadata;
   /** Supports image/vision inputs */
   vision?: boolean;
   /** Can run the normal agent tool loop, not only transcription requests. */
   agent?: boolean;
   /** Declarative reasoning controls and wire behavior for this model route. */
   reasoning?: ModelReasoningCapabilities | ModelReasoningOverride;
+}
+
+export interface GatewayModelMetadata {
+  nativeModel?: string;
+  account?: { provider: string; id: number; publicName?: string };
+  group?: {
+    provider: string;
+    id: number;
+    publicName?: string;
+    continuationPolicy?: string;
+    continuationPolicies: string[];
+    automaticConditions: string[];
+  };
+  contextTokens?: number;
+  inputTokens?: number;
+  outputTokens?: number;
 }
 
 /**

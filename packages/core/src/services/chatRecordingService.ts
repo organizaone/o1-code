@@ -321,6 +321,7 @@ export interface ChatRecord {
     | 'session_source'
     | 'omni_recall'
     | 'session_model'
+    | 'gateway_conversation'
     | 'session_approval_mode'
     | 'rewind'
     | 'agent_bootstrap'
@@ -392,6 +393,7 @@ export interface ChatRecord {
     | ParentSessionRecordPayload
     | SessionSourceRecordPayload
     | SessionModelRecordPayload
+    | GatewayConversationRecordPayload
     | SessionApprovalModeRecordPayload
     | NotificationRecordPayload
     | UserPromptRecordPayload
@@ -625,6 +627,15 @@ export interface SessionModelRecordPayload {
   authType: string;
   baseUrl?: string;
   isRuntime?: boolean;
+}
+
+export interface GatewayConversationRecordPayload {
+  conversationId: string;
+  endpoint: string;
+  model: string;
+  actor: string;
+  phase: 'pending' | 'complete' | 'refused' | 'uncertain';
+  contractHash?: string;
 }
 
 export function isValidSessionModelPayload(
@@ -2901,6 +2912,18 @@ export class ChatRecordingService {
         this.reanchorSessionSource();
       }
     }
+  }
+
+  async recordGatewayConversation(
+    payload: GatewayConversationRecordPayload,
+  ): Promise<void> {
+    await this.appendRecordStrict({
+      ...this.createBaseRecord('system'),
+      type: 'system',
+      subtype: 'gateway_conversation',
+      systemPayload: payload,
+    });
+    await this.flush();
   }
 
   /** Persist the daemon session's current model so load/resume can restore it. */

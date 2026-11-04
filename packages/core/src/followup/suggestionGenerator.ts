@@ -18,6 +18,7 @@ import {
   type CacheSafeParams,
 } from '../agents/forkedAgent.js';
 import { runSideQuery } from '../utils/sideQuery.js';
+import { reachesOrganizaOne } from '../providers/presets/organizaone.js';
 import { createDebugLogger } from '../utils/debugLogger.js';
 
 const debugLogger = createDebugLogger('FOLLOWUP');
@@ -110,9 +111,11 @@ export async function generatePromptSuggestion(
     const cacheSafeSessionId = options?.enableCacheSharing
       ? getCacheSafeParamsSessionId()
       : undefined;
-    const cacheSafe = options?.enableCacheSharing
-      ? getCacheSafeParams(sessionId)
-      : null;
+    const cacheSafe =
+      options?.enableCacheSharing &&
+      !reachesOrganizaOne(config.getContentGeneratorConfig?.())
+        ? getCacheSafeParams(sessionId)
+        : null;
     // The cache-safe slot is a process-global: in a multi-session daemon it
     // can hold ANOTHER session's transcript + systemInstruction. Only use it
     // when it belongs to THIS session; otherwise fall back to the
