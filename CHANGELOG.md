@@ -7,6 +7,8 @@ follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.23.0] - 2026-11-04
+
 ### Added
 
 - Gateway conversations carry a persisted HTTP identity across requests and client restarts. Independent title, summary, compaction and suggestion requests negotiate the server's advertised capabilities and use separate operation identities.
