@@ -10,7 +10,12 @@ import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import type { Content } from '@google/genai';
+import {
+  FinishReason,
+  GenerateContentResponse,
+  type Content,
+  type Part,
+} from '@google/genai';
 import { Config } from '../config/config.js';
 import { AuthType, type ContentGeneratorConfig } from './contentGenerator.js';
 import { GatewayContentGenerator } from './gateway-content-generator.js';
@@ -46,6 +51,9 @@ let replyStatus: number;
 let transferExpired: boolean;
 let transferStatus: number;
 let streamError: boolean;
+let streamIncomplete: boolean;
+let streamHold: boolean;
+let streamToolCall: boolean;
 let operationCapabilities: boolean;
 let groupProposal: boolean;
 
@@ -57,6 +65,9 @@ beforeEach(async () => {
   transferExpired = false;
   transferStatus = 200;
   streamError = false;
+  streamIncomplete = false;
+  streamHold = false;
+  streamToolCall = false;
   operationCapabilities = true;
   groupProposal = false;
   await preloadRuntimeFetchModule();
@@ -193,25 +204,51 @@ beforeEach(async () => {
           usage: { input_tokens: 10, output_tokens: 0 },
         },
       });
-      event('content_block_start', {
-        type: 'content_block_start',
-        index: 0,
-        content_block: { type: 'text', text: '' },
-      });
-      event('content_block_delta', {
-        type: 'content_block_delta',
-        index: 0,
-        delta: { type: 'text_delta', text: 'progress-marker\n' },
-      });
-      event('content_block_delta', {
-        type: 'content_block_delta',
-        index: 0,
-        delta: { type: 'text_delta', text: 'final-marker' },
-      });
+      if (streamToolCall) {
+        event('content_block_start', {
+          type: 'content_block_start',
+          index: 0,
+          content_block: {
+            type: 'tool_use',
+            id: 'call_gateway',
+            name: 'literal_tool',
+            input: {},
+          },
+        });
+        event('content_block_delta', {
+          type: 'content_block_delta',
+          index: 0,
+          delta: {
+            type: 'input_json_delta',
+            partial_json: '{"value":"synthetic"}',
+          },
+        });
+      } else {
+        event('content_block_start', {
+          type: 'content_block_start',
+          index: 0,
+          content_block: { type: 'text', text: '' },
+        });
+        event('content_block_delta', {
+          type: 'content_block_delta',
+          index: 0,
+          delta: { type: 'text_delta', text: 'progress-marker\n' },
+        });
+        event('content_block_delta', {
+          type: 'content_block_delta',
+          index: 0,
+          delta: { type: 'text_delta', text: 'final-marker' },
+        });
+      }
+      if (streamHold) return;
+      if (streamIncomplete) {
+        res.end();
+        return;
+      }
       event('content_block_stop', { type: 'content_block_stop', index: 0 });
       event('message_delta', {
         type: 'message_delta',
-        delta: { stop_reason: 'end_turn' },
+        delta: { stop_reason: streamToolCall ? 'tool_use' : 'end_turn' },
         usage: { output_tokens: 2 },
       });
       event('message_stop', { type: 'message_stop' });
@@ -222,9 +259,41 @@ beforeEach(async () => {
         model: body['model'],
         choices: [{ index: 0, delta: { content }, finish_reason: finish }],
       });
-      event('', chunk('progress-marker\n'));
-      event('', chunk('final-marker'));
-      event('', chunk('', 'stop'));
+      if (streamToolCall) {
+        event('', {
+          id: 'chatcmpl-test',
+          object: 'chat.completion.chunk',
+          model: body['model'],
+          choices: [
+            {
+              index: 0,
+              delta: {
+                tool_calls: [
+                  {
+                    index: 0,
+                    id: 'call_gateway',
+                    type: 'function',
+                    function: {
+                      name: 'literal_tool',
+                      arguments: '{"value":"synthetic"}',
+                    },
+                  },
+                ],
+              },
+              finish_reason: null,
+            },
+          ],
+        });
+      } else {
+        event('', chunk('progress-marker\n'));
+        event('', chunk('final-marker'));
+      }
+      if (streamHold) return;
+      if (streamIncomplete) {
+        res.end();
+        return;
+      }
+      event('', chunk('', streamToolCall ? 'tool_calls' : 'stop'));
       res.write('data: [DONE]\n\n');
     }
     res.end();
@@ -303,6 +372,7 @@ async function client(
     sessionId,
     config,
     settings,
+    raw,
   };
 }
 
@@ -407,7 +477,7 @@ describe.each([AuthType.USE_OPENAI, AuthType.USE_ANTHROPIC])(
       expect(confirmed).not.toHaveBeenCalled();
     });
 
-    it('treats an HTTP 408 as uncertain execution and blocks transfer or replay', async () => {
+    it('does not replay HTTP 408 or bypass account consent and permits explicit recovery', async () => {
       const current = await client(authType);
       await current.generator.generateContent(
         { model: current.model, contents: 'first' },
@@ -426,8 +496,15 @@ describe.each([AuthType.USE_OPENAI, AuthType.USE_ANTHROPIC])(
           { model: 'o1gw/account/copilot/3/auto', contents: 'no transfer' },
           'after-timeout',
         ),
-      ).rejects.toMatchObject({ reason: 'uncertain' });
+      ).rejects.toMatchObject({ reason: 'unsupported' });
       expect(requests).toHaveLength(2);
+      replyStatus = 200;
+      await current.generator.generateContent(
+        { model: current.model, contents: 'explicit recovery' },
+        'recovery',
+      );
+      expect(requests).toHaveLength(3);
+      expect(current.records.at(-1)?.phase).toBe('complete');
     });
 
     it('discards consent from another session when starting an empty conversation', async () => {
@@ -977,28 +1054,497 @@ describe.each([AuthType.USE_OPENAI, AuthType.USE_ANTHROPIC])(
       expect(current.records.at(-1)?.model).toBe(current.model);
     });
 
-    it('surfaces an SSE failure after HTTP 200 and blocks uncertain automatic replay', async () => {
+    it.each([false, true])(
+      'preserves a known SSE refusal and permits the next explicit attempt (previous completion: %s)',
+      async (previousCompletion) => {
+        const current = await client(authType);
+        if (previousCompletion)
+          await current.generator.generateContent(
+            { model: current.model, contents: 'confirmed opening' },
+            'opening',
+          );
+        streamError = true;
+        const stream = await current.generator.generateContentStream(
+          { model: current.model, contents: 'opening' },
+          'main',
+        );
+        await expect(
+          (async () => {
+            for await (const _chunk of stream) {
+              /* consume the real SDK stream */
+            }
+          })(),
+        ).rejects.toMatchObject({
+          reason: 'conflict',
+          providerCode: 'conversation_unavailable',
+        });
+        expect(current.records.at(-1)?.phase).toBe(
+          previousCompletion ? 'complete' : 'refused',
+        );
+        expect(requests).toHaveLength(previousCompletion ? 2 : 1);
+        streamError = false;
+        await current.generator.generateContent(
+          { model: current.model, contents: 'explicit next attempt' },
+          'next',
+        );
+        expect(requests).toHaveLength(previousCompletion ? 3 : 2);
+        expect(current.records.at(-1)?.phase).toBe('complete');
+      },
+    );
+
+    it('keeps a terminal response complete when the consumer closes before EOF', async () => {
       const current = await client(authType);
-      streamError = true;
       const stream = await current.generator.generateContentStream(
-        { model: current.model, contents: 'opening' },
-        'main',
+        { model: current.model, contents: 'first' },
+        'first',
+      );
+      let terminal = false;
+      for await (const chunk of stream) {
+        if (
+          chunk.candidates?.some(
+            (candidate) => candidate.finishReason === FinishReason.STOP,
+          )
+        ) {
+          terminal = true;
+          break;
+        }
+      }
+      expect(terminal).toBe(true);
+      expect(current.records.at(-1)?.phase).toBe('complete');
+      await current.generator.generateContent(
+        {
+          model: current.model,
+          contents: [
+            { role: 'user', parts: [{ text: 'first' }] },
+            {
+              role: 'model',
+              parts: [{ text: 'progress-marker\nfinal-marker' }],
+            },
+            { role: 'user', parts: [{ text: 'second' }] },
+          ],
+        },
+        'second',
+      );
+      expect(requests).toHaveLength(2);
+      expect(
+        requests.every(
+          (row) => row.headers['x-o1gw-conversation-id'] === current.sessionId,
+        ),
+      ).toBe(true);
+    });
+
+    it('keeps an incomplete response uncertain without replay and allows a gateway-validated next turn', async () => {
+      const current = await client(authType);
+      streamIncomplete = true;
+      const stream = await current.generator.generateContentStream(
+        { model: current.model, contents: 'interrupted' },
+        'interrupted',
       );
       await expect(
         (async () => {
           for await (const _chunk of stream) {
-            /* consume the real SDK stream */
+            /* consume */
           }
         })(),
-      ).rejects.toMatchObject({ code: 'gateway_conversation_error' });
+      ).rejects.toMatchObject({ reason: 'uncertain' });
       expect(current.records.at(-1)?.phase).toBe('uncertain');
+      expect(requests).toHaveLength(1);
+      streamIncomplete = false;
+      await current.generator.generateContent(
+        { model: current.model, contents: 'explicit recovery turn' },
+        'recovery',
+      );
+      expect(requests).toHaveLength(2);
+      expect(requests[1].headers['x-o1gw-conversation-id']).toBe(
+        current.sessionId,
+      );
+      expect(current.records.at(-1)?.phase).toBe('complete');
+    });
+
+    it('preserves a terminal tool call and its result across the next turn', async () => {
+      const current = await client(authType);
+      const config = {
+        tools: [
+          {
+            functionDeclarations: [
+              {
+                name: 'literal_tool',
+                parametersJsonSchema: {
+                  type: 'object',
+                  properties: { value: { type: 'string' } },
+                },
+              },
+            ],
+          },
+        ],
+      };
+      streamToolCall = true;
+      const stream = await current.generator.generateContentStream(
+        { model: current.model, contents: 'tool please', config },
+        'tool',
+      );
+      const parts: Part[] = [];
+      for await (const chunk of stream)
+        parts.push(...(chunk.candidates?.[0]?.content?.parts ?? []));
+      const call = parts.find((part) => part.functionCall)?.functionCall;
+      expect(call).toMatchObject({
+        id: 'call_gateway',
+        name: 'literal_tool',
+        args: { value: 'synthetic' },
+      });
+      expect(current.records.at(-1)?.phase).toBe('complete');
+      streamToolCall = false;
+      await current.generator.generateContent(
+        {
+          model: current.model,
+          config,
+          contents: [
+            { role: 'user', parts: [{ text: 'tool please' }] },
+            { role: 'model', parts: [{ functionCall: call! }] },
+            {
+              role: 'user',
+              parts: [
+                {
+                  functionResponse: {
+                    id: call!.id,
+                    name: call!.name,
+                    response: { content: 'tool-result-marker' },
+                  },
+                },
+              ],
+            },
+          ],
+        },
+        'result',
+      );
+      expect(requests).toHaveLength(2);
+      expect(JSON.stringify(requests[1].body)).toContain('call_gateway');
+      expect(JSON.stringify(requests[1].body)).toContain('tool-result-marker');
+    });
+
+    it('does not accept a tool call without a terminal response as completed', async () => {
+      const current = await client(authType);
+      const response = new GenerateContentResponse();
+      response.candidates = [
+        {
+          content: {
+            role: 'model',
+            parts: [
+              {
+                functionCall: {
+                  id: 'unconfirmed',
+                  name: 'literal_tool',
+                  args: {},
+                },
+              },
+            ],
+          },
+        },
+      ];
+      vi.spyOn(current.raw, 'generateContentStream').mockResolvedValue(
+        (async function* () {
+          yield response;
+        })(),
+      );
+      const stream = await current.generator.generateContentStream(
+        { model: current.model, contents: 'partial tool' },
+        'partial',
+      );
+      await expect(
+        (async () => {
+          for await (const _chunk of stream) {
+            /* consume */
+          }
+        })(),
+      ).rejects.toMatchObject({ reason: 'uncertain' });
+      expect(current.records.at(-1)?.phase).toBe('uncertain');
+    });
+
+    it('preserves a classified streaming refusal even when stream cleanup throws', async () => {
+      const current = await client(authType);
+      const upstream =
+        (async function* (): AsyncGenerator<GenerateContentResponse> {
+          throw Object.assign(new Error('confirmed denial'), { status: 403 });
+        })();
+      upstream.return = async () => {
+        throw new Error('secondary cleanup failure');
+      };
+      const mocked = vi
+        .spyOn(current.raw, 'generateContentStream')
+        .mockResolvedValue(upstream);
+      const stream = await current.generator.generateContentStream(
+        { model: current.model, contents: 'denied' },
+        'denied',
+      );
+      await expect(stream.next()).rejects.toMatchObject({
+        reason: 'unavailable',
+        status: 403,
+      });
+      expect(current.records.at(-1)?.phase).toBe('refused');
+      mocked.mockRestore();
+      await current.generator.generateContent(
+        { model: current.model, contents: 'explicit next turn' },
+        'next',
+      );
+      expect(requests).toHaveLength(1);
+    });
+
+    it('keeps terminal completion when transport or cleanup fails after acknowledgement', async () => {
+      const current = await client(authType);
+      const response = new GenerateContentResponse();
+      response.candidates = [
+        {
+          finishReason: FinishReason.STOP,
+          content: { role: 'model', parts: [{ text: 'confirmed' }] },
+        },
+      ];
+      const upstream = (async function* () {
+        yield response;
+        throw new Error('late transport close');
+      })();
+      upstream.return = async () => {
+        throw new Error('late cleanup close');
+      };
+      vi.spyOn(current.raw, 'generateContentStream').mockResolvedValue(
+        upstream,
+      );
+      const stream = await current.generator.generateContentStream(
+        { model: current.model, contents: 'acknowledged' },
+        'ack',
+      );
+      const chunks: GenerateContentResponse[] = [];
+      for await (const chunk of stream) chunks.push(chunk);
+      expect(chunks).toHaveLength(1);
+      expect(current.records.at(-1)?.phase).toBe('complete');
+    });
+
+    it('preserves consumer errors after a confirmed terminal response', async () => {
+      const current = await client(authType);
+      const response = new GenerateContentResponse();
+      response.candidates = [{ finishReason: FinishReason.STOP }];
+      vi.spyOn(current.raw, 'generateContentStream').mockResolvedValue(
+        (async function* () {
+          yield response;
+        })(),
+      );
+      const stream = await current.generator.generateContentStream(
+        { model: current.model, contents: 'terminal' },
+        'terminal',
+      );
+      await stream.next();
+      const error = new Error('consumer failure');
+      await expect(stream.throw(error)).rejects.toBe(error);
+      expect(current.records.at(-1)?.phase).toBe('complete');
+    });
+
+    it('cancels before dispatch without changing the last confirmed state', async () => {
+      const current = await client(authType);
+      await current.generator.generateContent(
+        { model: current.model, contents: 'opening' },
+        'first',
+      );
+      const previous = current.records.at(-1);
+      const abort = new AbortController();
+      abort.abort();
+      await expect(
+        current.generator.generateContentStream(
+          {
+            model: current.model,
+            contents: 'cancelled',
+            config: { abortSignal: abort.signal },
+          },
+          'cancelled',
+        ),
+      ).rejects.toMatchObject({ reason: 'cancelled' });
+      expect(current.records.at(-1)).toEqual(previous);
+      expect(requests).toHaveLength(1);
+      await current.generator.generateContent(
+        { model: current.model, contents: 'next' },
+        'next',
+      );
+      expect(requests).toHaveLength(2);
+    });
+
+    it('records cancellation after dispatch as unknown execution without automatic replay', async () => {
+      const current = await client(authType);
+      streamHold = true;
+      const abort = new AbortController();
+      const stream = await current.generator.generateContentStream(
+        {
+          model: current.model,
+          contents: 'cancel during stream',
+          config: { abortSignal: abort.signal },
+        },
+        'cancel',
+      );
+      await stream.next();
+      abort.abort();
+      let caught: unknown;
+      try {
+        for await (const _chunk of stream) {
+          /* consume until cancellation */
+        }
+      } catch (error) {
+        caught = error;
+      }
+      expect(caught).toMatchObject({ reason: 'cancelled' });
+      expect(classifyRetryError(caught)).toMatchObject({
+        diagnosis: 'fail-fast',
+      });
+      expect(current.records.at(-1)).toMatchObject({
+        phase: 'uncertain',
+        interruption: 'cancelled',
+      });
+      expect(requests).toHaveLength(1);
+    });
+
+    it.each(['return', 'throw'] as const)(
+      'releases an unconsumed stream on consumer %s',
+      async (method) => {
+        const current = await client(authType);
+        const stream = await current.generator.generateContentStream(
+          { model: current.model, contents: 'unconsumed' },
+          'unconsumed',
+        );
+        if (method === 'return') await stream.return(undefined);
+        else
+          await expect(
+            stream.throw(new Error('consumer closed')),
+          ).rejects.toThrow('consumer closed');
+        expect(current.records.at(-1)).toMatchObject({
+          phase: 'uncertain',
+          interruption: 'consumer_closed',
+        });
+        await current.generator.generateContent(
+          { model: current.model, contents: 'new explicit turn' },
+          'next',
+        );
+        expect(requests).toHaveLength(2);
+      },
+    );
+
+    it('lets the gateway validate a resumed pending record without changing its identity', async () => {
+      const previous = await client(authType);
+      await previous.generator.generateContent(
+        { model: previous.model, contents: 'opening' },
+        'opening',
+      );
+      const resumed = await client(authType, previous.sessionId, [
+        {
+          sessionId: previous.sessionId,
+          type: 'system',
+          subtype: 'gateway_conversation',
+          systemPayload: { ...previous.records.at(-1)!, phase: 'pending' },
+        } as ChatRecord,
+      ]);
+      await resumed.generator.generateContent(
+        { model: resumed.model, contents: 'explicit resumed turn' },
+        'resumed',
+      );
+      expect(requests).toHaveLength(2);
+      expect(requests[1].headers['x-o1gw-conversation-id']).toBe(
+        previous.sessionId,
+      );
+      expect(resumed.records.at(-1)?.phase).toBe('complete');
+    });
+
+    it('allows authorized transfer preparation after uncertainty and defers the decision to the gateway', async () => {
+      const current = await client(authType);
+      replyStatus = 408;
       await expect(
         current.generator.generateContent(
-          { model: current.model, contents: 'opening' },
-          'retry',
+          { model: current.model, contents: 'uncertain' },
+          'uncertain',
         ),
       ).rejects.toMatchObject({ reason: 'uncertain' });
       expect(requests).toHaveLength(1);
+      replyStatus = 200;
+      const confirmed = vi.fn(async () => {});
+      stageGatewayTransfer(current.config, {
+        sessionId: current.sessionId,
+        sourceModel: current.model,
+        destinationModel: 'o1gw/account/copilot/3/auto',
+        sourceFingerprint: gatewayTransferFingerprint(current.settings),
+        onConfirmed: confirmed,
+      });
+      await current.generator.generateContent(
+        { model: current.model, contents: 'explicit authorized transfer' },
+        'transfer',
+      );
+      expect(requests).toHaveLength(3);
+      expect(requests[1].path).toBe('/v1/conversations/transfer');
+      expect(requests[2].headers['x-o1gw-conversation-id']).toBe(
+        current.sessionId,
+      );
+      expect(requests[2].headers['x-o1gw-conversation-transfer']).toBe(
+        'synthetic-transfer-only',
+      );
+      expect(confirmed).toHaveBeenCalledOnce();
+    });
+
+    it('honors gateway refusal of an uncertain transfer without permanently vetoing later requests', async () => {
+      const current = await client(authType);
+      replyStatus = 408;
+      await expect(
+        current.generator.generateContent(
+          { model: current.model, contents: 'uncertain' },
+          'uncertain',
+        ),
+      ).rejects.toMatchObject({ reason: 'uncertain' });
+      replyStatus = 200;
+      transferStatus = 403;
+      const confirmed = vi.fn(async () => {});
+      stageGatewayTransfer(current.config, {
+        sessionId: current.sessionId,
+        sourceModel: current.model,
+        destinationModel: 'o1gw/account/copilot/3/auto',
+        sourceFingerprint: gatewayTransferFingerprint(current.settings),
+        onConfirmed: confirmed,
+      });
+      await expect(
+        current.generator.generateContent(
+          { model: current.model, contents: 'consented transfer' },
+          'transfer',
+        ),
+      ).rejects.toMatchObject({ reason: 'unavailable', status: 403 });
+      expect(requests).toHaveLength(2);
+      expect(requests[1].path).toBe('/v1/conversations/transfer');
+      expect(confirmed).not.toHaveBeenCalled();
+      expect(current.records.at(-1)?.phase).toBe('uncertain');
+      await current.generator.generateContent(
+        { model: current.model, contents: 'explicit source-account recovery' },
+        'recover',
+      );
+      expect(requests).toHaveLength(3);
+      expect(requests[2].body['model']).toBe(current.model);
+      expect(current.records.at(-1)?.phase).toBe('complete');
+    });
+
+    it('starts /new independently after an uncertain conversation', async () => {
+      const current = await client(authType);
+      replyStatus = 408;
+      await expect(
+        current.generator.generateContent(
+          { model: current.model, contents: 'old interrupted turn' },
+          'old',
+        ),
+      ).rejects.toMatchObject({ reason: 'uncertain' });
+      const fresh = randomUUID();
+      vi.spyOn(current.config, 'getSessionId').mockReturnValue(fresh);
+      replyStatus = 200;
+      await current.generator.generateContent(
+        { model: current.model, contents: 'new empty conversation' },
+        'new',
+      );
+      expect(requests).toHaveLength(2);
+      expect(requests[0].headers['x-o1gw-conversation-id']).toBe(
+        current.sessionId,
+      );
+      expect(requests[1].headers['x-o1gw-conversation-id']).toBe(fresh);
+      expect(current.records.at(-1)).toMatchObject({
+        conversationId: fresh,
+        phase: 'complete',
+      });
     });
   },
 );

@@ -5,6 +5,7 @@
  */
 
 import { createHash } from 'node:crypto';
+import { FinishReason } from '@google/genai';
 import type {
   Content,
   Part,
@@ -29,7 +30,7 @@ import {
   type GatewayGenerateRequest,
   type GatewayRequestScope,
 } from '../providers/gateway-request.js';
-import { getErrorStatus } from '../utils/errors.js';
+import { getErrorStatus, isAbortError } from '../utils/errors.js';
 import { getErrorHeader } from '../utils/retryPolicy.js';
 import { getRateLimitErrorDetails } from '../utils/rateLimit.js';
 import { AuthType } from '../utils/auth-type.js';
@@ -165,8 +166,16 @@ export class GatewayContentGenerator implements ContentGenerator {
 
   private async begin(request: GatewayGenerateRequest): Promise<{
     scope: GatewayRequestScope;
-    finish(phase: GatewayConversationRecordPayload['phase']): Promise<void>;
+    finish(
+      phase: GatewayConversationRecordPayload['phase'],
+      interruption?: GatewayConversationRecordPayload['interruption'],
+    ): Promise<void>;
   }> {
+    if (request.config?.abortSignal?.aborted)
+      throw new GatewayConversationError(
+        'cancelled',
+        'The gateway request was cancelled before dispatch. No request was sent.',
+      );
     const { state, id, actor, endpoint } = this.state();
     const independent = request.gatewayIndependentRequest;
     if (independent) {
@@ -213,14 +222,9 @@ export class GatewayContentGenerator implements ContentGenerator {
         'conflict',
         'This conversation already has a request in progress. Wait for it to finish.',
       );
-    if (
-      state.record?.phase === 'pending' ||
-      state.record?.phase === 'uncertain'
-    )
-      throw new GatewayConversationError(
-        'uncertain',
-        'The previous request has an uncertain result. Its history is preserved; automatic replay and account transfer are unavailable.',
-      );
+    // A prior interruption is not proof of the gateway's current state. A new
+    // explicit call keeps this identity/history and is validated by the gateway;
+    // uncertain failures remain fail-fast and never schedule a replay here.
     const contents = Array.isArray(request.contents)
       ? request.contents
       : [request.contents];
@@ -257,15 +261,11 @@ export class GatewayContentGenerator implements ContentGenerator {
     const transfer =
       actor === 'main' ? takeGatewayTransfer(this.config) : undefined;
     if (transfer) {
-      if (
-        !previous ||
-        previous.phase !== 'complete' ||
-        previous.model !== transfer.sourceModel
-      ) {
+      if (!previous || previous.model !== transfer.sourceModel) {
         state.busy = false;
         throw new GatewayConversationError(
           'unsupported',
-          'Transfer requires a recorded completed conversation on the original account.',
+          'Transfer requires a recorded conversation on the original account. The gateway must validate its history and authorize the destination.',
         );
       }
       assertGatewayTransferCompatible(
@@ -363,12 +363,14 @@ export class GatewayContentGenerator implements ContentGenerator {
             }
           : {}),
       },
-      finish: async (phase) => {
+      finish: async (phase, interruption) => {
         if (finished) return;
         finished = true;
         try {
           state.record =
-            phase === 'refused' && previous ? previous : { ...record, phase };
+            phase === 'refused' && previous
+              ? previous
+              : { ...record, phase, ...(interruption ? { interruption } : {}) };
           await recorder?.recordGatewayConversation(state.record);
           if (phase === 'complete') {
             if (actor === 'main')
@@ -405,6 +407,11 @@ export class GatewayContentGenerator implements ContentGenerator {
       if (cause instanceof GatewayConversationError) return cause;
       cause = cause.cause;
     }
+    if (isAbortError(error))
+      return new GatewayConversationError(
+        'cancelled',
+        'The gateway request was cancelled. Remote execution is not confirmed; no request was replayed or moved to another account.',
+      );
     const status = getErrorStatus(error);
     const headers = new Headers();
     for (const name of [
@@ -421,7 +428,15 @@ export class GatewayContentGenerator implements ContentGenerator {
       headers,
       providerCode: getRateLimitErrorDetails(error).providerCode,
     };
-    if (status === 409)
+    if (
+      status === 409 ||
+      (!status &&
+        [
+          'conversation_unavailable',
+          'transfer_unavailable',
+          'conversation_transfer_required',
+        ].includes(details.providerCode ?? ''))
+    )
       return new GatewayConversationError(
         'conflict',
         'The gateway refused continuity or account ownership for this conversation. The history and account are preserved. No automatic retry was made.',
@@ -433,7 +448,13 @@ export class GatewayContentGenerator implements ContentGenerator {
         'The gateway refused authorization for the selected account or device. Reconnect the provider; no other account was selected.',
         details,
       );
-    if (status === 429)
+    if (
+      status === 429 ||
+      (!status &&
+        ['rate_limit_exceeded', 'rate_limit_error'].includes(
+          details.providerCode ?? '',
+        ))
+    )
       return new GatewayConversationError(
         'unavailable',
         `The selected account reached a gateway limit. No account transfer was authorized by this response.${headers.get('retry-after') ? ` Retry-After: ${headers.get('retry-after')}.` : ' Try again after its reset.'}`,
@@ -467,7 +488,10 @@ export class GatewayContentGenerator implements ContentGenerator {
     } catch (error) {
       const failure = this.failure(error);
       await turn.finish(
-        failure.reason === 'uncertain' ? 'uncertain' : 'refused',
+        failure.reason === 'uncertain' || failure.reason === 'cancelled'
+          ? 'uncertain'
+          : 'refused',
+        failure.reason === 'cancelled' ? 'cancelled' : undefined,
       );
       throw failure;
     }
@@ -487,54 +511,126 @@ export class GatewayContentGenerator implements ContentGenerator {
     } catch (error) {
       const failure = this.failure(error);
       await turn.finish(
-        failure.reason === 'uncertain' ? 'uncertain' : 'refused',
+        failure.reason === 'uncertain' || failure.reason === 'cancelled'
+          ? 'uncertain'
+          : 'refused',
+        failure.reason === 'cancelled' ? 'cancelled' : undefined,
       );
       throw failure;
     }
     const failure = (error: unknown) => this.failure(error);
+    const checkCancellation = () => {
+      if (request.config?.abortSignal?.aborted)
+        throw new DOMException(
+          'The gateway request was cancelled.',
+          'AbortError',
+        );
+    };
     const iterator = (async function* () {
-      let complete = false;
+      let phase: GatewayConversationRecordPayload['phase'] = 'uncertain';
+      let failed = false;
+      let interruption: GatewayConversationRecordPayload['interruption'];
       try {
         while (true) {
-          const next = await gatewayRequestScope.run(turn.scope, () =>
-            stream.next(),
-          );
+          if (phase !== 'complete') checkCancellation();
+          let next: IteratorResult<GenerateContentResponse>;
+          try {
+            next = await gatewayRequestScope.run(turn.scope, () =>
+              stream.next(),
+            );
+          } catch (error) {
+            if (phase === 'complete') break;
+            throw error;
+          }
           if (next.done) {
-            complete = true;
+            if (phase !== 'complete') {
+              checkCancellation();
+              throw new GatewayConversationError(
+                'uncertain',
+                'The gateway stream ended without a confirmed terminal response. Execution may have started; no automatic replay was made.',
+              );
+            }
             break;
           }
+          if (
+            next.value.candidates?.some(
+              (candidate) =>
+                Boolean(candidate.finishReason) &&
+                candidate.finishReason !==
+                  FinishReason.FINISH_REASON_UNSPECIFIED,
+            )
+          )
+            phase = 'complete';
+          if (phase !== 'complete') checkCancellation();
           yield next.value;
         }
       } catch (error) {
-        throw failure(error);
+        failed = true;
+        if (phase === 'complete') throw error;
+        const classified = failure(error);
+        phase =
+          classified.reason === 'uncertain' || classified.reason === 'cancelled'
+            ? 'uncertain'
+            : 'refused';
+        if (classified.reason === 'cancelled') interruption = 'cancelled';
+        throw classified;
       } finally {
+        if (phase === 'uncertain' && !failed)
+          interruption = request.config?.abortSignal?.aborted
+            ? 'cancelled'
+            : 'consumer_closed';
         try {
           await gatewayRequestScope.run(turn.scope, () =>
             stream.return(undefined),
           );
+        } catch (error) {
+          if (!failed && phase !== 'complete') {
+            const classified = failure(error);
+            phase =
+              classified.reason === 'uncertain' ||
+              classified.reason === 'cancelled'
+                ? 'uncertain'
+                : 'refused';
+            interruption =
+              classified.reason === 'cancelled' ? 'cancelled' : undefined;
+            throw classified;
+          }
         } finally {
-          await turn.finish(complete ? 'complete' : 'uncertain');
+          await turn.finish(phase, interruption);
         }
       }
     })();
     let started = false;
     const next = iterator.next.bind(iterator);
     const end = iterator.return.bind(iterator);
+    const raise = iterator.throw.bind(iterator);
+    const closeUnstarted = async () => {
+      try {
+        await gatewayRequestScope.run(turn.scope, () =>
+          stream.return(undefined),
+        );
+      } finally {
+        await turn.finish(
+          'uncertain',
+          request.config?.abortSignal?.aborted
+            ? 'cancelled'
+            : 'consumer_closed',
+        );
+      }
+    };
     iterator.next = (...args) => {
       started = true;
       return next(...args);
     };
     iterator.return = async (value) => {
       if (!started) {
-        try {
-          await gatewayRequestScope.run(turn.scope, () =>
-            stream.return(undefined),
-          );
-        } finally {
-          await turn.finish('uncertain');
-        }
+        await closeUnstarted();
       }
       return end(value);
+    };
+    iterator.throw = async (error: unknown) => {
+      if (!started) await closeUnstarted();
+      return raise(error);
     };
     return iterator;
   }

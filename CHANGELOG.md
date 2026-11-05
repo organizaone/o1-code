@@ -7,6 +7,14 @@ follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.23.2] - 2026-11-05
+
+### Fixed
+
+- Gateway conversations can send a new explicit request after a local interruption, preserving identity, history and account consent for gateway validation. Streaming completion, known refusals and cancellations no longer turn into a permanent local conversation lock.
+- `o1-code update` installs available updates for supported package-manager installations instead of only printing a command to run manually. Explicit updates work with automatic updates disabled, wait for completion and report installation failures with a non-zero exit status.
+- Stable manual update instructions retain `@latest` rather than pinning the version discovered when the message was generated.
+
 ## [0.23.1] - 2026-11-04
 
 ### Fixed

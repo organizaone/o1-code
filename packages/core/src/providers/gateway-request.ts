@@ -47,6 +47,7 @@ export class GatewayConversationError extends Error {
       | 'legacy'
       | 'conflict'
       | 'uncertain'
+      | 'cancelled'
       | 'unsupported'
       | 'unavailable',
     message: string,

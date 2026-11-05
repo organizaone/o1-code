@@ -114,6 +114,47 @@ export const updateCommand: CommandModule = {
       return;
     }
 
+    if (installationInfo.updateCommand) {
+      const handleUpdateSuccess = (data: { message: string }) => {
+        writeStdoutLine(data.message);
+      };
+      const handleUpdateFailure = (data: { message: string }) => {
+        writeStderrLine(data.message);
+      };
+      updateEventEmitter.on('update-success', handleUpdateSuccess);
+      updateEventEmitter.on('update-failed', handleUpdateFailure);
+      try {
+        const { handleAutoUpdate } = await import('../ui/handleAutoUpdate.js');
+        writeStdoutLine(t('Downloading update...'));
+        // This explicit request is independent of background update preferences.
+        const installed = await handleAutoUpdate(
+          info,
+          {
+            merged: {
+              ...settings.merged,
+              general: {
+                ...settings.merged.general,
+                enableAutoUpdate: true,
+              },
+            },
+          },
+          cwd,
+        );
+        if (!installed) process.exitCode = 1;
+      } catch (err) {
+        writeStderrLine(
+          t('Update failed: {{error}}', {
+            error: err instanceof Error ? err.message : String(err),
+          }),
+        );
+        process.exitCode = 1;
+      } finally {
+        updateEventEmitter.off('update-success', handleUpdateSuccess);
+        updateEventEmitter.off('update-failed', handleUpdateFailure);
+      }
+      return;
+    }
+
     for (const line of formatUpdateInstructions(
       installationInfo,
       info.update.latest,

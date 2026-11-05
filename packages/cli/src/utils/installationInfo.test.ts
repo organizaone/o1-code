@@ -697,7 +697,7 @@ describe('resolveUpdateCommand', () => {
 });
 
 describe('formatUpdateInstructions', () => {
-  it('formats package-manager update commands', () => {
+  it('keeps @latest in stable package-manager update instructions', () => {
     expect(
       formatUpdateInstructions(
         {
@@ -709,7 +709,24 @@ describe('formatUpdateInstructions', () => {
       ),
     ).toEqual([
       'Run the following to update:',
-      '  npm i -g @organizaone/o1-code@1.2.3',
+      '  npm i -g @organizaone/o1-code@latest',
+    ]);
+  });
+
+  it('keeps @latest in stable elevation recovery instructions', () => {
+    expect(
+      formatUpdateInstructions(
+        {
+          packageManager: PackageManager.NPM,
+          isGlobal: true,
+          updateMessage:
+            'Update requires sudo. Please run: sudo npm i -g @organizaone/o1-code@latest',
+        },
+        '1.2.3',
+      ),
+    ).toEqual([
+      'Update requires sudo. Please run:',
+      '  sudo npm i -g @organizaone/o1-code@latest',
     ]);
   });
 

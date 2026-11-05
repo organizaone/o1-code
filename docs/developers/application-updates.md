@@ -14,6 +14,14 @@ before changing an installed environment.
 `/update` command emits the same event with an explicit-request marker. Discovery does not authorize
 closing the application.
 
+The terminal subcommand `commands/update.ts` treats `o1-code update` as explicit installation
+consent. It awaits the existing updater for supported package-manager installations, routes its
+completion/failure events to standard output/error, and returns a non-zero status on failure.
+Background update preferences are overridden only in the call's settings snapshot. npm keeps the
+current bootstrap and verified managed activation path; it does not choose another global prefix
+from `PATH`. Human-readable stable recovery instructions retain `@latest`, while installation and
+runtime verification use the concrete version resolved by discovery.
+
 `ui/hooks/use-application-update.ts` owns the available, preparing, ready, failed and restarting
 states. Automatic npm preparation starts only while the application is idle, with no executing
 tool, active terminal, pending submission, queued message or running background task. The dialog

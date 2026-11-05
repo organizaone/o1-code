@@ -4,39 +4,16 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { ArgumentsCamelCase } from 'yargs';
 import { isSlowTestHost } from '../test-utils/slow-test-host.js';
+import { updateEventEmitter } from '../utils/updateEventEmitter.js';
 
 const loadSettings = vi.fn();
 const checkForUpdatesDetailed = vi.fn();
 const getInstallationInfo = vi.fn();
-const resolveUpdateCommand = vi.fn(
-  (updateCommand: string, latestVersion: string) =>
-    updateCommand.replace('@latest', `@${latestVersion}`),
-);
-const formatUpdateInstructions = vi.fn(
-  (
-    installationInfo: {
-      updateMessage?: string;
-      updateCommand?: string;
-      isStandalone?: boolean;
-    },
-    latestVersion: string,
-  ) => {
-    if (installationInfo.updateMessage && !installationInfo.updateCommand) {
-      return [installationInfo.updateMessage];
-    }
-    if (installationInfo.updateCommand) {
-      return [
-        'Run the following to update:',
-        `  ${resolveUpdateCommand(installationInfo.updateCommand, latestVersion)}`,
-      ];
-    }
-    return ['Manual update required. Please reinstall O1-Code.'];
-  },
-);
 const performStandaloneUpdate = vi.fn();
+const handleAutoUpdate = vi.fn();
 const getPackageJson = vi.fn();
 const writeStdoutLine = vi.fn();
 const writeStderrLine = vi.fn();
@@ -48,12 +25,17 @@ vi.mock('../ui/utils/updateCheck.js', async (importOriginal) => ({
   ...(await importOriginal<typeof import('../ui/utils/updateCheck.js')>()),
   checkForUpdatesDetailed,
 }));
-vi.mock('../utils/installationInfo.js', () => ({
-  formatUpdateInstructions,
-  getInstallationInfo,
-  resolveUpdateCommand,
-}));
+vi.mock('../utils/installationInfo.js', async (importOriginal) => {
+  const actual =
+    await importOriginal<typeof import('../utils/installationInfo.js')>();
+  return {
+    ...actual,
+    getInstallationInfo,
+    formatUpdateInstructions: vi.fn(actual.formatUpdateInstructions),
+  };
+});
 vi.mock('../ui/standalone-update.js', () => ({ performStandaloneUpdate }));
+vi.mock('../ui/handleAutoUpdate.js', () => ({ handleAutoUpdate }));
 vi.mock('../utils/package.js', () => ({ getPackageJson }));
 vi.mock('../utils/stdioHelpers.js', () => ({
   writeStdoutLine,
@@ -70,6 +52,9 @@ vi.mock('../i18n/index.js', () => ({
 }));
 
 const { updateCommand } = await import('./update.js');
+const { formatUpdateInstructions } = await import(
+  '../utils/installationInfo.js'
+);
 
 // A contended host runs several jobs at once; under that load these tests
 // pass alone in milliseconds but blow the 15s ceiling without any real hang.
@@ -102,13 +87,29 @@ describe('update command', () => {
       },
     });
     getInstallationInfo.mockReturnValue({
+      packageManager: 'npm',
+      isGlobal: true,
       isStandalone: false,
       updateCommand: 'npm install -g @organizaone/o1-code@latest',
     });
+    handleAutoUpdate.mockImplementation(async () => {
+      updateEventEmitter.emit('update-success', {
+        message:
+          'Update successful! The new version will be used on your next run.',
+      });
+      return true;
+    });
   });
 
-  it('prints the package-manager update command even when auto-update is disabled', async () => {
-    loadSettings.mockReturnValue(settings(false));
+  afterEach(() => {
+    process.exitCode = undefined;
+    expect(updateEventEmitter.listenerCount('update-success')).toBe(0);
+    expect(updateEventEmitter.listenerCount('update-failed')).toBe(0);
+  });
+
+  it('installs the package-manager update even when auto-update is disabled', async () => {
+    const loaded = settings(false);
+    loadSettings.mockReturnValue(loaded);
 
     await updateCommand.handler(updateArgs);
 
@@ -116,11 +117,95 @@ describe('update command', () => {
     expect(initializeI18n).toHaveBeenCalledWith('zh');
     expect(getInstallationInfo).toHaveBeenCalledWith(expect.any(String), true);
     expect(writeStdoutLine).toHaveBeenCalledWith('Update available: 1.2.3');
-    expect(writeStdoutLine).toHaveBeenCalledWith(
+    expect(handleAutoUpdate).toHaveBeenCalledWith(
+      expect.objectContaining({ update: { latest: '1.2.3' } }),
+      { merged: { general: { enableAutoUpdate: true, language: 'zh' } } },
+      expect.any(String),
+    );
+    expect(loaded.merged.general.enableAutoUpdate).toBe(false);
+    expect(writeStdoutLine).not.toHaveBeenCalledWith(
       'Run the following to update:',
     );
     expect(writeStdoutLine).toHaveBeenCalledWith(
-      '  npm install -g @organizaone/o1-code@1.2.3',
+      'Update successful! The new version will be used on your next run.',
+    );
+    expect(formatUpdateInstructions).not.toHaveBeenCalled();
+  });
+
+  it.each(['pnpm', 'yarn', 'bun'])(
+    'runs the existing updater for a supported %s installation',
+    async (packageManager) => {
+      getInstallationInfo.mockReturnValue({
+        packageManager,
+        isGlobal: true,
+        updateCommand: `${packageManager} add -g @organizaone/o1-code@latest`,
+      });
+      await updateCommand.handler(updateArgs);
+      expect(handleAutoUpdate).toHaveBeenCalledOnce();
+      expect(formatUpdateInstructions).not.toHaveBeenCalled();
+    },
+  );
+
+  it('waits for installation to finish before the command completes', async () => {
+    let finish!: (result: boolean) => void;
+    let started!: () => void;
+    const installationStarted = new Promise<void>((resolve) => {
+      started = resolve;
+    });
+    handleAutoUpdate.mockImplementation(() => {
+      started();
+      return new Promise<boolean>((resolve) => {
+        finish = resolve;
+      });
+    });
+    let completed = false;
+    const pending = Promise.resolve(updateCommand.handler(updateArgs)).then(
+      () => {
+        completed = true;
+      },
+    );
+    await installationStarted;
+    expect(completed).toBe(false);
+    finish(true);
+    await pending;
+    expect(completed).toBe(true);
+  });
+
+  it('reports package-manager install failures and exits non-zero', async () => {
+    handleAutoUpdate.mockImplementation(async () => {
+      updateEventEmitter.emit('update-failed', {
+        message: 'Update failed: registry unavailable',
+      });
+      return false;
+    });
+    await updateCommand.handler(updateArgs);
+    expect(writeStderrLine).toHaveBeenCalledWith(
+      'Update failed: registry unavailable',
+    );
+    expect(process.exitCode).toBe(1);
+    expect(writeStdoutLine).not.toHaveBeenCalledWith(
+      'Update successful! The new version will be used on your next run.',
+    );
+  });
+
+  it('reports updater startup failures and removes its listeners', async () => {
+    handleAutoUpdate.mockRejectedValue(new Error('spawn failed'));
+    await updateCommand.handler(updateArgs);
+    expect(writeStderrLine).toHaveBeenCalledWith('Update failed: spawn failed');
+    expect(process.exitCode).toBe(1);
+  });
+
+  it('keeps manual recovery for an installation requiring elevation', async () => {
+    getInstallationInfo.mockReturnValue({
+      packageManager: 'npm',
+      isGlobal: true,
+      updateMessage:
+        'Update requires sudo. Please run: sudo npm install -g @organizaone/o1-code@latest',
+    });
+    await updateCommand.handler(updateArgs);
+    expect(handleAutoUpdate).not.toHaveBeenCalled();
+    expect(writeStdoutLine).toHaveBeenCalledWith(
+      '  sudo npm install -g @organizaone/o1-code@latest',
     );
   });
 

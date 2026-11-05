@@ -78,6 +78,14 @@ You can still run `/update` and explicitly choose to update. A failed preparatio
 and keeps the current version available. Retry through the dialog, or follow its manual instructions;
 Page Up/Page Down scroll longer details, and Home/End reach their beginning or end.
 
+From a terminal, run `o1-code update` to check and install an available update directly.
+The command waits for installation and reports a failure with a non-zero exit status.
+This explicit request works even when automatic updates are disabled and does not change that
+setting. Supported npm installations use the same verified managed updater as the application;
+the updated version takes effect on the next launch. Source checkouts, temporary package runners
+and installations requiring elevation retain their installation-specific instructions.
+Stable manual npm instructions use `@latest`; nightly instructions use `@nightly`.
+
 If conversation recording is disabled, **Prepare update** downloads the npm update without closing
 the current conversation. Apply it on your next natural startup. For npm installations, restarting a
 recorded conversation keeps its saved history and current approval mode, together with the original
