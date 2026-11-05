@@ -20,11 +20,31 @@ describe('gateway account consent', () => {
       answer = confirmGatewayTransfer(config, {
         source: 'o1gw/group/copilot/1/auto',
         destination: 'another eligible group account',
+        purpose: 'group-transfer',
       });
     });
     expect(String(result.current?.prompt)).toContain(
       'another eligible account',
     );
+    expect(result.current?.defaultDeny).toBe(true);
+    act(() => result.current?.onConfirm(false));
+    expect(await answer).toBe(false);
+  });
+
+  it('names the exact manual destination when leaving a group', async () => {
+    const config = {} as Config;
+    const { result } = renderHook(() => useGatewayTransferConfirmation(config));
+    let answer!: Promise<boolean>;
+    act(() => {
+      answer = confirmGatewayTransfer(config, {
+        source: 'o1gw/group/copilot/1/auto',
+        destination: 'o1gw/own/claude/7/sonnet',
+      });
+    });
+    expect(String(result.current?.prompt)).toContain(
+      'o1gw/own/claude/7/sonnet',
+    );
+    expect(String(result.current?.prompt)).not.toContain('eligible account');
     expect(result.current?.defaultDeny).toBe(true);
     act(() => result.current?.onConfirm(false));
     expect(await answer).toBe(false);

@@ -15,6 +15,10 @@ import {
   type Config,
 } from '@organizaone/o1-code-core';
 import type { LoadedSettings } from '../../config/settings.js';
+import {
+  registerGatewayTransferConfirmation,
+  getGatewayAccountSelection,
+} from '@organizaone/o1-code-core/providers/gateway-transfer.js';
 
 // Helper function to create a mock config
 function createMockConfig(
@@ -42,6 +46,214 @@ describe('modelCommand', () => {
     mockContext = createMockCommandContext();
     vi.clearAllMocks();
   });
+
+  it.each([false, true])(
+    'authorizes explicit gateway account selection before switching: %s',
+    async (confirmed) => {
+      const source = 'o1gw/account/copilot/2/auto';
+      const destination = 'o1gw/own/claude/7/sonnet';
+      const current: ContentGeneratorConfig = {
+        model: source,
+        authType: AuthType.USE_ANTHROPIC,
+        baseUrl: 'https://gateway.example/v1',
+        connection: 'o1-connect',
+      };
+      const switchModel = vi.fn(async () => {
+        current.model = destination;
+      });
+      mockContext = createMockCommandContext({
+        services: {
+          config: {
+            getContentGeneratorConfig: () => current,
+            getSessionId: () => 'conversation-a',
+            getLlmClient: () => ({
+              getHistoryShallow: () => [
+                { role: 'model', parts: [{ text: 'completed' }] },
+              ],
+            }),
+            getAvailableModelsForAuthType: () => [
+              { id: destination, label: destination },
+            ],
+            switchModel,
+          } as unknown as Config,
+          settings: createMockSettings(),
+        },
+      });
+      const config = mockContext.services.config!;
+      const unregister = registerGatewayTransferConfirmation(
+        config,
+        async () => confirmed,
+      );
+      try {
+        const result = await modelCommand.action!(mockContext, destination);
+        expect(switchModel).toHaveBeenCalledTimes(confirmed ? 1 : 0);
+        if (confirmed)
+          expect(getGatewayAccountSelection(config)).toMatchObject({
+            sourceModel: source,
+            destinationModel: destination,
+          });
+        else
+          expect(result).toMatchObject({
+            content: 'Model selection cancelled.',
+          });
+      } finally {
+        unregister();
+      }
+    },
+  );
+
+  it.each(['current', 'ambiguous', 'credential'])(
+    'resolves duplicate gateway IDs without changing endpoint silently: %s',
+    async (scenario) => {
+      const model = 'o1gw/account/copilot/2/auto';
+      const current: ContentGeneratorConfig = {
+        model,
+        authType: AuthType.USE_OPENAI,
+        baseUrl:
+          scenario === 'ambiguous'
+            ? 'https://third-gateway.example/v1'
+            : 'https://gateway-b.example/v1',
+        connection: 'o1-connect',
+      };
+      const catalog = [
+        {
+          id: model,
+          label: model,
+          baseUrl: 'https://gateway-a.example/v1',
+          envKey: 'KEY_A',
+        },
+        {
+          id: model,
+          label: model,
+          baseUrl: 'https://GATEWAY-B.example:443/v1/',
+          envKey: 'KEY_B',
+        },
+      ];
+      if (scenario === 'credential')
+        catalog.push({ ...catalog[1], envKey: 'ANOTHER_KEY_B' });
+      const switchModel = vi.fn(
+        async (
+          _authType: AuthType,
+          selected: string,
+          options?: { baseUrl?: string },
+        ) => {
+          current.model = selected;
+          current.baseUrl = options?.baseUrl;
+        },
+      );
+      const setValue = vi.fn();
+      mockContext = createMockCommandContext({
+        services: {
+          config: {
+            getContentGeneratorConfig: () => current,
+            getSessionId: () => 'conversation-a',
+            getLlmClient: () => ({
+              getHistoryShallow: () => [
+                { role: 'user', parts: [{ text: 'existing history' }] },
+              ],
+            }),
+            getAvailableModelsForAuthType: () => catalog,
+            switchModel,
+          } as unknown as Config,
+          settings: createMockSettings(setValue),
+        },
+      });
+      const confirm = vi.fn(async () => true);
+      const unregister = registerGatewayTransferConfirmation(
+        mockContext.services.config!,
+        confirm,
+      );
+      try {
+        if (scenario === 'current') {
+          await modelCommand.action!(mockContext, model);
+          expect(switchModel).toHaveBeenCalledWith(AuthType.USE_OPENAI, model, {
+            baseUrl: catalog[1].baseUrl,
+          });
+          expect(setValue).toHaveBeenCalledWith(
+            SettingScope.User,
+            'model.baseUrl',
+            catalog[1].baseUrl,
+          );
+        } else {
+          await expect(
+            modelCommand.action!(mockContext, model),
+          ).rejects.toThrow('multiple configured destinations');
+          expect(switchModel).not.toHaveBeenCalled();
+          expect(setValue).not.toHaveBeenCalled();
+        }
+        expect(confirm).not.toHaveBeenCalled();
+      } finally {
+        unregister();
+      }
+    },
+  );
+
+  it.each([false, true])(
+    'requires scoped consent for the same gateway ID at a new endpoint: %s',
+    async (confirmed) => {
+      const model = 'o1gw/account/copilot/2/auto';
+      const destinationBaseUrl = 'https://gateway-b.example/v1';
+      const current: ContentGeneratorConfig = {
+        model,
+        authType: AuthType.USE_OPENAI,
+        baseUrl: 'https://gateway-a.example/v1',
+        connection: 'o1-connect',
+      };
+      const switchModel = vi.fn(
+        async (
+          _authType: AuthType,
+          _selected: string,
+          options?: { baseUrl?: string },
+        ) => {
+          current.baseUrl = options?.baseUrl;
+        },
+      );
+      const setValue = vi.fn();
+      mockContext = createMockCommandContext({
+        services: {
+          config: {
+            getContentGeneratorConfig: () => current,
+            getSessionId: () => 'conversation-a',
+            getLlmClient: () => ({
+              getHistoryShallow: () => [
+                { role: 'user', parts: [{ text: 'existing history' }] },
+              ],
+            }),
+            getAvailableModelsForAuthType: () => [
+              { id: model, label: model, baseUrl: destinationBaseUrl },
+            ],
+            switchModel,
+          } as unknown as Config,
+          settings: createMockSettings(setValue),
+        },
+      });
+      const confirm = vi.fn(async () => confirmed);
+      const config = mockContext.services.config!;
+      const unregister = registerGatewayTransferConfirmation(config, confirm);
+      try {
+        await modelCommand.action!(mockContext, model);
+        expect(confirm).toHaveBeenCalledOnce();
+        expect(switchModel).toHaveBeenCalledTimes(confirmed ? 1 : 0);
+        if (confirmed) {
+          expect(switchModel).toHaveBeenCalledWith(AuthType.USE_OPENAI, model, {
+            baseUrl: destinationBaseUrl,
+          });
+          expect(setValue).toHaveBeenCalledWith(
+            SettingScope.User,
+            'model.baseUrl',
+            destinationBaseUrl,
+          );
+          expect(getGatewayAccountSelection(config)).toBeDefined();
+        } else {
+          expect(current.baseUrl).toBe('https://gateway-a.example/v1');
+          expect(setValue).not.toHaveBeenCalled();
+          expect(getGatewayAccountSelection(config)).toBeUndefined();
+        }
+      } finally {
+        unregister();
+      }
+    },
+  );
 
   it('should have the correct name and description', () => {
     expect(modelCommand.name).toBe('model');

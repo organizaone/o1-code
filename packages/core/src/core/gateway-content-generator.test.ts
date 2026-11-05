@@ -35,6 +35,8 @@ import {
   gatewayTransferFingerprint,
   stageGatewayTransfer,
   registerGatewayTransferConfirmation,
+  recordGatewayAccountSelection,
+  switchWithGatewayAccountSelection,
 } from '../providers/gateway-transfer.js';
 import type { ResolvedModelConfig } from '../models/types.js';
 
@@ -56,6 +58,7 @@ let streamHold: boolean;
 let streamToolCall: boolean;
 let operationCapabilities: boolean;
 let groupProposal: boolean;
+let replyError: { code: string; message: string; status?: number } | undefined;
 
 beforeEach(async () => {
   work = await mkdtemp(join(tmpdir(), 'o1-gateway-client-'));
@@ -70,6 +73,7 @@ beforeEach(async () => {
   streamToolCall = false;
   operationCapabilities = true;
   groupProposal = false;
+  replyError = undefined;
   await preloadRuntimeFetchModule();
   server = createServer(async (req, res) => {
     let raw = '';
@@ -133,6 +137,7 @@ beforeEach(async () => {
             type: 'invalid_request_error',
             code: 'conversation_unavailable',
             message: 'Synthetic conflict',
+            ...replyError,
           },
         }),
       );
@@ -186,6 +191,7 @@ beforeEach(async () => {
           type: 'invalid_request_error',
           code: 'conversation_unavailable',
           message: 'Synthetic stream conflict',
+          ...replyError,
         },
       });
       res.end();
@@ -725,7 +731,7 @@ describe.each([AuthType.USE_OPENAI, AuthType.USE_ANTHROPIC])(
       expect(left.records.at(-1)?.phase).toBe('complete');
     });
 
-    it('restores a recorded identity but refuses legacy and copied histories before HTTP', async () => {
+    it('restores recorded identity and imports history under the current session identity', async () => {
       const first = await client(authType);
       await first.generator.generateContent(
         { model: first.model, contents: 'opening' },
@@ -751,13 +757,16 @@ describe.each([AuthType.USE_OPENAI, AuthType.USE_ANTHROPIC])(
         first.sessionId,
       );
       const legacy = await client(authType);
-      await expect(
-        legacy.generator.generateContent(
-          { model: first.model, contents },
-          'legacy',
-        ),
-      ).rejects.toMatchObject({ reason: 'legacy' });
-      expect(requests).toHaveLength(2);
+      await legacy.generator.generateContent(
+        { model: first.model, contents },
+        'legacy',
+      );
+      expect(requests).toHaveLength(3);
+      expect(requests.at(-1)?.headers['x-o1gw-conversation-id']).toBe(
+        legacy.sessionId,
+      );
+      expect(JSON.stringify(requests.at(-1)?.body)).toContain('final-marker');
+      expect(legacy.records.at(-1)?.conversationId).toBe(legacy.sessionId);
     });
 
     it('negotiates independent purposes and never leaks headers into the main conversation', async () => {
@@ -807,6 +816,127 @@ describe.each([AuthType.USE_OPENAI, AuthType.USE_ANTHROPIC])(
       expect(requests).toHaveLength(1);
     });
 
+    it.each([false, true])(
+      'preserves specific server refusals through the SDK (stream: %s)',
+      async (streaming) => {
+        const current = await client(authType);
+        for (const [status, code, message, reason] of [
+          [
+            409,
+            'conversation_busy',
+            'This conversation is still generating',
+            'busy',
+          ],
+          [
+            409,
+            'invalid_tool_results',
+            'Tool results must match pending requests',
+            'tool_mismatch',
+          ],
+          [
+            409,
+            'conversation_transfer_required',
+            'Confirm this account transition',
+            'transfer_required',
+          ],
+          [
+            403,
+            'permission_denied',
+            'Access to the selected account was revoked',
+            'authorization',
+          ],
+          [
+            429,
+            'rate_limit_exceeded',
+            'This account reached its quota',
+            'unavailable',
+          ],
+          [
+            409,
+            'execution_uncertain',
+            'Native termination is not confirmed',
+            'uncertain',
+          ],
+        ] as const) {
+          replyError = { status, code, message };
+          replyStatus = streaming ? 200 : status;
+          streamError = streaming;
+          const attempt = async () => {
+            const request = {
+              model: current.model,
+              contents: 'explicit attempt',
+            };
+            if (streaming) {
+              const stream = await current.generator.generateContentStream(
+                request,
+                'diagnostic',
+              );
+              for await (const _chunk of stream) {
+                /* consume */
+              }
+            } else
+              await current.generator.generateContent(request, 'diagnostic');
+          };
+          await expect(attempt()).rejects.toMatchObject({
+            status,
+            providerCode: code,
+            message,
+            reason,
+          });
+        }
+        expect(requests).toHaveLength(6);
+        replyStatus = 200;
+        streamError = false;
+        await current.generator.generateContent(
+          { model: current.model, contents: 'recover' },
+          'recover',
+        );
+        expect(current.records.at(-1)?.phase).toBe('complete');
+      },
+    );
+
+    it('keeps the active conversation lock across equivalent endpoint spellings', async () => {
+      const current = await client(authType);
+      const stream = await current.generator.generateContentStream(
+        { model: current.model, contents: 'held' },
+        'held',
+      );
+      current.settings.reasoningRouteBaseUrl =
+        'HTTPS://API.ORGANIZAONE.COM:443/v1/';
+      const same = new GatewayContentGenerator(
+        current.raw,
+        current.config,
+        current.settings,
+      );
+      const switchModel = vi.fn(async () => {});
+      await expect(
+        switchWithGatewayAccountSelection(
+          current.config,
+          { model: current.model },
+          switchModel,
+          { isBusy: () => false },
+        ),
+      ).rejects.toMatchObject({ reason: 'busy' });
+      expect(switchModel).not.toHaveBeenCalled();
+      await expect(
+        same.generateContent(
+          { model: current.model, contents: 'concurrent' },
+          'concurrent',
+        ),
+      ).rejects.toMatchObject({ reason: 'conflict' });
+      const independent = await client(authType);
+      await independent.generator.generateContent(
+        { model: independent.model, contents: 'independent' },
+        'independent',
+      );
+      await stream.return(undefined);
+      expect(requests).toHaveLength(2);
+      expect(
+        new Set(requests.map((row) => row.headers['x-o1gw-conversation-id']))
+          .size,
+      ).toBe(2);
+    });
+
     it('retains the identity when continuing one auxiliary operation', async () => {
       const current = await client(authType);
       const operation = createGatewayIndependentRequest('summary');
@@ -827,6 +957,59 @@ describe.each([AuthType.USE_OPENAI, AuthType.USE_ANTHROPIC])(
             row.headers['x-o1gw-conversation-id'] === current.sessionId,
         ),
       ).toBe(true);
+    });
+
+    it('reserves only the current conversation while an account switch is being applied', async () => {
+      const current = await client(authType);
+      let release!: () => void;
+      let entered!: () => void;
+      const switching = new Promise<void>((resolve) => {
+        entered = resolve;
+      });
+      const held = new Promise<void>((resolve) => {
+        release = resolve;
+      });
+      const selection = switchWithGatewayAccountSelection(
+        current.config,
+        { model: current.model },
+        async () => {
+          entered();
+          await held;
+        },
+      );
+      await switching;
+      try {
+        await expect(
+          current.generator.generateContent(
+            { model: current.model, contents: 'racing generation' },
+            'race',
+          ),
+        ).rejects.toMatchObject({ reason: 'conflict' });
+        const other = await client(authType);
+        await other.generator.generateContent(
+          { model: other.model, contents: 'independent' },
+          'other',
+        );
+        await current.generator.generateContent(
+          {
+            model: current.model,
+            contents: 'independent summary',
+            ...{
+              gatewayIndependentRequest:
+                createGatewayIndependentRequest('summary'),
+            },
+          },
+          'summary',
+        );
+      } finally {
+        release();
+        await selection;
+      }
+      await current.generator.generateContent(
+        { model: current.model, contents: 'after selection' },
+        'after',
+      );
+      expect(requests).toHaveLength(3);
     });
 
     it('refuses unadvertised auxiliary capability without blocking the main conversation', async () => {
@@ -943,7 +1126,7 @@ describe.each([AuthType.USE_OPENAI, AuthType.USE_ANTHROPIC])(
       },
     );
 
-    it('refuses changed main system or tool contracts before sending another request', async () => {
+    it('lets the gateway validate changed instructions and tools on the same identity', async () => {
       const current = await client(authType);
       await current.generator.generateContent(
         {
@@ -953,17 +1136,57 @@ describe.each([AuthType.USE_OPENAI, AuthType.USE_ANTHROPIC])(
         },
         'first',
       );
-      await expect(
-        current.generator.generateContent(
-          {
-            model: current.model,
-            contents: 'second',
-            config: { systemInstruction: 'changed-system' },
+      const previousHash = current.records.at(-1)?.contractHash;
+      await current.generator.generateContent(
+        {
+          model: current.model,
+          contents: 'second',
+          config: {
+            systemInstruction: 'changed-system',
+            tools: [{ functionDeclarations: [{ name: 'new_skill_tool' }] }],
           },
-          'second',
-        ),
-      ).rejects.toMatchObject({ reason: 'conflict' });
-      expect(requests).toHaveLength(1);
+        },
+        'second',
+      );
+      expect(requests).toHaveLength(2);
+      expect(current.records.at(-1)?.contractHash).not.toBe(previousHash);
+      expect(requests.at(-1)?.headers['x-o1gw-conversation-id']).toBe(
+        current.sessionId,
+      );
+    });
+
+    it('sends consented cross-provider history without native transfer preparation', async () => {
+      const current = await client(authType);
+      await current.generator.generateContent(
+        { model: current.model, contents: 'opening' },
+        'first',
+      );
+      const destination = 'o1gw/own/claude/7/sonnet';
+      current.settings.model = destination;
+      recordGatewayAccountSelection(current.config, current.model, destination);
+      replyStatus = 403;
+      const request = {
+        model: destination,
+        contents: [
+          { role: 'user', parts: [{ text: 'opening' }] },
+          { role: 'model', parts: [{ text: 'final-marker' }] },
+          { role: 'user', parts: [{ text: 'continue' }] },
+        ],
+      };
+      await expect(
+        current.generator.generateContent(request, 'refused'),
+      ).rejects.toMatchObject({ status: 403 });
+      replyStatus = 200;
+      await current.generator.generateContent(request, 'explicit-next');
+      expect(requests).toHaveLength(3);
+      expect(
+        requests.every((row) => row.path !== '/v1/conversations/transfer'),
+      ).toBe(true);
+      expect(requests.at(-1)?.body['model']).toBe(destination);
+      expect(requests.at(-1)?.headers['x-o1gw-conversation-id']).toBe(
+        current.sessionId,
+      );
+      expect(JSON.stringify(requests.at(-1)?.body)).toContain('final-marker');
     });
 
     it('rejects account and group changes without scoped consent before HTTP', async () => {
@@ -1280,7 +1503,7 @@ describe.each([AuthType.USE_OPENAI, AuthType.USE_ANTHROPIC])(
         'denied',
       );
       await expect(stream.next()).rejects.toMatchObject({
-        reason: 'unavailable',
+        reason: 'authorization',
         status: 403,
       });
       expect(current.records.at(-1)?.phase).toBe('refused');
@@ -1509,7 +1732,7 @@ describe.each([AuthType.USE_OPENAI, AuthType.USE_ANTHROPIC])(
           { model: current.model, contents: 'consented transfer' },
           'transfer',
         ),
-      ).rejects.toMatchObject({ reason: 'unavailable', status: 403 });
+      ).rejects.toMatchObject({ reason: 'authorization', status: 403 });
       expect(requests).toHaveLength(2);
       expect(requests[1].path).toBe('/v1/conversations/transfer');
       expect(confirmed).not.toHaveBeenCalled();

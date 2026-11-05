@@ -8,6 +8,13 @@
 // The key serves as both the translation key and the default English text
 
 export default {
+  'Model selection cancelled.': 'Model selection cancelled.',
+  'The runtime model changed. Reopen the model selector and select it again.':
+    'The runtime model changed. Reopen the model selector and select it again.',
+  "Finish or cancel the current response and pending tools before changing this conversation's model or account.":
+    "Finish or cancel the current response and pending tools before changing this conversation's model or account.",
+  'The conversation or model changed while awaiting authorization. Select the destination again.':
+    'The conversation or model changed while awaiting authorization. Select the destination again.',
   'To continue in this group, we need to send this conversation history to another eligible account. This uses tokens and context on the destination account. Do you authorize?':
     'To continue in this group, we need to send this conversation history to another eligible account. This uses tokens and context on the destination account. Do you authorize?',
   Continuation: 'Continuation',

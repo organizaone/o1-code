@@ -516,6 +516,7 @@ class Session {
         captureMonitorNotifications: false,
         captureMonitorRegistrations: false,
         recoverableCancellation: true,
+        preserveSessionOnError: true,
       });
     } catch (error) {
       debugLogger.error('[Session] Query execution error:', error);
@@ -611,6 +612,7 @@ class Session {
         captureMonitorNotifications: false,
         captureMonitorRegistrations: false,
         recoverableCancellation: true,
+        preserveSessionOnError: true,
         onResultEmitted: () => {
           resultAlreadyEmitted = true;
         },
@@ -683,6 +685,7 @@ class Session {
           captureMonitorNotifications: false,
           captureMonitorRegistrations: false,
           recoverableCancellation: true,
+          preserveSessionOnError: true,
         },
       );
     } finally {

@@ -415,6 +415,7 @@ describe('runNonInteractiveStreamJson', () => {
       expect.objectContaining({
         abortController: expect.any(AbortController),
         adapter: mockOutputAdapter,
+        preserveSessionOnError: true,
       }),
     );
   });

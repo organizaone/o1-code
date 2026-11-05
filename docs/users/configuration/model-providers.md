@@ -716,8 +716,9 @@ Messages and Chat Completions, including its device-code tunnel. It uses the
 session UUID and records continuity state with the existing chat recorder.
 Chat recording must be enabled. Resume a session created with this support to
 retain its identity and selected route; `/new` starts an empty conversation with
-a new identity. An older history without a continuity record cannot be imported
-automatically. Keep it for reference and start a new conversation.
+a new identity. Older or imported histories are supplied as authenticated input
+under the current session identity; a missing local continuity record does not
+erase the history or require a new conversation.
 
 Chat Completions sends standalone runtime reminders separately from the user's
 text, so the gateway can recognize the same observable history after a resume.
@@ -731,8 +732,9 @@ opt-out and tool permissions continue to apply. Deferred-tool discovery uses
 the same declared set for the gateway and the prompt in new conversations,
 including after resume. Older sessions retain their original prompt policy;
 previously recorded tool contracts are not extended retroactively.
-Resume with the same interface and configuration; genuinely changed system
-instructions or tool schemas remain protected by the continuity check.
+Changed instructions and tool schemas are sent to the gateway for validation.
+The updated client-history contract can initialize a fresh native context with
+that input; the client does not reuse another session's native callbacks.
 
 The client verifies `/v1/models` through the selected connection. Account,
 private-account and group routes keep the complete discovered ID as `model`;
@@ -746,10 +748,11 @@ Independent title, summary, compaction and suggestion producers consult
 `/v1/key` for `conversation_operations` version 1 and its supported purposes.
 They use a separate operation ID and provide conversation material as source input,
 not as an authenticated assistant/tool history. Other independent tasks use a
-separate conversation identity. Cache forks of the main gateway history are
-unavailable. Local history replacement, including `/compress-fast` and automatic
-compaction, is refused because the current native continuity contract cannot
-authenticate that replacement. The original history remains available.
+separate conversation identity. Forks receive independent identities and the
+parent's material as explicit source input, without inheriting pending tool
+callbacks. Existing summary, fast and automatic compaction remain available;
+tool calls and results stay paired, and the resulting history becomes input to
+the next gateway request.
 
 Managed memory-agent runs also use an independent identity for each invocation,
 retained across that agent's tool rounds. Prior conversation material becomes
@@ -757,16 +760,20 @@ explicit source input; the agent does not inherit the main conversation's
 authenticated assistant/tool chain. Concurrent memory tasks keep separate IDs
 and restore the parent agent's context when they finish.
 
-Selecting another compatible account for a recorded conversation through
+Explicitly selecting another account for a conversation through
 `/model` asks permission to send the history and consume destination tokens and
-context. Cancel retains the original selection. Authorization applies to the next
-message in this conversation: its serialized body is prepared through
-`/v1/conversations/transfer` immediately before dispatch. The token remains in
-memory, expires within 60 seconds and is dispatched once. The selected account
-changes only after a confirmed response. Private and installation accounts cannot
-be mixed; both provider and native model must match. Groups follow the server's
-advertised continuation policy and confirmation request. A generic 429 never
-authorizes a transfer.
+context. Cancel retains the original selection. Authorization is scoped to this
+conversation and destination configuration. Completed history can initialize a
+fresh context on the explicitly selected authorized account, including changes
+of native model, provider or account type. Pending tools or a generation still
+in progress must finish before changing the destination; other sessions remain
+independent.
+
+Native transfer is separate: `/v1/conversations/transfer` prepares the exact
+request with a short-lived, single-use token and retains its same-provider,
+same-native-model and verified-completion requirements. Groups continue to
+follow the server's advertised policy and confirmation request. A generic 429
+never authorizes account fallback.
 
 Continuity conflicts, timeouts and stream failures stop without replaying the
 request, replacing its identity or choosing another account. A later explicit
@@ -781,6 +788,21 @@ execution stopped. Starting a new empty conversation is a separate action.
 Gateway restart recovery
 with pending tools, abrupt process loss or changed Copilot credentials remains
 subject to the server's documented limitations.
+
+Server refusals retain their safe message, status and code when supplied,
+including streamed refusals. HTTP 409 alone does not mean account ownership
+failed. Some gateway stream adapters omit specific codes or statuses; the client
+cannot reconstruct missing fields and does not invent them. These recovery,
+selection and compaction behaviors require the gateway's authenticated
+client-history contract, published in gateway 11.5.5; an older deployed gateway
+can still refuse them.
+
+Persistent stream-json sessions keep their recorder and writer ownership after
+a failed turn. The error is reported once, and a later explicit request uses the
+same conversation; process cleanup runs when the session actually closes.
+If a headless turn is interrupted after tool results are finalized, those
+results remain in live history as well as the recording. Missing results stay
+unknown; they do not authorize repeating an operation automatically.
 
 Use gateway 11.4.1 or newer for live Copilot model/effort changes with runtime
 reminders; that version corrects verified-history replay for this transition.

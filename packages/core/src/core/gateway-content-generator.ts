@@ -21,18 +21,18 @@ import type {
 } from './contentGenerator.js';
 import type { GatewayConversationRecordPayload } from '../services/chatRecordingService.js';
 import { getCurrentAgentId } from '../agents/runtime/agent-context.js';
-import { isInForkExecution } from '../tools/agent/fork-subagent.js';
 import { fetchKeyInfo } from '../providers/organizaone-limits.js';
 import {
   GatewayConversationError,
   gatewayRequestScope,
   isGatewayIdentifier,
+  normalizeGatewayEndpoint,
+  isGatewayConversationActive,
+  reserveGatewayConversation,
   type GatewayGenerateRequest,
   type GatewayRequestScope,
 } from '../providers/gateway-request.js';
-import { getErrorStatus, isAbortError } from '../utils/errors.js';
-import { getErrorHeader } from '../utils/retryPolicy.js';
-import { getRateLimitErrorDetails } from '../utils/rateLimit.js';
+import { gatewayFailure } from '../providers/gateway-errors.js';
 import { AuthType } from '../utils/auth-type.js';
 import { isSystemReminderContent } from './environmentContext.js';
 import { ToolNames } from '../tools/tool-names.js';
@@ -41,6 +41,8 @@ import {
   confirmGatewayTransfer,
   isGatewayAccountChange,
   assertGatewayTransferCompatible,
+  getGatewayAccountSelection,
+  isGatewayAccountSelectionInProgress,
 } from '../providers/gateway-transfer.js';
 
 interface ConversationState {
@@ -50,9 +52,9 @@ interface ConversationState {
 const states = new WeakMap<Config, Map<string, ConversationState>>();
 
 function endpointOf(config: ContentGeneratorConfig): string {
-  return (config.reasoningRouteBaseUrl || config.baseUrl || '')
-    .replace(/\/+$/, '')
-    .replace(/\/v1$/, '');
+  return normalizeGatewayEndpoint(
+    config.reasoningRouteBaseUrl || config.baseUrl || '',
+  );
 }
 
 export class GatewayContentGenerator implements ContentGenerator {
@@ -155,7 +157,7 @@ export class GatewayContentGenerator implements ContentGenerator {
         return (
           payload?.conversationId === id &&
           payload.actor === actor &&
-          payload.endpoint === endpoint
+          normalizeGatewayEndpoint(payload.endpoint) === endpoint
         );
       })?.systemPayload as GatewayConversationRecordPayload | undefined;
       state = { record, busy: false };
@@ -212,37 +214,19 @@ export class GatewayContentGenerator implements ContentGenerator {
         finish: async () => {},
       };
     }
-    if (isInForkExecution())
-      throw new GatewayConversationError(
-        'unsupported',
-        'This gateway cannot authenticate a fork of an existing conversation. Start an independent agent with empty history.',
-      );
-    if (state.busy)
+    if (
+      state.busy ||
+      (actor === 'main' &&
+        (isGatewayAccountSelectionInProgress(this.config) ||
+          isGatewayConversationActive(this.config, id)))
+    )
       throw new GatewayConversationError(
         'conflict',
-        'This conversation already has a request in progress. Wait for it to finish.',
+        'This conversation has a request or account selection in progress. Wait for it to finish.',
       );
     // A prior interruption is not proof of the gateway's current state. A new
     // explicit call keeps this identity/history and is validated by the gateway;
     // uncertain failures remain fail-fast and never schedule a replay here.
-    const contents = Array.isArray(request.contents)
-      ? request.contents
-      : [request.contents];
-    if (
-      !state.record &&
-      contents.some(
-        (content) =>
-          typeof content === 'object' &&
-          content !== null &&
-          'role' in content &&
-          content.role === 'model',
-      )
-    ) {
-      throw new GatewayConversationError(
-        'legacy',
-        'This history has no recorded gateway conversation identity. It cannot be resumed or imported automatically. Keep it for reference and start a new empty conversation with /new.',
-      );
-    }
     const previous = state.record;
     const contractHash = createHash('sha256')
       .update(
@@ -252,12 +236,7 @@ export class GatewayContentGenerator implements ContentGenerator {
         ]),
       )
       .digest('hex');
-    if (previous?.contractHash && previous.contractHash !== contractHash) {
-      throw new GatewayConversationError(
-        'conflict',
-        'System instructions or tool schemas changed during this gateway conversation. Its authenticated history cannot be replayed with that change. Keep the history and start a new empty conversation with /new to use the new configuration.',
-      );
-    }
+    const selection = getGatewayAccountSelection(this.config);
     const transfer =
       actor === 'main' ? takeGatewayTransfer(this.config) : undefined;
     if (transfer) {
@@ -290,12 +269,13 @@ export class GatewayContentGenerator implements ContentGenerator {
         };
     } else if (
       previous &&
-      isGatewayAccountChange(previous.model, request.model)
+      isGatewayAccountChange(previous.model, request.model) &&
+      selection?.destinationModel !== request.model
     ) {
       state.busy = false;
       throw new GatewayConversationError(
         'unsupported',
-        'Select the destination through /model and explicitly authorize this conversation transfer. The history was not sent to another account.',
+        'Select the destination through /model and authorize sending this conversation history. The history was not sent to another account.',
       );
     }
     const record: GatewayConversationRecordPayload = {
@@ -319,6 +299,8 @@ export class GatewayContentGenerator implements ContentGenerator {
     };
     const recorder = this.config.getChatRecordingService();
     state.busy = true;
+    const release =
+      actor === 'main' ? reserveGatewayConversation(this.config, id) : () => {};
     try {
       if (!recorder && actor === 'main')
         throw new GatewayConversationError(
@@ -329,6 +311,7 @@ export class GatewayContentGenerator implements ContentGenerator {
       state.record = record;
     } catch (error) {
       state.busy = false;
+      release();
       throw error;
     }
     let finished = false;
@@ -356,6 +339,7 @@ export class GatewayContentGenerator implements ContentGenerator {
           ? {
               confirmGroupTransfer: (signal: AbortSignal | undefined) =>
                 confirmGatewayTransfer(this.config, {
+                  purpose: 'group-transfer',
                   source: request.model,
                   destination: 'another eligible group account',
                   signal,
@@ -395,82 +379,17 @@ export class GatewayContentGenerator implements ContentGenerator {
           }
         } finally {
           state.busy = false;
+          release();
         }
       },
     };
   }
 
   private failure(error: unknown): GatewayConversationError {
-    if (error instanceof GatewayConversationError) return error;
-    let cause = error;
-    for (let depth = 0; depth < 5 && cause instanceof Error; depth++) {
-      if (cause instanceof GatewayConversationError) return cause;
-      cause = cause.cause;
-    }
-    if (isAbortError(error))
-      return new GatewayConversationError(
-        'cancelled',
-        'The gateway request was cancelled. Remote execution is not confirmed; no request was replayed or moved to another account.',
-      );
-    const status = getErrorStatus(error);
-    const headers = new Headers();
-    for (const name of [
-      'x-o1gw-device-state',
-      'retry-after',
-      'x-o1gw-limit',
-      'x-o1gw-limit-reset',
-    ]) {
-      const value = getErrorHeader(error, name);
-      if (value) headers.set(name, value);
-    }
-    const details = {
-      status,
-      headers,
-      providerCode: getRateLimitErrorDetails(error).providerCode,
-    };
-    if (
-      status === 409 ||
-      (!status &&
-        [
-          'conversation_unavailable',
-          'transfer_unavailable',
-          'conversation_transfer_required',
-        ].includes(details.providerCode ?? ''))
-    )
-      return new GatewayConversationError(
-        'conflict',
-        'The gateway refused continuity or account ownership for this conversation. The history and account are preserved. No automatic retry was made.',
-        details,
-      );
-    if (status === 401 || status === 403)
-      return new GatewayConversationError(
-        'unavailable',
-        'The gateway refused authorization for the selected account or device. Reconnect the provider; no other account was selected.',
-        details,
-      );
-    if (
-      status === 429 ||
-      (!status &&
-        ['rate_limit_exceeded', 'rate_limit_error'].includes(
-          details.providerCode ?? '',
-        ))
-    )
-      return new GatewayConversationError(
-        'unavailable',
-        `The selected account reached a gateway limit. No account transfer was authorized by this response.${headers.get('retry-after') ? ` Retry-After: ${headers.get('retry-after')}.` : ' Try again after its reset.'}`,
-        details,
-      );
-    if (status && status >= 400 && status < 500 && status !== 408)
-      return new GatewayConversationError(
-        'unavailable',
-        `The gateway refused the request (HTTP ${status}). Your history is preserved.`,
-        details,
-      );
-    return new GatewayConversationError(
-      'uncertain',
-      'The gateway request did not complete with a confirmed result. Execution may have started. Your history is preserved; the request was not replayed or moved to another account.',
-      details,
-    );
+    return gatewayFailure(error, [
+      this.generatorConfig.apiKey ?? '',
+      ...Object.values(this.generatorConfig.customHeaders ?? {}),
+    ]);
   }
 
   async generateContent(

@@ -6,7 +6,11 @@
 // @vitest-environment jsdom
 
 import { describe, expect, it, vi } from 'vitest';
-import { InputFormat } from '@organizaone/o1-code-core';
+import { InputFormat, AuthType } from '@organizaone/o1-code-core';
+import type { ContentGeneratorConfig } from '@organizaone/o1-code-core/core/contentGenerator.js';
+import type { AvailableModel } from '@organizaone/o1-code-core/models/types.js';
+import type { Content } from '@google/genai';
+import { getGatewayAccountSelection } from '@organizaone/o1-code-core/providers/gateway-transfer.js';
 import { createMinimalSettings } from '../../../config/settings.js';
 import { getAvailableCommands } from '../../../nonInteractiveCliCommands.js';
 import { CommandKind } from '../../../ui/commands/types.js';
@@ -79,6 +83,210 @@ function createRegistry(): IPendingRequestRegistry {
 }
 
 describe('SystemController', () => {
+  function gatewaySelection() {
+    const source = 'o1gw/account/copilot/2/auto';
+    const destination = 'o1gw/own/claude/7/sonnet';
+    let sessionId = 'conversation-a';
+    let active = false;
+    const current: ContentGeneratorConfig = {
+      model: source,
+      authType: AuthType.USE_ANTHROPIC,
+      baseUrl: 'https://gateway.example/v1',
+      connection: 'o1-connect',
+    };
+    const history: Content[] = [
+      { role: 'model', parts: [{ text: 'completed' }] },
+    ];
+    const catalog: AvailableModel[] = [
+      {
+        id: destination,
+        label: destination,
+        authType: AuthType.USE_OPENAI,
+        baseUrl: current.baseUrl,
+      },
+    ];
+    const config = {
+      ...createContext().config,
+      getSessionId: () => sessionId,
+      getContentGeneratorConfig: () => current,
+      getLlmClient: () => ({ getHistoryShallow: () => history }),
+      getAllConfiguredModels: () => catalog,
+      switchModel: vi.fn(async (authType, model) => {
+        current.model = model;
+        current.authType = authType;
+      }),
+    } as unknown as IControlContext['config'];
+    const context = createContext({
+      config,
+      getActiveTurnAbortSignal: () =>
+        active ? new AbortController().signal : undefined,
+    });
+    const controller = new SystemController(
+      context,
+      createRegistry(),
+      'SystemController',
+    );
+    return {
+      source,
+      destination,
+      current,
+      history,
+      catalog,
+      config,
+      controller,
+      changeSession: () => {
+        sessionId = 'conversation-b';
+      },
+      setActive: () => {
+        active = true;
+      },
+    };
+  }
+
+  it('asks for one-time history consent before switching a configured account', async () => {
+    const { source, destination, config, controller } = gatewaySelection();
+    const pending = await controller.handleRequest(
+      { subtype: 'set_model', model: destination },
+      'ask',
+    );
+    expect(pending).toMatchObject({
+      requires_confirmation: true,
+      session_id: 'conversation-a',
+      source_model: source,
+      destination_model: destination,
+      destination_base_url: 'https://gateway.example/v1',
+      destination_auth_type: AuthType.USE_OPENAI,
+    });
+    expect(pending['message']).toContain('tokens and context');
+    expect(config.switchModel).not.toHaveBeenCalled();
+    const confirmation_id = String(pending['confirmation_id']);
+    const request = {
+      subtype: 'set_model' as const,
+      model: destination,
+      history_consent: { confirmation_id, confirmed: true },
+    };
+    await expect(
+      controller.handleRequest(request, 'accept'),
+    ).resolves.toMatchObject({ model: destination });
+    expect(config.switchModel).toHaveBeenCalledWith(
+      AuthType.USE_OPENAI,
+      destination,
+      { baseUrl: 'https://gateway.example/v1' },
+    );
+    expect(getGatewayAccountSelection(config)).toMatchObject({
+      sourceModel: source,
+      destinationModel: destination,
+    });
+    await expect(controller.handleRequest(request, 'replay')).rejects.toThrow(
+      'authorization expired or changed',
+    );
+    expect(config.switchModel).toHaveBeenCalledOnce();
+  });
+
+  it.each([
+    'cancel',
+    'session',
+    'source',
+    'destination',
+    'destination-endpoint',
+    'destination-auth',
+    'destination-env',
+    'destination-credential',
+    'busy',
+    'pending-tool',
+  ])('keeps the source when consent cannot be used: %s', async (scenario) => {
+    const fixture = gatewaySelection();
+    const { controller, config, destination, source } = fixture;
+    const pending = await controller.handleRequest(
+      { subtype: 'set_model', model: destination },
+      'ask',
+    );
+    if (scenario === 'session') fixture.changeSession();
+    if (scenario === 'source')
+      fixture.current.apiKey = 'changed-disposable-key';
+    if (scenario === 'destination-endpoint')
+      fixture.catalog[0].baseUrl = 'https://another-gateway.example/v1';
+    if (scenario === 'destination-auth')
+      fixture.catalog[0].authType = AuthType.USE_ANTHROPIC;
+    if (scenario === 'destination-env')
+      fixture.catalog[0].envKey = 'CHANGED_DISPOSABLE_KEY';
+    if (scenario === 'destination-credential')
+      fixture.catalog[0].credential = 'changed-disposable-credential';
+    if (scenario === 'busy') fixture.setActive();
+    if (scenario === 'pending-tool')
+      fixture.history.push({
+        role: 'model',
+        parts: [{ functionCall: { id: 'pending', name: 'shell', args: {} } }],
+      });
+    const request = {
+      subtype: 'set_model' as const,
+      model:
+        scenario === 'destination' ? 'o1gw/own/claude/8/sonnet' : destination,
+      history_consent: {
+        confirmation_id: String(pending['confirmation_id']),
+        confirmed: scenario !== 'cancel',
+      },
+    };
+    if (scenario === 'cancel')
+      await expect(
+        controller.handleRequest(request, 'respond'),
+      ).resolves.toMatchObject({ cancelled: true, model: source });
+    else
+      await expect(
+        controller.handleRequest(request, 'respond'),
+      ).rejects.toThrow();
+    expect(config.switchModel).not.toHaveBeenCalled();
+    expect(getGatewayAccountSelection(config)).toBeUndefined();
+  });
+
+  it('requires consent for user-only history after a refused request', async () => {
+    const { controller, config, destination, history } = gatewaySelection();
+    history.splice(0, history.length, {
+      role: 'user',
+      parts: [{ text: 'first request was refused' }],
+    });
+    await expect(
+      controller.handleRequest(
+        { subtype: 'set_model', model: destination },
+        'ask',
+      ),
+    ).resolves.toMatchObject({ requires_confirmation: true });
+    expect(config.switchModel).not.toHaveBeenCalled();
+  });
+
+  it.each([false, true])(
+    'resolves duplicate route IDs only with an exact current endpoint and auth match: %s',
+    async (matchesCurrent) => {
+      const { controller, config, current, destination, catalog } =
+        gatewaySelection();
+      catalog.unshift({
+        ...catalog[0],
+        baseUrl: 'https://another-gateway.example/v1',
+      });
+      if (matchesCurrent) {
+        current.authType = AuthType.USE_OPENAI;
+        catalog[1].baseUrl = 'https://GATEWAY.example:443/v1/';
+        await expect(
+          controller.handleRequest(
+            { subtype: 'set_model', model: destination },
+            'ask',
+          ),
+        ).resolves.toMatchObject({
+          requires_confirmation: true,
+          destination_base_url: catalog[1].baseUrl,
+        });
+      } else {
+        await expect(
+          controller.handleRequest(
+            { subtype: 'set_model', model: destination },
+            'ask',
+          ),
+        ).rejects.toThrow('multiple configured destinations');
+      }
+      expect(config.switchModel).not.toHaveBeenCalled();
+    },
+  );
+
   it('loads supported commands with the session settings for Skill registration', async () => {
     const context = createContext();
     const controller = new SystemController(

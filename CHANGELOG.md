@@ -7,6 +7,19 @@ follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.23.3] - 2026-11-05
+
+### Fixed
+
+- Gateway conversations can resume supplied history, change instructions or tools, and use existing compaction without a local immutable-history veto. Independent forks retain separate identities and do not inherit native tool callbacks.
+- Explicit gateway account selection sends history as new authorized input with conversation-scoped consent, independently of native transfer compatibility. Server refusals retain their safe message and available diagnostic fields.
+- Persistent stream-json sessions retain their recording ownership after a failed request, allowing an explicit next turn instead of failing locally with a session writer ownership error.
+- Interrupted headless tool rounds retain finalized results in live history without repeating completed operations. Missing results are treated as unknown outcomes and no longer instruct the model to retry automatically.
+
+### Known limitations
+
+- Continuing with a new user instruction after a cancelled tool still requires a gateway-side Codex correction. The client preserves and sends both the cancelled result and the new instruction; this release does not include that server correction.
+
 ## [0.23.2] - 2026-11-05
 
 ### Fixed

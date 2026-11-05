@@ -392,6 +392,7 @@ export interface CLIControlMcpMessageRequest {
 export interface CLIControlSetModelRequest {
   subtype: 'set_model';
   model: string;
+  history_consent?: { confirmation_id: string; confirmed: boolean };
 }
 
 export interface CLIControlMcpStatusRequest {

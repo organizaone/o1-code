@@ -2953,8 +2953,6 @@ export class LlmClient {
     lastCompletionTimestamp: number | null,
     opts?: MicrocompactOptions,
   ): Promise<boolean> {
-    if (reachesOrganizaOne(this.config.getContentGeneratorConfig?.()))
-      return false;
     try {
       const projectRoot = this.config.getProjectRoot();
       const targetDir = this.config.getTargetDir?.() ?? projectRoot;

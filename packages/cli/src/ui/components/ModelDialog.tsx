@@ -49,14 +49,8 @@ import {
 } from '../voice/voice-model.js';
 import { reachesOrganizaOne } from '@organizaone/o1-code-core/providers/presets/organizaone.js';
 import { ModelListEditDialog } from '../auth/ModelListEditDialog.js';
-import type { HistoryItemWithoutId } from '../types.js';
-import {
-  assertGatewayTransferCompatible,
-  confirmGatewayTransfer,
-  gatewayTransferFingerprint,
-  isGatewayAccountChange,
-  stageGatewayTransfer,
-} from '@organizaone/o1-code-core/providers/gateway-transfer.js';
+import { StreamingState, type HistoryItemWithoutId } from '../types.js';
+import { switchWithGatewayAccountSelection } from '@organizaone/o1-code-core/providers/gateway-transfer.js';
 
 function gatewayModelLabel(model: CoreAvailableModel): string {
   const gateway = model.capabilities?.gateway;
@@ -331,6 +325,8 @@ export function ModelDialog({
 }: ModelDialogProps): React.JSX.Element {
   const config = useContext(ConfigContext);
   const uiState = useContext(UIStateContext);
+  const currentUIState = useRef(uiState);
+  currentUIState.current = uiState;
   const settings = useSettings();
 
   // Local error state for displaying errors within the dialog
@@ -1057,98 +1053,64 @@ export function ModelDialog({
 
         let selectedAuthType: AuthType;
         let modelId: string;
+        let selectedModelId: string;
 
         let selectedBaseUrl: string | undefined;
         if (isRuntime) {
-          // For runtime models, extract authType from the snapshot ID
-          // Format: $runtime|${authType}|${modelId}
-          const parts = selected.split('|');
-          if (parts.length >= 2 && parts[0] === '$runtime') {
-            selectedAuthType = parts[1] as AuthType;
-          } else {
-            selectedAuthType = authType as AuthType;
-          }
+          const snapshot = config.getActiveRuntimeModelSnapshot();
+          if (!snapshot || snapshot.id !== selected)
+            throw new Error(
+              'The runtime model changed. Reopen the model selector and select it again.',
+            );
+          selectedAuthType = snapshot.authType;
+          selectedModelId = snapshot.modelId;
+          selectedBaseUrl = snapshot.baseUrl;
           modelId = selected; // Pass the full snapshot ID to switchModel
         } else {
           const parsed = parseModelSelectionKey(selected);
           selectedAuthType = (parsed.authType || authType) as AuthType;
           modelId = parsed.modelId;
+          selectedModelId = modelId;
           selectedBaseUrl = parsed.baseUrl;
-        }
-
-        const before = config.getContentGeneratorConfig();
-        if (
-          reachesOrganizaOne(before) &&
-          isGatewayAccountChange(before.model, modelId) &&
-          config
-            .getLlmClient()
-            .getHistoryShallow()
-            .some((content) => content.role === 'model')
-        ) {
-          assertGatewayTransferCompatible(before.model, modelId);
-          const normalizeEndpoint = (url: string | undefined) =>
-            url?.replace(/\/+$/, '').replace(/\/v1$/, '');
-          if (
-            selectedAuthType !== before.authType ||
-            normalizeEndpoint(selectedBaseUrl) !==
-              normalizeEndpoint(before.reasoningRouteBaseUrl ?? before.baseUrl)
-          )
-            throw new Error(
-              t(
-                'A conversation transfer must keep the same gateway and protocol.',
-              ),
-            );
-          selectionInFlightRef.current = true;
-          let confirmed: boolean;
-          try {
-            confirmed = await confirmGatewayTransfer(config, {
-              source: before.model,
-              destination: selectedEntry
-                ? gatewayModelLabel(selectedEntry.model)
-                : modelId,
-            });
-          } finally {
-            selectionInFlightRef.current = false;
-          }
-          if (!confirmed) return;
-          stageGatewayTransfer(config, {
-            sessionId: config.getSessionId(),
-            sourceModel: before.model,
-            destinationModel: modelId,
-            sourceFingerprint: gatewayTransferFingerprint(before),
-            onConfirmed: async () => {
-              await config.switchModel(selectedAuthType, modelId, {
-                baseUrl: selectedBaseUrl,
-              });
-              persistModelSelection(
-                settings,
-                modelId,
-                selectedBaseUrl,
-                persistScope,
-              );
-              persistAuthTypeSelection(
-                settings,
-                selectedAuthType,
-                persistScope,
-              );
-            },
-          });
-          reportAuxiliaryModelSelection({
-            type: 'info',
-            text: t(
-              'Transfer authorized for the next message. The current account stays selected until confirmation.',
-            ),
-          });
-          closeLatchRef.current = true;
-          onClose();
-          return;
         }
 
         selectionInFlightRef.current = true;
         try {
-          await config.switchModel(selectedAuthType, modelId, {
-            baseUrl: selectedBaseUrl,
-          });
+          const switched = await switchWithGatewayAccountSelection(
+            config,
+            {
+              model: selectedModelId,
+              authType: selectedAuthType,
+              baseUrl: selectedBaseUrl,
+              label: selectedEntry
+                ? gatewayModelLabel(selectedEntry.model)
+                : modelId,
+            },
+            () => {
+              if (isRuntime) {
+                const snapshot = config.getActiveRuntimeModelSnapshot();
+                if (
+                  !snapshot ||
+                  snapshot.id !== modelId ||
+                  snapshot.modelId !== selectedModelId ||
+                  snapshot.authType !== selectedAuthType ||
+                  snapshot.baseUrl !== selectedBaseUrl
+                )
+                  throw new Error(
+                    'The runtime model changed. Reopen the model selector and select it again.',
+                  );
+              }
+              return config.switchModel(selectedAuthType, modelId, {
+                baseUrl: selectedBaseUrl,
+              });
+            },
+            {
+              isBusy: () =>
+                currentUIState.current?.streamingState !== undefined &&
+                currentUIState.current.streamingState !== StreamingState.Idle,
+            },
+          );
+          if (!switched) return;
           selectionCommittedRef.current = true;
         } finally {
           selectionInFlightRef.current = false;
@@ -1165,7 +1127,7 @@ export function ModelDialog({
         effectiveAuthType = after?.authType ?? selectedAuthType ?? authType;
         effectiveModelId = after?.model ?? modelId;
       } catch (e) {
-        const baseErrorMessage = e instanceof Error ? e.message : String(e);
+        const baseErrorMessage = e instanceof Error ? t(e.message) : String(e);
         // Use parsed modelId for display to avoid showing raw selection key
         // (which contains invisible \0 separator between modelId and baseUrl)
         const displayModelId = isRuntime
