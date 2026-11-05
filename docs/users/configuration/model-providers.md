@@ -757,7 +757,7 @@ explicit source input; the agent does not inherit the main conversation's
 authenticated assistant/tool chain. Concurrent memory tasks keep separate IDs
 and restore the parent agent's context when they finish.
 
-For a completed conversation, selecting another compatible account through
+Selecting another compatible account for a recorded conversation through
 `/model` asks permission to send the history and consume destination tokens and
 context. Cancel retains the original selection. Authorization applies to the next
 message in this conversation: its serialized body is prepared through
@@ -769,9 +769,16 @@ advertised continuation policy and confirmation request. A generic 429 never
 authorizes a transfer.
 
 Continuity conflicts, timeouts and stream failures stop without replaying the
-request, replacing its identity or choosing another account. An uncertain request
-also prevents further dispatch on that identity until continuity can be proven;
-starting a new empty conversation is a separate action. Gateway restart recovery
+request, replacing its identity or choosing another account. A later explicit
+request retains the same identity and history and reaches the gateway, which
+validates continuity, ownership and any authorized account transfer. Local
+`pending` or `uncertain` metadata does not permanently block that attempt.
+A valid terminal response remains complete when the consumer closes before EOF;
+text or a tool call alone does not prove completion. Known request refusals stay
+distinct from uncertain execution. Cancellation before dispatch sends nothing;
+cancellation after dispatch records the interruption without claiming remote
+execution stopped. Starting a new empty conversation is a separate action.
+Gateway restart recovery
 with pending tools, abrupt process loss or changed Copilot credentials remains
 subject to the server's documented limitations.
 

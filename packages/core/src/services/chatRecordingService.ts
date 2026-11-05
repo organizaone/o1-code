@@ -635,6 +635,8 @@ export interface GatewayConversationRecordPayload {
   model: string;
   actor: string;
   phase: 'pending' | 'complete' | 'refused' | 'uncertain';
+  /** Cancellation describes client intent, not confirmed remote termination. */
+  interruption?: 'cancelled' | 'consumer_closed';
   contractHash?: string;
   /** Present only when the authenticated request declared the Workflow tool. */
   workflowToolDeclared?: true;

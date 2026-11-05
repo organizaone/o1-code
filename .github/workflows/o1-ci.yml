@@ -222,6 +222,22 @@ jobs:
       - name: 'Inherited script tests'
         run: 'npm run test:scripts'
 
+      - name: 'Gateway continuity regressions'
+        working-directory: 'packages/core'
+        run: 'npx vitest run --coverage.enabled=false --maxWorkers 1 src/core/gateway-content-generator.test.ts'
+
+      - name: 'Update command regressions'
+        working-directory: 'packages/cli'
+        run: >-
+          npx vitest run --coverage.enabled=false --maxWorkers 1
+          src/commands/update.test.ts
+          src/ui/commands/update-command.test.ts
+          src/utils/installationInfo.test.ts
+          src/ui/handleAutoUpdate.test.ts
+          src/utils/managed-npm-update.test.ts
+          src/ui/utils/updateCheck.test.ts
+          src/ui/hooks/use-application-update.test.ts
+
   # Web Shell unit tests and the smoke scripts consume the bundle from the
   # build job instead of building it again.
 

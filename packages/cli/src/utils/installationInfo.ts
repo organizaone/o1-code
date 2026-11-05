@@ -97,7 +97,7 @@ export function formatUpdateInstructions(
   }
 
   if (installationInfo.updateCommand) {
-    const updateCmd = resolveUpdateCommand(
+    const updateCmd = resolveUpdateChannel(
       installationInfo.updateCommand,
       latestVersion,
     );
@@ -113,7 +113,7 @@ function formatUpdateMessage(
   updateMessage: string,
   latestVersion: string,
 ): string[] {
-  const message = resolveUpdateCommand(updateMessage, latestVersion);
+  const message = resolveUpdateChannel(updateMessage, latestVersion);
 
   const sudoPrefix = 'Update requires sudo. Please run: ';
   if (message.startsWith(sudoPrefix)) {
@@ -124,6 +124,12 @@ function formatUpdateMessage(
   }
 
   return [message];
+}
+
+function resolveUpdateChannel(command: string, latestVersion: string): string {
+  return latestVersion.includes('nightly')
+    ? command.replace('@latest', '@nightly')
+    : command;
 }
 
 export interface InstallationInfo {

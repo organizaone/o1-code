@@ -23,31 +23,6 @@ const checkForUpdatesDetailed = vi.fn();
 const relaunchForUpdate = vi.fn();
 const performStandaloneUpdate = vi.fn();
 const getInstallationInfo = vi.fn();
-const resolveUpdateCommand = vi.fn(
-  (updateCommand: string, latestVersion: string) =>
-    updateCommand.replace('@latest', `@${latestVersion}`),
-);
-const formatUpdateInstructions = vi.fn(
-  (
-    installationInfo: {
-      updateMessage?: string;
-      updateCommand?: string;
-      isStandalone?: boolean;
-    },
-    latestVersion: string,
-  ) => {
-    if (installationInfo.updateMessage && !installationInfo.updateCommand) {
-      return [installationInfo.updateMessage];
-    }
-    if (installationInfo.updateCommand) {
-      return [
-        'Run the following to update:',
-        `  ${resolveUpdateCommand(installationInfo.updateCommand, latestVersion)}`,
-      ];
-    }
-    return ['Manual update required. Please reinstall O1-Code.'];
-  },
-);
 vi.mock('../utils/updateCheck.js', async (importOriginal) => ({
   ...(await importOriginal<typeof import('../utils/updateCheck.js')>()),
   checkForUpdatesDetailed,
@@ -60,10 +35,9 @@ vi.mock('../../utils/processUtils.js', () => ({
 vi.mock('../standalone-update.js', () => ({
   performStandaloneUpdate,
 }));
-vi.mock('../../utils/installationInfo.js', () => ({
-  formatUpdateInstructions,
+vi.mock('../../utils/installationInfo.js', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../../utils/installationInfo.js')>()),
   getInstallationInfo,
-  resolveUpdateCommand,
 }));
 const { updateCommand } = await import('./update-command.js');
 
@@ -136,7 +110,7 @@ describe('updateCommand', () => {
       type: 'message',
       messageType: 'info',
       content:
-        'Update available: 1.2.3\nRun the following to update:\n  npm install -g @organizaone/o1-code@1.2.3',
+        'Update available: 1.2.3\nRun the following to update:\n  npm install -g @organizaone/o1-code@latest',
     });
     expect(relaunchForUpdate).not.toHaveBeenCalled();
     expect(receiveUpdate).not.toHaveBeenCalled();
@@ -237,7 +211,7 @@ describe('updateCommand', () => {
       type: 'message',
       messageType: 'info',
       content:
-        'Update available: 1.2.3\nRun the following to update:\n  npm install -g @organizaone/o1-code@1.2.3',
+        'Update available: 1.2.3\nRun the following to update:\n  npm install -g @organizaone/o1-code@latest',
     });
     expect(receiveUpdate).not.toHaveBeenCalled();
   });
