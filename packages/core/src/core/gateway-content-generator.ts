@@ -530,6 +530,27 @@ export class GatewayContentGenerator implements ContentGenerator {
       let phase: GatewayConversationRecordPayload['phase'] = 'uncertain';
       let failed = false;
       let interruption: GatewayConversationRecordPayload['interruption'];
+      const finishStream = async () => {
+        try {
+          await gatewayRequestScope.run(turn.scope, () =>
+            stream.return(undefined),
+          );
+        } catch (error) {
+          if (!failed && phase !== 'complete') {
+            const classified = failure(error);
+            phase =
+              classified.reason === 'uncertain' ||
+              classified.reason === 'cancelled'
+                ? 'uncertain'
+                : 'refused';
+            interruption =
+              classified.reason === 'cancelled' ? 'cancelled' : undefined;
+            throw classified;
+          }
+        } finally {
+          await turn.finish(phase, interruption);
+        }
+      };
       try {
         while (true) {
           if (phase !== 'complete') checkCancellation();
@@ -579,25 +600,7 @@ export class GatewayContentGenerator implements ContentGenerator {
           interruption = request.config?.abortSignal?.aborted
             ? 'cancelled'
             : 'consumer_closed';
-        try {
-          await gatewayRequestScope.run(turn.scope, () =>
-            stream.return(undefined),
-          );
-        } catch (error) {
-          if (!failed && phase !== 'complete') {
-            const classified = failure(error);
-            phase =
-              classified.reason === 'uncertain' ||
-              classified.reason === 'cancelled'
-                ? 'uncertain'
-                : 'refused';
-            interruption =
-              classified.reason === 'cancelled' ? 'cancelled' : undefined;
-            throw classified;
-          }
-        } finally {
-          await turn.finish(phase, interruption);
-        }
+        await finishStream();
       }
     })();
     let started = false;

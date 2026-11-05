@@ -1264,8 +1264,11 @@ describe.each([AuthType.USE_OPENAI, AuthType.USE_ANTHROPIC])(
       const current = await client(authType);
       const upstream =
         (async function* (): AsyncGenerator<GenerateContentResponse> {
-          throw Object.assign(new Error('confirmed denial'), { status: 403 });
+          yield new GenerateContentResponse();
         })();
+      upstream.next = async () => {
+        throw Object.assign(new Error('confirmed denial'), { status: 403 });
+      };
       upstream.return = async () => {
         throw new Error('secondary cleanup failure');
       };
