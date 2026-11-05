@@ -24,12 +24,16 @@ import { DescriptiveRadioButtonSelect } from './shared/DescriptiveRadioButtonSel
 import { ConfigContext } from '../contexts/ConfigContext.js';
 import { SettingsContext } from '../contexts/SettingsContext.js';
 import { UIStateContext, type UIState } from '../contexts/UIStateContext.js';
+import { StreamingState } from '../types.js';
 import type { Config } from '@organizaone/o1-code-core';
+import type { Content } from '@google/genai';
+import type { ContentGeneratorConfig } from '@organizaone/o1-code-core/core/contentGenerator.js';
 import { AuthType, DEFAULT_O1CODE_MODEL } from '@organizaone/o1-code-core';
 import type { LoadedSettings } from '../../config/settings.js';
 import { SettingScope } from '../../config/settings.js';
 import {
   registerGatewayTransferConfirmation,
+  getGatewayAccountSelection,
   takeGatewayTransfer,
 } from '@organizaone/o1-code-core/providers/gateway-transfer.js';
 
@@ -86,6 +90,7 @@ const renderComponent = (
   props: Partial<React.ComponentProps<typeof ModelDialog>> = {},
   contextValue: Partial<Config> | undefined = undefined,
   settingsValue: Partial<LoadedSettings> | undefined = undefined,
+  uiStateValue: Partial<UIState> = {},
 ) => {
   const defaultProps = {
     onClose: vi.fn(),
@@ -137,8 +142,6 @@ const renderComponent = (
     ...(contextValue ?? {}),
   } as unknown as Config;
 
-  // ModelDialog only reads historyManager off the UI state; mock just that so
-  // selection notices (e.g. the non-image-capable vision warning) are assertable.
   const mockHistoryManager = {
     addItem: vi.fn(),
   } as unknown as UIState['historyManager'];
@@ -147,7 +150,9 @@ const renderComponent = (
     <SettingsContext.Provider value={mockSettings}>
       <ConfigContext.Provider value={mockConfig}>
         <UIStateContext.Provider
-          value={{ historyManager: mockHistoryManager } as unknown as UIState}
+          value={
+            { historyManager: mockHistoryManager, ...uiStateValue } as UIState
+          }
         >
           <ModelDialog {...combinedProps} />
         </UIStateContext.Provider>
@@ -189,23 +194,33 @@ describe('<DetailRow />', () => {
 });
 
 describe('<ModelDialog />', () => {
-  it.each([false, true])(
-    'requires scoped consent before staging an account selection: %s',
-    async (authorize) => {
+  it.each([
+    [false, 'o1gw/account/copilot/3/auto', AuthType.USE_ANTHROPIC],
+    [true, 'o1gw/account/copilot/3/auto', AuthType.USE_ANTHROPIC],
+    [true, 'o1gw/account/copilot/3/gpt-5', AuthType.USE_ANTHROPIC],
+    [true, 'o1gw/own/claude/7/sonnet', AuthType.USE_ANTHROPIC],
+    [true, 'o1gw/account/codex/8/gpt-5', AuthType.USE_OPENAI],
+    [true, 'o1gw/group/copilot/9/auto', AuthType.USE_ANTHROPIC],
+  ] as const)(
+    'requires scoped consent for explicit history input: %s %s %s',
+    async (authorize, destination, destinationAuthType) => {
       const source = 'o1gw/account/copilot/2/auto';
-      const destination = 'o1gw/account/copilot/3/auto';
       const baseUrl = 'https://api.organizaone.com/v1';
+      let current: ContentGeneratorConfig = {
+        model: source,
+        authType: AuthType.USE_ANTHROPIC,
+        baseUrl,
+      };
       reachesOrganizaOneMock.mockReturnValue(true);
       const { mockConfig, mockSettings } = renderComponent(
         {},
         {
-          getModel: vi.fn(() => source),
+          getModel: vi.fn(() => current.model),
           getSessionId: vi.fn(() => 'synthetic-session'),
-          getContentGeneratorConfig: vi.fn(() => ({
-            model: source,
-            authType: AuthType.USE_ANTHROPIC,
-            baseUrl,
-          })),
+          getContentGeneratorConfig: vi.fn(() => current),
+          switchModel: vi.fn(async (authType, model) => {
+            current = { ...current, model, authType };
+          }),
           getLlmClient: vi.fn(() => ({
             getHistoryShallow: () => [
               { role: 'model', parts: [{ text: 'completed synthetic reply' }] },
@@ -215,7 +230,8 @@ describe('<ModelDialog />', () => {
             [source, destination].map((id, index) => ({
               id,
               label: 'Same label',
-              authType: AuthType.USE_ANTHROPIC,
+              authType:
+                id === source ? AuthType.USE_ANTHROPIC : destinationAuthType,
               baseUrl,
               capabilities: {
                 gateway: {
@@ -244,15 +260,204 @@ describe('<ModelDialog />', () => {
         )!;
         await act(async () => props.onSelect(choice.value));
         expect(consent).toHaveBeenCalledOnce();
-        expect(mockConfig.switchModel).not.toHaveBeenCalled();
-        expect(mockSettings.setValue).not.toHaveBeenCalled();
-        const staged = takeGatewayTransfer(mockConfig);
-        if (authorize)
-          expect(staged).toMatchObject({
+        expect(takeGatewayTransfer(mockConfig)).toBeUndefined();
+        if (authorize) {
+          expect(mockConfig.switchModel).toHaveBeenCalledWith(
+            destinationAuthType,
+            destination,
+            { baseUrl },
+          );
+          expect(mockSettings.setValue).toHaveBeenCalled();
+          expect(getGatewayAccountSelection(mockConfig)).toMatchObject({
             sourceModel: source,
             destinationModel: destination,
           });
-        else expect(staged).toBeUndefined();
+        } else {
+          expect(mockConfig.switchModel).not.toHaveBeenCalled();
+          expect(mockSettings.setValue).not.toHaveBeenCalled();
+          expect(getGatewayAccountSelection(mockConfig)).toBeUndefined();
+        }
+      } finally {
+        unregister();
+        reachesOrganizaOneMock.mockReturnValue(false);
+      }
+    },
+  );
+
+  it.each([
+    'pending-tool',
+    'streaming-response',
+    'changed-session',
+    'new-pending-tool',
+  ])(
+    'keeps the source account when selection becomes unsafe: %s',
+    async (scenario) => {
+      const source = 'o1gw/account/copilot/2/auto';
+      const destination = 'o1gw/own/claude/7/sonnet';
+      const baseUrl = 'https://api.organizaone.com/v1';
+      const pendingTool: Content = {
+        role: 'model',
+        parts: [{ functionCall: { id: 'pending', name: 'shell', args: {} } }],
+      };
+      const history: Content[] = [
+        { role: 'model', parts: [{ text: 'completed' }] },
+        ...(scenario === 'pending-tool' ? [pendingTool] : []),
+      ];
+      let sessionId = 'session-before';
+      reachesOrganizaOneMock.mockReturnValue(true);
+      const { mockConfig } = renderComponent(
+        {},
+        {
+          getModel: vi.fn(() => source),
+          getSessionId: vi.fn(() => sessionId),
+          getContentGeneratorConfig: vi.fn(() => ({
+            model: source,
+            authType: AuthType.USE_ANTHROPIC,
+            baseUrl,
+          })),
+          getLlmClient: vi.fn(() => ({
+            getHistoryShallow: () => history,
+          })) as unknown as Config['getLlmClient'],
+          getAllConfiguredModels: vi.fn(() =>
+            [source, destination].map((id) => ({
+              id,
+              label: id,
+              authType: AuthType.USE_ANTHROPIC,
+              baseUrl,
+            })),
+          ),
+        },
+        undefined,
+        {
+          streamingState:
+            scenario === 'streaming-response'
+              ? StreamingState.Responding
+              : StreamingState.Idle,
+        },
+      );
+      const confirm = vi.fn(async () => {
+        if (scenario === 'changed-session') sessionId = 'session-after';
+        if (scenario === 'new-pending-tool') history.push(pendingTool);
+        return true;
+      });
+      const unregister = registerGatewayTransferConfirmation(
+        mockConfig,
+        confirm,
+      );
+      try {
+        const props = mockedSelect.mock.calls.at(-1)![0];
+        const choice = props.items.find(
+          (item) =>
+            typeof item.value === 'string' && item.value.includes(destination),
+        )!;
+        await act(async () => props.onSelect(choice.value));
+        expect(mockConfig.switchModel).not.toHaveBeenCalled();
+        expect(getGatewayAccountSelection(mockConfig)).toBeUndefined();
+        expect(confirm).toHaveBeenCalledTimes(
+          scenario === 'pending-tool' || scenario === 'streaming-response'
+            ? 0
+            : 1,
+        );
+      } finally {
+        unregister();
+        reachesOrganizaOneMock.mockReturnValue(false);
+      }
+    },
+  );
+
+  it.each(['same', 'accept', 'cancel', 'stale', 'changed-during-consent'])(
+    'binds runtime selection to the active snapshot identity: %s',
+    async (scenario) => {
+      const model = 'o1gw/account/copilot/2/auto';
+      const snapshotId = `$runtime|${AuthType.USE_ANTHROPIC}|${model}`;
+      const sourceBaseUrl = 'https://gateway-a.example/v1';
+      const destinationBaseUrl =
+        scenario === 'same' ? sourceBaseUrl : 'https://gateway-b.example/v1';
+      let snapshot: ReturnType<Config['getActiveRuntimeModelSnapshot']> = {
+        id: snapshotId,
+        modelId: model,
+        authType: AuthType.USE_ANTHROPIC,
+        baseUrl: destinationBaseUrl,
+        apiKey: 'synthetic-runtime-key',
+        sources: {},
+        createdAt: 0,
+      };
+      let current: ContentGeneratorConfig = {
+        model,
+        authType: AuthType.USE_ANTHROPIC,
+        baseUrl: sourceBaseUrl,
+      };
+      reachesOrganizaOneMock.mockReturnValue(true);
+      const { mockConfig, mockSettings, container } = renderComponent(
+        {},
+        {
+          getModel: vi.fn(() => current.model),
+          getContentGeneratorConfig: vi.fn(() => current),
+          getActiveRuntimeModelSnapshot: vi.fn(() => snapshot),
+          getAllConfiguredModels: vi.fn(() => [
+            {
+              id: model,
+              label: model,
+              authType: AuthType.USE_ANTHROPIC,
+              isRuntimeModel: true,
+              runtimeSnapshotId: snapshotId,
+            },
+          ]),
+          getLlmClient: vi.fn(() => ({
+            getHistoryShallow: () => [
+              { role: 'user', parts: [{ text: 'existing conversation' }] },
+            ],
+          })) as unknown as Config['getLlmClient'],
+          switchModel: vi.fn(async () => {
+            current = {
+              ...current,
+              model: snapshot!.modelId,
+              authType: snapshot!.authType,
+              baseUrl: snapshot!.baseUrl,
+              apiKey: snapshot!.apiKey,
+            };
+          }),
+        },
+      );
+      if (scenario === 'stale') snapshot = undefined;
+      const confirm = vi.fn(async () => {
+        if (scenario === 'changed-during-consent')
+          snapshot = {
+            ...snapshot!,
+            baseUrl: 'https://changed-gateway.example/v1',
+          };
+        return scenario !== 'cancel';
+      });
+      const unregister = registerGatewayTransferConfirmation(
+        mockConfig,
+        confirm,
+      );
+      try {
+        const select = mockedSelect.mock.calls.at(-1)![0];
+        await act(async () => select.onSelect(snapshotId));
+        expect(confirm).toHaveBeenCalledTimes(
+          scenario === 'same' || scenario === 'stale' ? 0 : 1,
+        );
+        if (scenario === 'same' || scenario === 'accept') {
+          expect(mockConfig.switchModel).toHaveBeenCalledWith(
+            AuthType.USE_ANTHROPIC,
+            snapshotId,
+            { baseUrl: destinationBaseUrl },
+          );
+          expect(current.baseUrl).toBe(destinationBaseUrl);
+          if (scenario === 'accept')
+            expect(getGatewayAccountSelection(mockConfig)).toMatchObject({
+              destinationModel: model,
+            });
+        } else {
+          expect(mockConfig.switchModel).not.toHaveBeenCalled();
+          expect(mockSettings.setValue).not.toHaveBeenCalled();
+          expect(getGatewayAccountSelection(mockConfig)).toBeUndefined();
+          if (scenario !== 'cancel')
+            expect(container.textContent).toContain(
+              'Reopen the model selector',
+            );
+        }
       } finally {
         unregister();
         reachesOrganizaOneMock.mockReturnValue(false);

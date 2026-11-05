@@ -1011,8 +1011,67 @@ export class Query implements AsyncIterable<SDKMessage> {
     });
   }
 
-  async setModel(model: string): Promise<void> {
-    await this.sendControlRequest(ControlRequestType.SET_MODEL, { model });
+  async setModel(
+    model: string,
+    confirmHistory?: (question: {
+      sessionId: string;
+      sourceModel: string;
+      destinationModel: string;
+      destinationBaseUrl?: string;
+      destinationAuthType?: string;
+      message: string;
+    }) => boolean | Promise<boolean>,
+  ): Promise<void> {
+    let response = await this.sendControlRequest(ControlRequestType.SET_MODEL, {
+      model,
+    });
+    if (response?.['requires_confirmation'] === true) {
+      const id = response['confirmation_id'];
+      const sessionId = response['session_id'];
+      const sourceModel = response['source_model'];
+      const destinationModel = response['destination_model'];
+      const destinationBaseUrl = response['destination_base_url'];
+      const destinationAuthType = response['destination_auth_type'];
+      const message = response['message'];
+      if (
+        typeof id !== 'string' ||
+        !id ||
+        typeof sessionId !== 'string' ||
+        !sessionId ||
+        typeof sourceModel !== 'string' ||
+        !sourceModel ||
+        destinationModel !== model ||
+        (destinationBaseUrl !== undefined &&
+          typeof destinationBaseUrl !== 'string') ||
+        (destinationAuthType !== undefined &&
+          typeof destinationAuthType !== 'string') ||
+        typeof message !== 'string'
+      )
+        throw new Error('Invalid model history confirmation response');
+      if (!confirmHistory)
+        throw new Error(
+          'Model selection requires explicit history confirmation. Provide a confirmation callback to setModel.',
+        );
+      const confirmed =
+        (await confirmHistory({
+          sessionId,
+          sourceModel,
+          destinationModel,
+          ...(destinationBaseUrl === undefined ? {} : { destinationBaseUrl }),
+          ...(destinationAuthType === undefined ? {} : { destinationAuthType }),
+          message,
+        })) === true;
+      response = await this.sendControlRequest(ControlRequestType.SET_MODEL, {
+        model,
+        history_consent: { confirmation_id: id, confirmed },
+      });
+      if (!confirmed) throw new Error('Model selection cancelled');
+    }
+    if (
+      response?.['requires_confirmation'] === true ||
+      response?.['cancelled'] === true
+    )
+      throw new Error('Model selection was not confirmed');
   }
 
   /**

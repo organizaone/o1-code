@@ -156,7 +156,6 @@ import {
 } from './tool-call-preparation.js';
 import { InvalidStreamError } from './invalid-stream-error.js';
 import { reachesOrganizaOne } from '../providers/presets/organizaone.js';
-import { GatewayConversationError } from '../providers/gateway-request.js';
 import type { GoalTurnPermit } from '../goals/goal-protocol.js';
 
 export { InvalidStreamError };
@@ -1800,8 +1799,8 @@ class LeadingProtocolTagLeakDetector {
  * `isResponding` early-return).
  */
 export const ORPHAN_TOOL_USE_REPAIR_REASON =
-  'Tool execution result was not recorded — likely interrupted by network ' +
-  'failure, abort, or process exit. Treat as failure and retry if needed.';
+  'The tool execution result was not recorded. Its outcome is unknown; do not ' +
+  'assume it failed or repeat the operation without explicit user authorization.';
 
 /*
  * ============================================================================
@@ -2824,11 +2823,6 @@ export class LlmChat {
     info: ChatCompressionInfo;
     microcompactMeta?: MicrocompactMeta;
   } {
-    if (reachesOrganizaOne(this.config.getContentGeneratorConfig?.()))
-      throw new GatewayConversationError(
-        'unsupported',
-        'This gateway does not authorize truncating the authenticated history. Keep this conversation and start a new empty one with /new.',
-      );
     // A pre-switch route's count must not anchor fast-compression sizing
     // for the active route.
     this.adoptTokenCountsForRoute();

@@ -482,6 +482,12 @@ export interface RunNonInteractiveOptions {
    */
   recoverableCancellation?: boolean;
   /**
+   * The caller owns a persistent stream-json session and performs process
+   * cleanup when it closes. A failed turn must retain its recorder and writer
+   * lease after emitting and flushing the terminal result.
+   */
+  preserveSessionOnError?: boolean;
+  /**
    * Continue the most recent unfinished turn from chat history instead of
    * submitting `input` (which is ignored). No new user message enters the
    * transcript: an orphaned trailing user entry is re-submitted with Retry
@@ -625,6 +631,7 @@ export async function runNonInteractive(
     let turnCount = 0;
     let limitedTurnCount = 0;
     let totalApiDurationMs = 0;
+    const pendingFinalizedToolResults: Part[][] = [];
     const startTime = Date.now();
     let activeInteractionPromptId = prompt_id;
     let activeInteractionOwner: ReturnType<typeof getActiveInteractionSpan>;
@@ -1879,6 +1886,9 @@ export async function runNonInteractive(
         setModelOverride: (override: string | undefined) => boolean,
         runtimeView?: RuntimeContentGeneratorView,
       ): Promise<ToolCallBatchResult> => {
+        // A new model response acknowledges the prior round's tool results.
+        // Retain every finalized partition of only the current response.
+        pendingFinalizedToolResults.length = 0;
         let terminateTurn = false;
         const responseByRequest = new Map<
           ToolCallRequestInfo,
@@ -2456,6 +2466,8 @@ export async function runNonInteractive(
             },
             ...(goalProvenance ? ([goalProvenance] as const) : ([] as const)),
           );
+          if (finalizedParts.some((part) => part.functionResponse?.id))
+            pendingFinalizedToolResults.push(finalizedParts);
         }
 
         return {
@@ -3268,6 +3280,53 @@ export async function runNonInteractive(
       const budgetExceeded = budgetEnforcer.getExceeded();
       const failureMessage =
         error instanceof Error ? error.message : String(error);
+      if (
+        abortController.signal.aborted &&
+        pendingFinalizedToolResults.length
+      ) {
+        try {
+          const recordedIds = llmClient.getHistoryFunctionResponseIds();
+          const liveCallIds = new Set(
+            llmClient
+              .getHistoryShallow()
+              .flatMap((content) =>
+                content.role === 'model'
+                  ? (content.parts ?? []).flatMap((part) =>
+                      part.functionCall?.id ? [part.functionCall.id] : [],
+                    )
+                  : [],
+              ),
+          );
+          const missingParts = pendingFinalizedToolResults.flatMap((parts) => {
+            const missingIds = new Set(
+              parts.flatMap((part) => {
+                const id = part.functionResponse?.id;
+                return id && liveCallIds.has(id) && !recordedIds.has(id)
+                  ? [id]
+                  : [];
+              }),
+            );
+            if (!missingIds.size) return [];
+            return parts.filter((part) => {
+              if (!part.functionResponse) return true;
+              const id = part.functionResponse.id;
+              if (!id || !missingIds.has(id) || recordedIds.has(id))
+                return false;
+              recordedIds.add(id);
+              return true;
+            });
+          });
+          // Final results already reached the recorder; interruption can prevent
+          // the next tool-result send from adding them to the live chat.
+          if (missingParts.length)
+            await llmClient.addHistory({ role: 'user', parts: missingParts });
+        } catch (preservationError) {
+          debugLogger.error(
+            'Failed to preserve finalized tool results after interruption:',
+            preservationError,
+          );
+        }
+      }
       endActiveInteraction(
         budgetExceeded || !abortController.signal.aborted
           ? 'error'
@@ -3382,6 +3441,12 @@ export async function runNonInteractive(
       if (recoverableCancellation) {
         return 130;
       }
+      if (
+        options.preserveSessionOnError === true &&
+        outputFormat === OutputFormat.STREAM_JSON
+      ) {
+        throw error;
+      }
       await handleError(error, config);
     } finally {
       await failClosedActiveGoalTurn(
@@ -3441,8 +3506,7 @@ export async function runNonInteractive(
         await shutdownTelemetry();
       }
     }
-    // Unreachable in practice: the catch block awaits handleError() which
-    // returns Promise<never> (it always exits the process or rethrows).
+    // Unreachable in practice: the catch block exits, rethrows, or returns.
     // This return exists only so TS sees the function as total.
     return 1;
   });

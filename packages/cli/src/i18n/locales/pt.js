@@ -7,6 +7,13 @@
 // Portuguese translations for O1-Code CLI (pt-BR)
 
 export default {
+  'Model selection cancelled.': 'Seleção de modelo cancelada.',
+  'The runtime model changed. Reopen the model selector and select it again.':
+    'O modelo em uso mudou. Reabra o seletor de modelos e selecione-o novamente.',
+  "Finish or cancel the current response and pending tools before changing this conversation's model or account.":
+    'Conclua ou cancele a resposta atual e as ferramentas pendentes antes de trocar o modelo ou a conta desta conversa.',
+  'The conversation or model changed while awaiting authorization. Select the destination again.':
+    'A conversa ou o modelo mudou enquanto aguardava autorização. Selecione o destino novamente.',
   'To continue in this group, we need to send this conversation history to another eligible account. This uses tokens and context on the destination account. Do you authorize?':
     'Para continuar neste grupo, precisamos enviar o histórico desta conversa a outra conta elegível. Isso utiliza tokens e ocupa contexto da conta de destino. Você autoriza?',
   Continuation: 'Continuidade',

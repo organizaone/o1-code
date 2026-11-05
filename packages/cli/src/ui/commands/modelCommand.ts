@@ -30,6 +30,8 @@ import {
   parseAcpModelOption,
 } from '../../utils/acpModelUtils.js';
 import { recordDaemonSessionModelFromConfig } from '../../acp-integration/session-model-persistence.js';
+import { switchWithGatewayAccountSelection } from '@organizaone/o1-code-core/providers/gateway-transfer.js';
+import { normalizeGatewayEndpoint } from '@organizaone/o1-code-core/providers/gateway-request.js';
 import {
   formatUnsupportedVoiceModelMessage,
   isSelectableVoiceModel,
@@ -137,11 +139,61 @@ async function switchMainModel(
   modelArg: string,
   scopeOverride?: SettingScope,
   persistSelection = true,
-): Promise<string> {
+  isBusy?: () => boolean,
+): Promise<string | undefined> {
   const parsed = parseAcpModelOption(modelArg);
+  const selectedAuthType = parsed.authType ?? currentAuthType;
+  const selectedModel = parsed.authType ? parsed.modelId : modelArg;
+  const before = config.getContentGeneratorConfig();
+  const configured = config
+    .getAvailableModelsForAuthType(selectedAuthType)
+    .filter((entry) => entry.id === selectedModel);
+  const matchingCurrentRoute = configured.filter(
+    (entry) =>
+      selectedAuthType === before.authType &&
+      normalizeGatewayEndpoint(entry.baseUrl ?? '') ===
+        normalizeGatewayEndpoint(
+          before.reasoningRouteBaseUrl ?? before.baseUrl ?? '',
+        ),
+  );
+  const candidates = matchingCurrentRoute.length
+    ? matchingCurrentRoute
+    : configured;
+  const destinationIdentities = new Set(
+    candidates.map((entry) =>
+      JSON.stringify([
+        selectedAuthType,
+        normalizeGatewayEndpoint(entry.baseUrl ?? ''),
+        entry.envKey,
+        entry.credential,
+      ]),
+    ),
+  );
+  if (destinationIdentities.size > 1)
+    throw new Error(
+      'The selected model matches multiple configured destinations. Use /model without arguments to select its account and endpoint.',
+    );
+  const selectedBaseUrl = candidates[0]?.baseUrl;
+  const switched = await switchWithGatewayAccountSelection(
+    config,
+    {
+      model: selectedModel,
+      authType: selectedAuthType,
+      baseUrl: selectedBaseUrl,
+    },
+    () =>
+      selectedBaseUrl !== undefined
+        ? config.switchModel(selectedAuthType, selectedModel, {
+            baseUrl: selectedBaseUrl,
+          })
+        : parsed.authType
+          ? config.switchModel(selectedAuthType, selectedModel)
+          : config.switchModel(selectedAuthType, selectedModel, undefined),
+    { isBusy },
+  );
+  if (!switched) return undefined;
 
   if (parsed.authType) {
-    await config.switchModel(parsed.authType, parsed.modelId);
     if (persistSelection) {
       persistSetting(
         settings,
@@ -150,20 +202,24 @@ async function switchMainModel(
         scopeOverride,
       );
       persistSetting(settings, 'model.name', parsed.modelId, scopeOverride);
-      // `/model <id>` selects by id only, so clear any baseUrl disambiguator left
-      // by a previous model-picker selection — otherwise next launch would
-      // resolve to a different provider than this switch just chose. Use an
-      // empty-string tombstone so the clear overrides a lower-scope value (an
-      // undefined write is dropped from JSON and would not override on merge).
-      persistSetting(settings, 'model.baseUrl', '', scopeOverride);
+      persistSetting(
+        settings,
+        'model.baseUrl',
+        selectedBaseUrl ?? '',
+        scopeOverride,
+      );
     }
     return parsed.modelId;
   }
 
-  await config.switchModel(currentAuthType, modelArg, undefined);
   if (persistSelection) {
     persistSetting(settings, 'model.name', modelArg, scopeOverride);
-    persistSetting(settings, 'model.baseUrl', '', scopeOverride);
+    persistSetting(
+      settings,
+      'model.baseUrl',
+      selectedBaseUrl ?? '',
+      scopeOverride,
+    );
   }
   return modelArg;
 }
@@ -1151,7 +1207,14 @@ export const modelCommand: SlashCommand = {
         modelName,
         scopeOverride,
         context.executionPolicy?.persistModelSelection !== false,
+        () => context.ui.isIdleRef?.current === false,
       );
+      if (effectiveModelName === undefined)
+        return {
+          type: 'message',
+          messageType: 'info',
+          content: t('Model selection cancelled.'),
+        };
       if (context.executionMode === 'acp') {
         await recordDaemonSessionModelFromConfig(config);
       }

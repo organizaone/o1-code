@@ -4705,6 +4705,40 @@ describe('Gemini Client (client.ts)', () => {
       await rm(mcTmpDir, { recursive: true, force: true });
     });
 
+    it('microcompacts gateway history while preserving tool pairing and the conversation', async () => {
+      vi.mocked(mockConfig.getContentGeneratorConfig).mockReturnValue({
+        ...mockConfig.getContentGeneratorConfig(),
+        model: 'o1gw/account/copilot/2/test-model',
+      });
+      mockFileReadCacheStub();
+      const { history } = await makeReadFileResponses(6);
+      const setHistory = vi.fn();
+      const completed = history.flatMap((entry) =>
+        (entry.parts ?? []).flatMap((part) =>
+          part.functionCall?.id ? [part.functionCall.id] : [],
+        ),
+      );
+      client['chat'] = {
+        getCompletedToolCallIds: () => completed,
+        getHistory: () => history,
+        setHistory,
+      } as unknown as LlmChat;
+
+      await expect(
+        client['microcompactHistoryBeforeSend'](Date.now() - 90 * 60_000),
+      ).resolves.toBe(true);
+      const compacted = setHistory.mock.calls[0][0] as Content[];
+      expect(compacted).toHaveLength(history.length);
+      expect(
+        compacted.flatMap((entry) =>
+          (entry.parts ?? []).flatMap((part) =>
+            part.functionResponse?.id ? [part.functionResponse.id] : [],
+          ),
+        ),
+      ).toEqual(completed);
+      expect(setHistory).toHaveBeenCalledWith(compacted, completed);
+    });
+
     it('disarms the fast-path for blanked files instead of wiping the cache', async () => {
       // Default test fixture: toolResultsThresholdMinutes = 60,
       // toolResultsNumToKeep = 5. Six read_file results + a 90-minute

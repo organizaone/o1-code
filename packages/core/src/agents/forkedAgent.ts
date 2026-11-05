@@ -68,10 +68,7 @@ import { getFunctionResponseParts } from '../services/compactionInputSlimming.js
 import { runWithChatRecordingSuppressed } from '../utils/chat-recording-suppression-context.js';
 import { createChildAbortController } from '../utils/abortController.js';
 import { reachesOrganizaOne } from '../providers/presets/organizaone.js';
-import {
-  GatewayConversationError,
-  gatewayIndependentInput,
-} from '../providers/gateway-request.js';
+import { gatewayIndependentInput } from '../providers/gateway-request.js';
 
 const debugLogger = createDebugLogger('FORKED_AGENT');
 
@@ -225,11 +222,7 @@ export function createForkedChat(
   config: Config,
   params: CacheSafeParams,
 ): LlmChat {
-  if (reachesOrganizaOne(config.getContentGeneratorConfig?.()))
-    throw new GatewayConversationError(
-      'unsupported',
-      'This gateway does not authorize cloning a conversation history for a cache-sharing fork. Use an independent task with explicit source material.',
-    );
+  const isGateway = reachesOrganizaOne(config.getContentGeneratorConfig?.());
   const maxHistoryEntries = 40;
   const history =
     params.history.length > maxHistoryEntries
@@ -244,7 +237,9 @@ export function createForkedChat(
       // and it doesn't affect the cache prefix.
       thinkingConfig: { includeThoughts: false },
     },
-    [...history],
+    isGateway
+      ? gatewayIndependentInput(copyHistoryContainers(history))
+      : [...history],
     undefined, // no chatRecordingService
     undefined, // no telemetryService
   );
@@ -341,7 +336,21 @@ export async function runWithForkedChatModel<T>(
   fn: (model: string) => Promise<T>,
 ): Promise<T> {
   const runtime = await buildForkedModelRuntime(config, config, modelSelector);
-  return runWithForkedModelRuntime(runtime, fn);
+  return runWithIsolatedFork(config, runtime, fn);
+}
+
+function runWithIsolatedFork<T>(
+  config: Config,
+  runtime: ForkedModelRuntime,
+  fn: (model: string) => Promise<T>,
+): Promise<T> {
+  const run = () => runWithForkedModelRuntime(runtime, fn);
+  return reachesOrganizaOne(
+    runtime.runtimeView?.contentGeneratorConfig ??
+      config.getContentGeneratorConfig?.(),
+  )
+    ? runWithAgentContext(`fork-${randomUUID()}`, run)
+    : run();
 }
 
 // ---------------------------------------------------------------------------
@@ -555,7 +564,7 @@ export async function runForkedAgent(
       modelSelector,
     );
 
-    return runWithForkedModelRuntime(modelRuntime, async (model) => {
+    return runWithIsolatedFork(config, modelRuntime, async (model) => {
       const chat = createForkedChat(config, cacheSafeParams);
 
       const requestConfig: GenerateContentConfig = preserveTools

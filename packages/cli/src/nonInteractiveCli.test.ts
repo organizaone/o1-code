@@ -52,7 +52,11 @@ import {
   goalPauseReasonForRunBudget,
   GoalPersistenceUnavailableError,
 } from '@organizaone/o1-code-core';
-import type { Part } from '@google/genai';
+import type { Content, Part } from '@google/genai';
+import {
+  ORPHAN_TOOL_USE_REPAIR_REASON,
+  repairOrphanedToolUseTurns,
+} from '@organizaone/o1-code-core/core/llm-chat.js';
 import { EventEmitter } from 'node:events';
 import {
   runNonInteractive,
@@ -72,6 +76,7 @@ import { goalCommand } from './ui/commands/goalCommand.js';
 import { filterCommandsForMode } from './services/commandUtils.js';
 import {
   _resetCleanupFunctionsForTest,
+  registerCleanup,
   runExitCleanup,
 } from './utils/cleanup.js';
 import { cleanupReviewWorktreeLeases } from './services/review-worktree-lease.js';
@@ -267,6 +272,8 @@ describe('runNonInteractive', () => {
     getChat: Mock;
     stripOrphanedUserEntriesFromHistory: Mock;
     getHistoryToolCallFingerprints: Mock;
+    getHistoryFunctionResponseIds: Mock;
+    getHistoryShallow: Mock;
     consumePendingMemoryTaskPromises: Mock;
     recordCompletedToolCall: Mock;
     addHistory: Mock;
@@ -347,6 +354,8 @@ describe('runNonInteractive', () => {
       })),
       getChat: vi.fn(() => ({})),
       getHistoryToolCallFingerprints: vi.fn(() => new Map<string, string>()),
+      getHistoryFunctionResponseIds: vi.fn(() => new Set<string>()),
+      getHistoryShallow: vi.fn(() => []),
     };
 
     let currentModel = 'test-model';
@@ -6090,6 +6099,8 @@ describe('runNonInteractive', () => {
       OutputFormat.STREAM_JSON,
     );
     setupMetricsMock();
+    const processCleanup = vi.fn();
+    registerCleanup(processCleanup);
     const apiErrorEvent: ServerLlmStreamEvent = {
       type: LlmEventType.Error,
       value: {
@@ -6124,7 +6135,80 @@ describe('runNonInteractive', () => {
       is_error: true,
       error: { message: expect.stringContaining('429 Too Many Requests') },
     });
+    expect(processCleanup).toHaveBeenCalledOnce();
   });
+
+  it.each(['stream-event', 'thrown'])(
+    'keeps persistent session resources after a %s failure until its owner closes',
+    async (failureKind) => {
+      (mockConfig.getOutputFormat as Mock).mockReturnValue(
+        OutputFormat.STREAM_JSON,
+      );
+      setupMetricsMock();
+      let writerReleased = false;
+      const processCleanup = vi.fn(() => {
+        writerReleased = true;
+      });
+      registerCleanup(processCleanup);
+      mockLlmClient.sendMessageStream
+        .mockImplementationOnce(async function* () {
+          if (failureKind === 'thrown') {
+            throw new Error('Provider temporarily unavailable');
+          }
+          yield {
+            type: LlmEventType.Error,
+            value: {
+              error: { message: '429 Too Many Requests', status: 429 },
+            },
+          };
+        })
+        .mockImplementationOnce(async function* () {
+          if (writerReleased) {
+            throw new Error('Session write ownership could not be verified.');
+          }
+          yield {
+            type: LlmEventType.Content,
+            value: 'The next turn completed.',
+          };
+          yield {
+            type: LlmEventType.Finished,
+            value: { reason: undefined, usageMetadata: { totalTokenCount: 0 } },
+          };
+        });
+
+      await expect(
+        runNonInteractive(mockConfig, mockSettings, 'First request', 'first', {
+          preserveSessionOnError: true,
+        }),
+      ).rejects.toThrow(
+        failureKind === 'thrown'
+          ? 'Provider temporarily unavailable'
+          : '429 Too Many Requests',
+      );
+      expect(processCleanup).not.toHaveBeenCalled();
+
+      await runNonInteractive(
+        mockConfig,
+        mockSettings,
+        'Explicit next request',
+        'next',
+        { preserveSessionOnError: true },
+      );
+      expect(mockLlmClient.sendMessageStream).toHaveBeenCalledTimes(2);
+      expect(processCleanup).not.toHaveBeenCalled();
+      const results = processStdoutSpy.mock.calls
+        .map((call) => String(call[0]).trim())
+        .filter(Boolean)
+        .map((line) => JSON.parse(line) as { [key: string]: unknown })
+        .filter((message) => message['type'] === 'result');
+      expect(results).toHaveLength(2);
+      expect(results[0]).toMatchObject({ is_error: true });
+      expect(results[1]).toMatchObject({ is_error: false });
+
+      await runExitCleanup();
+      expect(processCleanup).toHaveBeenCalledOnce();
+    },
+  );
 
   it('does not double-wrap or double-format an API error in non-interactive mode', async () => {
     // Regression test for the bug where a 4xx error event flowed through
@@ -6547,6 +6631,195 @@ describe('runNonInteractive', () => {
       promptId: 'prompt-recoverable-interrupt',
     });
   });
+
+  it.each([
+    'before-append',
+    'already-appended',
+    'normal',
+    'append-error',
+    'two-results',
+    'compacted',
+  ])(
+    'preserves finalized tool results across interruption without replay: %s',
+    async (scenario) => {
+      (mockConfig.getOutputFormat as Mock).mockReturnValue(
+        OutputFormat.STREAM_JSON,
+      );
+      setupMetricsMock();
+      const turnAbortController = new AbortController();
+      const callIds =
+        scenario === 'two-results'
+          ? ['cancelled-read-1', 'cancelled-read-2']
+          : ['cancelled-read-1'];
+      const resultText =
+        'Tool approval was cancelled; execution did not start.';
+      const responseFor = (callId: string): Part[] => [
+        {
+          functionResponse: {
+            id: callId,
+            name: 'read_file',
+            response: { error: resultText },
+          },
+        },
+      ];
+      const liveHistory: Content[] = [];
+      mockLlmClient.getHistoryShallow.mockImplementation(() => liveHistory);
+      mockLlmClient.getHistoryFunctionResponseIds.mockImplementation(
+        () =>
+          new Set(
+            liveHistory.flatMap((content) =>
+              (content.parts ?? []).flatMap((part) =>
+                part.functionResponse?.id ? [part.functionResponse.id] : [],
+              ),
+            ),
+          ),
+      );
+      mockLlmClient.addHistory.mockImplementation(async (content: Content) => {
+        if (scenario === 'append-error') throw new Error('History unavailable');
+        liveHistory.push(content);
+      });
+      let recordedResults = 0;
+      const recordToolResult = vi.fn(() => {
+        recordedResults++;
+        if (scenario === 'two-results' && recordedResults === 2)
+          turnAbortController.abort(new TurnInterruptedError());
+      });
+      const recorder = mockConfig.getChatRecordingService()!;
+      vi.mocked(mockConfig.getChatRecordingService).mockReturnValue({
+        ...recorder,
+        recordToolResult,
+      } as typeof recorder);
+      mockCoreExecuteToolCall.mockImplementation(
+        async (_config: Config, request: ToolCallRequestInfo) => {
+          if (scenario === 'before-append' || scenario === 'append-error')
+            turnAbortController.abort(new TurnInterruptedError());
+          return {
+            callId: request.callId,
+            responseParts: responseFor(request.callId),
+            resultDisplay: resultText,
+            error: new Error(resultText),
+            errorType: ToolErrorType.EXECUTION_DENIED,
+            executionStatus: 'not_started',
+          } as ToolCallResponseInfo;
+        },
+      );
+      let sendIndex = 0;
+      mockLlmClient.sendMessageStream.mockImplementation(
+        (parts: Part[], signal: AbortSignal) =>
+          (async function* (): AsyncGenerator<ServerLlmStreamEvent> {
+            const index = sendIndex++;
+            if (index === 1 && signal.aborted) throw signal.reason;
+            liveHistory.push({ role: 'user', parts });
+            if (index === 0) {
+              liveHistory.push({
+                role: 'model',
+                parts: callIds.map((id) => ({
+                  functionCall: {
+                    id,
+                    name: 'read_file',
+                    args: { path: 'synthetic.txt' },
+                  },
+                })),
+              });
+              for (const callId of callIds)
+                yield {
+                  type: LlmEventType.ToolCallRequest,
+                  value: {
+                    callId,
+                    name: 'read_file',
+                    args: { path: 'synthetic.txt' },
+                    isClientInitiated: false,
+                    prompt_id: 'cancelled-read',
+                  },
+                };
+              return;
+            }
+            if (index === 1 && scenario === 'already-appended') {
+              turnAbortController.abort(new TurnInterruptedError());
+              throw turnAbortController.signal.reason;
+            }
+            if (index === 1 && scenario === 'compacted') {
+              liveHistory.splice(0, liveHistory.length, {
+                role: 'user',
+                parts: [{ text: 'The earlier conversation was summarized.' }],
+              });
+              turnAbortController.abort(new TurnInterruptedError());
+              throw turnAbortController.signal.reason;
+            }
+            if (index === 2) {
+              expect(parts).toEqual([
+                { text: 'Recall the earlier marker without using tools.' },
+              ]);
+              expect(repairOrphanedToolUseTurns(liveHistory).injected).toEqual(
+                [],
+              );
+            }
+            yield {
+              type: LlmEventType.Content,
+              value: 'The marker is remembered.',
+            };
+            yield {
+              type: LlmEventType.Finished,
+              value: {
+                reason: undefined,
+                usageMetadata: { totalTokenCount: 0 },
+              },
+            };
+          })(),
+      );
+      const exitCode = await runNonInteractive(
+        mockConfig,
+        mockSettings,
+        'Read the synthetic file',
+        'cancelled-read',
+        {
+          abortController: turnAbortController,
+          recoverableCancellation: true,
+          preserveSessionOnError: true,
+        },
+      );
+      expect(exitCode).toBe(scenario === 'normal' ? 0 : 130);
+      expect(mockCoreExecuteToolCall).toHaveBeenCalledTimes(callIds.length);
+      expect(recordToolResult).toHaveBeenCalledTimes(callIds.length);
+      expect(mockLlmClient.addHistory).toHaveBeenCalledTimes(
+        ['before-append', 'append-error', 'two-results'].includes(scenario)
+          ? 1
+          : 0,
+      );
+      if (scenario === 'append-error') {
+        expect(
+          processStdoutSpy.mock.calls.map((call) => String(call[0])).join(''),
+        ).toContain('Operation cancelled.');
+        expect(process.exit).not.toHaveBeenCalled();
+        return;
+      }
+      const retained = liveHistory
+        .flatMap((content) => content.parts ?? [])
+        .filter(
+          (part) =>
+            part.functionResponse?.id &&
+            callIds.includes(part.functionResponse.id),
+        );
+      expect(retained).toEqual(
+        scenario === 'compacted' ? [] : callIds.flatMap(responseFor),
+      );
+      await runNonInteractive(
+        mockConfig,
+        mockSettings,
+        'Recall the earlier marker without using tools.',
+        'explicit-next-user',
+        {
+          preserveSessionOnError: true,
+        },
+      );
+      expect(mockLlmClient.sendMessageStream).toHaveBeenCalledTimes(3);
+      expect(mockCoreExecuteToolCall).toHaveBeenCalledTimes(callIds.length);
+      expect(recordToolResult).toHaveBeenCalledTimes(callIds.length);
+      expect(JSON.stringify(liveHistory)).not.toContain(
+        ORPHAN_TOOL_USE_REPAIR_REASON,
+      );
+    },
+  );
 
   it('emits the effective fork context mode in headless task events', async () => {
     (mockConfig.getOutputFormat as Mock).mockReturnValue(

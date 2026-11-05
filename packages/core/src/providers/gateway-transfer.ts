@@ -6,12 +6,22 @@
 
 import type { Config } from '../config/config.js';
 import type { ContentGeneratorConfig } from '../core/contentGenerator.js';
+import type { Content } from '@google/genai';
+import type { AuthType } from '../utils/auth-type.js';
+import type { GatewayConversationRecordPayload } from '../services/chatRecordingService.js';
 import { createHash } from 'node:crypto';
-import { GatewayConversationError } from './gateway-request.js';
+import { reachesOrganizaOne } from './presets/organizaone.js';
+import { gatewayFailure } from './gateway-errors.js';
+import {
+  GatewayConversationError,
+  normalizeGatewayEndpoint,
+  isGatewayConversationActive,
+} from './gateway-request.js';
 
 export interface GatewayTransferQuestion {
   source: string;
   destination: string;
+  purpose?: 'group-transfer';
   signal?: AbortSignal;
 }
 type Confirmation = (question: GatewayTransferQuestion) => Promise<boolean>;
@@ -45,6 +55,223 @@ export interface GatewayTransferIntent {
 }
 const intents = new WeakMap<Config, GatewayTransferIntent>();
 
+export interface GatewayAccountSelection {
+  sessionId: string;
+  sourceModel: string;
+  destinationModel: string;
+  destinationFingerprint: string;
+}
+const selections = new WeakMap<Config, GatewayAccountSelection>();
+const selectionsInProgress = new WeakMap<Config, { sessionId: string }>();
+
+export function isGatewayAccountSelectionInProgress(config: Config): boolean {
+  const selection = selectionsInProgress.get(config);
+  return (
+    selection !== undefined && selection.sessionId === config.getSessionId()
+  );
+}
+
+function accountSelectionFingerprint(config: ContentGeneratorConfig): string {
+  return createHash('sha256')
+    .update(
+      JSON.stringify([
+        config.model,
+        config.authType,
+        config.apiKey,
+        config.customHeaders,
+        config.connection,
+        normalizeGatewayEndpoint(
+          config.reasoningRouteBaseUrl ?? config.baseUrl ?? '',
+        ),
+      ]),
+    )
+    .digest('hex');
+}
+
+export function recordGatewayAccountSelection(
+  config: Config,
+  sourceModel: string,
+  destinationModel: string,
+): void {
+  const destination = config.getContentGeneratorConfig();
+  if (destination.model !== destinationModel)
+    throw new GatewayConversationError(
+      'unsupported',
+      'The selected account changed before authorization could be recorded. Select the destination again.',
+    );
+  selections.set(config, {
+    sessionId: config.getSessionId(),
+    sourceModel,
+    destinationModel,
+    destinationFingerprint: accountSelectionFingerprint(destination),
+  });
+}
+
+export function getGatewayAccountSelection(
+  config: Config,
+): GatewayAccountSelection | undefined {
+  const selection = selections.get(config);
+  if (
+    !selection ||
+    selection.sessionId !== config.getSessionId() ||
+    selection.destinationFingerprint !==
+      accountSelectionFingerprint(config.getContentGeneratorConfig())
+  )
+    return undefined;
+  return selection;
+}
+
+export function hasPendingGatewayTools(contents: readonly Content[]): boolean {
+  const pending: Array<{ id?: string; name?: string }> = [];
+  for (const content of contents) {
+    for (const part of content.parts ?? []) {
+      if (part.functionCall) {
+        pending.push(part.functionCall);
+      } else if (part.functionResponse) {
+        const response = part.functionResponse;
+        const index = pending.findIndex((call) =>
+          response.id
+            ? call.id === response.id
+            : !call.id && call.name === response.name,
+        );
+        if (index >= 0) pending.splice(index, 1);
+      }
+    }
+  }
+  return pending.length > 0;
+}
+
+export interface GatewayAccountSelectionTarget {
+  model: string;
+  authType?: AuthType;
+  baseUrl?: string;
+  label?: string;
+}
+
+export async function switchWithGatewayAccountSelection(
+  config: Config,
+  target: GatewayAccountSelectionTarget,
+  switchModel: () => Promise<void>,
+  options: {
+    signal?: AbortSignal;
+    isBusy?: () => boolean;
+    confirm?: Confirmation;
+  } = {},
+): Promise<boolean> {
+  if (isGatewayAccountSelectionInProgress(config))
+    throw new GatewayConversationError(
+      'busy',
+      "Finish or cancel the current response and pending tools before changing this conversation's model or account.",
+    );
+  const before = config.getContentGeneratorConfig?.();
+  if (
+    !before ||
+    (!reachesOrganizaOne(before) && !target.model.startsWith('o1gw/'))
+  ) {
+    await switchModel();
+    return true;
+  }
+  const history = () => {
+    const client = config.getLlmClient();
+    return client.isInitialized?.() === false ? [] : client.getHistoryShallow();
+  };
+  const ensureIdle = () => {
+    if (options.signal?.aborted)
+      throw new GatewayConversationError(
+        'cancelled',
+        'Account selection was cancelled.',
+      );
+    if (
+      isGatewayAccountSelectionInProgress(config) ||
+      isGatewayConversationActive(config, config.getSessionId()) ||
+      options.isBusy?.() ||
+      hasPendingGatewayTools(history())
+    )
+      throw new GatewayConversationError(
+        'busy',
+        "Finish or cancel the current response and pending tools before changing this conversation's model or account.",
+      );
+  };
+  ensureIdle();
+  const sessionId = config.getSessionId();
+  let sourceModel = before.model;
+  if (target.model === before.model) {
+    const endpoint = normalizeGatewayEndpoint(
+      before.reasoningRouteBaseUrl ?? before.baseUrl ?? '',
+    );
+    const resumed =
+      config.getResumedSessionData?.()?.conversation.messages ?? [];
+    for (const row of [...resumed].reverse()) {
+      if (
+        row.subtype !== 'gateway_conversation' ||
+        row.forkedFrom ||
+        row.sessionId !== sessionId
+      )
+        continue;
+      const record = row.systemPayload as
+        | GatewayConversationRecordPayload
+        | undefined;
+      if (
+        record?.actor === 'main' &&
+        record.conversationId === sessionId &&
+        normalizeGatewayEndpoint(record.endpoint) === endpoint
+      ) {
+        sourceModel = record.model;
+        break;
+      }
+    }
+  }
+  const sourceFingerprint = gatewayTransferFingerprint(before);
+  const routeChanged =
+    (target.authType !== undefined && target.authType !== before.authType) ||
+    normalizeGatewayEndpoint(
+      target.baseUrl ?? before.reasoningRouteBaseUrl ?? before.baseUrl ?? '',
+    ) !==
+      normalizeGatewayEndpoint(
+        before.reasoningRouteBaseUrl ?? before.baseUrl ?? '',
+      );
+  const requiresConsent =
+    (routeChanged || isGatewayAccountChange(sourceModel, target.model)) &&
+    history().length > 0;
+  if (requiresConsent) {
+    const question = {
+      source: sourceModel,
+      destination: target.label ?? target.model,
+      signal: options.signal,
+    };
+    const confirmed = await (options.confirm
+      ? options.confirm(question)
+      : confirmGatewayTransfer(config, question));
+    if (!confirmed) return false;
+  }
+  if (
+    sessionId !== config.getSessionId() ||
+    sourceFingerprint !==
+      gatewayTransferFingerprint(config.getContentGeneratorConfig())
+  )
+    throw new GatewayConversationError(
+      'unsupported',
+      'The conversation or model changed while awaiting authorization. Select the destination again.',
+    );
+  ensureIdle();
+  const selectionInProgress = { sessionId };
+  selectionsInProgress.set(config, selectionInProgress);
+  try {
+    await switchModel();
+    if (sessionId !== config.getSessionId())
+      throw new GatewayConversationError(
+        'unsupported',
+        'The conversation or model changed while awaiting authorization. Select the destination again.',
+      );
+    if (requiresConsent)
+      recordGatewayAccountSelection(config, sourceModel, target.model);
+    return true;
+  } finally {
+    if (selectionsInProgress.get(config) === selectionInProgress)
+      selectionsInProgress.delete(config);
+  }
+}
+
 export function gatewayTransferFingerprint(
   config: ContentGeneratorConfig,
 ): string {
@@ -56,7 +283,9 @@ export function gatewayTransferFingerprint(
         config.apiKey,
         config.customHeaders,
         config.connection,
-        config.reasoningRouteBaseUrl ?? config.baseUrl,
+        normalizeGatewayEndpoint(
+          config.reasoningRouteBaseUrl ?? config.baseUrl ?? '',
+        ),
         config.reasoning,
         config.samplingParams,
         config.extra_body,
@@ -148,7 +377,7 @@ export function assertGatewayTransferCompatible(
   ) {
     throw new GatewayConversationError(
       'unsupported',
-      'Transfer requires two discovered accounts of the same provider, account type and native model. Start a new empty conversation for an incompatible selection.',
+      'Native transfer requires two discovered accounts of the same provider, account type and native model. Explicit account selection can send the supplied history as new input instead.',
     );
   }
 }
@@ -221,23 +450,12 @@ export async function prepareGatewayTransfer(
       body && typeof body === 'object' && 'error' in body
         ? body.error
         : undefined;
-    const rawCode =
-      error && typeof error === 'object'
-        ? 'code' in error
-          ? error.code
-          : 'type' in error
-            ? error.type
-            : undefined
-        : undefined;
-    const providerCode =
-      typeof rawCode === 'string' && /^[A-Za-z0-9_.-]{1,80}$/.test(rawCode)
-        ? rawCode
-        : undefined;
-    const retryAfter = errorHeaders.get('retry-after');
-    throw new GatewayConversationError(
-      'unavailable',
-      `The gateway could not prepare this transfer (HTTP ${response.status}). The previous account remains selected.${retryAfter ? ` Retry-After: ${retryAfter}.` : ''}`,
-      { status: response.status, headers: errorHeaders, providerCode },
+    throw gatewayFailure(
+      { status: response.status, headers: errorHeaders, error },
+      [
+        headers.get('authorization')?.replace(/^Bearer\s+/i, '') ?? '',
+        headers.get('x-api-key') ?? '',
+      ],
     );
   }
   const prepared: unknown = await response.json();

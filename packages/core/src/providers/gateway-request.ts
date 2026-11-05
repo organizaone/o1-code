@@ -36,6 +36,30 @@ export interface GatewayRequestScope {
 
 export const gatewayRequestScope = new AsyncLocalStorage<GatewayRequestScope>();
 
+const activeConversations = new WeakMap<object, Set<string>>();
+
+export function isGatewayConversationActive(
+  config: object,
+  sessionId: string,
+): boolean {
+  return activeConversations.get(config)?.has(sessionId) ?? false;
+}
+
+export function reserveGatewayConversation(
+  config: object,
+  sessionId: string,
+): () => void {
+  let sessions = activeConversations.get(config);
+  if (!sessions) {
+    sessions = new Set();
+    activeConversations.set(config, sessions);
+  }
+  sessions.add(sessionId);
+  return () => {
+    sessions.delete(sessionId);
+  };
+}
+
 export class GatewayConversationError extends Error {
   readonly code = 'gateway_conversation_error';
   readonly status?: number;
@@ -46,6 +70,10 @@ export class GatewayConversationError extends Error {
     readonly reason:
       | 'legacy'
       | 'conflict'
+      | 'busy'
+      | 'tool_mismatch'
+      | 'authorization'
+      | 'transfer_required'
       | 'uncertain'
       | 'cancelled'
       | 'unsupported'
@@ -58,6 +86,16 @@ export class GatewayConversationError extends Error {
     this.status = details?.status;
     this.headers = details?.headers;
     this.providerCode = details?.providerCode;
+  }
+}
+
+export function normalizeGatewayEndpoint(value: string): string {
+  try {
+    const url = new URL(value);
+    url.pathname = url.pathname.replace(/\/+$/, '').replace(/\/v1$/, '');
+    return url.toString().replace(/\/$/, '');
+  } catch {
+    return value.replace(/\/+$/, '').replace(/\/v1$/, '');
   }
 }
 

@@ -14,6 +14,13 @@
  */
 
 import { BaseController } from './baseController.js';
+import { createHash, randomUUID } from 'node:crypto';
+import {
+  gatewayTransferFingerprint,
+  switchWithGatewayAccountSelection,
+} from '@organizaone/o1-code-core/providers/gateway-transfer.js';
+import { normalizeGatewayEndpoint } from '@organizaone/o1-code-core/providers/gateway-request.js';
+import type { AvailableModel } from '@organizaone/o1-code-core/models/types.js';
 import type {
   ControlRequestPayload,
   CLIControlInitializeRequest,
@@ -45,7 +52,29 @@ const debugLogger = createDebugLogger('SYSTEM_CONTROLLER');
  */
 const MAX_CAN_USE_TOOL_TIMEOUT_MS = 600_000;
 
+function modelSelectionFingerprint(model: AvailableModel): string {
+  return createHash('sha256')
+    .update(
+      JSON.stringify([
+        model.id,
+        model.authType,
+        normalizeGatewayEndpoint(model.baseUrl ?? ''),
+        model.envKey,
+        model.credential,
+      ]),
+    )
+    .digest('hex');
+}
+
 export class SystemController extends BaseController {
+  private pendingModelConsent?: {
+    id: string;
+    sessionId: string;
+    sourceFingerprint: string;
+    destinationModel: string;
+    destinationFingerprint: string;
+    expiresAt: number;
+  };
   /**
    * Handle system control requests
    */
@@ -515,10 +544,122 @@ export class SystemController extends BaseController {
     if (typeof model !== 'string' || model.trim() === '') {
       throw new Error('Invalid model specified for set_model request');
     }
+    const consent = payload.history_consent;
+    if (
+      consent !== undefined &&
+      (!consent ||
+        typeof consent !== 'object' ||
+        typeof consent.confirmation_id !== 'string' ||
+        typeof consent.confirmed !== 'boolean')
+    )
+      throw new Error(
+        'Invalid history_consent specified for set_model request',
+      );
 
     try {
-      // Attempt to set the model using config
-      await this.context.config.setModel(model);
+      const config = this.context.config;
+      const before = config.getContentGeneratorConfig?.();
+      const pending = this.pendingModelConsent;
+      this.pendingModelConsent = undefined;
+      const configured =
+        config
+          .getAllConfiguredModels?.()
+          .filter((entry) => entry.id === model) ?? [];
+      const matchingCurrentRoute = configured.filter(
+        (entry) =>
+          entry.authType === before?.authType &&
+          normalizeGatewayEndpoint(entry.baseUrl ?? '') ===
+            normalizeGatewayEndpoint(
+              before?.reasoningRouteBaseUrl ?? before?.baseUrl ?? '',
+            ),
+      );
+      const candidates = matchingCurrentRoute.length
+        ? matchingCurrentRoute
+        : configured;
+      if (new Set(candidates.map(modelSelectionFingerprint)).size > 1)
+        throw new Error(
+          'The selected model matches multiple configured destinations. Select a model with an unambiguous account and endpoint.',
+        );
+      const target = candidates[0];
+      if (model.startsWith('o1gw/') && !target)
+        throw new Error(
+          'The selected gateway model is not in the configured catalog. Refresh the model list and select its complete route ID.',
+        );
+      const destinationFingerprint = target
+        ? modelSelectionFingerprint(target)
+        : model;
+      if (consent) {
+        if (
+          !pending ||
+          pending.id !== consent.confirmation_id ||
+          pending.sessionId !== config.getSessionId() ||
+          pending.destinationModel !== model ||
+          pending.destinationFingerprint !== destinationFingerprint ||
+          pending.expiresAt <= Date.now() ||
+          !before ||
+          pending.sourceFingerprint !== gatewayTransferFingerprint(before)
+        )
+          throw new Error(
+            'Account selection authorization expired or changed. Select the destination again.',
+          );
+        if (!consent.confirmed)
+          return { subtype: 'set_model', cancelled: true, model: before.model };
+      }
+      let confirmationResponse: Record<string, unknown> | undefined;
+      const switched = await switchWithGatewayAccountSelection(
+        config,
+        { model, authType: target?.authType, baseUrl: target?.baseUrl },
+        async () => {
+          if (target)
+            await config.switchModel(target.authType, model, {
+              baseUrl: target.baseUrl,
+            });
+          else await config.setModel(model);
+        },
+        {
+          signal,
+          isBusy: () => {
+            const active = this.context.getActiveTurnAbortSignal?.();
+            return Boolean(active && !active.aborted);
+          },
+          confirm: async (question) => {
+            if (consent) return consent.confirmed;
+            const id = randomUUID();
+            this.pendingModelConsent = {
+              id,
+              sessionId: config.getSessionId(),
+              sourceFingerprint: gatewayTransferFingerprint(
+                config.getContentGeneratorConfig(),
+              ),
+              destinationModel: model,
+              destinationFingerprint,
+              expiresAt: Date.now() + 5 * 60_000,
+            };
+            confirmationResponse = {
+              subtype: 'set_model',
+              requires_confirmation: true,
+              confirmation_id: id,
+              session_id: config.getSessionId(),
+              source_model: question.source,
+              destination_model: model,
+              destination_base_url: target?.baseUrl,
+              destination_auth_type: target?.authType,
+              message:
+                'Sending this conversation history to the selected account uses destination tokens and context. Confirm only this conversation and destination.',
+            };
+            return false;
+          },
+        },
+      );
+      if (!switched)
+        return (
+          confirmationResponse ?? {
+            subtype: 'set_model',
+            cancelled: true,
+            model: before?.model,
+          }
+        );
+      this.pendingModelConsent = undefined;
 
       debugLogger.info(`[SystemController] Model switched to: ${model}`);
 

@@ -19,7 +19,11 @@ import type { Config } from '../config/config.js';
 import { AuthType } from '../core/contentGenerator.js';
 import { LlmChat, StreamEventType } from '../core/llm-chat.js';
 import { createRuntimeContentGeneratorView } from '../models/content-generator-config.js';
-import type { RuntimeContentGeneratorView } from './runtime/agent-context.js';
+import {
+  getCurrentAgentId,
+  runWithAgentContext,
+  type RuntimeContentGeneratorView,
+} from './runtime/agent-context.js';
 
 vi.mock('../core/llm-chat.js', async (importOriginal) => {
   const actual = await importOriginal<typeof import('../core/llm-chat.js')>();
@@ -250,6 +254,48 @@ describe('createForkedChat', () => {
 
     expect(chat.isForkedChat).toBe(true);
   });
+
+  it('supplies inherited gateway tools as source material without pending callbacks', () => {
+    vi.mocked(LlmChat).mockImplementation(function MockConstructor() {
+      return {} as LlmChat;
+    });
+    const history: Content[] = [
+      { role: 'user', parts: [{ text: 'source marker' }] },
+      {
+        role: 'model',
+        parts: [
+          {
+            functionCall: {
+              id: 'pending-parent',
+              name: 'write_file',
+              args: {},
+            },
+          },
+        ],
+      },
+    ];
+    saveCacheSafeParams({}, history, 'o1gw/account/copilot/2/test-model');
+    createForkedChat(
+      {
+        getContentGeneratorConfig: () => ({
+          model: 'o1gw/account/copilot/2/test-model',
+        }),
+      } as unknown as Config,
+      getCacheSafeParams()!,
+    );
+    const input = vi.mocked(LlmChat).mock.calls[0][2] as Content[];
+    expect(input).toEqual([
+      {
+        role: 'user',
+        parts: [
+          {
+            text: `Source material for this independent task (JSON):\n${JSON.stringify(history)}`,
+          },
+        ],
+      },
+    ]);
+    expect(history[1].parts?.[0].functionCall?.id).toBe('pending-parent');
+  });
 });
 
 describe('runForkedAgent (cache path)', () => {
@@ -257,6 +303,92 @@ describe('runForkedAgent (cache path)', () => {
     clearCacheSafeParams();
     vi.mocked(LlmChat).mockReset();
     vi.mocked(createRuntimeContentGeneratorView).mockReset();
+  });
+
+  it('isolates simultaneous gateway fork runtimes and restores the parent actor', async () => {
+    const model = 'o1gw/account/copilot/2/test-model';
+    const config = {
+      getModel: () => model,
+      getContentGeneratorConfig: () => ({
+        model,
+        authType: AuthType.USE_OPENAI,
+      }),
+    } as unknown as Config;
+    const actors: string[] = [];
+    await runWithAgentContext('parent-actor', async () => {
+      await Promise.all(
+        [0, 1].map(() =>
+          runWithForkedChatModel(config, model, async () => {
+            const actor = getCurrentAgentId();
+            expect(actor).not.toBe('parent-actor');
+            expect(actor).toMatch(/^fork-/);
+            actors.push(actor!);
+            await Promise.resolve();
+            expect(getCurrentAgentId()).toBe(actor);
+          }),
+        ),
+      );
+      expect(getCurrentAgentId()).toBe('parent-actor');
+    });
+    expect(new Set(actors).size).toBe(2);
+    expect(getCurrentAgentId()).toBeNull();
+  });
+
+  it('keeps a cache fork actor across gateway stream consumption without borrowing its parent', async () => {
+    const model = 'o1gw/account/copilot/2/test-model';
+    const config = {
+      getModel: () => model,
+      getContentGeneratorConfig: () => ({
+        model,
+        authType: AuthType.USE_OPENAI,
+      }),
+    } as unknown as Config;
+    const actors: string[] = [];
+    vi.mocked(LlmChat).mockImplementation(function MockConstructor() {
+      return {
+        sendMessageStream: async () => {
+          const actor = getCurrentAgentId();
+          expect(actor).toMatch(/^fork-/);
+          actors.push(actor!);
+          return (async function* () {
+            await Promise.resolve();
+            expect(getCurrentAgentId()).toBe(actor);
+            yield {
+              type: StreamEventType.CHUNK,
+              value: {
+                candidates: [
+                  {
+                    content: {
+                      role: 'model',
+                      parts: [{ text: 'fork result' }],
+                    },
+                  },
+                ],
+              },
+            };
+          })();
+        },
+      } as unknown as LlmChat;
+    });
+    saveCacheSafeParams({}, [], model, 'parent-session');
+    await runWithAgentContext('parent-actor', async () => {
+      const results = await Promise.all(
+        [0, 1].map(() =>
+          runForkedAgent({
+            config,
+            cacheSafeParams: getCacheSafeParams()!,
+            userMessage: 'independent task',
+          }),
+        ),
+      );
+      expect(results.map((result) => result.text)).toEqual([
+        'fork result',
+        'fork result',
+      ]);
+      expect(getCurrentAgentId()).toBe('parent-actor');
+    });
+    expect(new Set(actors).size).toBe(2);
+    expect(getCurrentAgentId()).toBeNull();
   });
 
   it.each(['https://second.example/v1', ''])(

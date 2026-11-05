@@ -18442,7 +18442,7 @@ describe('LlmChat', async () => {
       expect(fr?.id).toBe('call_crash_A');
       expect(fr?.name).toBe('read_file');
       expect((fr?.response as { error?: string })?.error).toMatch(
-        /interrupted/i,
+        /outcome is unknown/i,
       );
     });
 
@@ -21886,6 +21886,44 @@ describe('LlmChat', async () => {
       expect(info.compressionStatus).toBe(CompressionStatus.COMPRESSED);
       expect(info.originalTokenCountIsEstimated).toBe(false);
       expect(info.newTokenCountIsEstimated).toBe(true);
+    });
+
+    it('compacts gateway history without losing completed tool pairs', () => {
+      vi.mocked(mockConfig.getContentGeneratorConfig).mockReturnValue({
+        ...mockConfig.getContentGeneratorConfig(),
+        model: 'o1gw/account/copilot/2/test-model',
+      });
+      vi.mocked(mockConfig.getClearContextOnIdle).mockReturnValue({
+        toolResultsThresholdMinutes: 30,
+        toolResultsNumToKeep: 1,
+      });
+      const call = { id: 'gateway-call', name: 'read_file', args: {} };
+      const response = {
+        id: call.id,
+        name: call.name,
+        response: { output: 'retained result' },
+      };
+      const gatewayChat = new LlmChat(mockConfig, config, [
+        userMsg('read the marker'),
+        {
+          role: 'model',
+          parts: [
+            { text: 'reasoning '.repeat(100), thought: true },
+            { functionCall: call },
+          ],
+        },
+        { role: 'user', parts: [{ functionResponse: response }] },
+        { role: 'model', parts: [{ text: 'marker retained' }] },
+      ]);
+
+      expect(gatewayChat.compressFast().info.compressionStatus).toBe(
+        CompressionStatus.COMPRESSED,
+      );
+      const parts = gatewayChat
+        .getHistory()
+        .flatMap((entry) => entry.parts ?? []);
+      expect(parts).toContainEqual({ functionCall: call });
+      expect(parts).toContainEqual({ functionResponse: response });
     });
 
     it('marks the fast-compression baseline as estimated when no API count exists', () => {

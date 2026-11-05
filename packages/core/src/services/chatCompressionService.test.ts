@@ -562,56 +562,62 @@ describe('ChatCompressionService', () => {
     expect(result.info.triggerReason).toBe('token_limit');
   });
 
-  it('should compress if over token threshold', async () => {
-    const history: Content[] = [
-      { role: 'user', parts: [{ text: 'msg1' }] },
-      { role: 'model', parts: [{ text: 'msg2' }] },
-      { role: 'user', parts: [{ text: 'msg3' }] },
-      { role: 'model', parts: [{ text: 'msg4' }] },
-    ];
-    vi.mocked(mockChat.getHistory).mockReturnValue(history);
-    // Realistic window: a 1000-token window floors the side-query output
-    // budget to 1 (the small-window clamp), and the truncation guard rightly
-    // rejects any output at a 1-token cap. 32K keeps the budget at the 20K
-    // ceiling so the 50-token summary below is accepted.
-    vi.mocked(uiTelemetryService.getLastPromptTokenCount).mockReturnValue(
-      28_000,
-    );
-    // Mock contextWindowSize instead of tokenLimit
-    vi.mocked(mockConfig.getContentGeneratorConfig).mockReturnValue({
-      model: 'gemini-pro',
-      contextWindowSize: 32_000,
-    } as unknown as ReturnType<typeof mockConfig.getContentGeneratorConfig>);
-    // newTokenCount = 28000 - (1600 - 1000) + 50 = 27450 <= 28000 (success)
-    const mockGenerateContent = vi.fn().mockResolvedValue({
-      text: 'Summary',
-      usage: {
-        promptTokenCount: 1600,
-        candidatesTokenCount: 50,
-        totalTokenCount: 1650,
-      },
-    });
-    vi.mocked(mockConfig.getBaseLlmClient).mockReturnValue({
-      generateText: mockGenerateContent,
-    } as unknown as BaseLlmClient);
+  it.each(['gemini-pro', 'o1gw/account/copilot/2/test-model'])(
+    'compresses over-threshold history through the existing side query for %s',
+    async (model) => {
+      const history: Content[] = [
+        { role: 'user', parts: [{ text: 'msg1' }] },
+        { role: 'model', parts: [{ text: 'msg2' }] },
+        { role: 'user', parts: [{ text: 'msg3' }] },
+        { role: 'model', parts: [{ text: 'msg4' }] },
+      ];
+      vi.mocked(mockChat.getHistory).mockReturnValue(history);
+      // Realistic window: a 1000-token window floors the side-query output
+      // budget to 1 (the small-window clamp), and the truncation guard rightly
+      // rejects any output at a 1-token cap. 32K keeps the budget at the 20K
+      // ceiling so the 50-token summary below is accepted.
+      vi.mocked(uiTelemetryService.getLastPromptTokenCount).mockReturnValue(
+        28_000,
+      );
+      // Mock contextWindowSize instead of tokenLimit
+      vi.mocked(mockConfig.getContentGeneratorConfig).mockReturnValue({
+        model,
+        contextWindowSize: 32_000,
+      } as unknown as ReturnType<typeof mockConfig.getContentGeneratorConfig>);
+      // newTokenCount = 28000 - (1600 - 1000) + 50 = 27450 <= 28000 (success)
+      const mockGenerateContent = vi.fn().mockResolvedValue({
+        text: 'Summary',
+        usage: {
+          promptTokenCount: 1600,
+          candidatesTokenCount: 50,
+          totalTokenCount: 1650,
+        },
+      });
+      vi.mocked(mockConfig.getBaseLlmClient).mockReturnValue({
+        generateText: mockGenerateContent,
+      } as unknown as BaseLlmClient);
 
-    const result = await service.compress(mockChat, {
-      promptId: mockPromptId,
-      force: false,
-      config: mockConfig,
-      consecutiveFailures: 0,
-      originalTokenCount: uiTelemetryService.getLastPromptTokenCount(),
-    });
+      const result = await service.compress(mockChat, {
+        promptId: mockPromptId,
+        force: false,
+        config: mockConfig,
+        consecutiveFailures: 0,
+        originalTokenCount: uiTelemetryService.getLastPromptTokenCount(),
+      });
 
-    expect(result.info.compressionStatus).toBe(CompressionStatus.COMPRESSED);
-    expect(result.info.newTokenCount).toBe(27_450); // 28000 - (1600 - 1000) + 50
-    expect(result.newHistory).not.toBeNull();
-    // postProcessSummary appends the resume trailer to the summary body,
-    // so it's "Summary\n\n<trailer>" rather than a strict equality.
-    expect(result.newHistory![0].parts![0].text).toContain('Summary');
-    expect(mockGenerateContent).toHaveBeenCalled();
-    expect(mockGetHookSystem).toHaveBeenCalled();
-  });
+      expect(result.info.compressionStatus).toBe(CompressionStatus.COMPRESSED);
+      expect(result.info.newTokenCount).toBe(27_450); // 28000 - (1600 - 1000) + 50
+      expect(result.newHistory).not.toBeNull();
+      // postProcessSummary appends the resume trailer to the summary body,
+      // so it's "Summary\n\n<trailer>" rather than a strict equality.
+      expect(result.newHistory![0].parts![0].text).toContain('Summary');
+      expect(mockGenerateContent).toHaveBeenCalled();
+      expect(mockGenerateContent).toHaveBeenCalledWith(
+        expect.objectContaining({ gatewayPurpose: 'compaction' }),
+      );
+      expect(mockGetHookSystem).toHaveBeenCalled();
+    },
+  );
 
   it('does not deep-clone full history while compressing', async () => {
     const largeToolOutput = 'x'.repeat(1024 * 1024);

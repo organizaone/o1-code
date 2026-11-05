@@ -38,14 +38,15 @@ export function useGatewayTransferConfirmation(
           }
           request.signal?.addEventListener('abort', cancel, { once: true });
           setQuestion({
-            prompt: request.source.startsWith('o1gw/group/')
-              ? t(
-                  'To continue in this group, we need to send this conversation history to another eligible account. This uses tokens and context on the destination account. Do you authorize?',
-                )
-              : t(
-                  'To continue on {{destination}}, we need to send this conversation history. This uses tokens and context on the destination account. Do you authorize?',
-                  { destination: request.destination },
-                ),
+            prompt:
+              request.purpose === 'group-transfer'
+                ? t(
+                    'To continue in this group, we need to send this conversation history to another eligible account. This uses tokens and context on the destination account. Do you authorize?',
+                  )
+                : t(
+                    'To continue on {{destination}}, we need to send this conversation history. This uses tokens and context on the destination account. Do you authorize?',
+                    { destination: request.destination },
+                  ),
             onConfirm: finish,
             confirmLabel: t('Authorize and continue'),
             cancelLabel: t('Cancel'),

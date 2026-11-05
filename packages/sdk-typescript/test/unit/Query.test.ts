@@ -1331,6 +1331,110 @@ describe('Query', () => {
       await query.close();
     });
 
+    it.each([
+      'missing',
+      'accept',
+      'cancel',
+      'mismatch',
+      'invalid-endpoint',
+      'invalid-auth',
+    ])(
+      'requires explicit history consent for setModel: %s',
+      async (scenario) => {
+        const query = new Query(transport, { cwd: '/test' });
+        await respondToInitialize(transport, query);
+        const confirm = vi.fn(async () => scenario === 'accept');
+        const outcome = query
+          .setModel('destination', scenario === 'missing' ? undefined : confirm)
+          .then(
+            () => undefined,
+            (error: unknown) => error,
+          );
+        await vi.waitFor(() => {
+          expect(
+            findControlRequest(
+              transport.getAllWrittenMessages(),
+              ControlRequestType.SET_MODEL,
+            ),
+          ).toBeDefined();
+        });
+        const first = findControlRequest(
+          transport.getAllWrittenMessages(),
+          ControlRequestType.SET_MODEL,
+        )!;
+        transport.simulateMessage(
+          createControlResponse(first.request_id, true, {
+            requires_confirmation: true,
+            confirmation_id: 'one-time-selection',
+            session_id: 'current-session',
+            source_model: 'source',
+            destination_model:
+              scenario === 'mismatch' ? 'another-destination' : 'destination',
+            ...(scenario === 'accept'
+              ? {
+                  destination_base_url: 'https://gateway.example/v1',
+                  destination_auth_type: 'openai',
+                }
+              : {}),
+            ...(scenario === 'invalid-endpoint'
+              ? { destination_base_url: 123 }
+              : {}),
+            ...(scenario === 'invalid-auth'
+              ? { destination_auth_type: 123 }
+              : {}),
+            message: 'The history uses tokens and context on the destination.',
+          }),
+        );
+        if (scenario === 'accept' || scenario === 'cancel') {
+          await vi.waitFor(() => {
+            const latest = findControlRequest(
+              [...transport.getAllWrittenMessages()].reverse(),
+              ControlRequestType.SET_MODEL,
+            );
+            expect(latest?.request_id).not.toBe(first.request_id);
+          });
+          const second = findControlRequest(
+            [...transport.getAllWrittenMessages()].reverse(),
+            ControlRequestType.SET_MODEL,
+          )!;
+          expect(second.request).toMatchObject({
+            model: 'destination',
+            history_consent: {
+              confirmation_id: 'one-time-selection',
+              confirmed: scenario === 'accept',
+            },
+          });
+          expect(confirm).toHaveBeenCalledWith({
+            sessionId: 'current-session',
+            sourceModel: 'source',
+            destinationModel: 'destination',
+            ...(scenario === 'accept'
+              ? {
+                  destinationBaseUrl: 'https://gateway.example/v1',
+                  destinationAuthType: 'openai',
+                }
+              : {}),
+            message: 'The history uses tokens and context on the destination.',
+          });
+          transport.simulateMessage(
+            createControlResponse(
+              second.request_id,
+              true,
+              scenario === 'accept'
+                ? { model: 'destination' }
+                : { cancelled: true },
+            ),
+          );
+        }
+        const result = await outcome;
+        if (scenario === 'accept') expect(result).toBeUndefined();
+        else expect(result).toBeInstanceOf(Error);
+        if (scenario !== 'accept' && scenario !== 'cancel')
+          expect(confirm).not.toHaveBeenCalled();
+        await query.close();
+      },
+    );
+
     it('should provide supportedCommands() method', async () => {
       const query = new Query(transport, { cwd: '/test' });
 
