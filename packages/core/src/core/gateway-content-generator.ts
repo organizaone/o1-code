@@ -39,9 +39,7 @@ import { ToolNames } from '../tools/tool-names.js';
 import {
   takeGatewayTransfer,
   confirmGatewayTransfer,
-  isGatewayAccountChange,
   assertGatewayTransferCompatible,
-  getGatewayAccountSelection,
   isGatewayAccountSelectionInProgress,
 } from '../providers/gateway-transfer.js';
 
@@ -236,7 +234,6 @@ export class GatewayContentGenerator implements ContentGenerator {
         ]),
       )
       .digest('hex');
-    const selection = getGatewayAccountSelection(this.config);
     const transfer =
       actor === 'main' ? takeGatewayTransfer(this.config) : undefined;
     if (transfer) {
@@ -267,17 +264,11 @@ export class GatewayContentGenerator implements ContentGenerator {
             outputLimit,
           ),
         };
-    } else if (
-      previous &&
-      isGatewayAccountChange(previous.model, request.model) &&
-      selection?.destinationModel !== request.model
-    ) {
-      state.busy = false;
-      throw new GatewayConversationError(
-        'unsupported',
-        'Select the destination through /model and authorize sending this conversation history. The history was not sent to another account.',
-      );
     }
+    // Gateway conversation contract v2 (o1-gateway 11.9.0): inside an
+    // authenticated conversation the same user may change model or account
+    // (installation or BYOL) on any request; the gateway continues natively or
+    // rebuilds from the supplied history. No selection record is required.
     const record: GatewayConversationRecordPayload = {
       conversationId: id,
       endpoint,

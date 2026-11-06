@@ -760,13 +760,14 @@ explicit source input; the agent does not inherit the main conversation's
 authenticated assistant/tool chain. Concurrent memory tasks keep separate IDs
 and restore the parent agent's context when they finish.
 
-Explicitly selecting another account for a conversation through
-`/model` asks permission to send the history and consume destination tokens and
-context. Cancel retains the original selection. Authorization is scoped to this
-conversation and destination configuration. Completed history can initialize a
-fresh context on the explicitly selected authorized account, including changes
-of native model, provider or account type. Pending tools or a generation still
-in progress must finish before changing the destination; other sessions remain
+Selecting another model or account on the same o1-gateway (installation or
+your own accounts) switches immediately. Since o1-gateway 11.9.0 (conversation
+contract v2), the gateway continues natively when it can and otherwise starts a
+fresh context on the selected account from the conversation history. No transfer
+and no permission prompt is needed. Selecting a route on another gateway
+endpoint or provider still asks permission before the history is sent there;
+Cancel retains the original selection. Pending tools or a generation still in
+progress must finish before changing the destination; other sessions remain
 independent.
 
 Native transfer is separate: `/v1/conversations/transfer` prepares the exact

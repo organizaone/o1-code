@@ -7,6 +7,10 @@ follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Changed
+
+- Switching model or account within the same o1-gateway no longer asks for permission or refuses the next request. Since o1-gateway 11.9.0 (conversation contract v2), the gateway continues the conversation natively or starts a fresh context from its history on the selected account, installation or your own. Switching to another gateway endpoint or provider still asks first. ACP sessions and settings reloads that change the account no longer fail with "Select the destination through /model".
+
 ## [0.23.4] - 2026-11-06
 
 ### Fixed

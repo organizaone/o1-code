@@ -48,8 +48,8 @@ describe('modelCommand', () => {
   });
 
   it.each([false, true])(
-    'authorizes explicit gateway account selection before switching: %s',
-    async (confirmed) => {
+    'switches gateway accounts without asking, whatever a consent handler would answer (%s): gateway contract v2',
+    async (handlerAnswer) => {
       const source = 'o1gw/account/copilot/2/auto';
       const destination = 'o1gw/own/claude/7/sonnet';
       const current: ContentGeneratorConfig = {
@@ -80,22 +80,18 @@ describe('modelCommand', () => {
         },
       });
       const config = mockContext.services.config!;
-      const unregister = registerGatewayTransferConfirmation(
-        config,
-        async () => confirmed,
-      );
+      const asked = vi.fn(async () => handlerAnswer);
+      const unregister = registerGatewayTransferConfirmation(config, asked);
       try {
         const result = await modelCommand.action!(mockContext, destination);
-        expect(switchModel).toHaveBeenCalledTimes(confirmed ? 1 : 0);
-        if (confirmed)
-          expect(getGatewayAccountSelection(config)).toMatchObject({
-            sourceModel: source,
-            destinationModel: destination,
-          });
-        else
-          expect(result).toMatchObject({
-            content: 'Model selection cancelled.',
-          });
+        expect(asked).not.toHaveBeenCalled();
+        expect(switchModel).toHaveBeenCalledOnce();
+        expect(current.model).toBe(destination);
+        expect(source).not.toBe(destination);
+        expect(result).not.toMatchObject({
+          content: 'Model selection cancelled.',
+        });
+        expect(getGatewayAccountSelection(config)).toBeUndefined();
       } finally {
         unregister();
       }

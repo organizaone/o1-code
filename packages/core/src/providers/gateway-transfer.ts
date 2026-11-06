@@ -230,9 +230,11 @@ export async function switchWithGatewayAccountSelection(
       normalizeGatewayEndpoint(
         before.reasoningRouteBaseUrl ?? before.baseUrl ?? '',
       );
-  const requiresConsent =
-    (routeChanged || isGatewayAccountChange(sourceModel, target.model)) &&
-    history().length > 0;
+  // Gateway conversation contract v2 (o1-gateway 11.9.0): switching model or
+  // account within the same gateway needs no consent; the gateway rebuilds
+  // from the supplied history when the native session cannot continue. Sending
+  // the history to another gateway or provider route still asks first.
+  const requiresConsent = routeChanged && history().length > 0;
   if (requiresConsent) {
     const question = {
       source: sourceModel,
