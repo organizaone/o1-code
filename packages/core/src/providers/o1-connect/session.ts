@@ -167,7 +167,7 @@ export function describeO1ConnectError(error: unknown): {
     isUnreadableSecretFileError(error.cause)
   ) {
     return {
-      message: `The secret store at ${error.cause.filePath} cannot be decrypted on this machine: it was saved under another host name or user, or it is damaged. Setting up the connection code again offers to keep it as a .bak and start a new one.`,
+      message: `The secret store cannot be read: ${error.cause.message}. Setting up the connection code again offers to keep it as a .bak and start a new one.`,
       forgetAndSetUpAgain: false,
       unreadableSecretFile: error.cause.filePath,
     };

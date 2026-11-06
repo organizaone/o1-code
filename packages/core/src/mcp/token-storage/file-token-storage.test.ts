@@ -15,6 +15,7 @@ import {
 } from './file-token-storage.js';
 import type { OAuthCredentials } from './types.js';
 import { atomicWriteFile } from '../../utils/atomicFileWrite.js';
+import { DamagedSecretKeyError, loadSecretKey } from './secret-key.js';
 
 vi.mock('node:fs', () => ({
   promises: {
@@ -41,6 +42,83 @@ vi.mock('node:os', () => ({
   userInfo: vi.fn(() => ({ username: 'test-user' })),
 }));
 
+const TEST_KEY = crypto.createHash('sha256').update('test-key').digest();
+const TEST_KEY_ID = '0123456789abcdef';
+const KEY_FILE_PATH = path.join('/home/test', '.o1-code', 'secret-key-v1.json');
+
+vi.mock('./secret-key.js', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('./secret-key.js')>();
+  return { ...actual, loadSecretKey: vi.fn() };
+});
+
+const tokenFilePath = path.join(
+  '/home/test',
+  '.o1-code',
+  'mcp-oauth-tokens-v2.json',
+);
+const secretFilePath = path.join(
+  '/home/test',
+  '.o1-code',
+  'extension-secrets-v1.json',
+);
+
+// Written apart from the implementation, so the tests pin the on-disk format.
+function seal(
+  text: string,
+  filePath = tokenFilePath,
+  options: { key?: Buffer; id?: string } = {},
+): string {
+  const iv = crypto.randomBytes(16);
+  const cipher = crypto.createCipheriv(
+    'aes-256-gcm',
+    options.key ?? TEST_KEY,
+    iv,
+  );
+  cipher.setAAD(Buffer.from(`o1-code:${path.basename(filePath)}`));
+  const encrypted = cipher.update(text, 'utf8', 'hex') + cipher.final('hex');
+  return [
+    'o1s2',
+    options.id ?? TEST_KEY_ID,
+    iv.toString('hex'),
+    cipher.getAuthTag().toString('hex'),
+    encrypted,
+  ].join(':');
+}
+
+function sealLegacy(text: string, host = 'test-host'): string {
+  const key = crypto.scryptSync(
+    'o1-code-oauth',
+    `${host}-test-user-o1-code`,
+    32,
+  );
+  const iv = crypto.randomBytes(16);
+  const cipher = crypto.createCipheriv('aes-256-gcm', key, iv);
+  const encrypted = cipher.update(text, 'utf8', 'hex') + cipher.final('hex');
+  return `${iv.toString('hex')}:${cipher.getAuthTag().toString('hex')}:${encrypted}`;
+}
+
+function open(sealed: string, filePath: string): string {
+  const [prefix, id, iv, tag, encrypted] = sealed.split(':');
+  expect(prefix).toBe('o1s2');
+  expect(id).toBe(TEST_KEY_ID);
+  const decipher = crypto.createDecipheriv(
+    'aes-256-gcm',
+    TEST_KEY,
+    Buffer.from(iv, 'hex'),
+  );
+  decipher.setAuthTag(Buffer.from(tag, 'hex'));
+  decipher.setAAD(Buffer.from(`o1-code:${path.basename(filePath)}`));
+  return decipher.update(encrypted, 'hex', 'utf8') + decipher.final('utf8');
+}
+
+function unseal(writeCall: unknown[]): string {
+  return open(writeCall[1] as string, writeCall[0] as string);
+}
+
+function unsealSecrets(writtenData: unknown): string {
+  return open(writtenData as string, secretFilePath);
+}
+
 describe('FileTokenStorage', () => {
   let storage: FileTokenStorage;
   const mockFs = fs as unknown as {
@@ -61,6 +139,11 @@ describe('FileTokenStorage', () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
+    vi.mocked(loadSecretKey).mockResolvedValue({
+      key: TEST_KEY,
+      id: TEST_KEY_ID,
+      filePath: KEY_FILE_PATH,
+    });
     storage = new FileTokenStorage('test-storage');
   });
 
@@ -88,7 +171,7 @@ describe('FileTokenStorage', () => {
         updatedAt: Date.now(),
       };
 
-      const encryptedData = storage['encrypt'](
+      const encryptedData = seal(
         JSON.stringify({ 'test-server': credentials }),
       );
       mockFs.readFile.mockResolvedValue(encryptedData);
@@ -108,7 +191,7 @@ describe('FileTokenStorage', () => {
         updatedAt: Date.now(),
       };
 
-      const encryptedData = storage['encrypt'](
+      const encryptedData = seal(
         JSON.stringify({ 'test-server': credentials }),
       );
       mockFs.readFile.mockResolvedValue(encryptedData);
@@ -123,6 +206,26 @@ describe('FileTokenStorage', () => {
       await expect(storage.getCredentials('test-server')).rejects.toThrow(
         'Token file corrupted',
       );
+    });
+
+    it('moves tokens an earlier version sealed on this host onto the new key', async () => {
+      const credentials: OAuthCredentials = {
+        serverName: 'test-server',
+        token: { accessToken: 'legacy-token', tokenType: 'Bearer' },
+        updatedAt: Date.now(),
+      };
+      mockFs.readFile.mockResolvedValue(
+        sealLegacy(JSON.stringify({ 'test-server': credentials })),
+      );
+      mockFs.mkdir.mockResolvedValue(undefined);
+      vi.mocked(atomicWriteFile).mockResolvedValue(undefined);
+
+      await expect(storage.getCredentials('test-server')).resolves.toEqual(
+        credentials,
+      );
+      const writeCall = vi.mocked(atomicWriteFile).mock.calls[0];
+      expect(writeCall[0]).toBe(tokenFilePath);
+      expect(JSON.parse(unseal(writeCall))['test-server']).toEqual(credentials);
     });
   });
 
@@ -150,7 +253,7 @@ describe('FileTokenStorage', () => {
       expect(atomicWriteFile).toHaveBeenCalled();
 
       const writeCall = vi.mocked(atomicWriteFile).mock.calls[0];
-      const decrypted = storage['decrypt'](writeCall[1] as string);
+      const decrypted = unseal(writeCall);
       const saved = JSON.parse(decrypted);
 
       expect(Object.keys(saved)).toEqual(['test-server']);
@@ -161,7 +264,7 @@ describe('FileTokenStorage', () => {
     });
 
     it('should save credentials with encryption', async () => {
-      const encryptedData = storage['encrypt'](
+      const encryptedData = seal(
         JSON.stringify({ 'existing-server': existingCredentials }),
       );
       mockFs.readFile.mockResolvedValue(encryptedData);
@@ -186,7 +289,9 @@ describe('FileTokenStorage', () => {
       expect(atomicWriteFile).toHaveBeenCalled();
 
       const writeCall = vi.mocked(atomicWriteFile).mock.calls[0];
-      expect(writeCall[1]).toMatch(/^[0-9a-f]+:[0-9a-f]+:[0-9a-f]+$/);
+      expect(writeCall[1]).toMatch(
+        /^o1s2:0123456789abcdef:[0-9a-f]+:[0-9a-f]+:[0-9a-f]+$/,
+      );
       expect(writeCall[2]).toEqual({
         mode: 0o600,
         forceMode: true,
@@ -195,7 +300,7 @@ describe('FileTokenStorage', () => {
     });
 
     it('should update existing credentials', async () => {
-      const encryptedData = storage['encrypt'](
+      const encryptedData = seal(
         JSON.stringify({ 'existing-server': existingCredentials }),
       );
       mockFs.readFile.mockResolvedValue(encryptedData);
@@ -214,7 +319,7 @@ describe('FileTokenStorage', () => {
 
       expect(atomicWriteFile).toHaveBeenCalled();
       const writeCall = vi.mocked(atomicWriteFile).mock.calls[0];
-      const decrypted = storage['decrypt'](writeCall[1] as string);
+      const decrypted = unseal(writeCall);
       const saved = JSON.parse(decrypted);
 
       expect(saved['existing-server']).toEqual(existingCredentials);
@@ -227,7 +332,7 @@ describe('FileTokenStorage', () => {
     // left the in-memory token map out of sync with disk would have
     // gone undetected.
     it('should propagate atomicWriteFile failures', async () => {
-      const encryptedData = storage['encrypt'](
+      const encryptedData = seal(
         JSON.stringify({ 'existing-server': existingCredentials }),
       );
       mockFs.readFile.mockResolvedValue(encryptedData);
@@ -267,7 +372,7 @@ describe('FileTokenStorage', () => {
         updatedAt: Date.now(),
       };
 
-      const encryptedData = storage['encrypt'](
+      const encryptedData = seal(
         JSON.stringify({ 'test-server': credentials }),
       );
       mockFs.readFile.mockResolvedValue(encryptedData);
@@ -299,7 +404,7 @@ describe('FileTokenStorage', () => {
         updatedAt: Date.now(),
       };
 
-      const encryptedData = storage['encrypt'](
+      const encryptedData = seal(
         JSON.stringify({ server1: credentials1, server2: credentials2 }),
       );
       mockFs.readFile.mockResolvedValue(encryptedData);
@@ -311,7 +416,7 @@ describe('FileTokenStorage', () => {
       expect(mockFs.unlink).not.toHaveBeenCalled();
 
       const writeCall = vi.mocked(atomicWriteFile).mock.calls[0];
-      const decrypted = storage['decrypt'](writeCall[1] as string);
+      const decrypted = unseal(writeCall);
       const saved = JSON.parse(decrypted);
 
       expect(saved['server1']).toBeUndefined();
@@ -329,7 +434,7 @@ describe('FileTokenStorage', () => {
         token: { accessToken: 'token2', tokenType: 'Bearer' },
         updatedAt: Date.now(),
       };
-      const encryptedData = storage['encrypt'](
+      const encryptedData = seal(
         JSON.stringify({ server1: credentials1, server2: credentials2 }),
       );
       mockFs.readFile.mockResolvedValue(encryptedData);
@@ -368,7 +473,7 @@ describe('FileTokenStorage', () => {
         },
       };
 
-      const encryptedData = storage['encrypt'](JSON.stringify(credentials));
+      const encryptedData = seal(JSON.stringify(credentials));
       mockFs.readFile.mockResolvedValue(encryptedData);
 
       const result = await storage.listServers();
@@ -395,40 +500,46 @@ describe('FileTokenStorage', () => {
   });
 
   describe('encryption', () => {
-    it('should encrypt and decrypt data correctly', () => {
-      const original = 'test-data-123';
-      const encrypted = storage['encrypt'](original);
-      const decrypted = storage['decrypt'](encrypted);
+    it('seals with a fresh IV each time, under the key named in the file', async () => {
+      const first = await storage['encrypt']('test-data', tokenFilePath);
+      const second = await storage['encrypt']('test-data', tokenFilePath);
 
-      expect(decrypted).toBe(original);
-      expect(encrypted).not.toBe(original);
-      expect(encrypted).toMatch(/^[0-9a-f]+:[0-9a-f]+:[0-9a-f]+$/);
-    });
-
-    it('should produce different encrypted output each time', () => {
-      const original = 'test-data';
-      const encrypted1 = storage['encrypt'](original);
-      const encrypted2 = storage['encrypt'](original);
-
-      expect(encrypted1).not.toBe(encrypted2);
-      expect(storage['decrypt'](encrypted1)).toBe(original);
-      expect(storage['decrypt'](encrypted2)).toBe(original);
-    });
-
-    it('should throw on invalid encrypted data format', () => {
-      expect(() => storage['decrypt']('invalid-data')).toThrow(
-        'Invalid encrypted data format',
+      expect(first).not.toBe(second);
+      expect(open(first, tokenFilePath)).toBe('test-data');
+      expect(open(second, tokenFilePath)).toBe('test-data');
+      expect(loadSecretKey).toHaveBeenCalledWith(
+        path.join('/home/test', '.o1-code'),
+        { create: true },
       );
+    });
+
+    it('opens what it sealed without creating a key to read', async () => {
+      const sealed = await storage['encrypt']('test-data', tokenFilePath);
+      await expect(storage['decrypt'](sealed, tokenFilePath)).resolves.toEqual({
+        text: 'test-data',
+        legacy: false,
+      });
+      expect(loadSecretKey).toHaveBeenLastCalledWith(
+        path.join('/home/test', '.o1-code'),
+        { create: false },
+      );
+    });
+
+    it('does not open a file moved under another sealed file’s name', async () => {
+      const sealed = seal('{"server":{}}', tokenFilePath);
+      await expect(
+        storage['decrypt'](sealed, secretFilePath),
+      ).rejects.toMatchObject({ reason: 'modified', filePath: secretFilePath });
+    });
+
+    it('rejects data that is not in a sealed format', async () => {
+      await expect(
+        storage['decrypt']('invalid-data', tokenFilePath),
+      ).rejects.toMatchObject({ reason: 'modified' });
     });
   });
 
   describe('secret storage', () => {
-    const secretFilePath = path.join(
-      '/home/test',
-      '.o1-code',
-      'extension-secrets-v1.json',
-    );
-
     beforeEach(() => {
       mockFs.mkdir.mockResolvedValue(undefined);
       vi.mocked(atomicWriteFile).mockResolvedValue(undefined);
@@ -454,23 +565,26 @@ describe('FileTokenStorage', () => {
       const [writtenPath, writtenData, writeOptions] =
         vi.mocked(atomicWriteFile).mock.calls[0];
       expect(writtenPath).toBe(secretFilePath);
-      expect(writtenData).toMatch(/^[0-9a-f]+:[0-9a-f]+:[0-9a-f]+$/);
+      expect(writtenData).toMatch(
+        /^o1s2:0123456789abcdef:[0-9a-f]+:[0-9a-f]+:[0-9a-f]+$/,
+      );
       expect(writeOptions).toEqual({
         mode: 0o600,
         forceMode: true,
         noFollow: true,
       });
-      expect(JSON.parse(storage['decrypt'](writtenData as string))).toEqual({
+      expect(JSON.parse(unsealSecrets(writtenData))).toEqual({
         'test-storage': { API_KEY: 'sk-123' },
       });
     });
 
     it('reads back a stored secret and ignores other keys and services', async () => {
-      const encrypted = storage['encrypt'](
+      const encrypted = seal(
         JSON.stringify({
           'test-storage': { API_KEY: 'sk-123' },
           'other-service': { API_KEY: 'sk-other' },
         }),
+        secretFilePath,
       );
       mockFs.readFile.mockResolvedValue(encrypted);
 
@@ -480,8 +594,9 @@ describe('FileTokenStorage', () => {
     });
 
     it('deletes a secret and drops the now-empty service bucket', async () => {
-      const encrypted = storage['encrypt'](
+      const encrypted = seal(
         JSON.stringify({ 'test-storage': { API_KEY: 'sk-123' } }),
+        secretFilePath,
       );
       mockFs.readFile.mockResolvedValue(encrypted);
 
@@ -489,7 +604,7 @@ describe('FileTokenStorage', () => {
 
       expect(atomicWriteFile).toHaveBeenCalledTimes(1);
       const [, writtenData] = vi.mocked(atomicWriteFile).mock.calls[0];
-      expect(JSON.parse(storage['decrypt'](writtenData as string))).toEqual({});
+      expect(JSON.parse(unsealSecrets(writtenData))).toEqual({});
     });
 
     it('deleting a missing secret is a no-op (no write, no throw)', async () => {
@@ -499,28 +614,122 @@ describe('FileTokenStorage', () => {
       expect(atomicWriteFile).not.toHaveBeenCalled();
     });
 
-    it('refuses a file sealed under another host with a typed error and writes nothing', async () => {
-      const otherKey = crypto.scryptSync(
-        'o1-code-oauth',
-        'other-host-test-user-o1-code',
-        32,
-      );
-      const iv = crypto.randomBytes(16);
-      const cipher = crypto.createCipheriv('aes-256-gcm', otherKey, iv);
-      const sealed =
-        cipher.update('{"svc":{"K":"sk-secret"}}', 'utf8', 'hex') +
-        cipher.final('hex');
+    it('moves a file an earlier version sealed on this host onto the new key', async () => {
       mockFs.readFile.mockResolvedValue(
-        `${iv.toString('hex')}:${cipher.getAuthTag().toString('hex')}:${sealed}`,
+        sealLegacy('{"test-storage":{"API_KEY":"sk-legacy"}}'),
+      );
+
+      await expect(storage.getSecret('API_KEY')).resolves.toBe('sk-legacy');
+
+      expect(atomicWriteFile).toHaveBeenCalledTimes(1);
+      const [writtenPath, writtenData] =
+        vi.mocked(atomicWriteFile).mock.calls[0];
+      expect(writtenPath).toBe(secretFilePath);
+      expect(JSON.parse(unsealSecrets(writtenData))).toEqual({
+        'test-storage': { API_KEY: 'sk-legacy' },
+      });
+    });
+
+    it('still reads a migrated file when sealing it again fails', async () => {
+      mockFs.readFile.mockResolvedValue(
+        sealLegacy('{"test-storage":{"API_KEY":"sk-legacy"}}'),
+      );
+      vi.mocked(atomicWriteFile).mockRejectedValueOnce(new Error('EROFS'));
+
+      await expect(storage.getSecret('API_KEY')).resolves.toBe('sk-legacy');
+    });
+
+    it('refuses a file an earlier version sealed on another host and writes nothing', async () => {
+      mockFs.readFile.mockResolvedValue(
+        sealLegacy('{"svc":{"K":"sk-secret"}}', 'other-host'),
       );
 
       const read = storage.getSecret('API_KEY');
       await expect(read).rejects.toBeInstanceOf(UnreadableSecretFileError);
-      await expect(read).rejects.toMatchObject({ filePath: secretFilePath });
+      await expect(read).rejects.toMatchObject({
+        filePath: secretFilePath,
+        reason: 'other-machine',
+      });
       await expect(storage.setSecret('API_KEY', 'sk-new')).rejects.toThrow(
-        'cannot be decrypted on this machine',
+        'another host name or user',
       );
       expect(atomicWriteFile).not.toHaveBeenCalled();
+    });
+
+    it('opens a file wherever its home is, whatever the host name', async () => {
+      const sealed = seal(
+        '{"test-storage":{"API_KEY":"sk-123"}}',
+        secretFilePath,
+      );
+      const os = await import('node:os');
+      vi.mocked(os.hostname).mockReturnValue('another-farm-host');
+      try {
+        mockFs.readFile.mockResolvedValue(sealed);
+        await expect(storage.getSecret('API_KEY')).resolves.toBe('sk-123');
+      } finally {
+        vi.mocked(os.hostname).mockReturnValue('test-host');
+      }
+    });
+
+    it('refuses a file whose content was modified', async () => {
+      const sealed = seal(
+        '{"test-storage":{"API_KEY":"sk-123"}}',
+        secretFilePath,
+      );
+      const last = sealed.at(-1) === '0' ? '1' : '0';
+      mockFs.readFile.mockResolvedValue(`${sealed.slice(0, -1)}${last}`);
+
+      await expect(storage.getSecret('API_KEY')).rejects.toMatchObject({
+        filePath: secretFilePath,
+        reason: 'modified',
+      });
+      expect(atomicWriteFile).not.toHaveBeenCalled();
+    });
+
+    it('refuses a file whose authentication tag was truncated', async () => {
+      const parts = seal(
+        '{"test-storage":{"API_KEY":"sk-123"}}',
+        secretFilePath,
+      ).split(':');
+      parts[3] = parts[3].slice(0, 8);
+      mockFs.readFile.mockResolvedValue(parts.join(':'));
+
+      await expect(storage.getSecret('API_KEY')).rejects.toMatchObject({
+        reason: 'modified',
+      });
+    });
+
+    it('refuses a file sealed with another key, without creating one to read', async () => {
+      mockFs.readFile.mockResolvedValue(
+        seal('{}', secretFilePath, {
+          key: crypto.randomBytes(32),
+          id: 'fedcba9876543210',
+        }),
+      );
+      await expect(storage.getSecret('API_KEY')).rejects.toMatchObject({
+        reason: 'other-key',
+      });
+
+      vi.mocked(loadSecretKey).mockResolvedValue(null);
+      await expect(storage.getSecret('API_KEY')).rejects.toMatchObject({
+        reason: 'other-key',
+      });
+      expect(loadSecretKey).toHaveBeenLastCalledWith(
+        path.join('/home/test', '.o1-code'),
+        { create: false },
+      );
+    });
+
+    it('names the key file when the key itself is damaged', async () => {
+      mockFs.readFile.mockResolvedValue(seal('{}', secretFilePath));
+      vi.mocked(loadSecretKey).mockRejectedValue(
+        new DamagedSecretKeyError(KEY_FILE_PATH),
+      );
+
+      await expect(storage.getSecret('API_KEY')).rejects.toMatchObject({
+        filePath: KEY_FILE_PATH,
+        reason: 'key-damaged',
+      });
     });
 
     it('treats a file that is not in the sealed format as unreadable too', async () => {

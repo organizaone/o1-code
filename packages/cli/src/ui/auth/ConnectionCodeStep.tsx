@@ -309,7 +309,7 @@ export function ConnectionCodeStep({
           <Box marginTop={1}>
             <Text color={extendedTheme.text.muted}>
               {t(
-                'The old file stays beside it as a .bak, still readable on the machine that saved it. Type replace to set it aside and save the connection:',
+                'The old file stays beside it as a .bak. Type replace to set it aside and save the connection:',
               )}
             </Text>
           </Box>
