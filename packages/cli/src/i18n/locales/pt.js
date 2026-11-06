@@ -1124,8 +1124,8 @@ export default {
     'Salvo. Abrindo o túnel e listando seus modelos…',
   'Nothing was saved: the fingerprints were not confirmed.':
     'Nada foi salvo: as impressões digitais não foram confirmadas.',
-  'The old file stays beside it as a .bak, still readable on the machine that saved it. Type replace to set it aside and save the connection:':
-    'O arquivo antigo fica ao lado como .bak, ainda legível na máquina que o salvou. Digite replace para deixá-lo de lado e salvar a conexão:',
+  'The old file stays beside it as a .bak. Type replace to set it aside and save the connection:':
+    'O arquivo antigo fica ao lado como .bak. Digite replace para deixá-lo de lado e salvar a conexão:',
   'Nothing was moved: the secret store was left as it was.':
     'Nada foi movido: o armazenamento de segredos ficou como estava.',
   '{{used}}/{{limit}} requests per minute':

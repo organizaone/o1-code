@@ -7,6 +7,16 @@ follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.23.4] - 2026-11-06
+
+### Fixed
+
+- Saved o1-gateway connections and other encrypted secrets no longer stop opening when the same o1-code home is used from another host, such as a roaming profile on a terminal-server farm. The encryption key is now random and kept in `~/.o1-code/secret-key-v1.json` instead of being derived from the host name and user; files sealed by earlier versions on the same host move to the new key when first read.
+
+### Security
+
+- Encrypted secret files record which key sealed them and are bound to their own file name, and the key file carries its own check value. A modified file, a file moved under another name, a replaced key and a damaged key are each reported with their own reason instead of a single "cannot be decrypted" error.
+
 ## [0.23.3] - 2026-11-05
 
 ### Fixed

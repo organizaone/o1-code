@@ -106,6 +106,37 @@ describe('describeO1ConnectError', () => {
     expect(described.forgetAndSetUpAgain).toBe(false);
   });
 
+  it('says whether the file or its key failed the integrity check', () => {
+    const describe = (error: UnreadableSecretFileError) =>
+      describeO1ConnectError(
+        new O1ConnectError('store_failed', 'store', { cause: error }),
+      );
+    const modified = describe(
+      new UnreadableSecretFileError('/home/u/.o1-code/secrets.json', {
+        reason: 'modified',
+      }),
+    );
+    expect(modified.message).toContain('modified or damaged');
+    expect(modified.unreadableSecretFile).toBe('/home/u/.o1-code/secrets.json');
+
+    const otherKey = describe(
+      new UnreadableSecretFileError('/home/u/.o1-code/secrets.json', {
+        reason: 'other-key',
+      }),
+    );
+    expect(otherKey.message).toContain('sealed with another secret key');
+
+    const keyDamaged = describe(
+      new UnreadableSecretFileError('/home/u/.o1-code/secret-key-v1.json', {
+        reason: 'key-damaged',
+      }),
+    );
+    expect(keyDamaged.message).toContain('the secret key was modified');
+    expect(keyDamaged.unreadableSecretFile).toBe(
+      '/home/u/.o1-code/secret-key-v1.json',
+    );
+  });
+
   it('carries the store’s own reason', () => {
     const described = describeO1ConnectError(
       new O1ConnectError('store_failed', 'store', {

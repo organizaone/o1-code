@@ -2377,8 +2377,8 @@ export default {
     'Saved. Opening the tunnel and listing your models…',
   'Nothing was saved: the fingerprints were not confirmed.':
     'Nothing was saved: the fingerprints were not confirmed.',
-  'The old file stays beside it as a .bak, still readable on the machine that saved it. Type replace to set it aside and save the connection:':
-    'The old file stays beside it as a .bak, still readable on the machine that saved it. Type replace to set it aside and save the connection:',
+  'The old file stays beside it as a .bak. Type replace to set it aside and save the connection:':
+    'The old file stays beside it as a .bak. Type replace to set it aside and save the connection:',
   'Nothing was moved: the secret store was left as it was.':
     'Nothing was moved: the secret store was left as it was.',
   '{{used}}/{{limit}} requests per minute':

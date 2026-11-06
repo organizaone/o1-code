@@ -391,7 +391,7 @@ OAuth configuration properties:
 
 OAuth tokens are automatically:
 
-- **Stored** in `~/.o1-code/mcp-oauth-tokens.json` (plaintext, mode 0600) by default. If `O1CODE_FORCE_ENCRYPTED_FILE_STORAGE=true` is set, O1-Code uses keychain-backed storage where available, or `~/.o1-code/mcp-oauth-tokens-v2.json` with AES-256-GCM encryption.
+- **Stored** in `~/.o1-code/mcp-oauth-tokens.json` (plaintext, mode 0600) by default. If `O1CODE_FORCE_ENCRYPTED_FILE_STORAGE=true` is set, O1-Code uses keychain-backed storage where available, or `~/.o1-code/mcp-oauth-tokens-v2.json` with AES-256-GCM encryption. The key is random and lives in `~/.o1-code/secret-key-v1.json`, so encrypted files open on any host that shares the same o1-code home (a roaming profile, a terminal-server farm); keep that file as private as the files it protects.
 - **Refreshed** when expired (if refresh tokens are available)
 - **Validated** before each connection attempt
 
