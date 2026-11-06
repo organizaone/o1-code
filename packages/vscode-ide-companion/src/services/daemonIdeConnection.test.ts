@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { describe, expect, it, vi } from 'vitest';
+import { describe, expect, it, vi, type Mock } from 'vitest';
 import type {
   ContentBlock,
   RequestPermissionRequest,
@@ -82,10 +82,10 @@ class EventQueue implements AsyncGenerator<DaemonIdeEvent> {
 }
 
 interface FakeSession extends DaemonIdeSessionClient {
-  prompt: ReturnType<typeof vi.fn>;
-  cancel: ReturnType<typeof vi.fn>;
-  setModel: ReturnType<typeof vi.fn>;
-  respondToPermission: ReturnType<typeof vi.fn>;
+  prompt: Mock<DaemonIdeSessionClient['prompt']>;
+  cancel: Mock<DaemonIdeSessionClient['cancel']>;
+  setModel: Mock<DaemonIdeSessionClient['setModel']>;
+  respondToPermission: Mock<DaemonIdeSessionClient['respondToPermission']>;
 }
 
 function createFakeSession(
