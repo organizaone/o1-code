@@ -116,8 +116,8 @@ describe('explicit gateway account selection', () => {
 
 describe('explicit selection transaction', () => {
   it.each([false, true])(
-    'preserves the source until scoped consent: %s',
-    async (confirmed) => {
+    'switches accounts within the same gateway whatever a consent handler would answer (%s): gateway contract v2',
+    async (handlerAnswer) => {
       const source = 'o1gw/account/copilot/2/auto';
       const destination = 'o1gw/own/claude/7/sonnet';
       const selected = { model: source, baseUrl: 'https://gateway.example/v1' };
@@ -133,10 +133,8 @@ describe('explicit selection transaction', () => {
       const switchModel = vi.fn(async () => {
         selected.model = destination;
       });
-      const unregister = registerGatewayTransferConfirmation(
-        config,
-        async () => confirmed,
-      );
+      const asked = vi.fn(async () => handlerAnswer);
+      const unregister = registerGatewayTransferConfirmation(config, asked);
       try {
         expect(
           await switchWithGatewayAccountSelection(
@@ -144,15 +142,12 @@ describe('explicit selection transaction', () => {
             { model: destination },
             switchModel,
           ),
-        ).toBe(confirmed);
-        expect(switchModel).toHaveBeenCalledTimes(confirmed ? 1 : 0);
-        expect(selected.model).toBe(confirmed ? destination : source);
-        if (confirmed)
-          expect(getGatewayAccountSelection(config)).toMatchObject({
-            sourceModel: source,
-            destinationModel: destination,
-          });
-        else expect(getGatewayAccountSelection(config)).toBeUndefined();
+        ).toBe(true);
+        expect(asked).not.toHaveBeenCalled();
+        expect(switchModel).toHaveBeenCalledOnce();
+        expect(selected.model).toBe(destination);
+        expect(source).not.toBe(destination);
+        expect(getGatewayAccountSelection(config)).toBeUndefined();
       } finally {
         unregister();
       }
@@ -241,7 +236,7 @@ describe('explicit selection transaction', () => {
     expect(fetcher).toHaveBeenCalledOnce();
   });
 
-  it('renews current destination consent after a refused selection is resumed', async () => {
+  it('switches accounts within the same gateway without consent (gateway contract v2)', async () => {
     const source = 'o1gw/account/copilot/2/auto';
     const destination = 'o1gw/own/claude/7/sonnet';
     const selected = {
@@ -283,13 +278,43 @@ describe('explicit selection transaction', () => {
         { confirm },
       ),
     ).resolves.toBe(true);
-    expect(confirm).toHaveBeenCalledWith(
-      expect.objectContaining({ source, destination }),
-    );
-    expect(getGatewayAccountSelection(config)).toMatchObject({
-      sourceModel: source,
-      destinationModel: destination,
-    });
+    // The same gateway rebuilds from the supplied history: no prompt and no selection record.
+    expect(confirm).not.toHaveBeenCalled();
+    expect(getGatewayAccountSelection(config)).toBeUndefined();
+  });
+
+  it('still asks before sending the history to another gateway endpoint', async () => {
+    const before = {
+      model: 'o1gw/account/copilot/2/auto',
+      baseUrl: 'https://gateway.example/v1',
+    };
+    let current: Record<string, unknown> = before;
+    const config = {
+      getSessionId: () => 'conversation-b',
+      getContentGeneratorConfig: () => current,
+      getLlmClient: () => ({
+        getHistoryShallow: () => [
+          { role: 'model', parts: [{ text: 'completed' }] },
+        ],
+      }),
+      getResumedSessionData: () => undefined,
+    } as unknown as Config;
+    const confirm = vi.fn(async () => false);
+    await expect(
+      switchWithGatewayAccountSelection(
+        config,
+        {
+          model: 'o1gw/own/claude/7/sonnet',
+          baseUrl: 'https://other-gateway.example/v1',
+        },
+        async () => {
+          current = { model: 'switched' };
+        },
+        { confirm },
+      ),
+    ).resolves.toBe(false);
+    expect(confirm).toHaveBeenCalledOnce();
+    expect(current).toBe(before);
   });
 });
 

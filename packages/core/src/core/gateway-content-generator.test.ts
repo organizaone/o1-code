@@ -483,7 +483,7 @@ describe.each([AuthType.USE_OPENAI, AuthType.USE_ANTHROPIC])(
       expect(confirmed).not.toHaveBeenCalled();
     });
 
-    it('does not replay HTTP 408 or bypass account consent and permits explicit recovery', async () => {
+    it('does not replay HTTP 408 and lets the next explicit request continue, on any account (gateway contract v2)', async () => {
       const current = await client(authType);
       await current.generator.generateContent(
         { model: current.model, contents: 'first' },
@@ -497,12 +497,6 @@ describe.each([AuthType.USE_OPENAI, AuthType.USE_ANTHROPIC])(
         ),
       ).rejects.toMatchObject({ reason: 'uncertain', status: 408 });
       expect(current.records.at(-1)?.phase).toBe('uncertain');
-      await expect(
-        current.generator.generateContent(
-          { model: 'o1gw/account/copilot/3/auto', contents: 'no transfer' },
-          'after-timeout',
-        ),
-      ).rejects.toMatchObject({ reason: 'unsupported' });
       expect(requests).toHaveLength(2);
       replyStatus = 200;
       await current.generator.generateContent(
@@ -511,6 +505,19 @@ describe.each([AuthType.USE_OPENAI, AuthType.USE_ANTHROPIC])(
       );
       expect(requests).toHaveLength(3);
       expect(current.records.at(-1)?.phase).toBe('complete');
+      // Another account in the same conversation is sent, not refused: the gateway rebuilds from the history.
+      current.settings.model = 'o1gw/account/copilot/3/auto';
+      await current.generator.generateContent(
+        {
+          model: 'o1gw/account/copilot/3/auto',
+          contents: 'next on another account',
+        },
+        'other-account',
+      );
+      expect(requests).toHaveLength(4);
+      expect(requests.at(-1)?.body['model']).toBe(
+        'o1gw/account/copilot/3/auto',
+      );
     });
 
     it('discards consent from another session when starting an empty conversation', async () => {
@@ -1189,25 +1196,30 @@ describe.each([AuthType.USE_OPENAI, AuthType.USE_ANTHROPIC])(
       expect(JSON.stringify(requests.at(-1)?.body)).toContain('final-marker');
     });
 
-    it('rejects account and group changes without scoped consent before HTTP', async () => {
+    it('sends account and group changes in the same conversation without a selection record (gateway contract v2)', async () => {
       const current = await client(authType);
       await current.generator.generateContent(
         { model: current.model, contents: 'first' },
         'first',
       );
-      await expect(
-        current.generator.generateContent(
-          { model: 'o1gw/account/copilot/3/auto', contents: 'next' },
-          'next',
-        ),
-      ).rejects.toMatchObject({ reason: 'unsupported' });
-      await expect(
-        current.generator.generateContent(
-          { model: 'o1gw/group/copilot/1/auto', contents: 'next' },
-          'next',
-        ),
-      ).rejects.toMatchObject({ reason: 'unsupported' });
-      expect(requests).toHaveLength(1);
+      for (const model of [
+        'o1gw/account/copilot/3/auto',
+        'o1gw/group/copilot/1/auto',
+      ]) {
+        current.settings.model = model;
+        await current.generator.generateContent(
+          { model, contents: 'next' },
+          `next-${model}`,
+        );
+        expect(requests.at(-1)?.body['model']).toBe(model);
+        expect(requests.at(-1)?.headers['x-o1gw-conversation-id']).toBe(
+          current.sessionId,
+        );
+      }
+      expect(requests).toHaveLength(3);
+      expect(
+        requests.every((row) => row.path !== '/v1/conversations/transfer'),
+      ).toBe(true);
     });
 
     it('prepares the exact next body once and confirms selection only after destination completion', async () => {

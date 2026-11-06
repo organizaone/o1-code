@@ -202,7 +202,7 @@ describe('<ModelDialog />', () => {
     [true, 'o1gw/account/codex/8/gpt-5', AuthType.USE_OPENAI],
     [true, 'o1gw/group/copilot/9/auto', AuthType.USE_ANTHROPIC],
   ] as const)(
-    'requires scoped consent for explicit history input: %s %s %s',
+    'asks only when the history would cross to another route (gateway contract v2): %s %s %s',
     async (authorize, destination, destinationAuthType) => {
       const source = 'o1gw/account/copilot/2/auto';
       const baseUrl = 'https://api.organizaone.com/v1';
@@ -259,19 +259,23 @@ describe('<ModelDialog />', () => {
             typeof item.value === 'string' && item.value.includes(destination),
         )!;
         await act(async () => props.onSelect(choice.value));
-        expect(consent).toHaveBeenCalledOnce();
+        // Same gateway route: no prompt, the gateway rebuilds from the history. Another route still asks.
+        const crossesRoute = destinationAuthType !== AuthType.USE_ANTHROPIC;
+        expect(consent).toHaveBeenCalledTimes(crossesRoute ? 1 : 0);
         expect(takeGatewayTransfer(mockConfig)).toBeUndefined();
-        if (authorize) {
+        if (authorize || !crossesRoute) {
           expect(mockConfig.switchModel).toHaveBeenCalledWith(
             destinationAuthType,
             destination,
             { baseUrl },
           );
           expect(mockSettings.setValue).toHaveBeenCalled();
-          expect(getGatewayAccountSelection(mockConfig)).toMatchObject({
-            sourceModel: source,
-            destinationModel: destination,
-          });
+          if (crossesRoute)
+            expect(getGatewayAccountSelection(mockConfig)).toMatchObject({
+              sourceModel: source,
+              destinationModel: destination,
+            });
+          else expect(getGatewayAccountSelection(mockConfig)).toBeUndefined();
         } else {
           expect(mockConfig.switchModel).not.toHaveBeenCalled();
           expect(mockSettings.setValue).not.toHaveBeenCalled();
@@ -318,11 +322,13 @@ describe('<ModelDialog />', () => {
           getLlmClient: vi.fn(() => ({
             getHistoryShallow: () => history,
           })) as unknown as Config['getLlmClient'],
+          // The destination crosses to another route, which still asks for consent (gateway contract v2).
           getAllConfiguredModels: vi.fn(() =>
             [source, destination].map((id) => ({
               id,
               label: id,
-              authType: AuthType.USE_ANTHROPIC,
+              authType:
+                id === source ? AuthType.USE_ANTHROPIC : AuthType.USE_OPENAI,
               baseUrl,
             })),
           ),

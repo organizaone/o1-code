@@ -266,15 +266,13 @@ describe('SystemController', () => {
       if (matchesCurrent) {
         current.authType = AuthType.USE_OPENAI;
         catalog[1].baseUrl = 'https://GATEWAY.example:443/v1/';
-        await expect(
-          controller.handleRequest(
-            { subtype: 'set_model', model: destination },
-            'ask',
-          ),
-        ).resolves.toMatchObject({
-          requires_confirmation: true,
-          destination_base_url: catalog[1].baseUrl,
-        });
+        // Gateway contract v2: the same endpoint and auth switch without a confirmation round trip.
+        const result = await controller.handleRequest(
+          { subtype: 'set_model', model: destination },
+          'ask',
+        );
+        expect(result).not.toMatchObject({ requires_confirmation: true });
+        expect(config.switchModel).toHaveBeenCalledOnce();
       } else {
         await expect(
           controller.handleRequest(
@@ -282,8 +280,8 @@ describe('SystemController', () => {
             'ask',
           ),
         ).rejects.toThrow('multiple configured destinations');
+        expect(config.switchModel).not.toHaveBeenCalled();
       }
-      expect(config.switchModel).not.toHaveBeenCalled();
     },
   );
 
