@@ -72,6 +72,7 @@ import { parseToolCallArguments } from '../tool-call-arguments.js';
 import { classifyRetryError } from '../../utils/retryErrorClassification.js';
 import { getErrorStatus } from '../../utils/errors.js';
 import { buildOutboundFetch } from '../outbound-fetch.js';
+import { withCompactJsonBody } from '../compact-json-body.js';
 import {
   isRetryableStatuslessUpstreamError,
   isRetryableStreamTransportError,
@@ -307,17 +308,19 @@ export class AnthropicContentGenerator implements ContentGenerator {
         : contentGeneratorConfig.maxRetries,
       defaultHeaders,
       ...runtimeOptions,
-      fetch: buildOutboundFetch(
-        runtimeOptions.fetch,
-        this.cliConfig,
-        this.contentGeneratorConfig.customHeaders,
-        {
-          recordRateLimits: reachesOrganizaOne({
-            model: contentGeneratorConfig.model,
-            baseUrl: resolveEffectiveBaseUrl(contentGeneratorConfig),
-            connection: contentGeneratorConfig.connection,
-          }),
-        },
+      fetch: withCompactJsonBody(
+        buildOutboundFetch(
+          runtimeOptions.fetch,
+          this.cliConfig,
+          this.contentGeneratorConfig.customHeaders,
+          {
+            recordRateLimits: reachesOrganizaOne({
+              model: contentGeneratorConfig.model,
+              baseUrl: resolveEffectiveBaseUrl(contentGeneratorConfig),
+              connection: contentGeneratorConfig.connection,
+            }),
+          },
+        ),
       ) as unknown as AnthropicFetch,
     });
 

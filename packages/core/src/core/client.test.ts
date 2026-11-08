@@ -2415,10 +2415,10 @@ describe('Gemini Client (client.ts)', () => {
       expect(fr?.functionResponse?.name).toBe('read_file');
       expect(
         (fr?.functionResponse?.response as { error?: string })?.error,
-      ).toMatch(/interrupted/i);
+      ).toMatch(/outcome is unknown/i);
     });
 
-    it('still synthesizes a failed functionResponse for dangling ask_user_question when restore is off', async () => {
+    it('still synthesizes an unknown-outcome functionResponse for dangling ask_user_question when restore is off', async () => {
       await client.startChat([
         { role: 'user', parts: [{ text: 'pick one' }] },
         {
@@ -2459,7 +2459,7 @@ describe('Gemini Client (client.ts)', () => {
       expect(fr?.functionResponse?.id).toBe('call_auq_resume');
       expect(
         (fr?.functionResponse?.response as { error?: string })?.error,
-      ).toMatch(/interrupted/i);
+      ).toMatch(/outcome is unknown/i);
     });
 
     it('skips orphan repair for a restorable ask_user_question when restore is on', async () => {

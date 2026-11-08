@@ -1552,7 +1552,7 @@ describe('LlmChat', async () => {
       expect(fr?.functionResponse?.name).toBe('read_file');
       expect(
         (fr?.functionResponse?.response as { error?: string })?.error,
-      ).toMatch(/interrupted/i);
+      ).toMatch(/outcome is unknown/i);
       // The user's own text part is still present.
       expect(
         userTurn.parts!.some(
