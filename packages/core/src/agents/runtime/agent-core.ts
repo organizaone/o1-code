@@ -533,7 +533,9 @@ export class AgentCore {
     const [envHistory] = hasInitialMessages
       ? [[]]
       : await getInitialChatHistory(this.runtimeContext, undefined, {
-          includeDeferredToolsReminder: false,
+          includeDeferredToolsReminder: this.keepsMcpToolsBehindBridge()
+            ? 'mcp'
+            : false,
           includeAvailableSkillsReminder: hasSkillTool,
         });
 
@@ -613,6 +615,44 @@ export class AgentCore {
       return !EXCLUDED_TOOLS_FOR_SUBAGENTS.has(ToolNames.SKILL);
     }
     return asStrings.includes(ToolNames.SKILL);
+  }
+
+  /** Whether this agent inherits the registry rather than a named list. */
+  private inheritsAllTools(): boolean {
+    if (!this.toolConfig) return true;
+    const asStrings = this.toolConfig.tools.filter(
+      (t): t is string => typeof t === 'string',
+    );
+    return (
+      asStrings.includes('*') ||
+      (asStrings.length === 0 && this.toolConfig.tools.length === 0)
+    );
+  }
+
+  /**
+   * Whether an inheriting agent keeps hidden MCP tools behind `tool_search`
+   * and `tool_call`, as the main chat does, instead of declaring every MCP
+   * schema: one large server could otherwise fill the context of every
+   * subagent. Needs both bridge halves registered and not disallowed; it is
+   * told which MCP tools exist through the deferred-tools reminder.
+   */
+  private keepsMcpToolsBehindBridge(): boolean {
+    if (!this.inheritsAllTools()) return false;
+    if (this.runtimeContext.getToolMode?.() === ToolMode.CodeModeOnly) {
+      return false;
+    }
+    // Registered names include unloaded factories, so the answer is the same
+    // before and after the registry warms (createChat asks before it does).
+    const registered = new Set(
+      this.runtimeContext.getToolRegistry().getAllToolNames?.() ?? [],
+    );
+    return [ToolNames.TOOL_SEARCH, ToolNames.TOOL_CALL].every(
+      (name) =>
+        registered.has(name) &&
+        !this.toolConfig?.disallowedTools?.some((pattern) =>
+          matchesToolPattern(pattern, name),
+        ),
+    );
   }
 
   /**
@@ -714,6 +754,9 @@ export class AgentCore {
     }
 
     this.codeModeAllowedToolNames = undefined;
+    const inheritedDeferred = this.keepsMcpToolsBehindBridge()
+      ? 'non-mcp'
+      : true;
 
     if (this.toolConfig) {
       const asStrings = this.toolConfig.tools.filter(
@@ -728,14 +771,15 @@ export class AgentCore {
         hasWildcard ||
         (asStrings.length === 0 && onlyInlineDecls.length === 0)
       ) {
-        // Subagents inherit ordinary deferred tools (MCP, low-frequency
-        // built-ins). Tools demoted by the `settings.tools.eager` allowlist
-        // remain hidden and are reached through the stable ToolSearch +
-        // ToolCall bridge, preserving the allowlist's schema shrink without
-        // mutating the declarations.
+        // Subagents inherit low-frequency deferred built-ins. MCP tools stay
+        // behind the ToolSearch + ToolCall bridge when it is available (see
+        // keepsMcpToolsBehindBridge). Tools demoted by the
+        // `settings.tools.eager` allowlist remain hidden and are reached
+        // through the same bridge, preserving the allowlist's schema shrink
+        // without mutating the declarations.
         toolsList.push(
           ...toolRegistry
-            .getFunctionDeclarations({ includeDeferred: true })
+            .getFunctionDeclarations({ includeDeferred: inheritedDeferred })
             .filter(
               (t) => !isExcluded(t.name) && !isHiddenByEagerAllowList(t.name),
             ),
@@ -783,7 +827,7 @@ export class AgentCore {
       // wildcard branch above for the two deferred-tool classes.
       toolsList.push(
         ...toolRegistry
-          .getFunctionDeclarations({ includeDeferred: true })
+          .getFunctionDeclarations({ includeDeferred: inheritedDeferred })
           .filter(
             (t) => !isExcluded(t.name) && !isHiddenByEagerAllowList(t.name),
           ),

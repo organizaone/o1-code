@@ -277,7 +277,7 @@ export class GatewayContentGenerator implements ContentGenerator {
       phase: 'pending',
       contractHash,
       toolSnapshotPolicy:
-        this.config.getGatewayToolSnapshotPolicy?.() ?? 'gateway-v1',
+        this.config.getGatewayToolSnapshotPolicy?.() ?? 'gateway-v2',
       ...(request.config?.tools?.some(
         (tool) =>
           'functionDeclarations' in tool &&

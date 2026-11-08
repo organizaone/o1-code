@@ -160,7 +160,7 @@ describe('WorkflowTool registration', () => {
     } as unknown as ReturnType<Config['getLlmClient']>);
 
     await cfg.prepareGatewayToolDeclarations();
-    expect(cfg.getGatewayToolSnapshotPolicy()).toBe('gateway-v1');
+    expect(cfg.getGatewayToolSnapshotPolicy()).toBe('gateway-v2');
     const workflow = await registry.ensureTool(ToolNames.WORKFLOW);
     expect(workflow).toBeDefined();
     expect(cfg.isWorkflowsEnabled()).toBe(false);
@@ -275,6 +275,71 @@ describe('WorkflowTool registration', () => {
         workflowToolDeclared === true,
       );
       expect(cfg.isWorkflowsEnabled()).toBe(false);
+    },
+  );
+
+  it.each([
+    {
+      name: 'a v2 conversation',
+      records: [['gateway-v2', 'complete']],
+      policy: 'gateway-v2',
+    },
+    {
+      name: 'an accepted v1 conversation',
+      records: [
+        ['gateway-v1', 'pending'],
+        ['gateway-v1', 'complete'],
+      ],
+      policy: 'gateway-v1',
+    },
+    {
+      name: 'a v1 conversation cut off mid-request',
+      records: [['gateway-v1', 'pending']],
+      policy: 'gateway-v1',
+    },
+    {
+      name: 'a v1 conversation with an uncertain request',
+      records: [
+        ['gateway-v1', 'pending'],
+        ['gateway-v1', 'uncertain'],
+      ],
+      policy: 'gateway-v1',
+    },
+    {
+      name: 'a v1 conversation the gateway always refused',
+      records: [
+        ['gateway-v1', 'pending'],
+        ['gateway-v1', 'refused'],
+        ['gateway-v1', 'pending'],
+        ['gateway-v1', 'refused'],
+      ],
+      policy: 'gateway-v2',
+    },
+    {
+      name: 'an accepted legacy conversation',
+      records: [[undefined, 'complete']],
+      policy: 'legacy-eager-v1',
+    },
+  ] as const)(
+    'binds the tool snapshot policy of $name',
+    async ({ records, policy }) => {
+      const cfg = new Config({ ...baseParams });
+      vi.spyOn(cfg, 'getResumedSessionData').mockReturnValue({
+        conversation: {
+          messages: records.map(([toolSnapshotPolicy, phase]) => ({
+            subtype: 'gateway_conversation',
+            sessionId: cfg.getSessionId(),
+            systemPayload: {
+              actor: 'main',
+              conversationId: cfg.getSessionId(),
+              phase,
+              ...(toolSnapshotPolicy ? { toolSnapshotPolicy } : {}),
+            },
+          })),
+        },
+      } as unknown as NonNullable<ReturnType<Config['getResumedSessionData']>>);
+
+      expect(cfg.getGatewayToolSnapshotPolicy()).toBe(policy);
     },
   );
 });

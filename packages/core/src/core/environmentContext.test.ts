@@ -607,6 +607,25 @@ describe('startup reminder builders', () => {
     expect(reminder).toBeNull();
   });
 
+  it('lists only MCP tools when asked for the MCP subset', () => {
+    const reminder = buildDeferredToolsReminder(
+      registry({
+        getDeferredToolSummary: vi.fn().mockReturnValue([
+          { name: 'write_report', description: 'Write a report.' },
+          {
+            name: 'mcp__docs__search',
+            description: 'Search docs.',
+            serverName: 'docs',
+          },
+        ]),
+      }),
+      { mcpOnly: true },
+    );
+
+    expect(reminder).toContain('mcp__docs__search');
+    expect(reminder).not.toContain('write_report');
+  });
+
   it('groups bundled and MCP deferred tools into one reminder', () => {
     const reminder = buildDeferredToolsReminder(
       registry({

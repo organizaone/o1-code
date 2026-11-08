@@ -1896,7 +1896,7 @@ describe('AgentCore.prepareTools', () => {
     },
   );
 
-  it('wildcard tools:["*"] inherits deferred tools (passes includeDeferred: true)', async () => {
+  it('wildcard tools:["*"] inherits deferred tools without the bridge (passes includeDeferred: true)', async () => {
     const fnDecls: FunctionDeclaration[] = [
       { name: 'core_tool', description: 'core' } as FunctionDeclaration,
       {
@@ -1947,6 +1947,59 @@ describe('AgentCore.prepareTools', () => {
     });
     expect(tools.map((t) => t.name)).toEqual(['lsp']);
   });
+
+  it.each([
+    {
+      name: 'no tool config',
+      toolConfig: undefined,
+      disallowed: [],
+      mode: 'non-mcp',
+    },
+    {
+      name: 'a wildcard',
+      toolConfig: { tools: ['*'] },
+      disallowed: [],
+      mode: 'non-mcp',
+    },
+    {
+      name: 'tool_call disallowed',
+      toolConfig: { tools: ['*'] },
+      disallowed: [ToolNames.TOOL_CALL],
+      mode: true,
+    },
+  ] as const)(
+    'keeps MCP tools behind the bridge when inheriting with $name',
+    async ({ toolConfig, disallowed, mode }) => {
+      const { core, config, getFunctionDeclarationsSpy } = buildAgentForTools(
+        toolConfig
+          ? {
+              ...toolConfig,
+              tools: [...toolConfig.tools],
+              disallowedTools: [...disallowed],
+            }
+          : undefined,
+        [
+          { name: 'core_tool' },
+          { name: ToolNames.TOOL_SEARCH },
+          { name: ToolNames.TOOL_CALL },
+        ],
+      );
+      const registry = config.getToolRegistry() as unknown as {
+        getAllToolNames: ReturnType<typeof vi.fn>;
+      };
+      registry.getAllToolNames = vi.fn(() => [
+        'core_tool',
+        ToolNames.TOOL_SEARCH,
+        ToolNames.TOOL_CALL,
+      ]);
+
+      await core.prepareTools();
+
+      expect(getFunctionDeclarationsSpy).toHaveBeenCalledWith({
+        includeDeferred: mode,
+      });
+    },
+  );
 
   it.each(['subagent', 'teammate'])(
     'excludes parent-owned record_source from a reused registry in a %s',

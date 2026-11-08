@@ -211,10 +211,15 @@ function formatAgentAvailabilityLine(agent: AgentAvailabilityEntry): string {
 
 export function buildDeferredToolsReminder(
   toolRegistry: ToolRegistry,
+  options: { mcpOnly?: boolean } = {},
 ): string | null {
   const deferredTools = toolRegistry
     .getDeferredToolSummary()
-    .filter((tool) => !toolRegistry.isDeferredToolRevealed(tool.name));
+    .filter(
+      (tool) =>
+        !toolRegistry.isDeferredToolRevealed(tool.name) &&
+        (!options.mcpOnly || tool.serverName !== undefined),
+    );
 
   // Nothing to advertise — return before touching the registry's tool lookup,
   // which callers with minimal registry stubs (e.g. fork-resume tests) may not
@@ -507,7 +512,8 @@ export async function buildStartupContextReminder(
 }
 
 export interface InitialChatHistoryOptions {
-  includeDeferredToolsReminder?: boolean;
+  /** `'mcp'` lists only the MCP tools kept behind the bridge. */
+  includeDeferredToolsReminder?: boolean | 'mcp';
   // Whether to include the session-start <available_skills> snapshot. Defaults
   // to true; subagents pass false (they often run with a restricted tool list
   // that excludes the Skill tool, so announcing skills they can't invoke wastes
@@ -551,7 +557,9 @@ export async function getInitialChatHistory(
     skillsResult?.reminder ?? null,
     startupReminder,
     includeDeferredToolsReminder
-      ? buildDeferredToolsReminder(toolRegistry)
+      ? buildDeferredToolsReminder(toolRegistry, {
+          mcpOnly: includeDeferredToolsReminder === 'mcp',
+        })
       : null,
   ]
     .filter((text): text is string => text !== null)

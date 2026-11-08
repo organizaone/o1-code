@@ -9312,12 +9312,11 @@ export class Config {
     );
   }
 
-  private getResumedGatewayConversation():
-    | GatewayConversationRecordPayload
-    | undefined {
+  /** This session's main gateway conversation records, newest first. */
+  private getResumedGatewayConversations(): GatewayConversationRecordPayload[] {
     return [...(this.getResumedSessionData()?.conversation.messages ?? [])]
       .reverse()
-      .find((row) => {
+      .filter((row) => {
         const payload = row.systemPayload as
           | GatewayConversationRecordPayload
           | undefined;
@@ -9328,14 +9327,40 @@ export class Config {
           payload?.actor === 'main' &&
           payload.conversationId === this.getSessionId()
         );
-      })?.systemPayload as GatewayConversationRecordPayload | undefined;
+      })
+      .map((row) => row.systemPayload as GatewayConversationRecordPayload);
   }
 
+  private getResumedGatewayConversation():
+    | GatewayConversationRecordPayload
+    | undefined {
+    return this.getResumedGatewayConversations()[0];
+  }
+
+  /**
+   * Which tool declarations this session's gateway conversation is bound to.
+   * New conversations use `gateway-v2`: built-ins only, MCP tools behind the
+   * bridge. A conversation the gateway may already hold keeps the policy it
+   * started with, since changing its tools would change its contract; one the
+   * gateway refused every time has no contract yet and moves to `gateway-v2`.
+   */
   getGatewayToolSnapshotPolicy(): NonNullable<
     GatewayConversationRecordPayload['toolSnapshotPolicy']
   > {
-    const previous = this.getResumedGatewayConversation();
-    return !previous || previous.toolSnapshotPolicy === 'gateway-v1'
+    const records = this.getResumedGatewayConversations();
+    const previous = records[0];
+    if (!previous || previous.toolSnapshotPolicy === 'gateway-v2') {
+      return 'gateway-v2';
+    }
+    // A pending record followed by a refusal is that refusal's own request;
+    // the newest pending one may have reached the gateway before an exit.
+    const established =
+      previous.phase === 'pending' ||
+      records.some(
+        (record) => record.phase !== 'pending' && record.phase !== 'refused',
+      );
+    if (!established) return 'gateway-v2';
+    return previous.toolSnapshotPolicy === 'gateway-v1'
       ? 'gateway-v1'
       : 'legacy-eager-v1';
   }

@@ -1591,12 +1591,21 @@ describe('Gemini Client (client.ts)', () => {
     });
 
     it.each([
-      { gateway: true, policy: 'gateway-v1', full: true },
-      { gateway: false, policy: 'gateway-v1', full: false },
-      { gateway: true, policy: 'legacy-eager-v1', full: false },
+      {
+        gateway: true,
+        policy: 'gateway-v2',
+        names: ['skill', 'read_file', 'workflow'],
+      },
+      {
+        gateway: true,
+        policy: 'gateway-v1',
+        names: ['skill', 'read_file', 'workflow', 'mcp__big__tool'],
+      },
+      { gateway: false, policy: 'gateway-v2', names: ['skill'] },
+      { gateway: true, policy: 'legacy-eager-v1', names: ['skill'] },
     ])(
       'uses the recorded gateway declaration policy for the stable prompt tool snapshot: %j',
-      async ({ gateway, policy, full }) => {
+      async ({ gateway, policy, names }) => {
         vi.mocked(mockConfig.getContentGeneratorConfig).mockReturnValue({
           model: gateway ? 'o1gw/account/copilot/2/gpt-6.1-sol' : 'test-model',
         } as ContentGeneratorConfig);
@@ -1608,18 +1617,59 @@ describe('Gemini Client (client.ts)', () => {
         vi.mocked(
           mockConfig.getToolRegistry().getFunctionDeclarations,
         ).mockImplementation((options) =>
-          options?.includeDeferred
-            ? [{ name: 'skill' }, { name: 'read_file' }, { name: 'workflow' }]
-            : [{ name: 'skill' }],
+          options?.includeDeferred === true
+            ? [
+                { name: 'skill' },
+                { name: 'read_file' },
+                { name: 'workflow' },
+                { name: 'mcp__big__tool' },
+              ]
+            : options?.includeDeferred === 'non-mcp'
+              ? [{ name: 'skill' }, { name: 'read_file' }, { name: 'workflow' }]
+              : [{ name: 'skill' }],
         );
 
         await client.startChat();
 
-        expect(snapshot).toHaveBeenCalledWith(
-          new Set(full ? ['skill', 'read_file', 'workflow'] : ['skill']),
-        );
+        expect(snapshot).toHaveBeenCalledWith(new Set(names));
       },
     );
+
+    it('keeps MCP tools behind the bridge in a new gateway conversation', async () => {
+      vi.mocked(mockConfig.getContentGeneratorConfig).mockReturnValue({
+        model: 'o1gw/account/copilot/2/gpt-6.1-sol',
+        contextWindowSize: 1_000_000,
+      } as ContentGeneratorConfig);
+      Object.assign(mockConfig, {
+        getGatewayToolSnapshotPolicy: () => 'gateway-v2',
+        getToolSearchThreshold: () => 100,
+      });
+      const toolRegistry = mockConfig.getToolRegistry() as unknown as {
+        getFunctionDeclarations: Mock;
+        preloadDeferredToolsWithinBudget: Mock;
+        getTool: Mock;
+      };
+      toolRegistry.getTool.mockImplementation((name: string) =>
+        name === ToolNames.TOOL_SEARCH || name === ToolNames.TOOL_CALL
+          ? ({} as never)
+          : null,
+      );
+      toolRegistry.preloadDeferredToolsWithinBudget = vi.fn();
+      toolRegistry.getFunctionDeclarations.mockClear();
+
+      await client.startChat();
+      await client.setTools();
+
+      const calls = toolRegistry.getFunctionDeclarations.mock.calls.map(
+        ([options]) => options?.includeDeferred,
+      );
+      expect(calls).toEqual(['non-mcp', 'non-mcp']);
+      // Revealing MCP tools here would tie the gateway contract to which
+      // servers connected before the first request.
+      expect(
+        toolRegistry.preloadDeferredToolsWithinBudget,
+      ).not.toHaveBeenCalled();
+    });
 
     it('does not record context apply stage without SessionStart context', async () => {
       await client.startChat();
@@ -2365,10 +2415,10 @@ describe('Gemini Client (client.ts)', () => {
       expect(fr?.functionResponse?.name).toBe('read_file');
       expect(
         (fr?.functionResponse?.response as { error?: string })?.error,
-      ).toMatch(/interrupted/i);
+      ).toMatch(/outcome is unknown/i);
     });
 
-    it('still synthesizes a failed functionResponse for dangling ask_user_question when restore is off', async () => {
+    it('still synthesizes an unknown-outcome functionResponse for dangling ask_user_question when restore is off', async () => {
       await client.startChat([
         { role: 'user', parts: [{ text: 'pick one' }] },
         {
@@ -2409,7 +2459,7 @@ describe('Gemini Client (client.ts)', () => {
       expect(fr?.functionResponse?.id).toBe('call_auq_resume');
       expect(
         (fr?.functionResponse?.response as { error?: string })?.error,
-      ).toMatch(/interrupted/i);
+      ).toMatch(/outcome is unknown/i);
     });
 
     it('skips orphan repair for a restorable ask_user_question when restore is on', async () => {

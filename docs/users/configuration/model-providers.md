@@ -730,7 +730,10 @@ declaration before the first request. Declaring it does not enable execution:
 the skill must still activate workflows, and folder trust, explicit workflow
 opt-out and tool permissions continue to apply. Deferred-tool discovery uses
 the same declared set for the gateway and the prompt in new conversations,
-including after resume. Older sessions retain their original prompt policy;
+including after resume. A new conversation declares every built-in tool and
+keeps MCP tools behind `tool_search` and `tool_call`, so the set neither grows
+with the servers' schemas nor changes as servers connect. Conversations the
+gateway already accepted retain their original tool set and prompt policy;
 previously recorded tool contracts are not extended retroactively.
 Changed instructions and tool schemas are sent to the gateway for validation.
 The updated client-history contract can initialize a fresh native context with
