@@ -641,7 +641,7 @@ export interface GatewayConversationRecordPayload {
   /** Present only when the authenticated request declared the Workflow tool. */
   workflowToolDeclared?: true;
   /** Preserve the prompt's tool-whitelist policy across client upgrades. */
-  toolSnapshotPolicy?: 'gateway-v1' | 'legacy-eager-v1';
+  toolSnapshotPolicy?: 'gateway-v2' | 'gateway-v1' | 'legacy-eager-v1';
 }
 
 export function isValidSessionModelPayload(

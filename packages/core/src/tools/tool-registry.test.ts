@@ -167,6 +167,52 @@ describe('ToolRegistry', () => {
     vi.restoreAllMocks();
   });
 
+  it('declares deferred built-ins but keeps hidden MCP tools behind the bridge with non-mcp', () => {
+    toolRegistry.registerTool(new MockTool({ name: 'visible' }));
+    toolRegistry.registerTool(
+      new MockTool({ name: 'deferred_builtin', shouldDefer: true }),
+    );
+    const hidden = new DiscoveredMCPTool(
+      {} as CallableTool,
+      'big',
+      'hidden_tool',
+      'description',
+      {},
+    );
+    const pinned = new DiscoveredMCPTool(
+      {} as CallableTool,
+      'big',
+      'pinned_tool',
+      'description',
+      {},
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      true,
+    );
+    toolRegistry.registerTool(hidden);
+    toolRegistry.registerTool(pinned);
+
+    const names = (option: boolean | 'non-mcp') =>
+      toolRegistry
+        .getFunctionDeclarations({ includeDeferred: option })
+        .map((d) => d.name);
+
+    expect(names('non-mcp')).toEqual([
+      'deferred_builtin',
+      pinned.name,
+      'visible',
+    ]);
+    expect(names(true)).toContain(hidden.name);
+    expect(names(false)).toEqual([pinned.name, 'visible']);
+    // A tool still hidden stays reachable through tool_call.
+    expect(toolRegistry.isDeferredAndHidden(hidden.name)).toBe(true);
+  });
+
   it('hides a loaded image tool while disabled and restores it when re-enabled', async () => {
     const enabled = vi
       .spyOn(config, 'isImageGenerationEnabled')

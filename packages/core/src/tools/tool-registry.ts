@@ -842,6 +842,9 @@ export class ToolRegistry {
    * By default, tools marked `shouldDefer=true` are excluded (they are
    * discovered and invoked by the model through the stable bridge). Pass
    * `{ includeDeferred: true }` to include them, e.g. for diagnostics.
+   * `{ includeDeferred: 'non-mcp' }` includes deferred built-ins but keeps
+   * hidden MCP tools behind the bridge: a declaration set that does not
+   * change as servers connect and does not grow with their schemas.
    *
    * Tools marked `alwaysLoad=true` are always included regardless of
    * `shouldDefer`.
@@ -849,18 +852,20 @@ export class ToolRegistry {
    * @returns An array of FunctionDeclarations.
    */
   getFunctionDeclarations(options?: {
-    includeDeferred?: boolean;
+    includeDeferred?: boolean | 'non-mcp';
   }): FunctionDeclaration[] {
     if (this.config.getToolMode?.() === ToolMode.CodeModeOnly) {
       return this.getCodeModeFunctionDeclarations();
     }
-    const includeDeferred = options?.includeDeferred === true;
+    const includeDeferred = options?.includeDeferred ?? false;
     return Array.from(this.tools.values())
       .filter((tool) => this.isToolAvailable(tool.name))
       .filter((tool) => this.isToolDeclared(tool.name))
       .filter(
         (tool) =>
-          includeDeferred ||
+          includeDeferred === true ||
+          (includeDeferred === 'non-mcp' &&
+            !(tool instanceof DiscoveredMCPTool)) ||
           !this.isEffectivelyDeferred(tool) ||
           tool.alwaysLoad ||
           !this.isDeferredAndHidden(tool.name),

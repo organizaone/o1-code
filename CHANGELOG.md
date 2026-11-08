@@ -7,6 +7,12 @@ follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.23.6] - 2026-11-08
+
+### Fixed
+
+- A new o1-gateway conversation no longer sends the schema of every MCP tool with each request. Since 0.23.0, every deferred tool was declared to the gateway, so a server with many tools could make even a one-line prompt fail with "prompt is too long". MCP tools stay behind `tool_search` and `tool_call` again, while built-in tools are still declared up front so the conversation's tool set does not change as servers connect. Conversations the gateway already accepted keep the tool set they started with; one the gateway refused every time starts over with the smaller set.
+
 ## [0.23.5] - 2026-11-06
 
 ### Changed

@@ -1215,11 +1215,9 @@ export class LlmClient {
       );
     }
     const deferredTools = this.resolveDeferredToolsForReminder(deferredSummary);
-    const toolDeclarations = reachesOrganizaOne(
-      this.config.getContentGeneratorConfig?.(),
-    )
-      ? toolRegistry.getFunctionDeclarations({ includeDeferred: true })
-      : toolRegistry.getFunctionDeclarations();
+    const toolDeclarations = toolRegistry.getFunctionDeclarations({
+      includeDeferred: this.gatewayDeferredDeclarations(),
+    });
     const tools: Tool[] = [{ functionDeclarations: toolDeclarations }];
     this.getChat().setTools(tools);
     this.queueAddedMcpToolsReminder(deferredTools ?? []);
@@ -1792,6 +1790,24 @@ export class LlmClient {
   }
 
   /**
+   * Which deferred tools the main chat declares. The OrganizaOne gateway binds
+   * a conversation to its declarations, so they must not change as tools are
+   * revealed: `gateway-v2` declares every built-in and leaves MCP tools behind
+   * the bridge, `gateway-v1` declares everything. The prompt snapshot of a
+   * `legacy-eager-v1` session keeps its original, non-deferred set.
+   */
+  private gatewayDeferredDeclarations(
+    options: { prompt?: boolean } = {},
+  ): boolean | 'non-mcp' {
+    if (!reachesOrganizaOne(this.config.getContentGeneratorConfig?.())) {
+      return false;
+    }
+    const policy = this.config.getGatewayToolSnapshotPolicy?.() ?? 'gateway-v2';
+    if (policy === 'gateway-v2') return 'non-mcp';
+    return !(options.prompt && policy === 'legacy-eager-v1');
+  }
+
+  /**
    * Preloads (reveals) every deferred tool — bundled built-ins and MCP
    * alike — at session start when the combined estimated size of their
    * schemas fits within `tools.toolSearch.threshold` percent of the
@@ -1806,6 +1822,9 @@ export class LlmClient {
    */
   private preloadDeferredToolsWithinBudget(): void {
     if (this.config.getToolMode?.() === ToolMode.CodeModeOnly) return;
+    // The gateway's declarations already carry every built-in, and revealing
+    // MCP tools would tie its contract to which servers connected in time.
+    if (this.gatewayDeferredDeclarations() === 'non-mcp') return;
     const toolRegistry = this.config.getToolRegistry();
     // Without either bridge, resolveDeferredToolsForReminder() eagerly
     // reveals everything — there is no budget decision to make.
@@ -2413,10 +2432,9 @@ export class LlmClient {
         new Set(
           toolRegistry
             .getFunctionDeclarations({
-              includeDeferred:
-                reachesOrganizaOne(this.config.getContentGeneratorConfig?.()) &&
-                this.config.getGatewayToolSnapshotPolicy?.() !==
-                  'legacy-eager-v1',
+              includeDeferred: this.gatewayDeferredDeclarations({
+                prompt: true,
+              }),
             })
             .map((declaration) => declaration.name)
             .filter((name): name is string => Boolean(name)),

@@ -409,7 +409,7 @@ describe.each([AuthType.USE_OPENAI, AuthType.USE_ANTHROPIC])(
       expect(current.records.at(-1)).toMatchObject({
         phase: 'complete',
         workflowToolDeclared: true,
-        toolSnapshotPolicy: 'gateway-v1',
+        toolSnapshotPolicy: 'gateway-v2',
       });
       expect(current.config.isWorkflowsEnabled()).toBe(false);
     });
