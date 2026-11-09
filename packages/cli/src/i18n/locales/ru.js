@@ -434,6 +434,7 @@ export default {
   'Attribution: commit': 'Атрибуция: коммит',
   'Terminal Bell Notification': 'Звуковое уведомление терминала',
   'Enable Usage Statistics': 'Включить сбор статистики использования',
+  'Send Error Reports': 'Отправлять отчёты об ошибках',
   Theme: 'Тема',
   'Preferred Editor': 'Предпочтительный редактор',
   'Auto-connect to IDE': 'Автоподключение к IDE',

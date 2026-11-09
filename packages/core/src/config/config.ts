@@ -1136,6 +1136,8 @@ export interface ConfigParameters {
   outboundCorrelation?: OutboundCorrelationSettings;
   gitCoAuthor?: GitCoAuthorParam;
   usageStatisticsEnabled?: boolean;
+  /** Sends reports of the application's own crashes; on unless turned off. */
+  errorReportsEnabled?: boolean;
   /**
    * If true, disables the per-session FileReadCache short-circuit
    * (file_unchanged placeholder). Useful for sessions that may undergo
@@ -2817,6 +2819,7 @@ export class Config {
   private readonly outboundCorrelationSettings: OutboundCorrelationSettings;
   private readonly gitCoAuthor: GitCoAuthorSettings;
   private readonly usageStatisticsEnabled: boolean;
+  private readonly errorReportsEnabled: boolean;
   private readonly fileReadCacheDisabled: boolean;
   private activeTodoReminders = new Map<string, string>();
   private activeTodoWorkChainOwners = new Map<string, string>();
@@ -3274,6 +3277,7 @@ export class Config {
       email: BRAND.coAuthorEmail,
     };
     this.usageStatisticsEnabled = params.usageStatisticsEnabled ?? true;
+    this.errorReportsEnabled = params.errorReportsEnabled ?? true;
     this.fileReadCacheDisabled = params.fileReadCacheDisabled ?? false;
     this.outputLanguageFilePath = params.outputLanguageFilePath;
 
@@ -9812,6 +9816,10 @@ export class Config {
 
   getUsageStatisticsEnabled(): boolean {
     return this.usageStatisticsEnabled;
+  }
+
+  getErrorReportsEnabled(): boolean {
+    return this.errorReportsEnabled;
   }
 
   /**

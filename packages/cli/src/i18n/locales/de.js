@@ -412,6 +412,7 @@ export default {
   'Attribution: commit': 'Attribution: Commit',
   'Terminal Bell Notification': 'Terminal-Signalton',
   'Enable Usage Statistics': 'Nutzungsstatistiken aktivieren',
+  'Send Error Reports': 'Fehlerberichte senden',
   Theme: 'Farbschema',
   'Preferred Editor': 'Bevorzugter Editor',
   'Auto-connect to IDE': 'Automatische Verbindung zur IDE',

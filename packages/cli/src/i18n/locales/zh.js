@@ -763,6 +763,7 @@ export default {
   'Attribution: commit': '署名：提交',
   'Terminal Bell Notification': '终端响铃通知',
   'Enable Usage Statistics': '启用使用统计',
+  'Send Error Reports': '发送错误报告',
   Theme: '主题',
   'Preferred Editor': '首选编辑器',
   'Auto-connect to IDE': '自动连接到 IDE',

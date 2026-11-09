@@ -2555,6 +2555,10 @@ export async function loadCliConfig(
       parseBooleanEnvFlag(process.env['O1CODE_USAGE_STATISTICS_ENABLED']) ??
       settings.privacy?.usageStatisticsEnabled ??
       true,
+    errorReportsEnabled:
+      parseBooleanEnvFlag(process.env['O1CODE_ERROR_REPORTS_ENABLED']) ??
+      settings.privacy?.errorReportsEnabled ??
+      true,
     clearContextOnIdle: settings.context?.clearContextOnIdle,
     fileFiltering: settings.context?.fileFiltering,
     plansDirectory: settings.plansDirectory,

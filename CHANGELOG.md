@@ -7,6 +7,13 @@ follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.24.0] - 2026-11-09
+
+### Added
+
+- Anonymous usage metrics and error reports, on by default. Turn them off with
+  `privacy.usageStatisticsEnabled` and `privacy.errorReportsEnabled`, or both with `DO_NOT_TRACK=1`.
+
 ## [0.23.7] - 2026-11-08
 
 ### Changed

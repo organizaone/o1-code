@@ -222,8 +222,11 @@ export default {
     'Respeita os arquivos .gitignore nas buscas.',
   'Respect .o1-codeignore and configured custom ignore files when searching':
     'Respeita .o1-codeignore e os arquivos personalizados de exclusão nas buscas.',
-  'Enable collection of usage statistics':
-    'Ativa a coleta de estatísticas de uso.',
+  'Send anonymous usage metrics (version, system, session and command counts) to OrganizaOne. Never code, prompts or file contents.':
+    'Envia à OrganizaOne métricas de uso anônimas (versão, sistema, contagem de sessões e comandos). Nunca código, prompts ou conteúdo de arquivos.',
+  "Send reports of the application's own crashes to OrganizaOne, with paths and personal data removed.":
+    'Envia à OrganizaOne relatórios das falhas do próprio aplicativo, sem caminhos nem dados pessoais.',
+  'Send Error Reports': 'Enviar relatórios de erro',
   'Enable Auto Update': 'Ativar atualização automática',
   'Enable automatic update checks and installations on startup.':
     'Ativa a verificação e instalação de atualizações ao iniciar.',

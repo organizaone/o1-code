@@ -86,6 +86,7 @@ import {
   recordMemoryRecallDeliveryMetrics,
 } from './metrics.js';
 import { O1CodeLogger } from './o1-code-logger/o1-code-logger.js';
+import { productUsage } from './product/product-telemetry.js';
 import { isTelemetrySdkInitialized } from './sdk.js';
 import type {
   ApiErrorEvent,
@@ -213,6 +214,7 @@ export function logStartSession(
   previousSessionId?: string,
 ): void {
   O1CodeLogger.getInstance(config)?.logStartSessionEvent(event);
+  productUsage(config)?.session(config);
   if (!isTelemetrySdkInitialized()) return;
 
   const attributes: LogAttributes = {
@@ -255,6 +257,7 @@ export function logSessionEnd(config: Config): void {
 
 export function logUserPrompt(config: Config, event: UserPromptEvent): void {
   O1CodeLogger.getInstance(config)?.logNewPromptEvent(event);
+  productUsage(config)?.prompt();
   if (!isTelemetrySdkInitialized()) return;
 
   const attributes: LogAttributes = {
@@ -321,6 +324,10 @@ export function logToolCall(config: Config, event: ToolCallEvent): void {
   });
   runToolTelemetrySink(() => {
     O1CodeLogger.getInstance(config)?.logToolCallEvent(normalizedEvent);
+    productUsage(config)?.toolCall(
+      normalizedEvent.function_name,
+      normalizedEvent.tool_type,
+    );
   });
   if (!isTelemetrySdkInitialized()) return;
 
@@ -549,6 +556,7 @@ export function logApiError(
     recordUiTelemetryEventToChat(config, uiEvent);
   }
   O1CodeLogger.getInstance(config)?.logApiErrorEvent(event);
+  productUsage(config)?.apiError(event.status_code, event.error_type);
   if (!isTelemetrySdkInitialized()) return;
 
   const attributes: LogAttributes = {
@@ -634,6 +642,12 @@ export function logApiResponse(
     recordUiTelemetryEventToChat(config, uiEvent);
   }
   O1CodeLogger.getInstance(config)?.logApiResponseEvent(event);
+  productUsage(config)?.apiResponse(
+    config,
+    event.auth_type,
+    event.input_token_count,
+    event.output_token_count,
+  );
   if (!isTelemetrySdkInitialized()) return;
   const attributes: LogAttributes = {
     ...getCommonAttributes(config),
@@ -775,6 +789,7 @@ export function logSlashCommand(
   event: SlashCommandEvent,
 ): void {
   O1CodeLogger.getInstance(config)?.logSlashCommandEvent(event);
+  productUsage(config)?.slashCommand(event.command, event.built_in);
   if (!isTelemetrySdkInitialized()) return;
 
   const attributes: LogAttributes = {
@@ -1027,6 +1042,7 @@ export function logSubagentExecution(
   event: SubagentExecutionEvent,
 ): void {
   O1CodeLogger.getInstance(config)?.logSubagentExecutionEvent(event);
+  productUsage(config)?.subagent();
   if (!isTelemetrySdkInitialized()) return;
 
   const attributes: LogAttributes = {

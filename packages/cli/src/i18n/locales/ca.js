@@ -486,6 +486,7 @@ export default {
   'Attribution: commit': 'Atribució: commit',
   'Terminal Bell Notification': 'Notificació de campana del terminal',
   'Enable Usage Statistics': "Activa les estadístiques d'ús",
+  'Send Error Reports': "Envia informes d'error",
   Theme: 'Tema',
   'Preferred Editor': 'Editor preferit',
   'Auto-connect to IDE': 'Connexió automàtica a IDE',

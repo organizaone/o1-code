@@ -144,9 +144,10 @@ describe('createContentGenerator', () => {
       apiKey: 'test-api-key',
       vertexai: undefined,
       httpOptions: {
+        // The installation ID stays out of provider requests even with
+        // usage statistics on.
         headers: {
           'User-Agent': expect.any(String),
-          'x-gemini-api-privileged-user-id': expect.any(String),
         },
       },
     });

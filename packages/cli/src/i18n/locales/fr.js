@@ -495,6 +495,7 @@ export default {
   'Attribution: commit': 'Attribution : commit',
   'Terminal Bell Notification': 'Notification sonore du terminal',
   'Enable Usage Statistics': "Activer les statistiques d'utilisation",
+  'Send Error Reports': "Envoyer les rapports d'erreur",
   Theme: 'Thème',
   'Preferred Editor': 'Éditeur préféré',
   'Auto-connect to IDE': "Connexion automatique à l'IDE",
