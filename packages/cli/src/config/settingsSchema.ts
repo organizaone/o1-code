@@ -1483,7 +1483,18 @@ const SETTINGS_SCHEMA = {
         category: 'Privacy',
         requiresRestart: true,
         default: true,
-        description: 'Enable collection of usage statistics',
+        description:
+          'Send anonymous usage metrics (version, system, session and command counts) to OrganizaOne. Never code, prompts or file contents.',
+        showInDialog: true,
+      },
+      errorReportsEnabled: {
+        type: 'boolean',
+        label: 'Send Error Reports',
+        category: 'Privacy',
+        requiresRestart: true,
+        default: true,
+        description:
+          "Send reports of the application's own crashes to OrganizaOne, with paths and personal data removed.",
         showInDialog: true,
       },
     },

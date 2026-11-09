@@ -726,6 +726,7 @@ export default {
   'Attribution: commit': '署名：提交',
   'Terminal Bell Notification': '終端響鈴通知',
   'Enable Usage Statistics': '啟用使用統計',
+  'Send Error Reports': '傳送錯誤報告',
   Theme: '主題',
   'Preferred Editor': '首選編輯器',
   'Auto-connect to IDE': '自動連接到 IDE',

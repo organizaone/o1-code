@@ -638,12 +638,15 @@ export interface SlashCommandEvent extends BaseTelemetryEvent {
   command: string;
   subcommand?: string;
   status?: SlashCommandStatus;
+  /** A command that ships with the application, not a user's own. */
+  built_in?: boolean;
 }
 
 export function makeSlashCommandEvent({
   command,
   subcommand,
   status,
+  built_in,
 }: Omit<SlashCommandEvent, CommonFields>): SlashCommandEvent {
   return {
     'event.name': 'slash_command',
@@ -651,6 +654,7 @@ export function makeSlashCommandEvent({
     command,
     subcommand,
     status,
+    ...(built_in !== undefined ? { built_in } : {}),
   };
 }
 

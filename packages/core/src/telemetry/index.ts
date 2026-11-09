@@ -14,6 +14,13 @@ const DEFAULT_OTLP_ENDPOINT = 'http://localhost:4317';
 
 export { DEFAULT_TELEMETRY_TARGET, DEFAULT_OTLP_ENDPOINT };
 export {
+  startProductTelemetry,
+  sendProductTelemetry,
+  recordErrorReport,
+  isUsageReportingEnabled,
+  isErrorReportingEnabled,
+} from './product/product-telemetry.js';
+export {
   DEFAULT_SENSITIVE_SPAN_ATTRIBUTE_MAX_LENGTH,
   SENSITIVE_SPAN_ATTRIBUTE_MAX_LENGTH_LIMIT,
   isValidSensitiveSpanAttributeMaxLength,

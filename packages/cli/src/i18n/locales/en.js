@@ -1031,6 +1031,7 @@ export default {
   'Attribution: commit': 'Attribution: commit',
   'Terminal Bell Notification': 'Terminal Bell Notification',
   'Enable Usage Statistics': 'Enable Usage Statistics',
+  'Send Error Reports': 'Send Error Reports',
   Theme: 'Theme',
   'Preferred Editor': 'Preferred Editor',
   'Auto-connect to IDE': 'Auto-connect to IDE',

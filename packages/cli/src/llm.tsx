@@ -29,6 +29,8 @@ import {
   PRIVATE_ACP_CAPABILITY_ENV,
   PRIVATE_CONVERSATIONS_RUNTIME_ENABLE,
   PRIVATE_CONVERSATIONS_RUNTIME_ENV,
+  recordErrorReport,
+  startProductTelemetry,
   uiTelemetryService,
 } from '@organizaone/o1-code-core';
 import {
@@ -227,6 +229,7 @@ export function setupUncaughtExceptionHandler(config: Config) {
     }
     const error =
       rawError instanceof Error ? rawError : new Error(String(rawError));
+    recordErrorReport(error, 'uncaughtException');
     const timestamp = new Date().toISOString();
     const line = `${timestamp} [ERROR] [STARTUP] [UNCAUGHT_EXCEPTION] ${error.message}\n${error.stack ?? ''}\n`;
     // debugLogger.error() uses async fs.appendFile — the write would be
@@ -316,6 +319,7 @@ export function setupUncaughtExceptionHandler(config: Config) {
 export function setupUnhandledRejectionHandler() {
   let unhandledRejectionOccurred = false;
   process.on('unhandledRejection', (reason, _promise) => {
+    recordErrorReport(reason, 'unhandledRejection');
     const errorMessage = `=========================================
 This is an unexpected error. Please file a bug report using the /bug tool.
 CRITICAL: Unhandled Promise Rejection!
@@ -1185,6 +1189,10 @@ export async function main() {
     // Before this point VP mode is not active, so Node's default stderr
     // output is visible and sufficient.
     setupUncaughtExceptionHandler(config);
+    startProductTelemetry(config, {
+      install: () =>
+        getInstallationInfo(config.getProjectRoot(), false).packageManager,
+    });
 
     startEarlyStartupPrefetches(config);
 

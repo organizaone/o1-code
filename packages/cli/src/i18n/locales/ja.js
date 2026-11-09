@@ -1523,6 +1523,7 @@ export default {
   'Extension Agents': '拡張エージェント',
   'Terminal Bell Notification': 'ターミナルベル通知',
   'Enable Usage Statistics': '使用統計を有効化',
+  'Send Error Reports': 'エラーレポートを送信',
   'Preferred Editor': '優先エディタ',
   'Auto-connect to IDE': 'IDE に自動接続',
   'Language: UI': '言語: UI',

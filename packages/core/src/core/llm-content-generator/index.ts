@@ -11,7 +11,6 @@ import type {
   ContentGeneratorConfig,
 } from '../contentGenerator.js';
 import type { Config } from '../../config/config.js';
-import { InstallationManager } from '../../config/installationManager.js';
 
 export { LlmContentGenerator } from './llm-content-generator.js';
 
@@ -26,19 +25,11 @@ export function createLlmContentGenerator(
   const userAgent =
     config.userAgent ||
     `O1Code/${version} (${process.platform}; ${process.arch})`;
-  const baseHeaders: Record<string, string> = {
+  // The installation ID is not sent to the provider: it identifies an
+  // installation to the product's own telemetry, not to a third party.
+  const headers: Record<string, string> = {
     'User-Agent': userAgent,
   };
-
-  let headers: Record<string, string> = { ...baseHeaders };
-  if (gcConfig?.getUsageStatisticsEnabled()) {
-    const installationManager = new InstallationManager();
-    const installationId = installationManager.getInstallationId();
-    headers = {
-      ...headers,
-      'x-gemini-api-privileged-user-id': `${installationId}`,
-    };
-  }
   const httpOptions = config.baseUrl
     ? {
         headers,

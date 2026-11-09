@@ -1550,6 +1550,7 @@ export const useSlashCommandProcessor = (
             command: resolvedCommandPath[0],
             subcommand,
             status: SlashCommandStatus.ERROR,
+            built_in: commandToExecute?.kind === CommandKind.BUILT_IN,
           });
           logSlashCommand(config, event);
         }
@@ -1612,6 +1613,7 @@ export const useSlashCommandProcessor = (
             command: resolvedCommandPath[0],
             subcommand,
             status: SlashCommandStatus.SUCCESS,
+            built_in: commandToExecute?.kind === CommandKind.BUILT_IN,
           });
           logSlashCommand(config, event);
         }

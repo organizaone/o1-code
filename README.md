@@ -132,8 +132,10 @@ add input validation to POST /todos: reject an empty title with a 400, and add a
   second-class path.
 - **Runs as a user.** No administrator rights, no Rust or Go toolchain; native modules are prebuilt
   or optional. Windows is a first-class platform.
-- **Telemetry is opt-in.** Your prompts and code go to the provider you configure.
-  OpenTelemetry exports are disabled by default and use the collector you configure. See
+- **Your prompts and code go only to the provider you configure.** O1-Code sends OrganizaOne
+  anonymous usage metrics and reports of its own crashes, never prompts, code or paths; each can be
+  turned off, and `DO_NOT_TRACK=1` turns both off. OpenTelemetry exports are disabled by default and
+  use the collector you configure. See
   [Terms of service and privacy](./docs/users/support/tos-privacy.md).
 - **Extension mechanisms first.** Skills, hooks, MCP, rules, output styles, themes and
   `modelProviders` before changes to the core.

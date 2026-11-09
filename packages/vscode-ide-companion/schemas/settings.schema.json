@@ -606,7 +606,12 @@
       "type": "object",
       "properties": {
         "usageStatisticsEnabled": {
-          "description": "Enable collection of usage statistics",
+          "description": "Send anonymous usage metrics (version, system, session and command counts) to OrganizaOne. Never code, prompts or file contents.",
+          "type": "boolean",
+          "default": true
+        },
+        "errorReportsEnabled": {
+          "description": "Send reports of the application's own crashes to OrganizaOne, with paths and personal data removed.",
           "type": "boolean",
           "default": true
         }

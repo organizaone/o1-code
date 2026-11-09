@@ -203,16 +203,16 @@ Decisions so far.
 
 ## Risks
 
-| Risk                                                              | Probability | Impact | Mitigation                                                                                      |
-| ----------------------------------------------------------------- | ----------- | ------ | ----------------------------------------------------------------------------------------------- |
-| `patches/ink+7.0.3.patch` conflicts with an Ink upgrade           | medium      | medium | upgrade Ink deliberately, with the patch reviewed in the same change                            |
-| Node requirement rises                                            | medium      | medium | track `engines`; document the supported version; install Node per user (nvm, fnm)               |
-| Heavy build and test (3–4 GB heap, large monorepo) on one machine | medium      | medium | scoped tests; `--cli-only`; hosted CI for the full suites; one heavy job at a time              |
-| Windows: long paths, CRLF, shell scripts                          | high        | low    | `core.longpaths`, `.gitattributes`, scripts in Node                                             |
-| npm supply chain attacks                                          | medium      | high   | `minimumReleaseAge` cooldown, frozen lockfile, hash-pinned actions                              |
-| A third-party name appears as product identity                    | low         | high   | `node scripts/o1/brand-lint.mjs` as a gate; docs and README review before publishing            |
-| Telemetry to a third party appears in some path                   | low         | high   | OpenTelemetry is opt-in and uses the configured collector; review every new network endpoint    |
-| Single maintainer                                                 | medium      | high   | small, scoped changes; CI gates on every pull request; this file and the changelog kept current |
+| Risk                                                              | Probability | Impact | Mitigation                                                                                                                                                                                               |
+| ----------------------------------------------------------------- | ----------- | ------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `patches/ink+7.0.3.patch` conflicts with an Ink upgrade           | medium      | medium | upgrade Ink deliberately, with the patch reviewed in the same change                                                                                                                                     |
+| Node requirement rises                                            | medium      | medium | track `engines`; document the supported version; install Node per user (nvm, fnm)                                                                                                                        |
+| Heavy build and test (3–4 GB heap, large monorepo) on one machine | medium      | medium | scoped tests; `--cli-only`; hosted CI for the full suites; one heavy job at a time                                                                                                                       |
+| Windows: long paths, CRLF, shell scripts                          | high        | low    | `core.longpaths`, `.gitattributes`, scripts in Node                                                                                                                                                      |
+| npm supply chain attacks                                          | medium      | high   | `minimumReleaseAge` cooldown, frozen lockfile, hash-pinned actions                                                                                                                                       |
+| A third-party name appears as product identity                    | low         | high   | `node scripts/o1/brand-lint.mjs` as a gate; docs and README review before publishing                                                                                                                     |
+| Telemetry to a third party appears in some path                   | low         | high   | product telemetry goes only to the OrganizaOne intake, with a fixed list of fields and documented switches; OpenTelemetry is opt-in and uses the configured collector; review every new network endpoint |
+| Single maintainer                                                 | medium      | high   | small, scoped changes; CI gates on every pull request; this file and the changelog kept current                                                                                                          |
 
 ## Repository governance
 

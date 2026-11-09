@@ -55,8 +55,9 @@ o1-code
 - **Beyond the terminal.** Headless runs with `o1-code -p "..."`, the `o1-code serve` daemon with a
   browser Web Shell, and editor integration for VS Code, Zed and JetBrains IDEs.
 - **Localized.** English and Brazilian Portuguese reviewed by hand, plus other locales.
-- **Telemetry is opt-in.** OpenTelemetry exports are disabled by default and use the collector you
-  configure. Your prompts and code go to the provider you configure.
+- **Your prompts and code go only to the provider you configure.** O1-Code sends OrganizaOne
+  anonymous usage metrics and crash reports, never prompts, code or paths; `DO_NOT_TRACK=1` turns
+  both off. OpenTelemetry exports are disabled by default and use the collector you configure.
 
 ## Learn more
 
