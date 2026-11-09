@@ -23,6 +23,8 @@ export interface ApplicationUpdateState {
   canRestart: boolean;
   instructions: string[];
   error?: string;
+  /** A restart was chosen during preparation; it follows once prepared. */
+  restartRequested?: boolean;
 }
 
 interface ApplicationUpdateOptions {
@@ -115,53 +117,67 @@ export function useApplicationUpdate(options: ApplicationUpdateOptions) {
     };
   }, [publish, cancelPendingRestart]);
 
-  const prepare = useCallback(async (): Promise<boolean> => {
-    const previous = current.current;
-    if (
-      !previous ||
-      previous.phase === 'preparing' ||
-      previous.phase === 'restarting'
-    )
-      return false;
-    if (previous.phase === 'ready') return true;
-    const attempt = ++generation.current;
-    failure.current = undefined;
-    publish({ ...previous, phase: 'preparing', error: undefined });
-    let success = false;
-    try {
-      success =
-        (await handleAutoUpdate(
-          previous.info,
-          {
-            ...live.current.settings,
-            merged: {
-              ...live.current.settings.merged,
-              general: {
-                ...live.current.settings.merged.general,
-                enableAutoUpdate: true,
+  const preparation = useRef<Promise<boolean> | undefined>(undefined);
+  const runPreparation = useCallback(
+    async (previous: ApplicationUpdateState): Promise<boolean> => {
+      const attempt = ++generation.current;
+      failure.current = undefined;
+      publish({ ...previous, phase: 'preparing', error: undefined });
+      let success = false;
+      try {
+        success =
+          (await handleAutoUpdate(
+            previous.info,
+            {
+              ...live.current.settings,
+              merged: {
+                ...live.current.settings.merged,
+                general: {
+                  ...live.current.settings.merged.general,
+                  enableAutoUpdate: true,
+                },
               },
             },
-          },
-          live.current.projectRoot,
-        )) === true;
-    } catch (error) {
-      failure.current = error instanceof Error ? error.message : String(error);
-    }
-    if (
-      attempt !== generation.current ||
-      current.current?.info !== previous.info
-    )
-      return false;
-    publish({
-      ...previous,
-      phase: success ? 'ready' : 'failed',
-      error: success
-        ? undefined
-        : (failure.current ??
-          t('Automatic update failed. Please try updating manually.')),
+            live.current.projectRoot,
+          )) === true;
+      } catch (error) {
+        failure.current =
+          error instanceof Error ? error.message : String(error);
+      }
+      if (
+        attempt !== generation.current ||
+        current.current?.info !== previous.info
+      )
+        return false;
+      publish({
+        ...previous,
+        phase: success ? 'ready' : 'failed',
+        error: success
+          ? undefined
+          : (failure.current ??
+            t('Automatic update failed. Please try updating manually.')),
+      });
+      return success;
+    },
+    [publish],
+  );
+
+  const prepare = useCallback((): Promise<boolean> => {
+    const previous = current.current;
+    // A restart chosen while the update is still being prepared waits for
+    // that preparation instead of being refused.
+    if (previous?.phase === 'preparing' && preparation.current)
+      return preparation.current;
+    if (!previous || previous.phase === 'restarting')
+      return Promise.resolve(false);
+    if (previous.phase === 'ready') return Promise.resolve(true);
+    const running = runPreparation(previous);
+    preparation.current = running;
+    void running.finally(() => {
+      if (preparation.current === running) preparation.current = undefined;
     });
-    return success;
-  }, [publish]);
+    return running;
+  }, [runPreparation]);
 
   useEffect(() => {
     if (
@@ -184,6 +200,9 @@ export function useApplicationUpdate(options: ApplicationUpdateOptions) {
     )
       return;
     const intent = ++restartIntent.current;
+    if (previous.phase === 'preparing' && previous.canRestart) {
+      publish({ ...previous, restartRequested: true });
+    }
     if (previous.canPrepare && !(await prepare())) return;
     if (!previous.canRestart) return;
     if (
@@ -217,8 +236,12 @@ export function useApplicationUpdate(options: ApplicationUpdateOptions) {
 
   const dismiss = useCallback(() => {
     restartIntent.current++;
+    const previous = current.current;
+    if (previous?.restartRequested) {
+      publish({ ...previous, restartRequested: false });
+    }
     setOpen(false);
-  }, []);
+  }, [publish]);
   const visible =
     open && options.idle && !options.blocked && state !== undefined;
   return useMemo(

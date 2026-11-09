@@ -89,14 +89,56 @@ describe('ApplicationUpdateDialog', () => {
     await vi.waitFor(() => expect(onLater).toHaveBeenCalledTimes(2));
   });
 
-  it.each(['preparing', 'restarting'] as const)(
-    'does not offer an apply action while %s',
-    async (phase) => {
+  it('offers to restart once prepared, besides continuing, while preparing', async () => {
+    const onApply = vi.fn();
+    const { lastFrame, stdin } = renderWithProviders(
+      <ApplicationUpdateDialog
+        state={updateState({ phase: 'preparing' })}
+        availableHeight={16}
+        onApply={onApply}
+        onLater={vi.fn()}
+      />,
+    );
+    const frame = lastFrame() ?? '';
+    expect(frame).toContain('Restart when prepared');
+    expect(frame).toContain('Continue using');
+    await press(stdin, '\r');
+    await vi.waitFor(() => expect(onApply).toHaveBeenCalledOnce());
+  });
+
+  it('separates the text from the frame and the choices when there is room', () => {
+    const { lastFrame } = renderWithProviders(
+      <ApplicationUpdateDialog
+        state={updateState()}
+        availableHeight={16}
+        onApply={vi.fn()}
+        onLater={vi.fn()}
+      />,
+    );
+    const lines = (lastFrame() ?? '').split('\n');
+    const blank = (line: string | undefined) =>
+      /^\s*\S\s+\S\s*$/.test(line ?? '');
+    const action = lines.findIndex((line) => line.includes('Restart and'));
+    const version = lines.findIndex((line) => line.includes('0.21.10 →'));
+    expect(blank(lines[1])).toBe(true);
+    expect(blank(lines[version - 1])).toBe(true);
+    expect(blank(lines[version + 1])).toBe(true);
+    expect(blank(lines[action - 1])).toBe(true);
+    expect(lines[action]).toMatch(/^\S\s{2}/);
+  });
+
+  it.each([
+    ['preparing', { restartRequested: true }],
+    ['preparing', { canRestart: false, canPrepare: true }],
+    ['restarting', {}],
+  ] as const)(
+    'does not offer an apply action while %s (%o)',
+    async (phase, changes) => {
       const onApply = vi.fn();
       const onLater = vi.fn();
       const { lastFrame, stdin } = renderWithProviders(
         <ApplicationUpdateDialog
-          state={updateState({ phase })}
+          state={updateState({ phase, ...changes })}
           availableHeight={12}
           onApply={onApply}
           onLater={onLater}
@@ -104,6 +146,7 @@ describe('ApplicationUpdateDialog', () => {
       );
       expect(lastFrame() ?? '').not.toContain('Restart and update');
       expect(lastFrame() ?? '').not.toContain('Update and restart');
+      expect(lastFrame() ?? '').not.toContain('Restart when prepared');
       await press(stdin, '\r');
       expect(onApply).not.toHaveBeenCalled();
       await press(stdin, '\x1b');

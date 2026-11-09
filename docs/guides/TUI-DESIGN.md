@@ -361,11 +361,11 @@ zones stay visible.
 and `sideMargin(tier)`. Components read it through `hooks/use-layout-tier.ts`; `isNarrowWidth` is
 `tier === 'minimal'`. Each band drops what the band above dropped.
 
-| Tier      | Columns | Drops                                                                                                                                                             |
-| --------- | ------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `full`    | ≥ 120   | nothing                                                                                                                                                           |
-| `medium`  | 100–119 | context bar; `ctrl+c quit` hint                                                                                                                                   |
-| `compact` | 80–99   | footer git zone; active skill; memory bar; `@ files` hint; `reasoning high` becomes `high`; approval options stack vertically                                     |
+| Tier      | Columns | Drops                                                                                                                                                                        |
+| --------- | ------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `full`    | ≥ 120   | nothing                                                                                                                                                                      |
+| `medium`  | 100–119 | context bar; `ctrl+c quit` hint                                                                                                                                              |
+| `compact` | 80–99   | footer git zone; active skill; memory bar; `@ files` hint; `reasoning high` becomes `high`; approval options stack vertically                                                |
 | `minimal` | < 80    | logo becomes the wordmark; hints; memory row; reasoning; `summary`; tokens; inactive chip labels; `checking`/`online`/`failed`/`no provider` text (dot stays); side margin 1 |
 
 Side margin is 2 columns, 1 under 80. Under 80 the header is three rows: wordmark and version,
@@ -384,13 +384,29 @@ never leaves; it only shortens from the start.
   Escape means Later, including during preparation. Later dismisses that target for the running
   application and cancels a pending restart; `/update` explicitly reopens it. Automatic preparation
   of supported npm updates starts only while idle and when `general.enableAutoUpdate` is enabled.
-  Applying remains an explicit choice until the next natural startup. Preparing/restarting never
-  offer another apply action. Selected items use the shared brand arrow and bold primary text.
-  Short terminals reduce secondary chrome before the version transition and actions; failure
+  Applying remains an explicit choice until the next natural startup. While preparing, an app that
+  can restart offers `Restart when prepared` beside `Continue using`; choosing it waits for the
+  preparation in progress and then restarts, and Later withdraws it. Restarting, and preparing after
+  that choice, offer no apply action. Selected items use the shared brand arrow and bold primary
+  text. The panel pads its text two columns from the frame and, when the budget allows, leaves a
+  blank row under the frame, before the choices and before the footer, and sets the version
+  transition in bold primary text between blank rows; short terminals give up
+  those rows first, then secondary chrome, before the version transition and actions; failure
   details and manual instructions remain reachable with Page Up/Page Down and Home/End. No fake
   download percentage is shown. Headless and ACP commands retain text output.
-  If the normal dialog budget has fewer than six rows, the update temporarily uses the transcript
-  area in viewport mode so its version and both choices remain visible; larger layouts keep history.
+  In viewport mode the update dialog replaces the transcript, so no clipped history frame sits
+  above it; with Static output the dialog stays below the scrollback. While the dialog is open it
+  alone reports the update: preparation, success and failure add no history notice and no banner.
+  Closed, they do, as the notices below.
+- **Update notices** (`messages/UpdateNotice.tsx`, `UpdateNotification.tsx`): the history notices
+  (available, installed, failed, what's new) use the same brand frame with the title in its top
+  edge, two columns of padding and a blank row inside each edge, and the version transition in
+  bold primary text between blank rows; the text keeps only what the installation adds, such as
+  the manual command. The transient banner above the input is a brand frame too, its headline in
+  bold primary and the rest muted: an available update is news, not a warning.
+- **Built-in provider updates** (`ProviderUpdatePrompt.tsx`) use the same frame and padding, the
+  title in the top edge, and `↑↓ choose · enter select · esc later` as the footer; key hints stay
+  out of the choice labels.
   Screen-reader mode also hides competing notification/footer rows for a compact update, while
   retaining its mounted history to avoid replaying Static output.
   With conversation recording disabled, the primary action prepares the update without restarting;

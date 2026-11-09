@@ -7,6 +7,18 @@ follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.23.7] - 2026-11-08
+
+### Changed
+
+- The update dialog no longer leaves `Continue using` as its only choice while an update is prepared in the background: it also offers `Restart when prepared`, which restarts as soon as the preparation finishes. The panel has more room between its text, its frame and its choices, and the version transition stands out in bold between blank lines.
+- Update notices in the conversation, the update banner above the input, and the built-in provider update dialog follow the same frame: the title in the top edge, more padding, and the version transition in bold. The banner is no longer styled as a warning, and the provider dialog is translated into Portuguese.
+
+### Fixed
+
+- In full-screen mode the update dialog replaces the conversation instead of sitting under a few clipped rows of it.
+- While the update dialog is open, preparing an update no longer also adds a notice to the conversation or a banner above the input. A notice that the update "takes effect the next time you open" no longer contradicts the dialog's offer to restart now, and a failure is reported once.
+
 ## [0.23.6] - 2026-11-08
 
 ### Fixed

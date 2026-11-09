@@ -59,6 +59,26 @@ describe('<UpdateNotice />', () => {
     expect(text).not.toMatch(/ {2}(installed|failed)/);
   });
 
+  it('sets the version transition apart between blank lines', () => {
+    const lines = frame(
+      <UpdateNotice
+        status="available"
+        version="0.2.2"
+        fromVersion="0.2.1"
+        text="Run npm install -g @organizaone/o1-code@0.2.2"
+      />,
+    );
+    const blank = (line: string | undefined) => /^│\s+│$/.test(line ?? '');
+    const transition = lines.findIndex((line) =>
+      line.includes('0.2.1 → 0.2.2'),
+    );
+    expect(transition).toBeGreaterThan(0);
+    expect(blank(lines[transition - 1])).toBe(true);
+    expect(blank(lines[transition + 1])).toBe(true);
+    expect(lines[transition]).toMatch(/^│ {2}0\.2\.1/);
+    expect(blank(lines[2])).toBe(true);
+  });
+
   it('names the version and the reason when the update failed', () => {
     const text = frame(
       <UpdateNotice status="failed" version="0.2.2" text="npm exited 1" />,

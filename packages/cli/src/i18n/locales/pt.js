@@ -51,6 +51,23 @@ export default {
   'Update and restart': 'Atualizar e reiniciar',
   'Restart and update': 'Reiniciar e atualizar',
   'Continue using': 'Continuar usando',
+  'Restart when prepared': 'Reiniciar quando estiver pronta',
+  'Built-in Provider Update · {{provider}}':
+    'Atualização de provedor integrado · {{provider}}',
+  'Built-in Provider Updates': 'Atualizações de provedores integrados',
+  'Model parameters updated (context window, capabilities, etc.)':
+    'Parâmetros de modelos atualizados (janela de contexto, recursos etc.)',
+  'Note: Your selected model is being removed. Please choose a new one with /model.':
+    'Atenção: o modelo selecionado será removido. Escolha outro com /model.',
+  'Your credentials will not be modified.':
+    'Suas credenciais não serão alteradas.',
+  'Update all': 'Atualizar todos',
+  'Skip this version': 'Pular esta versão',
+  'Remind me later': 'Lembrar depois',
+  'Restart as soon as it is prepared, or continue and update the next time you open the app.':
+    'Reinicie assim que estiver pronta ou continue e atualize na próxima vez que abrir o aplicativo.',
+  'The app restarts as soon as the update is prepared.':
+    'O aplicativo reinicia assim que a atualização estiver pronta.',
   'Try again': 'Tentar novamente',
   Later: 'Depois',
   'Update now, or continue and update the next time you open the app.':

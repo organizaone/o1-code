@@ -6,7 +6,8 @@
 
 import { useCallback } from 'react';
 import { Box, Text } from 'ink';
-import { theme } from '../semantic-colors.js';
+import { extendedTheme, theme } from '../semantic-colors.js';
+import { glyphs, TOP_FRAME } from '../glyphs.js';
 import { RadioButtonSelect } from './shared/RadioButtonSelect.js';
 import { useKeypress, type Key } from '../hooks/useKeypress.js';
 import { t } from '../../i18n/index.js';
@@ -77,56 +78,81 @@ export const ProviderUpdatePrompt = ({
         })
       : t('Built-in Provider Updates');
 
+  const frame = TOP_FRAME[glyphs().borderStyle];
+  const frameColor = extendedTheme.ui.brand;
+
+  // The same frame as the application update: a brand border that asks for
+  // a choice, with the title set into its top edge.
   return (
-    <Box
-      borderStyle="round"
-      borderColor={theme.border.default}
-      flexDirection="column"
-      paddingY={1}
-      paddingX={2}
-    >
-      <Text bold>{title}</Text>
-
-      <Box flexDirection="column" marginTop={1} gap={1}>
-        {entries.map((entry) => (
-          <ProviderDiffSection key={entry.providerLabel} entry={entry} />
-        ))}
-      </Box>
-
-      <Box flexDirection="column" marginTop={1}>
-        {affectedEntry && (
-          <Text color={theme.status.warning}>
-            {t(
-              'Note: Your selected model is being removed. Please choose a new one with /model.',
-            )}
+    <Box flexDirection="column">
+      <Box height={1}>
+        <Text color={frameColor}>{`${frame.topLeft}${frame.top} `}</Text>
+        <Box flexShrink={1} minWidth={0}>
+          <Text color={theme.text.primary} bold wrap="truncate-end">
+            {title}
           </Text>
-        )}
-        <Text color={theme.text.secondary}>
-          {t('Tips: Your credentials will not be modified.')}
-        </Text>
+        </Box>
+        <Text color={frameColor}> </Text>
+        <Box flexGrow={1} flexShrink={1} flexBasis={0} overflow="hidden">
+          <Text color={frameColor}>{frame.top.repeat(400)}</Text>
+        </Box>
+        <Text color={frameColor}>{frame.topRight}</Text>
       </Box>
+      <Box
+        borderStyle={glyphs().borderStyle}
+        borderTop={false}
+        borderColor={frameColor}
+        flexDirection="column"
+        paddingY={1}
+        paddingX={2}
+      >
+        <Box flexDirection="column" gap={1}>
+          {entries.map((entry) => (
+            <ProviderDiffSection key={entry.providerLabel} entry={entry} />
+          ))}
+        </Box>
 
-      <Box marginTop={1}>
-        <RadioButtonSelect
-          items={[
-            {
-              label: t('Update all'),
-              value: 'update' as UpdateChoice,
-              key: 'update',
-            },
-            {
-              label: t('Skip this version'),
-              value: 'skip' as UpdateChoice,
-              key: 'skip',
-            },
-            {
-              label: t('Remind me later (esc)'),
-              value: 'later' as UpdateChoice,
-              key: 'later',
-            },
-          ]}
-          onSelect={onConfirm}
-        />
+        <Box flexDirection="column" marginTop={1}>
+          {affectedEntry && (
+            <Text color={theme.status.warning}>
+              {t(
+                'Note: Your selected model is being removed. Please choose a new one with /model.',
+              )}
+            </Text>
+          )}
+          <Text color={extendedTheme.text.muted}>
+            {t('Your credentials will not be modified.')}
+          </Text>
+        </Box>
+
+        <Box marginTop={1}>
+          <RadioButtonSelect
+            items={[
+              {
+                label: t('Update all'),
+                value: 'update' as UpdateChoice,
+                key: 'update',
+              },
+              {
+                label: t('Skip this version'),
+                value: 'skip' as UpdateChoice,
+                key: 'skip',
+              },
+              {
+                label: t('Remind me later'),
+                value: 'later' as UpdateChoice,
+                key: 'later',
+              },
+            ]}
+            onSelect={onConfirm}
+          />
+        </Box>
+
+        <Box marginTop={1}>
+          <Text color={extendedTheme.text.muted} wrap="truncate-end">
+            {t('↑↓ choose · enter select · esc later')}
+          </Text>
+        </Box>
       </Box>
     </Box>
   );

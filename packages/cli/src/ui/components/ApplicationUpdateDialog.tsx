@@ -31,7 +31,8 @@ export function ApplicationUpdateDialog({
 }: ApplicationUpdateDialogProps) {
   const { columns, rows } = useTerminalSize();
   const width = Math.max(1, Math.min(92, columns - 4));
-  const contentWidth = Math.max(1, width - 4);
+  const paddingX = width >= 40 ? 2 : 1;
+  const contentWidth = Math.max(1, width - 2 - paddingX * 2);
   const budget = Math.max(1, Math.min(rows, Math.floor(availableHeight)));
   const [offset, setOffset] = useState(0);
   const busy = state.phase === 'preparing' || state.phase === 'restarting';
@@ -46,18 +47,29 @@ export function ApplicationUpdateDialog({
     available: t(
       'Update now, or continue and update the next time you open the app.',
     ),
-    preparing: t(
-      'You can continue using the app. The update takes effect after restarting.',
-    ),
+    preparing: state.restartRequested
+      ? t('The app restarts as soon as the update is prepared.')
+      : state.canRestart
+        ? t(
+            'Restart as soon as it is prepared, or continue and update the next time you open the app.',
+          )
+        : t(
+            'You can continue using the app. The update takes effect after restarting.',
+          ),
     ready: t(
       'The update is prepared. Restart now, or apply it the next time you open the app.',
     ),
     failed: t('Your current version is still available.'),
     restarting: t('Opening the prepared version.'),
   };
+  // While preparing, restarting is still a choice when the app can restart:
+  // it waits for the preparation and then restarts.
+  const restartAfterPreparing =
+    state.phase === 'preparing' && state.canRestart && !state.restartRequested;
   const items = [
-    ...(!busy &&
-    (state.canRestart || (state.canPrepare && state.phase !== 'ready'))
+    ...((!busy &&
+      (state.canRestart || (state.canPrepare && state.phase !== 'ready'))) ||
+    restartAfterPreparing
       ? [
           {
             key: 'apply',
@@ -68,7 +80,9 @@ export function ApplicationUpdateDialog({
                 ? t('Restart and update')
                 : state.phase === 'failed'
                   ? t('Try again')
-                  : t('Update and restart'),
+                  : state.phase === 'preparing'
+                    ? t('Restart when prepared')
+                    : t('Update and restart'),
           },
         ]
       : []),
@@ -96,12 +110,21 @@ export function ApplicationUpdateDialog({
   }).split('\n');
   const statusRows = budget >= 9 ? 1 : 0;
   const footerRows = budget >= 8 ? 1 : 0;
+  // Blank rows separate the text from the frame and from the choices; they
+  // are the first thing a short terminal gives up.
+  const actionGapRows = budget >= 10 ? 1 : 0;
+  const edgeGapRows = budget >= 13 ? 1 : 0;
+  const footerGapRows = footerRows && edgeGapRows ? 1 : 0;
+  // The version transition stands on its own between blank rows.
+  const versionGapRows = budget >= 14 ? 1 : 0;
+  const gapRows =
+    actionGapRows + edgeGapRows * 2 + footerGapRows + versionGapRows * 2;
   const actionRows = Math.min(items.length, Math.max(1, budget - 4));
   const detailRows = Math.max(
     0,
     Math.min(
       detailLines.length,
-      budget - 3 - statusRows - footerRows - actionRows,
+      budget - 3 - statusRows - footerRows - actionRows - gapRows,
     ),
   );
   const maxOffset = Math.max(0, detailLines.length - detailRows);
@@ -109,7 +132,7 @@ export function ApplicationUpdateDialog({
   const needsPaging = detailRows > 0 && detailLines.length > detailRows;
   const height = Math.min(
     budget,
-    3 + statusRows + footerRows + actionRows + detailRows,
+    3 + statusRows + footerRows + actionRows + detailRows + gapRows,
   );
   const frameColor =
     state.phase === 'failed' ? theme.status.error : extendedTheme.ui.brand;
@@ -161,7 +184,8 @@ export function ApplicationUpdateDialog({
         borderTop={false}
         borderColor={frameColor}
         flexDirection="column"
-        paddingX={1}
+        paddingX={paddingX}
+        paddingY={edgeGapRows}
         overflow="hidden"
       >
         {statusRows > 0 && (
@@ -169,9 +193,11 @@ export function ApplicationUpdateDialog({
             {titles[state.phase]}
           </Text>
         )}
-        <Text color={theme.text.secondary} wrap="truncate-end">
+        {versionGapRows > 0 && <Box height={1} />}
+        <Text bold color={theme.text.primary} wrap="truncate-end">
           {`${state.info.update.current} → ${state.info.update.latest}`}
         </Text>
+        {versionGapRows > 0 && <Box height={1} />}
         {detailRows > 0 && (
           <Box height={detailRows} flexShrink={0} flexDirection="column">
             {detailLines
@@ -187,6 +213,7 @@ export function ApplicationUpdateDialog({
               ))}
           </Box>
         )}
+        {items.length > 0 && actionGapRows > 0 && <Box height={1} />}
         {items.length > 0 && (
           <BaseSelectionList
             key={`${state.phase}:${state.canRestart}`}
@@ -200,6 +227,7 @@ export function ApplicationUpdateDialog({
             )}
           />
         )}
+        {footerGapRows > 0 && <Box height={1} />}
         {footerRows > 0 && (
           <Text color={extendedTheme.text.muted} wrap="truncate-end">
             {needsPaging

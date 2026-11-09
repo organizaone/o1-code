@@ -134,6 +134,7 @@ describe('handleAutoUpdate', () => {
       update: mockUpdateInfo.update,
       message:
         'An update is available!\nPlease run npm i -g @organizaone/o1-code@latest to update',
+      detail: 'Please run npm i -g @organizaone/o1-code@latest to update',
     });
     // Should NOT spawn update when enableAutoUpdate is false
     expect(mockSpawn).not.toHaveBeenCalled();
@@ -169,6 +170,7 @@ describe('handleAutoUpdate', () => {
     expect(emitSpy).toHaveBeenCalledWith('update-received', {
       update: mockUpdateInfo.update,
       message: 'An update is available!\nCannot determine update command.',
+      detail: 'Cannot determine update command.',
     });
     expect(mockSpawn).not.toHaveBeenCalled();
   });
@@ -187,6 +189,7 @@ describe('handleAutoUpdate', () => {
     expect(emitSpy).toHaveBeenCalledWith('update-received', {
       update: mockUpdateInfo.update,
       message: 'An update is available!\nThis is an additional message.',
+      detail: 'This is an additional message.',
     });
   });
 
@@ -528,6 +531,42 @@ describe('setUpdateHandler', () => {
     cleanup();
   });
 
+  it('leaves progress, result and failure to the update dialog while it is open', () => {
+    vi.useFakeTimers();
+    const dialog = { current: true };
+    const { cleanup } = setUpdateHandler(
+      addItem,
+      setUpdateInfo,
+      { current: true },
+      dialog,
+    );
+    updateEventEmitter.emit('update-received', {
+      message: 'O1-Code update available! 1.0.0 → 2.0.0',
+      update: { current: '1.0.0', latest: '2.0.0' },
+    });
+    updateEventEmitter.emit('update-failed', { message: 'npm failed' });
+    updateEventEmitter.emit('update-success', {});
+    vi.advanceTimersByTime(60000);
+    expect(addItem).not.toHaveBeenCalled();
+    expect(setUpdateInfo).not.toHaveBeenCalledWith(
+      expect.objectContaining({ message: expect.any(String) }),
+    );
+
+    dialog.current = false;
+    updateEventEmitter.emit('update-success', {});
+    expect(addItem).toHaveBeenCalledWith(
+      {
+        type: 'update_notice',
+        status: 'installed',
+        version: '2.0.0',
+        fromVersion: '1.0.0',
+      },
+      expect.any(Number),
+    );
+    cleanup();
+    vi.useRealTimers();
+  });
+
   it('should render update-failed with warning severity as a warning', () => {
     const isIdleRef = { current: true };
     const { cleanup } = setUpdateHandler(addItem, setUpdateInfo, isIdleRef);
@@ -821,6 +860,7 @@ describe('handleAutoUpdate — Homebrew installs', () => {
       message:
         'O1-Code update available! 0.21.13 → 0.21.14\n' +
         'translated Homebrew guidance',
+      detail: 'translated Homebrew guidance',
     });
   });
 
@@ -834,6 +874,7 @@ describe('handleAutoUpdate — Homebrew installs', () => {
       message:
         'O1-Code update available! 0.21.13 → 0.21.14\n' +
         'Installed via Homebrew. Please update with "brew upgrade".',
+      detail: 'Installed via Homebrew. Please update with "brew upgrade".',
     });
   });
 

@@ -59,17 +59,24 @@ export const UpdateNotice: React.FC<UpdateNoticeProps> = ({
         borderTop={false}
         borderColor={frameColor}
         flexDirection="column"
-        paddingX={1}
+        paddingX={2}
+        paddingY={1}
       >
         {status === 'whats_new' ? (
           <>
             {fromVersion && (
-              <Text color={extendedTheme.text.muted}>
-                {t('Updated from {{from}} to {{to}}', {
-                  from: fromVersion,
-                  to: version ?? '',
-                })}
-              </Text>
+              <Box
+                marginBottom={
+                  highlights.length > 0 || moreCount > 0 || notesUrl ? 1 : 0
+                }
+              >
+                <Text color={theme.text.primary} bold>
+                  {t('Updated from {{from}} to {{to}}', {
+                    from: fromVersion,
+                    to: version ?? '',
+                  })}
+                </Text>
+              </Box>
             )}
             {highlights.map((line, index) => (
               <Box key={index}>
@@ -129,6 +136,16 @@ export const UpdateNotice: React.FC<UpdateNoticeProps> = ({
                 }`}
               </Text>
             </Text>
+            {fromVersion && version && (
+              <Box
+                marginTop={1}
+                marginBottom={status === 'installed' || text ? 1 : 0}
+              >
+                <Text color={theme.text.primary} bold>
+                  {`${fromVersion} → ${version}`}
+                </Text>
+              </Box>
+            )}
             {status === 'installed' && (
               <Text color={extendedTheme.text.muted}>
                 {t('It takes effect the next time you open O1-Code.')}

@@ -409,6 +409,30 @@ describe('DefaultAppLayout', () => {
   });
 
   it.each([
+    [true, false],
+    [false, true],
+  ])(
+    'replaces the transcript with an update dialog in full-screen %s',
+    (useTerminalBuffer, transcriptShown) => {
+      mockedUseAgentViewState.mockReturnValue({
+        activeView: 'main',
+        agents: new Map(),
+      });
+      dialogManagerMockState.lineCount = 6;
+      const { lastFrame } = renderLayout({
+        ...baseUIState,
+        dialogsVisible: true,
+        useTerminalBuffer,
+        terminalHeight: 40,
+        applicationUpdate: { visible: true } as UIState['applicationUpdate'],
+      });
+      const frame = lastFrame() ?? '';
+      expect(frame).toContain('DialogManager 6');
+      expect(frame.includes('MainContent')).toBe(transcriptShown);
+    },
+  );
+
+  it.each([
     [true, false, false, 18],
     [false, false, false, 13],
     [true, true, false, 16],
