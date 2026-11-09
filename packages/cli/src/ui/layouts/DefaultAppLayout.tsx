@@ -168,7 +168,12 @@ export const DefaultAppLayout: React.FC = () => {
           ) : (
             <ScrollContext.Provider value={scrollActions}>
               {/* Main view: conversation history + main composer / dialogs */}
-              {!(isCompactUpdate && uiState.useTerminalBuffer) && (
+              {/* In full-screen mode the update dialog replaces the
+              transcript: a few clipped rows of history above it read as
+              part of the dialog. */}
+              {!(
+                uiState.applicationUpdate?.visible && uiState.useTerminalBuffer
+              ) && (
                 <MainContent
                   footerRef={footerRef}
                   inputLinesRef={inputLinesRef}

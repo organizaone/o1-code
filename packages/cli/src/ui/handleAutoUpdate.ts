@@ -79,6 +79,11 @@ export async function handleAutoUpdate(
   updateEventEmitter.emit('update-received', {
     message: combinedMessage,
     update: info.update,
+    // The installation's own line alone, for a notice that shows the
+    // version transition by itself.
+    ...(installationInfo.updateMessage
+      ? { detail: t(installationInfo.updateMessage) }
+      : {}),
   });
 
   if (
@@ -189,6 +194,9 @@ export function setUpdateHandler(
   addItem: (item: HistoryItemWithoutId, timestamp: number) => void,
   setUpdateInfo: (info: UpdateObject | null) => void,
   isIdleRef: { current: boolean } = { current: true },
+  // The update dialog shows the same progress, result and failure itself; a
+  // notice or banner while it is open repeats or contradicts it.
+  updateDialogVisibleRef: { current: boolean } = { current: false },
 ) {
   let successfullyInstalled = false;
   const pendingNotifications: HistoryItemWithoutId[] = [];
@@ -201,20 +209,26 @@ export function setUpdateHandler(
     }
   };
 
-  // The version the last update-received named, for the notices that follow.
+  // The versions the last update-received named, for the notices that follow.
   let pendingVersion: string | undefined;
+  let pendingFrom: string | undefined;
+  const from = () => (pendingFrom ? { fromVersion: pendingFrom } : {});
 
-  const handleUpdateReceived = (info: UpdateObject) => {
-    setUpdateInfo(info);
+  const handleUpdateReceived = (info: UpdateObject & { detail?: string }) => {
     pendingVersion = info.update.latest;
-    const savedMessage = info.message;
+    pendingFrom = info.update.current;
+    if (updateDialogVisibleRef.current) return;
+    setUpdateInfo(info);
     setTimeout(() => {
       if (!successfullyInstalled) {
+        // The notice shows the version transition itself; the text keeps
+        // only what the installation adds, such as the manual command.
         addItemOrDefer({
           type: 'update_notice',
           status: 'available',
           version: info.update.latest,
-          text: savedMessage,
+          ...from(),
+          ...(info.detail ? { text: info.detail } : {}),
         });
       }
       setUpdateInfo(null);
@@ -235,10 +249,12 @@ export function setUpdateHandler(
       });
       return;
     }
+    if (updateDialogVisibleRef.current) return;
     addItemOrDefer({
       type: 'update_notice',
       status: 'failed',
       version: pendingVersion,
+      ...from(),
       text: data?.message ?? t(UPDATE_FAILED_MESSAGE),
     });
   };
@@ -246,10 +262,12 @@ export function setUpdateHandler(
   const handleUpdateSuccess = (_data?: { message?: string }) => {
     successfullyInstalled = true;
     setUpdateInfo(null);
+    if (updateDialogVisibleRef.current) return;
     addItemOrDefer({
       type: 'update_notice',
       status: 'installed',
       version: pendingVersion,
+      ...from(),
     });
   };
 

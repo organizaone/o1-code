@@ -1509,9 +1509,16 @@ export const AppContainer = (props: AppContainerProps) => {
     flush: () => void;
   } | null>(null);
 
+  // Assigned once the application update flow is known, further below.
+  const updateDialogVisibleRef = useRef(false);
   const addUpdateItem = historyManager.addItem;
   useEffect(() => {
-    const handler = setUpdateHandler(addUpdateItem, setUpdateInfo, isIdleRef);
+    const handler = setUpdateHandler(
+      addUpdateItem,
+      setUpdateInfo,
+      isIdleRef,
+      updateDialogVisibleRef,
+    );
     updateHandlerRef.current = handler;
     // The first run of a new version says what changed. takeWhatsNew records
     // the version, so a re-run of this effect finds nothing new.
@@ -4380,6 +4387,7 @@ export const AppContainer = (props: AppContainerProps) => {
   });
   const dialogsVisible = otherDialogsVisible || applicationUpdateFlow.visible;
   dialogsVisibleRef.current = dialogsVisible;
+  updateDialogVisibleRef.current = applicationUpdateFlow.visible;
 
   const agentSessionActiveTheme = themeManager.getActiveTheme();
   const agentSessionTheme =

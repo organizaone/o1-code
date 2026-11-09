@@ -52,6 +52,23 @@ export default {
   'Update and restart': 'Update and restart',
   'Restart and update': 'Restart and update',
   'Continue using': 'Continue using',
+  'Restart when prepared': 'Restart when prepared',
+  'Built-in Provider Update · {{provider}}':
+    'Built-in Provider Update · {{provider}}',
+  'Built-in Provider Updates': 'Built-in Provider Updates',
+  'Model parameters updated (context window, capabilities, etc.)':
+    'Model parameters updated (context window, capabilities, etc.)',
+  'Note: Your selected model is being removed. Please choose a new one with /model.':
+    'Note: Your selected model is being removed. Please choose a new one with /model.',
+  'Your credentials will not be modified.':
+    'Your credentials will not be modified.',
+  'Update all': 'Update all',
+  'Skip this version': 'Skip this version',
+  'Remind me later': 'Remind me later',
+  'Restart as soon as it is prepared, or continue and update the next time you open the app.':
+    'Restart as soon as it is prepared, or continue and update the next time you open the app.',
+  'The app restarts as soon as the update is prepared.':
+    'The app restarts as soon as the update is prepared.',
   'Try again': 'Try again',
   Later: 'Later',
   'Update now, or continue and update the next time you open the app.':

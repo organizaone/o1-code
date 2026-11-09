@@ -44,6 +44,32 @@ describe('ProviderUpdatePrompt', () => {
     expect(frame).not.toContain('undefined');
   });
 
+  it('sets the title into the frame and keeps keys out of the choices', () => {
+    const { lastFrame } = renderWithProviders(
+      <ProviderUpdatePrompt
+        entries={[
+          {
+            providerLabel: 'Coding Plan',
+            diff: {
+              added: ['new-model'],
+              removed: [],
+              currentModelAffected: false,
+            },
+          },
+        ]}
+        onConfirm={vi.fn()}
+      />,
+    );
+    const frame = lastFrame() ?? '';
+    expect(frame.split('\n')[0]).toMatch(
+      /^╭─ Built-in Provider Update · Coding Plan ─+╮$/,
+    );
+    expect(frame).toContain('Remind me later');
+    expect(frame).not.toContain('(esc)');
+    expect(frame).not.toContain('Tips:');
+    expect(frame).toContain('esc later');
+  });
+
   it('does not show the removed-model warning when the selected model is unaffected', () => {
     const { lastFrame } = renderWithProviders(
       <ProviderUpdatePrompt

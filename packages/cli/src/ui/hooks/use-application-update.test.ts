@@ -145,6 +145,55 @@ describe('application update flow', () => {
     expect(hook.restart).not.toHaveBeenCalled();
   });
 
+  it('restarts once an automatic preparation chosen to restart finishes', async () => {
+    let finish: (success: boolean) => void = () => {};
+    install.mockReturnValue(
+      new Promise<boolean>((resolve) => {
+        finish = resolve;
+      }),
+    );
+    const hook = setup();
+    await waitFor(() =>
+      expect(hook.result.current.state?.phase).toBe('preparing'),
+    );
+    let application: Promise<void>;
+    act(() => {
+      application = hook.result.current.apply();
+    });
+    expect(hook.result.current.state?.restartRequested).toBe(true);
+    await act(async () => {
+      finish(true);
+      await application;
+    });
+    expect(install).toHaveBeenCalledTimes(1);
+    expect(hook.restart).toHaveBeenCalledWith('2.0.0');
+  });
+
+  it('withdraws a restart chosen during preparation when Later follows', async () => {
+    let finish: (success: boolean) => void = () => {};
+    install.mockReturnValue(
+      new Promise<boolean>((resolve) => {
+        finish = resolve;
+      }),
+    );
+    const hook = setup();
+    await waitFor(() =>
+      expect(hook.result.current.state?.phase).toBe('preparing'),
+    );
+    let application: Promise<void>;
+    act(() => {
+      application = hook.result.current.apply();
+    });
+    act(() => hook.result.current.dismiss());
+    expect(hook.result.current.state?.restartRequested).toBe(false);
+    await act(async () => {
+      finish(true);
+      await application;
+    });
+    expect(hook.result.current.state?.phase).toBe('ready');
+    expect(hook.restart).not.toHaveBeenCalled();
+  });
+
   it('rechecks cancellation after verifying the prepared launcher', async () => {
     let finish: () => void = () => {};
     const restart = vi.fn();

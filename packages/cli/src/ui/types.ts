@@ -298,7 +298,7 @@ export type HistoryItemUpdateNotice = HistoryItemBase & {
   type: 'update_notice';
   status: 'available' | 'installed' | 'failed' | 'whats_new';
   version?: string;
-  /** For `whats_new`: the version the previous run opened. */
+  /** The version updated from: the running one, or for `whats_new` the one the previous run opened. */
   fromVersion?: string;
   /** A detail line, such as the manual command or the failure reason. */
   text?: string;
