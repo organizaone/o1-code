@@ -34,6 +34,14 @@ is a separate, opt-in export to the user's own collector and is not involved.
   `~/.o1-code/telemetry/errors/`, grouped by fingerprint and version, and sent with the next attempt
   (at most 20 groups per request).
 - Requests time out after 5 seconds and never block the session.
+- When the session's model rides the o1-connect tunnel, a request goes through it first
+  (`<tunnel>/telemetry/v1/<route>`), and directly to the intake only if the tunnel does not take
+  it. The tunnel adds the device's token to every request; the intake ignores it and neither
+  stores nor logs it, so a report stays as anonymous as one sent directly.
+- A direct request whose TLS chain ends in a CA that Node does not ship is retried once with the
+  operating system's CAs as well.
+- A body the intake refuses (`400`, `413`) is not sent again; the refusal is written to the debug
+  log.
 - A process that ends within ten seconds sends nothing itself; its counts go with the next session.
 - Turning a switch off deletes what was waiting for that switch.
 

@@ -19,6 +19,25 @@ import {
   type UsagePayload,
 } from './product-telemetry.js';
 
+const undiciFetch = vi.hoisted(() => vi.fn());
+const agents = vi.hoisted(() => [] as unknown[]);
+vi.mock('../../utils/runtimeFetchOptions.js', () => ({
+  loadUndici: async () => ({
+    fetch: undiciFetch,
+    Agent: class {
+      constructor(options: unknown) {
+        agents.push(options);
+      }
+      close = async () => {};
+    },
+  }),
+}));
+vi.mock('node:tls', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('node:tls')>()),
+  getCACertificates: (type: string) =>
+    type === 'system' ? ['SYSTEM-CA'] : ['BUNDLED-CA'],
+}));
+
 function fakeConfig(
   options: { usage?: boolean; errors?: boolean; baseUrl?: string } = {},
 ): Config {
@@ -44,6 +63,8 @@ describe('product telemetry', () => {
     vi.stubEnv('DO_NOT_TRACK', '');
     fetchMock = vi.fn(async () => new Response(null, { status: 204 }));
     vi.stubGlobal('fetch', fetchMock);
+    undiciFetch.mockReset();
+    agents.length = 0;
   });
   afterEach(() => {
     resetProductTelemetryForTesting();
@@ -122,6 +143,95 @@ describe('product telemetry', () => {
     await sendProductTelemetry();
     await sendProductTelemetry();
     expect(bodies<UsagePayload>('usage').at(-1)!.days[0]!.prompts).toBe(1);
+  });
+
+  it('retries with the system CAs when HTTPS inspection re-signs the intake', async () => {
+    const untrusted = Object.assign(new TypeError('fetch failed'), {
+      cause: { code: 'UNABLE_TO_GET_ISSUER_CERT_LOCALLY' },
+    });
+    fetchMock.mockRejectedValueOnce(untrusted);
+    undiciFetch.mockResolvedValueOnce(new Response(null, { status: 204 }));
+    const config = fakeConfig({ errors: false });
+    startProductTelemetry(config, { manual: true });
+    productUsage(config)!.prompt();
+    await sendProductTelemetry();
+
+    expect(undiciFetch).toHaveBeenCalledWith(
+      'https://intake.example.test/t/v1/usage',
+      expect.objectContaining({ method: 'POST' }),
+    );
+    expect(agents.at(-1)).toEqual({
+      connect: { ca: ['BUNDLED-CA', 'SYSTEM-CA'] },
+    });
+    // Accepted: the hourly gate is recorded.
+    expect(fs.existsSync(path.join(home, 'telemetry', 'state.json'))).toBe(
+      true,
+    );
+  });
+
+  describe('through the o1-connect tunnel', () => {
+    function tunnelConfig(): Config {
+      return {
+        ...fakeConfig({ errors: false }),
+        getO1ConnectSession: () => ({
+          baseUrl: 'http://127.0.0.1:4100',
+          apiKey: 'local-key',
+        }),
+      } as unknown as Config;
+    }
+
+    beforeEach(() => {
+      vi.stubEnv('O1CODE_TELEMETRY_URL', '');
+    });
+
+    async function sendWith(...responses: Response[]) {
+      for (const response of responses) {
+        fetchMock.mockResolvedValueOnce(response);
+      }
+      const config = tunnelConfig();
+      startProductTelemetry(config, { manual: true });
+      productUsage(config)!.prompt();
+      await sendProductTelemetry();
+      return fetchMock.mock.calls.map(([url, init]) => ({
+        url: String(url),
+        headers: (init as RequestInit).headers as Record<string, string>,
+      }));
+    }
+
+    it('sends through the tunnel first, with its local key', async () => {
+      const calls = await sendWith(new Response(null, { status: 204 }));
+      expect(calls).toEqual([
+        {
+          url: 'http://127.0.0.1:4100/telemetry/v1/usage',
+          headers: expect.objectContaining({ 'x-api-key': 'local-key' }),
+        },
+      ]);
+    });
+
+    it('falls back to the intake when the tunnel does not take it', async () => {
+      const calls = await sendWith(
+        new Response('not found', { status: 404 }),
+        new Response(null, { status: 204 }),
+      );
+      expect(calls.map((call) => call.url)).toEqual([
+        'http://127.0.0.1:4100/telemetry/v1/usage',
+        'https://api.organizaone.com/telemetry/v1/usage',
+      ]);
+    });
+
+    it('does not resend a body the intake refused', async () => {
+      const calls = await sendWith(new Response('bad', { status: 400 }));
+      expect(calls).toHaveLength(1);
+    });
+  });
+
+  it('does not retry an ordinary network failure', async () => {
+    fetchMock.mockRejectedValueOnce(new Error('offline'));
+    const config = fakeConfig({ errors: false });
+    startProductTelemetry(config, { manual: true });
+    productUsage(config)!.prompt();
+    await sendProductTelemetry();
+    expect(undiciFetch).not.toHaveBeenCalled();
   });
 
   it('sends a stored crash without an installation ID and removes it once accepted', async () => {

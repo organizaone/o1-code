@@ -7,6 +7,12 @@ follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.24.1] - 2026-11-09
+
+### Fixed
+
+- Usage metrics and error reports now reach OrganizaOne.
+
 ## [0.24.0] - 2026-11-09
 
 ### Added

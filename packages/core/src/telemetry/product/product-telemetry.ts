@@ -6,7 +6,9 @@
 
 import * as fs from 'node:fs';
 import * as path from 'node:path';
+import * as tls from 'node:tls';
 import type { Config } from '../../config/config.js';
+import { loadUndici } from '../../utils/runtimeFetchOptions.js';
 import { Storage } from '../../config/storage.js';
 import { InstallationManager } from '../../config/installationManager.js';
 import { reachesOrganizaOne } from '../../providers/presets/organizaone.js';
@@ -282,15 +284,140 @@ export function recordErrorReport(error: unknown, kind: ErrorKind): void {
   );
 }
 
-async function post(endpoint: string, body: unknown): Promise<boolean> {
+/** TLS failures that mean the chain ends in a CA Node does not ship. */
+const UNTRUSTED_ISSUER_CODES = new Set([
+  'UNABLE_TO_GET_ISSUER_CERT_LOCALLY',
+  'UNABLE_TO_GET_ISSUER_CERT',
+  'SELF_SIGNED_CERT_IN_CHAIN',
+  'DEPTH_ZERO_SELF_SIGNED_CERT',
+  'UNABLE_TO_VERIFY_LEAF_SIGNATURE',
+  'CERT_UNTRUSTED',
+]);
+
+function errorCode(error: unknown): string | undefined {
+  const cause = (error as { cause?: { code?: unknown } } | undefined)?.cause;
+  return typeof cause?.code === 'string' ? cause.code : undefined;
+}
+
+/**
+ * Node's bundled CAs plus the operating system's. Some networks present a
+ * chain that ends in a CA installed only in the system store, which Node's
+ * fetch does not read.
+ */
+function caWithSystemStore(): string[] | undefined {
+  const get = (
+    tls as {
+      getCACertificates?: (type: 'default' | 'system') => string[];
+    }
+  ).getCACertificates;
+  if (!get) return undefined;
   try {
-    const response = await fetch(`${telemetryUrl()}/${endpoint}`, {
-      method: 'POST',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify(body),
-      signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
-    });
-    return response.ok;
+    const system = get('system');
+    return system.length > 0 ? [...get('default'), ...system] : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+async function send(
+  url: string,
+  body: string,
+  ca?: string[],
+): Promise<Response> {
+  const init = {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body,
+    signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
+  };
+  if (!ca) return fetch(url, init);
+  const undici = await loadUndici();
+  const proxy = state?.config.getProxy?.();
+  const dispatcher = proxy
+    ? new undici.EnvHttpProxyAgent({
+        httpProxy: proxy,
+        httpsProxy: proxy,
+        connect: { ca },
+        requestTls: { ca },
+      })
+    : new undici.Agent({ connect: { ca } });
+  try {
+    return (await undici.fetch(url, {
+      ...init,
+      dispatcher,
+    })) as unknown as Response;
+  } finally {
+    void dispatcher.close().catch(() => {});
+  }
+}
+
+type Delivery = 'accepted' | 'refused' | 'unreached';
+
+async function delivery(
+  endpoint: string,
+  response: Response,
+): Promise<Delivery> {
+  if (response.ok) return 'accepted';
+  debugLogger.debug(
+    `Sending ${endpoint} refused with ${response.status}:`,
+    (await response.text()).slice(0, 300),
+  );
+  // The intake refuses a body it cannot take; sending it again elsewhere
+  // would be refused the same way.
+  return response.status === 400 || response.status === 413
+    ? 'refused'
+    : 'unreached';
+}
+
+/**
+ * Through the session's o1-connect tunnel, when the model rides one: it
+ * already reaches OrganizaOne on this network. Not used when the intake URL
+ * is overridden, since the tunnel only leads to OrganizaOne.
+ */
+async function postThroughTunnel(
+  endpoint: string,
+  json: string,
+): Promise<Delivery> {
+  const tunnel = state?.config.getO1ConnectSession?.();
+  if (!tunnel || process.env['O1CODE_TELEMETRY_URL']) return 'unreached';
+  const intakePath = new URL(DEFAULT_PRODUCT_TELEMETRY_URL).pathname;
+  try {
+    const response = await fetch(
+      `${tunnel.baseUrl.replace(/\/+$/, '')}${intakePath}/${endpoint}`,
+      {
+        method: 'POST',
+        headers: {
+          'content-type': 'application/json',
+          'x-api-key': tunnel.apiKey,
+        },
+        body: json,
+        signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
+      },
+    );
+    return await delivery(endpoint, response);
+  } catch (error) {
+    debugLogger.debug(`Sending ${endpoint} through the tunnel failed:`, error);
+    return 'unreached';
+  }
+}
+
+async function post(endpoint: string, body: unknown): Promise<boolean> {
+  const url = `${telemetryUrl()}/${endpoint}`;
+  const json = JSON.stringify(body);
+  const viaTunnel = await postThroughTunnel(endpoint, json);
+  if (viaTunnel !== 'unreached') return viaTunnel === 'accepted';
+  try {
+    let response: Response;
+    try {
+      response = await send(url, json);
+    } catch (error) {
+      const ca = UNTRUSTED_ISSUER_CODES.has(errorCode(error) ?? '')
+        ? caWithSystemStore()
+        : undefined;
+      if (!ca) throw error;
+      response = await send(url, json, ca);
+    }
+    return (await delivery(endpoint, response)) === 'accepted';
   } catch (error) {
     debugLogger.debug(`Sending ${endpoint} failed:`, error);
     return false;
