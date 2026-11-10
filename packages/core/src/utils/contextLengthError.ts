@@ -28,6 +28,10 @@ const CONTEXT_LENGTH_PATTERNS = [
   /\binput\s+(?:token\s+)?(?:count\s+|length\s+)?(?:is\s+)?too long\b/i,
   /\brange of input length should be\b/i,
   /\btoo many tokens\b/i,
+  // "exceeds the model's context window", "exceed context limit" (Anthropic's
+  // input + max_tokens refusal), Codex's ContextWindowExceeded.
+  /\bexceed(?:s|ed|ing)?\b[^\n]{0,80}\bcontext\s+(?:window|limit|length)\b/i,
+  /\bcontext[_\s-]?window[_\s-]?exceeded\b/i,
   /\btokens?\s*>\s*[\d,]+\s*(?:maximum|max|limit)\b/i,
   /\b(?:input|prompt|messages?|context)\b[^\n]{0,120}\btokens?\b[^\n]{0,120}\bexceed(?:s|ed|ing)?\b/i,
 ];

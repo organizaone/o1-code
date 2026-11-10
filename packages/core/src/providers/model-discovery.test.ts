@@ -304,6 +304,44 @@ describe('checkProviderKey', () => {
     });
   });
 
+  it('takes the prompt limit as the window when the total counts the output', async () => {
+    respond(200, {
+      data: [
+        {
+          id: 'copilot/opus',
+          context_length: 328000,
+          max_input_tokens: 200000,
+          top_provider: { max_completion_tokens: 128000 },
+        },
+        {
+          id: 'nested',
+          top_provider: { context_length: 300000, max_prompt_tokens: 250000 },
+        },
+        { id: 'prompt-only', max_input_tokens: 90000 },
+        { id: 'smaller-total', context_length: 64000, max_input_tokens: 80000 },
+      ],
+    });
+    const result = await checkProviderKey({
+      protocol: 'openai',
+      baseUrl: 'https://api.organizaone.com/v1',
+      apiKey: 'device-token',
+      staticModels: [],
+    });
+    expect(result).toEqual({
+      status: 'ok',
+      models: [
+        {
+          id: 'copilot/opus',
+          contextWindowSize: 200000,
+          maxOutputTokens: 128000,
+        },
+        { id: 'nested', contextWindowSize: 250000 },
+        { id: 'prompt-only', contextWindowSize: 90000 },
+        { id: 'smaller-total', contextWindowSize: 64000 },
+      ],
+    });
+  });
+
   it('leaves unknown what the list does not state, or states badly', async () => {
     respond(200, {
       data: [

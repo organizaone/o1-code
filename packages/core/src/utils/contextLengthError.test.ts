@@ -19,6 +19,10 @@ describe('contextLengthError', () => {
     'Input token length is too long',
     'The input token count (127234) exceeds the maximum number of tokens allowed (100000).',
     '{"error":{"code":"context_length_exceeded","message":"too many tokens in prompt"}}',
+    "the conversation exceeds the model's context window",
+    'input length and `max_tokens` exceed context limit: 180000 + 64000 > 200000',
+    'Your input exceeds the context window of this model.',
+    'ContextWindowExceeded',
   ])('matches context overflow: %s', (message) => {
     expect(isContextLengthExceededError(new Error(message))).toBe(true);
   });
