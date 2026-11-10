@@ -119,18 +119,31 @@ function positiveInteger(value: unknown): number | undefined {
  * `context_length`, `architecture.input_modalities` (`image`, `file` for a
  * PDF, `audio`, `video`) and `top_provider.max_completion_tokens`. A field
  * that is absent or malformed is left out: unknown, never zero or "none".
+ *
+ * The window is what a prompt may fill, so a stated prompt limit
+ * (`max_input_tokens`, or `top_provider.max_prompt_tokens`) wins over a larger
+ * `context_length`: a provider such as Copilot counts the output in the total.
  */
 function readLimits(item: object): DiscoveredLimits {
-  const { context_length, architecture, top_provider } = item as {
-    context_length?: unknown;
-    architecture?: { input_modalities?: unknown } | null;
-    top_provider?: { max_completion_tokens?: unknown } | null;
-  };
-  const contextWindowSize =
+  const { context_length, max_input_tokens, architecture, top_provider } =
+    item as {
+      context_length?: unknown;
+      max_input_tokens?: unknown;
+      architecture?: { input_modalities?: unknown } | null;
+      top_provider?: {
+        max_completion_tokens?: unknown;
+        max_prompt_tokens?: unknown;
+        context_length?: unknown;
+      } | null;
+    };
+  const total =
     positiveInteger(context_length) ??
-    positiveInteger(
-      (top_provider as { context_length?: unknown } | null)?.context_length,
-    );
+    positiveInteger(top_provider?.context_length);
+  const prompt =
+    positiveInteger(max_input_tokens) ??
+    positiveInteger(top_provider?.max_prompt_tokens);
+  const contextWindowSize =
+    total && prompt ? Math.min(total, prompt) : (prompt ?? total);
   const maxOutputTokens = positiveInteger(top_provider?.max_completion_tokens);
   const inputs = architecture?.input_modalities;
   const modalities = Array.isArray(inputs)

@@ -7,6 +7,15 @@ follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Fixed
+
+- The context window of a model is now its prompt limit when the provider states one
+  (`max_input_tokens`), not the larger total that also counts the output. Context usage and
+  automatic compaction of Copilot models were measured against a window the prompt could never fill.
+- A conversation that a Codex, Grok or Claude model refuses as past its context window is now
+  compacted and resent, as for the other providers ("exceeds the model's context window", "exceed
+  context limit").
+
 ## [0.24.1] - 2026-11-09
 
 ### Fixed
