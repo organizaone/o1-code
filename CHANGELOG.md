@@ -7,6 +7,8 @@ follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.24.2] - 2026-11-10
+
 ### Fixed
 
 - The context window of a model is now its prompt limit when the provider states one
