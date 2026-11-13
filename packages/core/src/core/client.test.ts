@@ -10333,6 +10333,24 @@ hello
         expect(reminderParts(second)).toEqual([CONCISE_REMINDER]);
       });
 
+      // A host queues what only the model reads; it reaches the request as
+      // its own parts, once, and never inside the user's text.
+      it('delivers the reminders a host queued with the next user prompt, once', async () => {
+        mockConfig.consumeTurnReminders = vi
+          .fn()
+          .mockReturnValueOnce(['1 background agent was restored.'])
+          .mockReturnValue([]);
+
+        const request = await runTurn([{ text: 'Hi' }]);
+        expect(request).toContain(
+          '<system-reminder>\n1 background agent was restored.\n</system-reminder>',
+        );
+        expect(request.at(-1)).toBe('Hi');
+
+        const second = await runTurn([{ text: 'Again' }]);
+        expect(JSON.stringify(second)).not.toContain('was restored');
+      });
+
       it('uses the generic wording for a style without its own reminder', async () => {
         vi.mocked(mockConfig.getOutputStyle).mockReturnValue(
           getBuiltInOutputStyle('Explanatory'),

@@ -19,10 +19,10 @@ import {
  * sizing workflows to the old value. Only the size matters: choosing "medium"
  * explicitly when "medium" was the default changes nothing the model acts on.
  */
-export function buildWorkflowSizeGuidelineChangePrefix(
+export function buildWorkflowSizeGuidelineChangeReminder(
   announced: WorkflowSizeGuidelineSetting,
   current: WorkflowSizeGuidelineSetting,
 ): string | null {
   if (announced.size === current.size) return null;
-  return `<system-reminder>\n${buildWorkflowSizeGuidelineChangeNotice(current)}\n</system-reminder>\n\n`;
+  return buildWorkflowSizeGuidelineChangeNotice(current);
 }

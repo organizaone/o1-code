@@ -23,6 +23,7 @@ import {
   isGoalCheckpointBookkeepingRecord,
   parseGoalStateRecordPayloadV2,
   projectUserTranscriptForDisplay,
+  stripLeadingSystemReminders,
 } from '@organizaone/o1-code-core';
 import type {
   HistoryItem,
@@ -384,9 +385,14 @@ function convertToHistoryItems(
             record.subtype === 'cron'
               ? 'Cron job fired'
               : 'Background agent completed';
+          // Without display text the parts are the envelope written for the
+          // model (`<task-notification>…`); the label stands in for it.
+          const modelText = extractTextFromParts(
+            record.message?.parts as Part[],
+          );
           const text =
             payload?.displayText ||
-            extractTextFromParts(record.message?.parts as Part[]) ||
+            (modelText.trimStart().startsWith('<') ? '' : modelText) ||
             fallback;
           items.push({ type: 'notification', text });
           break;
@@ -398,11 +404,12 @@ function convertToHistoryItems(
           const hasAttachmentReferences =
             Array.isArray(payload?.attachmentReferences) &&
             payload.attachmentReferences.length > 0;
-          const text =
+          const text = stripLeadingSystemReminders(
             payload?.displayText ||
-            (hasAttachmentReferences
-              ? '[User message with attachments]'
-              : extractTextFromParts(record.message?.parts as Part[]));
+              (hasAttachmentReferences
+                ? '[User message with attachments]'
+                : extractTextFromParts(record.message?.parts as Part[])),
+          );
           if (text) {
             items.push({ type: MessageType.USER, text, sentToModel: false });
           }
@@ -420,9 +427,11 @@ function convertToHistoryItems(
 
           const payload = pendingAtCommands.shift()!;
           const projection = projectUserTranscriptForDisplay(record);
-          const text =
+          const text = stripLeadingSystemReminders(
             payload.userText ||
-            (projection.displayText ?? extractTextFromParts(projection.parts));
+              (projection.displayText ??
+                extractTextFromParts(projection.parts)),
+          );
           if (text) {
             items.push({ type: 'user', text });
           }
@@ -627,7 +636,7 @@ function convertToHistoryItems(
         currentToolGroup = [];
       }
 
-      const text = payload.userText;
+      const text = stripLeadingSystemReminders(payload.userText ?? '');
       if (text) {
         items.push({ type: 'user', text });
       }

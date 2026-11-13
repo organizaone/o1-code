@@ -12,29 +12,30 @@ import {
   WORKFLOW_SIZE_GUIDELINES,
 } from '@organizaone/o1-code-core/agents/runtime/workflow-size.js';
 import { getSettingsSchema } from '../../config/settingsSchema.js';
-import { buildWorkflowSizeGuidelineChangePrefix } from './workflow-size-notice.js';
+import { buildWorkflowSizeGuidelineChangeReminder } from './workflow-size-notice.js';
 
-describe('buildWorkflowSizeGuidelineChangePrefix', () => {
+describe('buildWorkflowSizeGuidelineChangeReminder', () => {
   const startup = resolveWorkflowSizeGuidelineSetting(undefined);
 
   it('says nothing while the size is unchanged', () => {
-    expect(buildWorkflowSizeGuidelineChangePrefix(startup, startup)).toBeNull();
+    expect(
+      buildWorkflowSizeGuidelineChangeReminder(startup, startup),
+    ).toBeNull();
     // Picking the default explicitly changes nothing the model acts on.
     expect(
-      buildWorkflowSizeGuidelineChangePrefix(
+      buildWorkflowSizeGuidelineChangeReminder(
         startup,
         resolveWorkflowSizeGuidelineSetting('medium'),
       ),
     ).toBeNull();
   });
 
-  it('wraps the change notice in a one-shot system reminder', () => {
-    const prefix = buildWorkflowSizeGuidelineChangePrefix(
+  it('returns the bare change notice, for the caller to queue', () => {
+    const prefix = buildWorkflowSizeGuidelineChangeReminder(
       startup,
       resolveWorkflowSizeGuidelineSetting('small'),
     );
-    expect(prefix).toMatch(/^<system-reminder>\n/);
-    expect(prefix).toMatch(/\n<\/system-reminder>\n\n$/);
+    expect(prefix).not.toContain('<system-reminder>');
     expect(prefix).toContain(
       'The workflow size guideline for this session changed: small',
     );
@@ -42,7 +43,7 @@ describe('buildWorkflowSizeGuidelineChangePrefix', () => {
 
   it('announces a move to unrestricted', () => {
     expect(
-      buildWorkflowSizeGuidelineChangePrefix(
+      buildWorkflowSizeGuidelineChangeReminder(
         startup,
         resolveWorkflowSizeGuidelineSetting('unrestricted'),
       ),

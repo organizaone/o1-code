@@ -3023,11 +3023,14 @@ describe('AppContainer State Management', () => {
       expect(mockQueueMessage).not.toHaveBeenCalled();
     });
 
-    it('injects a recovered-agent reminder into the next ordinary prompt once', () => {
+    // A reminder written for the model never enters the user's text, which is
+    // rendered, recorded and recalled as what they typed.
+    it('queues a recovered-agent reminder for the model once, apart from the prompt', () => {
       const mockQueueMessage = vi.fn();
       vi.spyOn(mockConfig, 'consumePendingRecoveredAgentsNotice')
         .mockReturnValueOnce('Use list_agents to inspect restored agents.')
         .mockReturnValue(null);
+      const queueTurnReminder = vi.spyOn(mockConfig, 'queueTurnReminder');
       mockedUseLlmStream.mockReturnValue({
         streamingState: 'idle',
         submitQuery: vi.fn(),
@@ -3066,10 +3069,12 @@ describe('AppContainer State Management', () => {
         submittedPrompt: 'one more check',
       });
 
+      expect(queueTurnReminder.mock.calls).toEqual([
+        ['Use list_agents to inspect restored agents.'],
+      ]);
       expect(mockQueueMessage).toHaveBeenNthCalledWith(
         1,
-        '<system-reminder>\nUse list_agents to inspect restored agents.\n' +
-          '</system-reminder>\n\ncontinue the review',
+        'continue the review',
         false,
         'continue the review',
       );
@@ -3082,8 +3087,7 @@ describe('AppContainer State Management', () => {
     });
 
     // The shell-mode gate is load-bearing only through this call site: a
-    // shell-mode submission goes to bash, where a leading `<system-reminder>`
-    // is a syntax error, and is recorded as the command the user ran. Both arms
+    // shell-mode submission goes to bash, not to the model. Both arms
     // go through the real handleFinalSubmit and the real shellModeActive state,
     // so dropping `shellMode: shellModeActive` from the call turns the shell
     // arm red while the ordinary arm keeps the assertion from passing vacuously.
@@ -3094,6 +3098,7 @@ describe('AppContainer State Management', () => {
       'adds the workflow keyword reminder only outside shell mode: %s',
       (_case, shellMode, expectReminder) => {
         const mockQueueMessage = vi.fn();
+        const queueTurnReminder = vi.spyOn(mockConfig, 'queueTurnReminder');
         vi.spyOn(mockConfig, 'isWorkflowsEnabled').mockReturnValue(true);
         vi.spyOn(mockConfig, 'getToolRegistry').mockReturnValue({
           getAllToolNames: () => ['workflow'],
@@ -3143,16 +3148,17 @@ describe('AppContainer State Management', () => {
         });
 
         expect(mockQueueMessage).toHaveBeenCalledTimes(1);
-        const submitted = mockQueueMessage.mock.calls[0][0] as string;
-        expect(submitted).toContain('gh workflow list');
+        // The prompt is the user's text alone, with or without a reminder.
+        expect(mockQueueMessage.mock.calls[0][0]).toBe('gh workflow list');
         // Asserted on the workflow reminder's own text: this call site gates
-        // only that reminder. The other notices the handler can prepend do not
+        // only that reminder. The other notices the handler can queue do not
         // check shell mode yet.
+        const queued = queueTurnReminder.mock.calls.map(([text]) => text);
         const workflowReminder = 'includes the "workflow" keyword';
         if (expectReminder) {
-          expect(submitted).toContain(workflowReminder);
+          expect(queued.join('\n')).toContain(workflowReminder);
         } else {
-          expect(submitted).not.toContain(workflowReminder);
+          expect(queued.join('\n')).not.toContain(workflowReminder);
         }
       },
     );

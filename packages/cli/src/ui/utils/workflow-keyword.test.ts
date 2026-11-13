@@ -14,7 +14,7 @@ import {
   WORKFLOW_AUTHORING_SKILL_NAME,
 } from '@organizaone/o1-code-core';
 import {
-  buildWorkflowKeywordPrefix,
+  buildWorkflowKeywordReminder,
   buildWorkflowSteeringNotice,
   detectWorkflowKeyword,
 } from './workflow-keyword.js';
@@ -122,18 +122,17 @@ describe('buildWorkflowSteeringNotice', () => {
   );
 });
 
-describe('buildWorkflowKeywordPrefix', () => {
+describe('buildWorkflowKeywordReminder', () => {
   it('returns nothing when the keyword is absent', () => {
-    expect(buildWorkflowKeywordPrefix(stubConfig(), 'just a request')).toBe(
+    expect(buildWorkflowKeywordReminder(stubConfig(), 'just a request')).toBe(
       null,
     );
   });
 
-  // A shell-mode submission goes to bash, where a leading `<system-reminder>`
-  // is a syntax error, and is recorded as the command the user ran.
+  // A shell-mode submission goes to bash, not to the model.
   it('returns nothing for a shell-mode submission', () => {
     expect(
-      buildWorkflowKeywordPrefix(stubConfig(), 'gh workflow list', {
+      buildWorkflowKeywordReminder(stubConfig(), 'gh workflow list', {
         shellMode: true,
       }),
     ).toBe(null);
@@ -143,7 +142,7 @@ describe('buildWorkflowKeywordPrefix', () => {
   // nothing can reveal it: its schema is in no request.
   it('returns nothing when the Workflow tool is deferred and ToolSearch is absent', () => {
     expect(
-      buildWorkflowKeywordPrefix(
+      buildWorkflowKeywordReminder(
         stubConfig({
           toolNames: [ToolNames.SKILL, ToolNames.WORKFLOW],
           deferred: [ToolNames.WORKFLOW],
@@ -156,7 +155,7 @@ describe('buildWorkflowKeywordPrefix', () => {
   // When the bridge can reach it, the reminder has to say so, or the model
   // is steered toward a tool it has no declaration for.
   it('tells the model to reach a deferred Workflow tool through the bridge', () => {
-    const prefix = buildWorkflowKeywordPrefix(
+    const prefix = buildWorkflowKeywordReminder(
       stubConfig({
         toolNames: [
           ToolNames.SKILL,
@@ -180,7 +179,7 @@ describe('buildWorkflowKeywordPrefix', () => {
   // toward it helps nobody (R27-2).
   it('returns nothing when the Workflow tool is deferred and tool_call is absent', () => {
     expect(
-      buildWorkflowKeywordPrefix(
+      buildWorkflowKeywordReminder(
         stubConfig({
           toolNames: [
             ToolNames.SKILL,
@@ -197,23 +196,23 @@ describe('buildWorkflowKeywordPrefix', () => {
   // Steering toward a tool that is not in the request helps nobody.
   it('returns nothing when the Workflow tool is not in this session', () => {
     expect(
-      buildWorkflowKeywordPrefix(
+      buildWorkflowKeywordReminder(
         stubConfig({ toolNames: [ToolNames.SKILL] }),
         'build me a workflow',
       ),
     ).toBe(null);
   });
 
-  // The prefix is part of the user's own message: it is rendered in the
-  // transcript and restored into the input buffer on a queue-cancel. It names
-  // the reference and must never carry its body.
+  // The reminder stays in history on every later request. It names the
+  // reference and must never carry its body, and it is the bare text: the
+  // wrapping is added where it is delivered, never by the interface.
   it('names the reference without carrying it', () => {
-    const prefix = buildWorkflowKeywordPrefix(
+    const prefix = buildWorkflowKeywordReminder(
       stubConfig({ recordedSurface: 'pointer' }),
       'build me a workflow for this',
     );
 
-    expect(prefix).toContain('<system-reminder>');
+    expect(prefix).not.toContain('<system-reminder>');
     expect(prefix).toContain(`load the \`${WORKFLOW_AUTHORING_SKILL_NAME}\``);
     expect(prefix).not.toContain('Base directory for this skill:');
     expect(prefix).not.toContain('# Workflow authoring reference');
@@ -239,7 +238,7 @@ describe('buildWorkflowKeywordPrefix', () => {
   ] as const)(
     'follows the shape the Workflow tool recorded, not a re-derivation: %s',
     (_case, options, namesSkill) => {
-      const prefix = buildWorkflowKeywordPrefix(
+      const prefix = buildWorkflowKeywordReminder(
         stubConfig(options),
         'run a workflow',
       );
@@ -249,7 +248,7 @@ describe('buildWorkflowKeywordPrefix', () => {
           `load the \`${WORKFLOW_AUTHORING_SKILL_NAME}\``,
         );
       } else {
-        expect(prefix).toContain('<system-reminder>');
+        expect(prefix).toContain('includes the "workflow" keyword');
         expect(prefix).not.toContain(WORKFLOW_AUTHORING_SKILL_NAME);
       }
     },
@@ -268,7 +267,7 @@ describe('buildWorkflowKeywordPrefix', () => {
   ] as const)(
     'steers toward a named workflow in a name-only session, %s',
     (_case, options) => {
-      const prefix = buildWorkflowKeywordPrefix(
+      const prefix = buildWorkflowKeywordReminder(
         stubConfig(options),
         'run a workflow',
       );
@@ -281,7 +280,7 @@ describe('buildWorkflowKeywordPrefix', () => {
   );
 
   it('derives the shape when the Workflow tool is not instantiated yet', () => {
-    const prefix = buildWorkflowKeywordPrefix(stubConfig(), 'run a workflow');
+    const prefix = buildWorkflowKeywordReminder(stubConfig(), 'run a workflow');
     expect(prefix).toContain(`load the \`${WORKFLOW_AUTHORING_SKILL_NAME}\``);
   });
 });

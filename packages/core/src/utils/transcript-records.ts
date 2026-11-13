@@ -208,8 +208,63 @@ function isUserPromptSubmitContextPart(part: unknown): boolean {
   );
 }
 
+const SYSTEM_REMINDER_OPEN = '<system-reminder>';
+const SYSTEM_REMINDER_CLOSE = '</system-reminder>';
+
+/**
+ * Removes the system reminders that lead a user text. They are written for the
+ * model: a transcript recorded before reminders travelled apart from the
+ * prompt, or by a host that sends them as leading parts, still carries them.
+ * Only complete leading blocks go; the tag anywhere else is the user's text.
+ */
+export function stripLeadingSystemReminders(text: string): string {
+  let rest = text;
+  let stripped = false;
+  for (;;) {
+    const candidate = rest.trimStart();
+    if (!candidate.startsWith(SYSTEM_REMINDER_OPEN)) break;
+    const close = candidate.indexOf(
+      SYSTEM_REMINDER_CLOSE,
+      SYSTEM_REMINDER_OPEN.length,
+    );
+    if (close === -1) break;
+    rest = candidate.slice(close + SYSTEM_REMINDER_CLOSE.length);
+    stripped = true;
+  }
+  return stripped ? rest.trimStart() : text;
+}
+
+function withoutLeadingSystemReminders<TPart>(
+  parts: readonly TPart[],
+): readonly TPart[] {
+  let changed = false;
+  const visible: TPart[] = [];
+  for (const part of parts) {
+    if (
+      !isObjectRecord(part) ||
+      typeof part['text'] !== 'string' ||
+      part['thought'] === true
+    ) {
+      visible.push(part);
+      continue;
+    }
+    const text = stripLeadingSystemReminders(part['text']);
+    if (text === part['text']) {
+      visible.push(part);
+      continue;
+    }
+    changed = true;
+    if (text.length > 0) {
+      visible.push({ ...part, text } as TPart);
+    }
+  }
+  return changed ? visible : parts;
+}
+
 /**
  * Selects the user-visible projection of a transcript record.
+ *
+ * System reminders that lead the text are never part of it.
  *
  * New user-prompt records pair authoritative `systemPayload.displayText` with
  * `hookContext` provenance. Released `displayText`-only records use a complete
@@ -240,13 +295,22 @@ export function projectUserTranscriptForDisplay<TPart>(record: {
     const visibleParts = parts.filter(
       (part) => !isObjectRecord(part) || typeof part['text'] !== 'string',
     );
-    return { displayText, parts: visibleParts };
+    return {
+      displayText: stripLeadingSystemReminders(displayText),
+      parts: visibleParts,
+    };
   }
 
   if (payload === undefined && hasFinalHookContextPart) {
-    return { displayText: undefined, parts: parts.slice(0, -1) };
+    return {
+      displayText: undefined,
+      parts: withoutLeadingSystemReminders(parts.slice(0, -1)),
+    };
   }
-  return { displayText: undefined, parts };
+  return {
+    displayText: undefined,
+    parts: withoutLeadingSystemReminders(parts),
+  };
 }
 
 function diagnostic(

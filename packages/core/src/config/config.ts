@@ -2623,6 +2623,7 @@ export class Config {
    */
   private pendingStartupWorktreeNotice: string | null = null;
   private pendingRecoveredAgentsNotice: string | null = null;
+  private turnReminders: string[] = [];
   private debugLogger: DebugLogger;
   private toolRegistry!: ToolRegistry;
   /**
@@ -5570,6 +5571,7 @@ export class Config {
     }
     this.clearSessionRestoreProjection();
     this.pendingRecoveredAgentsNotice = null;
+    this.getOwnTurnReminders().length = 0;
     this.clearActiveTodoReminders();
     // ACP session rotation runs inside sessionIdContext; only the
     // single-session CLI owns the process-wide fallback.
@@ -11016,6 +11018,32 @@ export class Config {
     const notice = this.pendingRecoveredAgentsNotice;
     this.pendingRecoveredAgentsNotice = null;
     return notice;
+  }
+
+  // A Config derived from this one (a subagent's) must not drain the
+  // reminders queued for the main conversation, so the queue is an own
+  // property of each instance.
+  private getOwnTurnReminders(): string[] {
+    if (!Object.prototype.hasOwnProperty.call(this, 'turnReminders')) {
+      this.turnReminders = [];
+    }
+    return this.turnReminders;
+  }
+
+  /**
+   * Queues text that only the model reads, delivered as a system reminder
+   * with the next user prompt. A host uses this instead of writing the
+   * reminder into the prompt, which is the user's own text: it is rendered,
+   * recorded and recalled as what they typed.
+   */
+  queueTurnReminder(text: string): void {
+    if (text.trim().length > 0) {
+      this.getOwnTurnReminders().push(text);
+    }
+  }
+
+  consumeTurnReminders(): string[] {
+    return this.getOwnTurnReminders().splice(0);
   }
 
   async resumeBackgroundAgent(

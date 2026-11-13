@@ -201,8 +201,8 @@ import {
   isContextFilesAnnouncement,
   isSlashCommand,
 } from './utils/commandUtils.js';
-import { buildWorkflowKeywordPrefix } from './utils/workflow-keyword.js';
-import { buildWorkflowSizeGuidelineChangePrefix } from './utils/workflow-size-notice.js';
+import { buildWorkflowKeywordReminder } from './utils/workflow-keyword.js';
+import { buildWorkflowSizeGuidelineChangeReminder } from './utils/workflow-size-notice.js';
 import { parseSlashCommand } from './commands/commands.js';
 import { type LoadedSettings, SettingScope } from '../config/settings.js';
 import { type InitializationResult } from '../core/initializer.js';
@@ -3433,22 +3433,21 @@ export const AppContainer = (props: AppContainerProps) => {
         !isSlashCommand(userPromptText) && !isBtwCommand(userPromptText)
           ? config.consumePendingRecoveredAgentsNotice()
           : null;
+      // Every reminder below is queued for the model and delivered with the
+      // next prompt it reads. None is written into `submittedValue`: that is
+      // the user's text, rendered, recorded and recalled as what they typed.
       if (recoveredAgentsNotice) {
-        submittedValue =
-          `<system-reminder>\n${recoveredAgentsNotice}\n</system-reminder>\n\n` +
-          submittedValue;
+        config.queueTurnReminder(recoveredAgentsNotice);
       }
       // Phase C: one-shot worktree restore reminder. Set during --resume
       // when the persisted sidecar names a live worktree. We only inject
       // on top-level user prompts (not btw-during-response, not slash
       // commands — those go through different paths). Once consumed,
-      // clear the ref so subsequent prompts aren't repeatedly prefixed.
+      // clear the ref so subsequent prompts don't repeat it.
       const worktreeNotice = pendingWorktreeNoticeRef.current;
-      if (worktreeNotice && !isSlashCommand(submittedValue)) {
+      if (worktreeNotice && !isSlashCommand(userPromptText)) {
         pendingWorktreeNoticeRef.current = null;
-        submittedValue =
-          `<system-reminder>\n${worktreeNotice}\n</system-reminder>\n\n` +
-          submittedValue;
+        config.queueTurnReminder(worktreeNotice);
       }
       // P7-trigger: when the user's prompt mentions `workflow`, softly steer
       // this turn toward the Workflow tool (same one-shot reminder mechanism
@@ -3462,21 +3461,20 @@ export const AppContainer = (props: AppContainerProps) => {
       if (
         workflowTriggerEnabled &&
         !isSlashCommand(userPromptText) &&
-        // Skip `?btw`/`/btw` side-questions: prefixing a system-reminder would
-        // break the BTW routing check below (which tests `submittedValue`),
-        // queuing the side question as a normal prompt instead.
+        // Skip `?btw`/`/btw` side-questions: they do not start a main turn,
+        // so the reminder would wait for an unrelated prompt.
         !isBtwCommand(userPromptText)
       ) {
         // A `null` result means no reminder for this submission: the keyword
         // is absent, the Workflow tool is not in this session, or this is a
         // shell-mode command, which goes to bash rather than to the model.
-        const prefix = buildWorkflowKeywordPrefix(config, userPromptText, {
+        const reminder = buildWorkflowKeywordReminder(config, userPromptText, {
           shellMode: shellModeActive,
         });
-        if (prefix) {
+        if (reminder) {
           setWorkflowKeywordActive(true);
           logWorkflowKeyword(config, new WorkflowKeywordEvent());
-          submittedValue = prefix + submittedValue;
+          config.queueTurnReminder(reminder);
         }
       }
       // The Workflow tool description states the size guideline it was built
@@ -3491,19 +3489,19 @@ export const AppContainer = (props: AppContainerProps) => {
         const currentSizeGuideline = resolveWorkflowSizeGuidelineSetting(
           settings.merged.tools?.workflowSizeGuideline,
         );
-        const sizePrefix = buildWorkflowSizeGuidelineChangePrefix(
+        const sizeReminder = buildWorkflowSizeGuidelineChangeReminder(
           announcedWorkflowSizeGuidelineRef.current ??
             config.getWorkflowSizeGuideline(),
           currentSizeGuideline,
         );
         announcedWorkflowSizeGuidelineRef.current = currentSizeGuideline;
-        if (sizePrefix) {
+        if (sizeReminder) {
           config.setWorkflowSizeGuideline(
             currentSizeGuideline.isDefault
               ? undefined
               : currentSizeGuideline.size,
           );
-          submittedValue = sizePrefix + submittedValue;
+          config.queueTurnReminder(sizeReminder);
         }
       }
       if (options?.deferUntilIdle) {

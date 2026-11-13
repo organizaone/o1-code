@@ -406,7 +406,11 @@ export function useMessageQueue(): UseMessageQueueReturn {
   );
 
   return {
-    messageQueue: queuedMessages.map(({ text }) => text),
+    // What the queue shows. A peer entry's text is the envelope written for
+    // the model; its one-line projection is what the user reads.
+    messageQueue: queuedMessages.map(({ text, peer, submittedPrompt }) =>
+      peer ? (submittedPrompt ?? text) : text,
+    ),
     pendingSubmissionCount: queuedMessages.length + queuedGoalTurns.length,
     addMessage,
     addPeerMessage,
