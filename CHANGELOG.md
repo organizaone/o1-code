@@ -7,6 +7,13 @@ follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.24.3] - 2026-11-13
+
+### Fixed
+
+- Sessions hosted by an editor or by `o1-code serve` are no longer counted more than once in usage
+  metrics.
+
 ## [0.24.2] - 2026-11-10
 
 ### Fixed

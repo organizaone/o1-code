@@ -257,7 +257,7 @@ export function logSessionEnd(config: Config): void {
 
 export function logUserPrompt(config: Config, event: UserPromptEvent): void {
   O1CodeLogger.getInstance(config)?.logNewPromptEvent(event);
-  productUsage(config)?.prompt();
+  productUsage(config)?.prompt(config);
   if (!isTelemetrySdkInitialized()) return;
 
   const attributes: LogAttributes = {
