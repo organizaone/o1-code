@@ -211,19 +211,42 @@ export function productUsage(config: Config): ProductUsageRecorder | undefined {
   return recorder;
 }
 
+/** Session IDs remembered per process, so a long-lived host stays bounded. */
+const MAX_HOSTED_SESSIONS = 10_000;
+
 class ProductUsageRecorder {
+  /** Sessions of an ACP host already counted, by ID. */
+  private readonly hostedSessions = new Set<string>();
+
   session(config: Config): void {
+    // An ACP host (an editor, `serve`) initializes configurations that hold
+    // no conversation, and opens sessions before anyone uses them; its
+    // sessions are counted at their first prompt instead.
+    if (config.getExperimentalZedIntegration()) return;
     const mode: SessionMode = config.isInteractive()
       ? 'interactive'
-      : config.getInputFormat() === 'stream-json' ||
-          config.getExperimentalZedIntegration()
+      : config.getInputFormat() === 'stream-json'
         ? 'sdk'
         : 'headless';
     state?.ledger.session(mode);
   }
 
-  prompt(): void {
+  prompt(config: Config): void {
+    if (config.getExperimentalZedIntegration()) {
+      const sessionId = config.getSessionId();
+      if (
+        !this.hostedSessions.has(sessionId) &&
+        this.hostedSessions.size < MAX_HOSTED_SESSIONS
+      ) {
+        this.hostedSessions.add(sessionId);
+        state?.ledger.session('sdk');
+      }
+    }
     state?.ledger.prompt();
+  }
+
+  forgetHostedSessions(): void {
+    this.hostedSessions.clear();
   }
 
   toolCall(name: string, type: 'native' | 'mcp' | undefined): void {
@@ -545,4 +568,5 @@ export function resetProductTelemetryForTesting(): void {
   if (state?.timer) clearInterval(state.timer);
   state = undefined;
   errorReporting = undefined;
+  recorder.forgetHostedSessions();
 }

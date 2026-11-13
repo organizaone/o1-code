@@ -7171,7 +7171,11 @@ const ZH: Messages = {
   'settings.description.ui.shellOutputMaxLines':
     '内联显示的 shell 输出最大行数。设为 0 可取消限制并显示完整输出；隐藏行数仍会通过 +N lines 指示器展示。',
   'settings.label.privacy.usageStatisticsEnabled': '启用使用统计',
-  'settings.description.privacy.usageStatisticsEnabled': '启用使用统计收集。',
+  'settings.description.privacy.usageStatisticsEnabled':
+    '向 OrganizaOne 发送匿名使用指标（版本、系统、会话和命令计数）。绝不包含代码、提示词或文件内容。',
+  'settings.label.privacy.errorReportsEnabled': '发送错误报告',
+  'settings.description.privacy.errorReportsEnabled':
+    '向 OrganizaOne 发送应用自身崩溃的报告，其中的路径和个人数据已被移除。',
   'settings.label.fastModel': '快速模型',
   'settings.description.fastModel':
     '用于生成提示建议和推测执行的模型。留空则使用主模型。较小/更快的模型（例如 qwen3-coder-flash）可以降低延迟和成本。',

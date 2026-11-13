@@ -243,6 +243,7 @@ describe('settings presentation aliases', () => {
       'setting:tool-call-details': 'ui.showToolCallDetails',
       'setting:shell-output-limit': 'ui.shellOutputMaxLines',
       'setting:usage-statistics': 'privacy.usageStatisticsEnabled',
+      'setting:error-reports': 'privacy.errorReportsEnabled',
       'setting:fast-model': 'fastModel',
       'setting:advisor-model': 'advisorModel',
       'setting:vision-model': 'visionModel',

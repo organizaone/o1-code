@@ -26,6 +26,11 @@ is a separate, opt-in export to the user's own collector and is not involved.
   neither read nor created for them.
 - Each process counts its usage per **local** day and writes it to
   `~/.o1-code/telemetry/usage/<day>.<process>.json`; the sender sums the files of a day.
+- A terminal or headless run counts one session when it starts. A process that hosts sessions over
+  ACP (an editor, or a child of `o1-code serve`) counts each session as `sdk` at its first prompt,
+  since such a host opens sessions, and configurations that hold no conversation, before anyone
+  uses them. The `serve` daemon itself counts nothing and records no crash of its own; its children
+  do both.
 - Ten seconds after startup and then every 15 minutes, a session sends. Usage goes at most once an
   hour per installation (`~/.o1-code/telemetry/state.json`), with every day of the last 31 that has
   data, today's partial totals included. Once accepted, the files of finished days are deleted; a

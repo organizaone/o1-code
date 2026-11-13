@@ -317,9 +317,6 @@ of the status rows right above the input.
   Incremental text pastes show a spinner and the number of received KB in the
   same area; the footer keeps its model and usage zones visible.
 
-Real application captures: [attachment preparation](../images/tui-attachment-preparation.png)
-and [ready attachment](../images/tui-attachment-ready.png).
-
 ### Footer
 
 Three zones spread across the width (`footer-zones.tsx`):
@@ -414,12 +411,6 @@ never leaves; it only shortens from the start.
   saved transcript, validate the launcher, and recheck idle state and the pending restart choice. Keep the
   current approval mode and execution options; an empty new conversation retains its session ID
   without requesting a nonexistent transcript.
-
-  ![Installed application with a prepared update and explicit restart choices](../images/tui-application-update.png)
-
-  ![Update version and both actions visible in a 60 by 12 terminal](../images/tui-application-update-compact.png)
-
-  These captures come from the real macOS application with controlled registry and provider responses.
 
 - **Agent sessions** (`agent-view/session-dashboard.ts`): `/agents` (alias
   `/sessions`) is a full-screen terminal controller view. Open it with the command
@@ -572,8 +563,6 @@ never leaves; it only shortens from the start.
   existing five-entry preview. Pending edits retain keyboard ownership through
   persistence and detail refresh, and obsolete responses cannot replace a newer
   selection.
-  Real application captures: [plugin settings](../images/tui-plugin-settings.png)
-  and [private marketplace editing](../images/tui-marketplace-source-edit.png).
 - **Slash/@ suggestions:** name in a 28-column column, detail in muted, footer
   `↑↓ navigate · tab complete · enter select · esc close`. Lists filter on every key.
 - **Plugin choices** (`components/PluginChoicePrompt.tsx`): the dialog receives its available

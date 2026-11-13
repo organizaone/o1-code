@@ -84,7 +84,7 @@ describe('product telemetry', () => {
     startProductTelemetry(config, { manual: true, install: () => 'npm' });
     const usage = productUsage(config)!;
     usage.session(config);
-    usage.prompt();
+    usage.prompt(config);
     usage.toolCall('read_file', 'native');
     usage.toolCall('mcp__server__secret_tool', 'mcp');
     usage.slashCommand('model', true);
@@ -126,7 +126,7 @@ describe('product telemetry', () => {
   it('sends usage at most hourly across sessions', async () => {
     const config = fakeConfig();
     startProductTelemetry(config, { manual: true });
-    productUsage(config)!.prompt();
+    productUsage(config)!.prompt(config);
     const now = new Date();
     await sendProductTelemetry(now);
     await sendProductTelemetry(new Date(now.getTime() + 30 * 60 * 1000));
@@ -139,7 +139,7 @@ describe('product telemetry', () => {
     fetchMock.mockRejectedValueOnce(new Error('offline'));
     const config = fakeConfig();
     startProductTelemetry(config, { manual: true });
-    productUsage(config)!.prompt();
+    productUsage(config)!.prompt(config);
     await sendProductTelemetry();
     await sendProductTelemetry();
     expect(bodies<UsagePayload>('usage').at(-1)!.days[0]!.prompts).toBe(1);
@@ -153,7 +153,7 @@ describe('product telemetry', () => {
     undiciFetch.mockResolvedValueOnce(new Response(null, { status: 204 }));
     const config = fakeConfig({ errors: false });
     startProductTelemetry(config, { manual: true });
-    productUsage(config)!.prompt();
+    productUsage(config)!.prompt(config);
     await sendProductTelemetry();
 
     expect(undiciFetch).toHaveBeenCalledWith(
@@ -190,7 +190,7 @@ describe('product telemetry', () => {
       }
       const config = tunnelConfig();
       startProductTelemetry(config, { manual: true });
-      productUsage(config)!.prompt();
+      productUsage(config)!.prompt(config);
       await sendProductTelemetry();
       return fetchMock.mock.calls.map(([url, init]) => ({
         url: String(url),
@@ -225,11 +225,38 @@ describe('product telemetry', () => {
     });
   });
 
+  it('counts the sessions of an ACP host at their first prompt', async () => {
+    const hosted = (sessionId: string): Config =>
+      ({
+        ...fakeConfig({ errors: false }),
+        isInteractive: () => false,
+        getExperimentalZedIntegration: () => true,
+        getSessionId: () => sessionId,
+      }) as unknown as Config;
+    const bootstrap = hosted('bootstrap');
+    startProductTelemetry(bootstrap, { manual: true });
+    const usage = productUsage(bootstrap)!;
+    // Configurations that hold no conversation, and a session nobody used.
+    usage.session(bootstrap);
+    usage.session(hosted('workspace-mcp-discovery'));
+    usage.session(hosted('opened-only'));
+    usage.prompt(hosted('first'));
+    usage.prompt(hosted('first'));
+    usage.prompt(hosted('second'));
+    await sendProductTelemetry();
+
+    const [payload] = bodies<UsagePayload>('usage');
+    expect(payload!.days[0]).toMatchObject({
+      sessions: { interactive: 0, headless: 0, sdk: 2 },
+      prompts: 3,
+    });
+  });
+
   it('does not retry an ordinary network failure', async () => {
     fetchMock.mockRejectedValueOnce(new Error('offline'));
     const config = fakeConfig({ errors: false });
     startProductTelemetry(config, { manual: true });
-    productUsage(config)!.prompt();
+    productUsage(config)!.prompt(config);
     await sendProductTelemetry();
     expect(undiciFetch).not.toHaveBeenCalled();
   });

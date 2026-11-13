@@ -201,6 +201,7 @@ const SETTINGS_DIALOG_ORDER: readonly string[] = [
 
   // Privacy
   'privacy.usageStatisticsEnabled',
+  'privacy.errorReportsEnabled',
 ] as const;
 
 export const MAX_SETTING_STRING_VALUE_LENGTH = 1024;
