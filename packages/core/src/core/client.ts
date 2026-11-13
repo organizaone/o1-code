@@ -4134,6 +4134,15 @@ export class LlmClient {
           }
         }
 
+        // Reminders the host queued for this prompt (a session restore
+        // notice, a keyword steer). They travel here, as their own parts,
+        // and never inside the user's text.
+        if (messageType === SendMessageType.UserQuery) {
+          for (const reminder of this.config.consumeTurnReminders?.() ?? []) {
+            systemReminders.push(wrapSystemReminder(reminder));
+          }
+        }
+
         // add plan mode system reminder if approval mode is plan
         if (this.config.getApprovalMode() === ApprovalMode.PLAN) {
           systemReminders.push(

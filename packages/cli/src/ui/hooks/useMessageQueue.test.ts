@@ -27,6 +27,25 @@ describe('useMessageQueue', () => {
     expect(result.current.getQueuedMessagesText()).toBe('');
   });
 
+  // The queue is rendered under the composer: a peer entry shows its one-line
+  // projection, never the envelope written for the model.
+  it('shows the projection of a queued peer message, not its envelope', () => {
+    const { result } = renderHook(() => useMessageQueue());
+
+    act(() => {
+      result.current.addMessage('typed while busy');
+      result.current.addPeerMessage(
+        '<peer-message from="reviewer">\nfull envelope\n</peer-message>',
+        'reviewer: done',
+      );
+    });
+
+    expect(result.current.messageQueue).toEqual([
+      'typed while busy',
+      'reviewer: done',
+    ]);
+  });
+
   it('should add messages to queue', () => {
     const { result } = renderHook(() => useMessageQueue());
 
@@ -670,7 +689,7 @@ describe('useMessageQueue', () => {
       });
 
       expect(popped).toBeNull();
-      expect(result.current.messageQueue).toEqual(['<envelope>']);
+      expect(result.current.messageQueue).toEqual(['A: one']);
     });
 
     it('counts only peer entries still waiting in the queue', () => {
@@ -1231,7 +1250,7 @@ describe('useMessageQueue', () => {
         drained = result.current.drainQueue();
       });
       expect(drained).toEqual([]);
-      expect(result.current.messageQueue).toEqual(['<envelope one>']);
+      expect(result.current.messageQueue).toEqual(['Session A: one']);
     });
   });
 });

@@ -1673,9 +1673,15 @@ export const useLlmStream = (
         }
 
         onDebugMessage(`Received user query (${trimmedQuery.length} chars)`);
-        await logger?.logMessage(MessageSenderType.USER, trimmedQuery);
+        // A cron prompt is scheduled text, often written by the model; it
+        // is not something the user typed, so it stays out of the input
+        // history that the up arrow recalls.
+        const isTypedPrompt = submitType !== SendMessageType.Cron;
+        if (isTypedPrompt) {
+          await logger?.logMessage(MessageSenderType.USER, trimmedQuery);
+        }
         canUndoLastLoggedUserMessageRef.current =
-          !preserveTurnOwnership && logger != null;
+          isTypedPrompt && !preserveTurnOwnership && logger != null;
 
         // Handle UI-only commands first
         const slashCommandResult = isSlashCommand(trimmedQuery)
@@ -1768,7 +1774,14 @@ export const useLlmStream = (
           }
         }
 
-        if (shellModeActive && handleShellCommand(trimmedQuery, abortSignal)) {
+        // Shell mode is what the user toggled for their own typing. A cron
+        // prompt firing meanwhile is for the model and must never be run
+        // as a command.
+        if (
+          shellModeActive &&
+          isTypedPrompt &&
+          handleShellCommand(trimmedQuery, abortSignal)
+        ) {
           return { queryToSend: null, shouldProceed: false };
         }
 

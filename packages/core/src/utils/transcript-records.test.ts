@@ -9,6 +9,7 @@ import {
   isTranscriptConversationRecord,
   prepareTranscriptRecords,
   projectUserTranscriptForDisplay,
+  stripLeadingSystemReminders,
   wrapUserPromptSubmitContext,
   type TranscriptRecordPreparationError,
 } from './transcript-records.js';
@@ -385,7 +386,63 @@ describe('prepareTranscriptRecords', () => {
   });
 });
 
+describe('stripLeadingSystemReminders', () => {
+  it('removes every reminder that leads the text', () => {
+    expect(
+      stripLeadingSystemReminders(
+        '<system-reminder>\none\n</system-reminder>\n\n' +
+          '<system-reminder>\ntwo\n</system-reminder>\n\nrestarted',
+      ),
+    ).toBe('restarted');
+  });
+
+  it('leaves the tag alone anywhere else, and an unclosed one', () => {
+    const quoted = 'what is <system-reminder>x</system-reminder> for?';
+    expect(stripLeadingSystemReminders(quoted)).toBe(quoted);
+    expect(stripLeadingSystemReminders('<system-reminder> why?')).toBe(
+      '<system-reminder> why?',
+    );
+    expect(stripLeadingSystemReminders('  plain')).toBe('  plain');
+  });
+});
+
 describe('projectUserTranscriptForDisplay', () => {
+  // A transcript written while the interface put reminders in the prompt, or
+  // by a host that sends them as leading parts, must not show them.
+  it('keeps the reminders that lead a prompt out of what the user sees', () => {
+    const imagePart = {
+      inlineData: { mimeType: 'image/png', data: 'data' },
+    };
+    expect(
+      projectUserTranscriptForDisplay({
+        message: {
+          parts: [
+            { text: '<system-reminder>\nrestored\n</system-reminder>\n\n' },
+            imagePart,
+            { text: '<system-reminder>\nide\n</system-reminder>\n\nrestarted' },
+          ],
+        },
+      }),
+    ).toEqual({
+      displayText: undefined,
+      parts: [imagePart, { text: 'restarted' }],
+    });
+    expect(
+      projectUserTranscriptForDisplay({
+        message: {
+          parts: [
+            { text: 'expanded' },
+            { text: wrapUserPromptSubmitContext('hook context') },
+          ],
+        },
+        systemPayload: {
+          displayText: '<system-reminder>\nrestored\n</system-reminder>\n\nhi',
+          hookContext: 'hook context',
+        },
+      }).displayText,
+    ).toBe('hi');
+  });
+
   it('uses display metadata even when the display text is empty', () => {
     const imagePart = {
       inlineData: { mimeType: 'image/png', data: 'data' },

@@ -25,7 +25,10 @@ import type { Content, Part } from '@google/genai';
 import * as jsonl from '../utils/jsonl-utils.js';
 import type { HistoryGap } from '../utils/conversation-chain.js';
 import { prepareTranscriptRecords } from '../utils/transcript-records.js';
-import { projectUserTranscriptForDisplay } from '../utils/transcript-records.js';
+import {
+  projectUserTranscriptForDisplay,
+  stripLeadingSystemReminders,
+} from '../utils/transcript-records.js';
 import type {
   ChatRecord,
   FileHistorySnapshotRecordPayload,
@@ -2233,7 +2236,9 @@ export class SessionService {
     for (const part of message.parts as Part[]) {
       if ('text' in part) {
         const textPart = part as { text: string };
-        const text = textPart.text;
+        // A part that is only a reminder for the model is not the prompt.
+        const text = stripLeadingSystemReminders(textPart.text);
+        if (!text) continue;
         return this.truncatePromptForDisplay(text);
       }
     }
@@ -2251,7 +2256,7 @@ export class SessionService {
         | UserPromptRecordPayload
         | undefined;
       if (payload?.displayText !== undefined) {
-        const displayText = payload.displayText;
+        const displayText = stripLeadingSystemReminders(payload.displayText);
         if (displayText) {
           return this.truncatePromptForDisplay(displayText);
         }

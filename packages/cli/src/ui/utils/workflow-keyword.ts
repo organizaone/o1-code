@@ -12,11 +12,10 @@
  *
  * The reminder also says where the authoring reference is, because the Workflow
  * tool's description no longer carries it. It names the reference; it does not
- * carry it. The prefix becomes part of the user's own message — rendered in the
- * transcript, restored into the input buffer when a queued turn is cancelled,
- * kept in history on every later request — and a skill body travelling that way
- * would miss everything a real Skill load gets: dedup on resume, `/context`
- * attribution, microcompaction, and the skill's declared side effects.
+ * carry it. The reminder stays in history on every later request, and a skill
+ * body travelling that way would miss everything a real Skill load gets: dedup
+ * on resume, `/context` attribution, microcompaction, and the skill's declared
+ * side effects.
  */
 
 import {
@@ -105,12 +104,12 @@ export function buildWorkflowSteeringNotice(
 }
 
 /**
- * The `<system-reminder>` prefix for this submission, or `null` when there
- * should be none.
+ * The reminder the model reads with this submission, or `null` when there
+ * should be none. The caller queues it for the turn; it is never written into
+ * the user's text.
  *
  * `null` when the keyword is absent; for a shell-mode submission, whose text
- * goes to bash (where a leading `<system-reminder>` is a syntax error) and is
- * recorded as the command the user ran; and when the Workflow tool is out of
+ * goes to bash, not to the model; and when the Workflow tool is out of
  * reach — not registered, or its schema withheld with no tool_search +
  * tool_call bridge to reach it. Steering toward a tool the model cannot call
  * helps nobody.
@@ -119,7 +118,7 @@ export function buildWorkflowSteeringNotice(
  * recorded it when it was built, rather than re-derived: a `/skills` toggle
  * since then must not make the reminder and the description disagree.
  */
-export function buildWorkflowKeywordPrefix(
+export function buildWorkflowKeywordReminder(
   config: Config,
   text: string,
   options: { shellMode?: boolean } = {},
@@ -165,5 +164,5 @@ export function buildWorkflowKeywordPrefix(
     // surface; losing only the closing sentences is the right degradation.
     surface = undefined;
   }
-  return `<system-reminder>\n${buildWorkflowSteeringNotice(surface, { bridgeWorkflowTool, nameOnly })}\n</system-reminder>\n\n`;
+  return buildWorkflowSteeringNotice(surface, { bridgeWorkflowTool, nameOnly });
 }

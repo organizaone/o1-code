@@ -7,6 +7,13 @@ follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.24.4] - 2026-11-13
+
+### Fixed
+
+- Internal notes meant for the model no longer appear in your messages, in the input history or when
+  a session is resumed.
+
 ## [0.24.3] - 2026-11-13
 
 ### Fixed
