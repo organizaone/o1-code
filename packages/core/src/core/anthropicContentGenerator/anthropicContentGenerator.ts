@@ -747,11 +747,23 @@ export class AnthropicContentGenerator implements ContentGenerator {
     //                    ArenaManager / forkedAgent).
     const deepseekThinkingOn = isDeepSeek && !!thinking;
     const stripAssistantThinking = isDeepSeek && !thinking;
+    // A non-DeepSeek backend on a non-native base URL: the wire shape is
+    // Anthropic's, while the history may hold thinking blocks another provider
+    // recorded without a signature.
+    const isCompatibleEndpoint =
+      !isDeepSeek && !isAnthropicNativeBaseUrl(this.contentGeneratorConfig);
     const dropUnsignedAssistantThinking =
-      !isDeepSeek &&
+      isCompatibleEndpoint &&
       !!thinking &&
-      this.modelSupportsAdaptiveThinking(true) &&
-      !isAnthropicNativeBaseUrl(this.contentGeneratorConfig);
+      this.modelSupportsAdaptiveThinking(true);
+    // Strict Anthropic-compatible servers (seen on SGLang) refuse a `thinking`
+    // block with no `signature` key and accept an empty one. The blocks come
+    // from history, so this is not gated on `thinking`: side queries fork with
+    // thoughts off and still replay them. Adaptive models are left to the drop
+    // above, since an empty string cannot stand in for their opaque signature;
+    // an id that does not parse as one keeps the fill.
+    const fillUnsignedThinkingSignature =
+      isCompatibleEndpoint && !this.modelSupportsAdaptiveThinking(true);
     // Opus/Sonnet 4.6+ and every 5.x family reject a request whose final
     // message has role 'assistant' ("assistant message prefill") with a
     // hard 400 — per Anthropic's own migration guidance this is a
@@ -785,12 +797,13 @@ export class AnthropicContentGenerator implements ContentGenerator {
     const { system, messages } = this.converter.convertLlmRequestToAnthropic(
       request,
       {
-        // DeepSeek normalization and injection run together. Proxy-hosted
-        // Claude uses the separate unsigned-thinking cleanup below because an
-        // empty string cannot replace Claude's opaque signature.
+        // DeepSeek normalization and injection run together. Elsewhere off the
+        // native API, adaptive models drop unsigned blocks and the rest fill
+        // `signature: ''`; the two never apply to the same request.
         normalizeAssistantThinkingSignature: deepseekThinkingOn,
         injectThinkingOnToolUseTurns: deepseekThinkingOn,
         dropUnsignedAssistantThinking,
+        fillUnsignedThinkingSignature,
         stripAssistantThinking,
         stripTrailingAssistantPrefill,
         // Manual (non-adaptive) extended thinking requires an assistant
@@ -835,6 +848,19 @@ export class AnthropicContentGenerator implements ContentGenerator {
     // 4.6+) compound this by consuming output budget on server-driven
     // thinking before any tool_use, making forced tool_choice essential.
     const toolChoice = this.resolveToolChoice(request, tools);
+    // Where forced selection is refused the request goes out on `auto`, so
+    // the instruction asks for the call. Callers already read either the tool
+    // arguments or JSON text (BaseLlmClient.generateJson).
+    if (
+      toolChoice?.type === 'auto' &&
+      request.config?.toolConfig?.functionCallingConfig?.mode === 'ANY' &&
+      tools
+    ) {
+      this.appendSchemaToolInstruction(
+        messages,
+        this.schemaToolNames(request, tools),
+      );
+    }
     // Effort switched off: the OrganizaOne proxy runs a request without a
     // level at the model's default, so it is told explicitly; it reads
     // `thinking: {type: "disabled"}` as effort low. Elsewhere an absent
@@ -1222,7 +1248,8 @@ export class AnthropicContentGenerator implements ContentGenerator {
    * the request into an Anthropic `tool_choice` value.
    *
    * Mapping:
-   *   mode 'ANY'  → `{ type: 'any' }`   (model must call at least one tool)
+   *   mode 'ANY'  → `{ type: 'any' }`   (model must call at least one tool),
+   *     or `{ type: 'auto' }` on a model that refuses forced selection
    *   mode 'NONE' or 'AUTO' or absent → undefined (Anthropic has no
    *     `tool_choice: { type: 'none' }`; to prevent tool calls the caller
    *     should omit `tools` entirely)
@@ -1237,9 +1264,71 @@ export class AnthropicContentGenerator implements ContentGenerator {
     if (!tools || tools.length === 0) return undefined;
     const mode = request.config?.toolConfig?.functionCallingConfig?.mode;
     if (mode === 'ANY') {
+      if (this.modelRejectsForcedToolChoice()) {
+        return { type: 'auto' };
+      }
       return { type: 'any' };
     }
     return undefined;
+  }
+
+  /**
+   * Whether the model answers `tool_choice` "any" and "tool" with a 400:
+   * Opus 5.5, Sonnet 5.5, and Fable and Mythos from 5.1 on
+   * (https://platform.claude.com/docs/en/agents-and-tools/tool-use/define-tools#forcing-tool-use).
+   * Later minors of the same majors are assumed to keep the refusal, since
+   * `auto` is accepted everywhere and a wrong `any` is a hard error. Haiku
+   * 5.5, the 5.0 models and unknown ids keep forced selection.
+   */
+  private modelRejectsForcedToolChoice(): boolean {
+    const parsed = parseClaudeModelVersion(
+      this.contentGeneratorConfig.model || '',
+    );
+    if (!parsed || parsed.major !== 5) return false;
+    const { family, minor } = parsed;
+    if (family === 'opus' || family === 'sonnet') return minor >= 5;
+    if (family === 'fable' || family === 'mythos') return minor >= 1;
+    return false;
+  }
+
+  /** The declared tools the caller allows; all of them without an allowlist. */
+  private schemaToolNames(
+    request: GenerateContentParameters,
+    tools: Anthropic.Tool[],
+  ): string[] {
+    const declared = tools
+      .map((tool) => tool.name)
+      .filter((name) => name.length > 0);
+    const allowed =
+      request.config?.toolConfig?.functionCallingConfig?.allowedFunctionNames;
+    if (!allowed || allowed.length === 0) return declared;
+    const allowedSet = new Set(allowed);
+    return declared.filter((name) => allowedSet.has(name));
+  }
+
+  private appendSchemaToolInstruction(
+    messages: Anthropic.MessageParam[],
+    names: string[],
+  ): void {
+    if (names.length === 0) return;
+    const text =
+      'Answer by calling one of these tools and placing the structured ' +
+      `result in its arguments, matching that tool's input schema: ${names.join(
+        ', ',
+      )}.` +
+      (names.length === 1 && names[0] === 'respond_in_schema'
+        ? ' If you do not call a tool, reply with only a raw JSON object of that same shape, with no Markdown fences or prose.'
+        : '');
+    const last = messages.at(-1);
+    if (!last || last.role !== 'user') {
+      messages.push({ role: 'user', content: [{ type: 'text', text }] });
+      return;
+    }
+    if (typeof last.content === 'string') {
+      last.content = last.content ? `${last.content}\n\n${text}` : text;
+      return;
+    }
+    last.content = [...last.content, { type: 'text', text }];
   }
 
   private async *redactStreamErrors(

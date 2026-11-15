@@ -109,6 +109,13 @@ export interface ConvertLlmRequestToAnthropicOptions {
    */
   normalizeAssistantThinkingSignature?: boolean;
   /**
+   * The same `signature: ''` fill, for Anthropic-compatible servers that
+   * refuse a `thinking` block with no `signature` key. The caller keeps it off
+   * the native API and off adaptive models, whose unsigned blocks belong to
+   * `dropUnsignedAssistantThinking`.
+   */
+  fillUnsignedThinkingSignature?: boolean;
+  /**
    * Remove assistant thinking blocks whose opaque signature is missing or
    * empty. Completed turns can safely omit thinking during replay. The active
    * tool loop fails instead because Claude requires all of its thinking blocks
@@ -299,7 +306,10 @@ export class AnthropicContentConverter {
     }
     // Normalization runs before injection so non-compliant blocks are seen
     // as already-present (and not duplicated) by the injection pass.
-    if (options.normalizeAssistantThinkingSignature) {
+    if (
+      options.normalizeAssistantThinkingSignature ||
+      options.fillUnsignedThinkingSignature
+    ) {
       this.fillMissingThinkingSignatures(messages);
     }
     if (options.injectThinkingOnToolUseTurns) {

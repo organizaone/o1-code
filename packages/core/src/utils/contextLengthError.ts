@@ -27,6 +27,14 @@ const CONTEXT_LENGTH_PATTERNS = [
   /\bprompt\s+(?:is\s+)?too long\b/i,
   /\binput\s+(?:token\s+)?(?:count\s+|length\s+)?(?:is\s+)?too long\b/i,
   /\brange of input length should be\b/i,
+  // Hugging Face TGI: "`inputs` tokens + `max_new_tokens` must be <= 32768.
+  // Given: 40000 `inputs` tokens and 1000 `max_new_tokens`" and "`inputs`
+  // must have less than 32768 tokens. Given: 40000".
+  /\binputs`?\s+tokens\s*\+\s*`?max_new_tokens`?\s+must be\s*<=/i,
+  /\binputs`?\s+must have less than\s+\d[\d,]*\s+tokens\b/i,
+  // llama.cpp: "request (279935 tokens) exceeds the available context size
+  // (262144 tokens), try increasing it".
+  /\bexceeds the available context size\b/i,
   /\btoo many tokens\b/i,
   // "exceeds the model's context window", "exceed context limit" (Anthropic's
   // input + max_tokens refusal), Codex's ContextWindowExceeded.
@@ -90,6 +98,39 @@ function parseTokenCounts(text: string): {
   if (rangeMatch) {
     return {
       limitTokens: parseInteger(rangeMatch[1]!),
+    };
+  }
+
+  // TGI states the bound first and the prompt size after "Given:"; in both
+  // wordings the `inputs` count is the prompt size compaction starts from.
+  const tgiTotalMatch = text.match(
+    /must be\s*<=\s*(\d[\d,]{0,31})\.?\s*Given:\s*(\d[\d,]{0,31})\s*`?inputs`?\s+tokens/i,
+  );
+  if (tgiTotalMatch) {
+    return {
+      actualTokens: parseInteger(tgiTotalMatch[2]!),
+      limitTokens: parseInteger(tgiTotalMatch[1]!),
+    };
+  }
+  const tgiInputMatch = text.match(
+    /must have less than\s+(\d[\d,]{0,31})\s+tokens\.?\s*Given:\s*(\d[\d,]{0,31})/i,
+  );
+  if (tgiInputMatch) {
+    return {
+      actualTokens: parseInteger(tgiInputMatch[2]!),
+      limitTokens: parseInteger(tgiInputMatch[1]!),
+    };
+  }
+
+  // llama.cpp: the second number is the server's real ceiling (`-c` or the
+  // model's `n_ctx`), which often differs from the window inferred here.
+  const llamaCppMatch = text.match(
+    /\(\s*(\d[\d,]*)\s*tokens?\s*\)\s*exceeds the available context size\s*\(\s*(\d[\d,]*)\s*tokens?\s*\)/i,
+  );
+  if (llamaCppMatch) {
+    return {
+      actualTokens: parseInteger(llamaCppMatch[1]!),
+      limitTokens: parseInteger(llamaCppMatch[2]!),
     };
   }
 

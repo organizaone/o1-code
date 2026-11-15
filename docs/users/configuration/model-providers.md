@@ -320,6 +320,11 @@ Use `openai` with `wireApi: "responses"` to target OpenAI's `/v1/responses` endp
 
 ### Anthropic (`anthropic`)
 
+Claude Opus 5.5, Sonnet 5.5, and Fable and Mythos from 5.1 on reject forced tool selection. For
+structured side queries on these models, the request uses automatic tool selection with an explicit
+instruction to answer through the tool; a raw JSON object in the response text is read as well.
+Models that accept forced selection keep it.
+
 ```json
 {
   "env": {

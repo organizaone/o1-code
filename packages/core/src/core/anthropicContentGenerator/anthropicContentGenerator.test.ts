@@ -3051,16 +3051,17 @@ describe('AnthropicContentGenerator', () => {
     async function sendWithBaseUrl(
       baseUrl: string,
       contents: GenerateContentParameters['contents'] = unsignedThinkingConversation,
+      model = 'claude-opus-4-6',
     ) {
       const { AnthropicContentGenerator } = await importGenerator();
       anthropicState.createImpl.mockResolvedValue({
         id: 'msg-1',
-        model: 'claude-opus-4-6',
+        model,
         content: [{ type: 'text', text: 'ok' }],
       });
       const generator = new AnthropicContentGenerator(
         {
-          model: 'claude-opus-4-6',
+          model,
           apiKey: 'test-key',
           baseUrl,
           timeout: 10_000,
@@ -3096,6 +3097,25 @@ describe('AnthropicContentGenerator', () => {
         content: [{ type: 'text', text: 'Visible answer' }],
       });
     });
+
+    it.each(['my-local-model', 'claude-sonnet-4-5'])(
+      'fills an empty signature for %s through a non-native endpoint',
+      async (model) => {
+        const request = await sendWithBaseUrl(
+          'https://internal-proxy.example/anthropic',
+          unsignedThinkingConversation,
+          model,
+        );
+
+        expect(request.messages[1]).toEqual({
+          role: 'assistant',
+          content: [
+            { type: 'thinking', thinking: 'unsigned reasoning', signature: '' },
+            { type: 'text', text: 'Visible answer' },
+          ],
+        });
+      },
+    );
 
     it('does not rewrite unsigned history for the native Anthropic API', async () => {
       const request = await sendWithBaseUrl('https://api.anthropic.com');
@@ -6334,16 +6354,17 @@ describe('AnthropicContentGenerator', () => {
     async function sendWithToolConfig(
       mode: string | undefined,
       hasTools = true,
+      model = 'claude-opus-4-6',
     ) {
       const { AnthropicContentGenerator } = await importGenerator();
       anthropicState.createImpl.mockResolvedValue({
         id: 'msg-1',
-        model: 'claude-opus-4-6',
+        model,
         content: [{ type: 'text', text: 'ok' }],
       });
       const generator = new AnthropicContentGenerator(
         {
-          model: 'claude-opus-4-6',
+          model,
           apiKey: 'test-key',
           baseUrl: 'https://api.anthropic.com',
           timeout: 10_000,
@@ -6391,6 +6412,38 @@ describe('AnthropicContentGenerator', () => {
       const req = await sendWithToolConfig('ANY');
       expect(req['tool_choice']).toEqual({ type: 'any' });
     });
+
+    it.each([
+      'claude-opus-5-5',
+      'claude-sonnet-5.5',
+      'claude-fable-5-1',
+      'claude-mythos-5-1',
+      'bedrock/claude-fable-5-2',
+    ])('asks %s for the tool call instead of forcing it', async (model) => {
+      const req = await sendWithToolConfig('ANY', true, model);
+
+      expect(req['tool_choice']).toEqual({ type: 'auto' });
+      const messages = req['messages'] as Array<{
+        role: string;
+        content: Array<{ type: string; text?: string }>;
+      }>;
+      const last = messages.at(-1)!;
+      expect(last.role).toBe('user');
+      expect(last.content.at(-1)?.text).toContain('respond_in_schema');
+      expect(last.content.at(-1)?.text).toContain('raw JSON object');
+    });
+
+    it.each(['claude-haiku-5-5', 'claude-opus-5', 'claude-fable-5'])(
+      'keeps forced selection for %s',
+      async (model) => {
+        const req = await sendWithToolConfig('ANY', true, model);
+
+        expect(req['tool_choice']).toEqual({ type: 'any' });
+        expect(JSON.stringify(req['messages'])).not.toContain(
+          'respond_in_schema',
+        );
+      },
+    );
 
     it('omits tool_choice when mode is NONE (Anthropic has no none type)', async () => {
       const req = await sendWithToolConfig('NONE');

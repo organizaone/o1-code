@@ -302,6 +302,78 @@ describe('classifyRetryError', () => {
     });
   });
 
+  describe('4xx that arrived without a body', () => {
+    const EMPTY_BODY_400 = {
+      kind: 'http',
+      diagnosis: 'retryable',
+      statusCode: 400,
+      reason: 'empty-body-4xx',
+    };
+    const CLIENT_400 = {
+      kind: 'http',
+      diagnosis: 'fail-fast',
+      statusCode: 400,
+      reason: 'client-error',
+    };
+
+    it('is retryable, with no transport code', () => {
+      const err = Object.assign(new Error('400 status code (no body)'), {
+        status: 400,
+      });
+      expect(classifyRetryError(err)).toMatchObject(EMPTY_BODY_400);
+      expect(classifyRetryError(err).transportCode).toBeUndefined();
+    });
+
+    it('is retryable when the marker sits in a nested cause', () => {
+      const err = Object.assign(new Error('request failed'), {
+        status: 400,
+        cause: new Error('400 status code (no body)'),
+      });
+      expect(classifyRetryError(err)).toMatchObject(EMPTY_BODY_400);
+    });
+
+    it('is retryable when the SDK stamped a request id on it', () => {
+      const err = Object.assign(new Error('400 status code (no body)'), {
+        status: 400,
+        requestID: 'req-stamped',
+      });
+      expect(classifyRetryError(err)).toMatchObject(EMPTY_BODY_400);
+    });
+
+    it('stays fail-fast when a provider code comes with the marker', () => {
+      expect(
+        classifyRetryError({
+          status: 400,
+          code: 'invalid_request_error',
+          requestID: 'req-stamped',
+          message: 'bad request (no body)',
+        }),
+      ).toMatchObject(CLIENT_400);
+    });
+
+    it('stays fail-fast when the marker is a provider error body', () => {
+      expect(
+        classifyRetryError({
+          status: 400,
+          error: {
+            type: 'invalid_request_error',
+            message: '400 status code (no body)',
+          },
+        }),
+      ).toMatchObject(CLIENT_400);
+    });
+
+    it('stays fail-fast for an unrelated message on a bare 400', () => {
+      expect(
+        classifyRetryError(
+          Object.assign(new Error('empty response for request body'), {
+            status: 400,
+          }),
+        ),
+      ).toMatchObject(CLIENT_400);
+    });
+  });
+
   it('keeps a request-id-bearing 4xx fail-fast even with the marker message', () => {
     // With a request id present the Error message counts as a provider
     // field, so the payload is a provider response, not a wrapped failure.

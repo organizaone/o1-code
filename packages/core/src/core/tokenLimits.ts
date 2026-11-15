@@ -48,10 +48,13 @@ export function outputClampMargin(contextWindowSize: number): TokenCount {
 /**
  * Size an output request to the room actually left in the context window:
  * `min(ceiling, window − prompt − margin)`, floored at
- * MIN_CLAMPED_OUTPUT_TOKENS. Makes `prompt + max_tokens ≤ window` an
- * invariant on every main-turn request (issue #5950 becomes structurally
+ * `min(MIN_CLAMPED_OUTPUT_TOKENS, window − prompt)`. Makes
+ * `prompt + max_tokens ≤ window` an invariant on every main-turn request
+ * whose prompt still fits the window (issue #5950 becomes structurally
  * impossible), which is what lets compaction thresholds run against the
- * full window with no output reservation.
+ * full window with no output reservation. Once the prompt alone reaches the
+ * window no valid `max_tokens` satisfies it, so the result bottoms out at 1
+ * and compaction owns the recovery.
  *
  * @param outputCeiling - Upper bound on the request: the user's explicit
  *   max_tokens when set, else `min(tokenLimit(model,'output'),
@@ -68,11 +71,19 @@ export function clampOutputTokensToWindow(
 ): TokenCount {
   const room =
     contextWindowSize - promptTokens - outputClampMargin(contextWindowSize);
+  // The floor itself is capped by what the window has left, so it cannot push
+  // `prompt + max_tokens` past the window: on a small configured window (8192
+  // with a 5000-token prompt) the margin drives the room negative and an
+  // uncapped 4K floor asked for 9000 in total. It stays at 1 or more so
+  // `max_tokens` is valid when the prompt already fills the window.
+  const floor = Math.max(
+    1,
+    Math.min(MIN_CLAMPED_OUTPUT_TOKENS, contextWindowSize - promptTokens),
+  );
   // Floor the ROOM, then cap by the ceiling — never the other way around: an
-  // explicit ceiling below MIN_CLAMPED_OUTPUT_TOKENS (e.g.
-  // O1CODE_MAX_OUTPUT_TOKENS=2000 on a capacity-constrained backend) must
-  // be respected, not inflated to the floor.
-  return Math.min(outputCeiling, Math.max(MIN_CLAMPED_OUTPUT_TOKENS, room));
+  // explicit ceiling below the floor (e.g. O1CODE_MAX_OUTPUT_TOKENS=2000 on a
+  // capacity-constrained backend) must be respected, not inflated to the floor.
+  return Math.min(outputCeiling, Math.max(floor, room));
 }
 
 export function parsePositiveIntegerEnvValue(
