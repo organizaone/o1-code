@@ -519,6 +519,10 @@ export interface InitialChatHistoryOptions {
   // that excludes the Skill tool, so announcing skills they can't invoke wastes
   // turns — mirrors includeDeferredToolsReminder).
   includeAvailableSkillsReminder?: boolean;
+  // The main session's git snapshot. It sits in the prelude rather than the
+  // system prompt so a repository change between sessions does not invalidate
+  // the cached system prompt. Subagents leave it unset.
+  gitStatus?: string | null;
 }
 
 /**
@@ -549,13 +553,14 @@ export async function getInitialChatHistory(
     ? await buildAvailableSkillsReminder(config)
     : null;
 
-  // Stable parts first (MCP, skills, startup) so prefix-caching servers
-  // retain the KV-cache for the shared prefix. Deferred-tools is last because
-  // progressive MCP discovery can change it — only the tail recomputes.
+  // Stable parts first (MCP, skills, startup, git snapshot) so prefix-caching
+  // servers retain the KV-cache for the shared prefix. Deferred-tools is last
+  // because progressive MCP discovery can change it — only the tail recomputes.
   const reminderParts = [
     buildMcpServerInstructionsReminder(toolRegistry),
     skillsResult?.reminder ?? null,
     startupReminder,
+    options.gitStatus ? wrapSystemReminder(options.gitStatus) : null,
     includeDeferredToolsReminder
       ? buildDeferredToolsReminder(toolRegistry, {
           mcpOnly: includeDeferredToolsReminder === 'mcp',
