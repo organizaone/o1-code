@@ -1417,7 +1417,7 @@ describe('Settings Loading and Merging', () => {
       });
     });
 
-    it('should use folderTrust from workspace settings when trusted', () => {
+    it('ignores folderTrust from workspace settings, trusted or not', () => {
       (mockFsExistsSync as Mock).mockReturnValue(true);
       const userSettingsContent = {
         security: {
@@ -1429,7 +1429,7 @@ describe('Settings Loading and Merging', () => {
       const workspaceSettingsContent = {
         security: {
           folderTrust: {
-            enabled: false, // This should be used
+            enabled: false, // A repository must not switch the gate off
           },
         },
       };
@@ -1450,7 +1450,12 @@ describe('Settings Loading and Merging', () => {
       );
 
       const settings = loadSettings(MOCK_WORKSPACE_DIR);
-      expect(settings.merged.security?.folderTrust?.enabled).toBe(false); // Workspace setting should be used
+      expect(settings.merged.security?.folderTrust?.enabled).toBe(true);
+      expect(
+        getSettingsWarnings(settings).some((w) =>
+          w.includes('security.folderTrust'),
+        ),
+      ).toBe(true);
     });
 
     it('should use system folderTrust over user setting', () => {
@@ -3554,14 +3559,14 @@ describe('Settings Loading and Merging', () => {
         [MOCK_WORKSPACE_SETTINGS_PATH]: {
           security: {
             allowedHttpHookUrls: ['*'],
-            folderTrust: { enabled: true },
+            auth: { useExternal: true },
           },
         },
       });
 
       const settings = loadSettings(MOCK_WORKSPACE_DIR);
       expect(settings.merged.security?.allowedHttpHookUrls).toEqual(USER_LIST);
-      expect(settings.merged.security?.folderTrust?.enabled).toBe(true);
+      expect(settings.merged.security?.auth?.useExternal).toBe(true);
     });
 
     it('drops the workspace whitelist entirely when the folder is untrusted', () => {

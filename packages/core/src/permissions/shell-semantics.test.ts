@@ -716,6 +716,35 @@ describe('extractShellOperationsAcrossCommand', () => {
     ]);
   });
 
+  it.each([
+    ["echo x > $'/etc/hosts'", 'write_file', '/etc/hosts'],
+    ["echo x >$'/etc/hosts'", 'write_file', '/etc/hosts'],
+    ["echo x > $'\\x2fetc\\x2fhosts'", 'write_file', '/etc/hosts'],
+    ["echo x > $'\\057etc\\057hosts'", 'write_file', '/etc/hosts'],
+    ["echo x > $'/etc/ho''sts'", 'write_file', '/etc/hosts'],
+    ["echo x > $'/etc/hosts\\0ignored'", 'write_file', '/etc/hosts'],
+    ["echo x > $'caf\\xc3\\xa9.txt'", 'write_file', '/repo/café.txt'],
+    ["echo x > $'\\U0001F600.txt'", 'write_file', '/repo/😀.txt'],
+    ["echo x > $'it\\'s.txt'", 'write_file', "/repo/it's.txt"],
+    ["make < $'/etc/hosts'", 'read_file', '/etc/hosts'],
+  ])(
+    'decodes an ANSI-C quoted target: %s',
+    (command, virtualTool, filePath) => {
+      expect(extractShellOperationsAcrossCommand(command, '/repo')).toEqual([
+        { virtualTool, filePath },
+      ]);
+    },
+  );
+
+  it('reads the script behind an option terminator after -c', () => {
+    expect(
+      extractShellOperationsAcrossCommand(
+        "sh -c -- 'echo x > /etc/hosts'",
+        '/repo',
+      ),
+    ).toEqual([{ virtualTool: 'write_file', filePath: '/etc/hosts' }]);
+  });
+
   it('resolves the redirect of a `cd` from where the segment starts', () => {
     expect(
       extractShellOperationsAcrossCommand(

@@ -36,7 +36,7 @@ The browser never edits your configuration: to add, change or remove a hook, edi
 
 Reloading requires this explicit menu-open action: saving a file, pulling changes or switching branches does not automatically arm new hook commands. The non-interactive `/hooks list` only displays the registry currently loaded by that process; it does not reload settings. In an interactive terminal, `/hooks list` opens the same menu as `/hooks`.
 
-This reload covers hook definitions, not hook controls or HTTP security settings. Changes to `disableAllHooks`, `stopHookBlockingCap`, `security.allowedHttpHookUrls` and `security.allowPrivateNetworkHooks` still require a restart. Hooks registered at runtime by skills or the SDK are not affected. Project hooks load only in a trusted folder. When hooks are turned off by `disableAllHooks`, `--safe-mode` or `--bare`, none load and the browser says so at the top.
+This reload covers hook definitions, not hook controls or HTTP security settings. Changes to `disableAllHooks`, `stopHookBlockingCap`, `security.allowedHttpHookUrls` and `security.allowPrivateNetworkHooks` still require a restart. Hooks registered at runtime by skills or the SDK are not affected. Project hooks load only in an explicitly trusted folder, in every mode, headless runs included: enable `security.folderTrust.enabled` in user settings and trust the folder, or grant workspace trust through your IDE. A disabled folder-trust feature does not authorize them, and a workspace file cannot change `security.folderTrust`. When they are withheld, a startup warning says so. When hooks are turned off by `disableAllHooks`, `--safe-mode` or `--bare`, none load and the browser says so at the top.
 
 ## Hook Types
 
@@ -1569,7 +1569,7 @@ fi
 ### Security Model
 
 - Hooks run in the user's environment with user privileges
-- Project-level hooks require trusted folder status
+- Project-level hooks require explicit folder trust (the folder-trust feature enabled and the folder trusted, or IDE workspace trust), in interactive and non-interactive sessions alike
 - Timeouts prevent hanging hooks (default: 60 seconds for command hooks)
 
 ## Best Practices
@@ -1731,7 +1731,7 @@ sys.exit(0)
 
 1. **Event name.** The key must be one of the events in [Hook Events](#hook-events), spelled exactly, including case. An unknown event name is skipped with the warning `Invalid hook event name`.
 2. **Matcher.** Tool events match the runtime tool id, such as `run_shell_command` or `write_file`, or an accepted alias such as Claude Code's `Bash` or `Write` (see [Matcher Patterns](#matcher-patterns)). On events without matcher support, `matcher` is ignored.
-3. **Folder trust.** Hooks in a project's `.o1-code/settings.json` load only when the folder is trusted. User hooks load regardless of folder trust.
+3. **Folder trust.** Hooks in a project's `.o1-code/settings.json` load only when the folder is explicitly trusted: enable `security.folderTrust.enabled` in user settings and trust the folder, or grant workspace trust through your IDE (see [Trusted Folders](../configuration/trusted-folders.md)). With the feature disabled they do not load, and a startup warning says so. User hooks load regardless of folder trust.
 4. **Hooks disabled.** `"disableAllHooks": true`, `--safe-mode` (or `O1CODE_SAFE_MODE`) and `--bare` (or `O1CODE_SIMPLE`) turn off all hooks, including user hooks.
 5. **Debug log.** Start O1-Code with `--debug`, or set `O1CODE_DEBUG_LOG_FILE=1`, then read the session log at `~/.o1-code/debug/latest` (under `$O1CODE_RUNTIME_DIR` when that is set). Each line is tagged with a namespace:
    - `[HOOK_REGISTRY]`: `Hook registry initialized with N hook entries`, and hook definitions discarded as invalid

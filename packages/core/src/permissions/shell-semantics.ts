@@ -33,7 +33,7 @@
 
 import nodePath from 'node:path';
 import os from 'node:os';
-import { stripShellWrapper } from '../utils/shell-utils.js';
+import { decodeAnsiCString, stripShellWrapper } from '../utils/shell-utils.js';
 import { createDebugLogger } from '../utils/debugLogger.js';
 import { splitCompoundCommandSegments } from './rule-parser.js';
 
@@ -105,6 +105,24 @@ function tokenize(command: string): string[] {
     }
     if (ch === '\\' && !inSingle) {
       escaped = true;
+      continue;
+    }
+    if (
+      ch === '$' &&
+      command[i + 1] === "'" &&
+      !inSingle &&
+      !inDouble &&
+      // The second `$` of `$$` (the PID) cannot open `$'…'`.
+      command[i - 1] !== '$'
+    ) {
+      // `$'…'` is a quote of its own: `\'` does not close it, and its escapes
+      // decode to the path the shell really uses.
+      let end = i + 2;
+      while (end < command.length && command[end] !== "'") {
+        end += command[end] === '\\' ? 2 : 1;
+      }
+      current += decodeAnsiCString(command.slice(i + 2, end));
+      i = end;
       continue;
     }
     if (ch === "'" && !inDouble) {

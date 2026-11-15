@@ -967,12 +967,53 @@ describe('Server Config (config.ts)', () => {
     });
 
     it('replaces project hooks without leaking them into user hooks', () => {
-      const config = new Config({ ...baseParams });
+      const config = new Config({
+        ...baseParams,
+        folderTrust: true,
+        trustedFolder: true,
+      });
 
       config.setHooksFromSettings({ projectHooks });
 
       expect(config.getProjectHooks()).toBe(projectHooks);
       expect(config.getUserHooks()).toBeUndefined();
+    });
+
+    it.each([
+      ['folder trust off', {}, true],
+      [
+        'an untrusted folder',
+        { folderTrust: true, trustedFolder: false },
+        true,
+      ],
+      ['a trusted folder', { folderTrust: true, trustedFolder: true }, false],
+      ['hooks disabled', { disableAllHooks: true }, false],
+    ])(
+      'with %s, project hooks are withheld = %s',
+      (_label, trustParams, withheld) => {
+        const config = new Config({ ...baseParams, ...trustParams });
+
+        config.setHooksFromSettings({ userHooks, projectHooks });
+
+        expect(config.hasProjectHooksWithheldByTrust()).toBe(withheld);
+        expect(
+          config
+            .getWarnings()
+            .some((warning) => warning.startsWith('Project hooks in')),
+        ).toBe(withheld);
+        if (withheld) {
+          expect(config.getProjectHooks()).toBeUndefined();
+        }
+        expect(config.getUserHooks()).toBe(userHooks);
+      },
+    );
+
+    it('reports nothing withheld when the workspace configured no hooks', () => {
+      const config = new Config({ ...baseParams });
+
+      config.setHooksFromSettings({ userHooks });
+
+      expect(config.hasProjectHooksWithheldByTrust()).toBe(false);
     });
 
     it('replaces the legacy merged hooks so a removed hook cannot return through the fallback', () => {
@@ -1050,6 +1091,8 @@ describe('Server Config (config.ts)', () => {
     it('does not read the merged hooks as user hooks when only project hooks are supplied', () => {
       const config = new Config({
         ...baseParams,
+        folderTrust: true,
+        trustedFolder: true,
         projectHooks,
         hooks: mergedHooks,
       });
@@ -1059,7 +1102,12 @@ describe('Server Config (config.ts)', () => {
     });
 
     it('still serves the merged hooks as user and project hooks when no scope is supplied', () => {
-      const config = new Config({ ...baseParams, hooks: mergedHooks });
+      const config = new Config({
+        ...baseParams,
+        folderTrust: true,
+        trustedFolder: true,
+        hooks: mergedHooks,
+      });
 
       expect(config.getUserHooks()).toBe(mergedHooks);
       expect(config.getProjectHooks()).toBe(mergedHooks);
@@ -1140,7 +1188,11 @@ describe('Server Config (config.ts)', () => {
         // A Config built from merged settings alone still registers the hook
         // under both the user and project sources. The planner is what keeps
         // that from running it twice.
-        const registry = await registryFor({ hooks: lintHook });
+        const registry = await registryFor({
+          folderTrust: true,
+          trustedFolder: true,
+          hooks: lintHook,
+        });
         expect(registry.getAllHooks().map(({ source }) => source)).toEqual([
           'user',
           'project',
