@@ -6,7 +6,10 @@
 
 import { describe, it, expect, vi } from 'vitest';
 import { ToolConfirmationOutcome } from '../tools/tools.js';
-import { todoWorkChainContext } from '../utils/promptIdContext.js';
+import {
+  promptIdContext,
+  todoWorkChainContext,
+} from '../utils/promptIdContext.js';
 import {
   AgentEventEmitter,
   AgentEventType,
@@ -2563,6 +2566,22 @@ describe('WorkflowRunRegistry', () => {
 
     expect(entry.todoWorkChainId).toBe('workflow-chain');
     expect(completion.mock.calls[0][2].todoWorkChainId).toBe('workflow-chain');
+  });
+
+  it('carries the registering turn on the completion notification', () => {
+    const r = new WorkflowRunRegistry();
+    const completion = vi.fn();
+    r.setCompletionCallback(completion);
+    const entry = promptIdContext.run('turn-42', () =>
+      r.register(reg('wf_turn', { isBackgrounded: true })),
+    );
+    r.complete(entry.runId, 'done', 1_000);
+    const unattributed = r.register(
+      reg('wf_no_turn', { isBackgrounded: true }),
+    );
+
+    expect(completion.mock.calls[0][2].sourceTurnId).toBe('turn-42');
+    expect(unattributed.sourceTurnId).toBeUndefined();
   });
 
   it('errors thrown by the notification callback do not break the call site', () => {

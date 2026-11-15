@@ -10,7 +10,10 @@ import {
   MonitorRegistry,
   type MonitorTaskRegistration,
 } from './monitorRegistry.js';
-import { todoWorkChainContext } from '../utils/promptIdContext.js';
+import {
+  promptIdContext,
+  todoWorkChainContext,
+} from '../utils/promptIdContext.js';
 
 function createEntry(
   overrides: Partial<MonitorTaskRegistration> = {},
@@ -71,6 +74,21 @@ describe('MonitorRegistry', () => {
     );
 
     expect(entry.todoWorkChainId).toBe('work-chain-1');
+  });
+
+  it('carries the registering turn on its notifications', () => {
+    const callback = vi.fn();
+    registry.setNotificationCallback(callback);
+    const entry = promptIdContext.run('turn-42', () =>
+      registry.register(createEntry()),
+    );
+    registry.complete(entry.monitorId, 0);
+
+    expect(callback.mock.calls.at(-1)?.[2].sourceTurnId).toBe('turn-42');
+  });
+
+  it('leaves the turn unset when registration has no turn context', () => {
+    expect(registry.register(createEntry()).sourceTurnId).toBeUndefined();
   });
 
   it('emits event notification via callback', () => {

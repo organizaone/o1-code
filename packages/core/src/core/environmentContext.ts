@@ -13,6 +13,10 @@ import type {
 } from '../tools/tool-registry.js';
 import { createDebugLogger } from '../utils/debugLogger.js';
 import { getFolderStructure } from '../utils/getFolderStructure.js';
+import {
+  getShellConfiguration,
+  getShellDisplayName,
+} from '../utils/shell-utils.js';
 import { escapeSystemReminderTags } from '../utils/xml.js';
 import {
   collectAvailableSkillEntries,
@@ -94,12 +98,20 @@ export async function getEnvironmentContext(config: Config): Promise<Part[]> {
   const platform = config.getExecutionEnvironment?.()
     ? ''
     : `My operating system is: ${process.platform}\n`;
+  // The platform does not settle the syntax: on win32 the commands may run
+  // under cmd, PowerShell or bash. The same resolution the shell tool uses,
+  // so this line and the tool's description cannot disagree.
+  const shell = config.getExecutionEnvironment?.()
+    ? ''
+    : `Shell commands run under: ${getShellDisplayName(
+        config.getAgentShellConfiguration?.() ?? getShellConfiguration(),
+      )}\n`;
   const directoryContext = await getDirectoryContextString(config);
 
   const context = `
 This is the O1-Code. We are setting up the context for our chat.
 Today's date is ${today}.
-${platform}${directoryContext}
+${platform}${shell}${directoryContext}
         `.trim();
 
   return [{ text: context }];

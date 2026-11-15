@@ -10,6 +10,7 @@ import * as os from 'node:os';
 import * as path from 'node:path';
 import { Storage } from '../config/storage.js';
 import { isNodeError } from '../utils/errors.js';
+import { isZombie } from '../utils/process-liveness.js';
 import { atomicWriteJSON } from '../utils/atomicFileWrite.js';
 import { readRuntimeStatus } from '../utils/runtimeStatus.js';
 
@@ -453,12 +454,17 @@ async function getRuntimeStatusPathState(
     return 'active';
   }
 
+  // A zombie still answers signal 0, and from another user's process that
+  // answer is EPERM; either way it has exited and will not act again.
   try {
     process.kill(status.pid, 0);
-    return 'active';
+    return isZombie(status.pid) ? 'dead' : 'active';
   } catch (error) {
     if (isNodeError(error) && error.code === 'ESRCH') {
       return 'dead';
+    }
+    if (isNodeError(error) && error.code === 'EPERM') {
+      return isZombie(status.pid) ? 'dead' : 'active';
     }
     return 'active';
   }

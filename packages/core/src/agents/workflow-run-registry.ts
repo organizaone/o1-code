@@ -43,7 +43,11 @@ import {
   type ToolConfirmationPayload,
 } from '../tools/tools.js';
 import { createDebugLogger } from '../utils/debugLogger.js';
-import { todoWorkChainContext } from '../utils/promptIdContext.js';
+import { getInvocationContext } from '../utils/invocation-context.js';
+import {
+  promptIdContext,
+  todoWorkChainContext,
+} from '../utils/promptIdContext.js';
 import { stripAnsiAndControl } from '../utils/textUtils.js';
 import { buildFailureLines } from './workflow-failure-lines.js';
 import {
@@ -507,6 +511,7 @@ export interface WorkflowRunCompletionMeta {
   runId: string;
   status: Extract<WorkflowStatus, 'completed' | 'failed'>;
   todoWorkChainId?: string;
+  sourceTurnId?: string;
 }
 export type WorkflowRunCompletionCallback = (
   displayText: string,
@@ -715,6 +720,7 @@ export class WorkflowRunRegistry {
       runId: entry.runId,
       status: entry.status,
       todoWorkChainId: entry.todoWorkChainId,
+      sourceTurnId: entry.sourceTurnId,
     };
     try {
       runOutsideAgentContext(() =>
@@ -839,6 +845,8 @@ export class WorkflowRunRegistry {
     entry.notified = false;
     entry.isBackgrounded = registration.isBackgrounded ?? false;
     entry.todoWorkChainId ??= todoWorkChainContext.getStore();
+    entry.sourceTurnId =
+      getInvocationContext()?.promptId ?? promptIdContext.getStore();
     entry.currentPhase = null;
     entry.phases = [];
     entry.phaseVisits = [];

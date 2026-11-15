@@ -30,6 +30,15 @@ vi.mock('node:fs/promises', async (importOriginal) => {
   return { ...actual, readFile: fsMocks.readFile };
 });
 
+const livenessMocks = vi.hoisted(() => ({
+  isZombie: vi.fn<(pid: number) => boolean>(() => false),
+}));
+
+vi.mock('../utils/process-liveness.js', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../utils/process-liveness.js')>()),
+  isZombie: livenessMocks.isZombie,
+}));
+
 const sample: WorktreeSession = {
   slug: 'my-feature',
   worktreePath: '/repo/.o1-code/worktrees/my-feature',
@@ -421,6 +430,38 @@ describe('isSessionRuntimeActive', () => {
     await expect(
       isSessionRuntimeActive('owner-session', [repoRoot, worktreePath]),
     ).resolves.toBe(true);
+  });
+
+  it('reads a zombie owner as dead, whoever owns it', async () => {
+    const repoRoot = path.join(tmpDir, 'repo');
+    await fs.mkdir(repoRoot, { recursive: true });
+    Storage.setRuntimeBaseDir(path.join(tmpDir, 'runtime'));
+    await writeRuntimeStatus(
+      new Storage(repoRoot).getRuntimeStatusPath('owner-session'),
+      { sessionId: 'owner-session', workDir: repoRoot, pid: process.pid },
+    );
+    livenessMocks.isZombie.mockReturnValue(true);
+    const kill = vi.spyOn(process, 'kill');
+    try {
+      await expect(
+        isSessionRuntimeActive('owner-session', repoRoot),
+      ).resolves.toBe(false);
+
+      kill.mockImplementation(() => {
+        throw Object.assign(new Error('not permitted'), { code: 'EPERM' });
+      });
+      await expect(
+        isSessionRuntimeActive('owner-session', repoRoot),
+      ).resolves.toBe(false);
+
+      livenessMocks.isZombie.mockReturnValue(false);
+      await expect(
+        isSessionRuntimeActive('owner-session', repoRoot),
+      ).resolves.toBe(true);
+    } finally {
+      kill.mockRestore();
+      livenessMocks.isZombie.mockReturnValue(false);
+    }
   });
 
   it('does not trust repo-contained dead runtime status as proof of inactivity', async () => {
