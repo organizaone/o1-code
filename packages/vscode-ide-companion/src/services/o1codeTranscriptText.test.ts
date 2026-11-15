@@ -5,7 +5,10 @@
  */
 
 import { describe, expect, it } from 'vitest';
-import { o1codeRecordToText } from './o1codeTranscriptText.js';
+import {
+  isHiddenO1CodeUserRecord,
+  o1codeRecordToText,
+} from './o1codeTranscriptText.js';
 
 describe('o1codeRecordToText', () => {
   it('uses display metadata, including an empty display projection', () => {
@@ -38,14 +41,66 @@ describe('o1codeRecordToText', () => {
     ).toBe('');
   });
 
-  it('keeps synthetic user model text instead of its display label', () => {
+  it('keeps the parts of a plain user record that has only a display label', () => {
     expect(
       o1codeRecordToText({
         type: 'user',
-        message: { parts: [{ text: 'notification model text' }] },
-        systemPayload: { displayText: 'Background agent completed' },
+        message: { parts: [{ text: 'what the person typed' }] },
+        systemPayload: { displayText: 'a label' },
       }),
-    ).toBe('notification model text');
+    ).toBe('what the person typed');
+  });
+
+  it.each(['notification', 'cron', 'goal_runtime'])(
+    'shows only the display text of a %s record',
+    (subtype) => {
+      const record = {
+        type: 'user',
+        subtype,
+        message: {
+          parts: [
+            { text: '<task-notification>model text</task-notification>' },
+          ],
+        },
+      };
+
+      expect(
+        o1codeRecordToText({
+          ...record,
+          systemPayload: { displayText: 'Background agent completed' },
+        }),
+      ).toBe('Background agent completed');
+      expect(o1codeRecordToText(record)).toBe('');
+      expect(isHiddenO1CodeUserRecord(record)).toBe(true);
+      expect(
+        isHiddenO1CodeUserRecord({
+          ...record,
+          systemPayload: { displayText: 'Background agent completed' },
+        }),
+      ).toBe(false);
+    },
+  );
+
+  it('shows what was typed in a message sent while the model was working', () => {
+    const record = {
+      type: 'user',
+      subtype: 'mid_turn_user_message',
+      message: {
+        parts: [{ text: 'prefix for the model: also fix the tests' }],
+      },
+    };
+
+    expect(
+      o1codeRecordToText({
+        ...record,
+        systemPayload: { displayText: 'also fix the tests' },
+      }),
+    ).toBe('also fix the tests');
+    // A record from before the display text was saved keeps its parts.
+    expect(o1codeRecordToText(record)).toBe(
+      'prefix for the model: also fix the tests',
+    );
+    expect(isHiddenO1CodeUserRecord(record)).toBe(false);
   });
 
   it('strips a complete final tag-only context part', () => {

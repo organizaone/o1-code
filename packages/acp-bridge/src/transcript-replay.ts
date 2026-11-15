@@ -908,6 +908,20 @@ class DefaultTranscriptReplayMachine implements TranscriptReplayMachine {
           yield* media;
           return;
         }
+        // Nothing was typed and the attachment travels inline: show the
+        // attachment alone. The text parts are the prefix written for the
+        // model, not something the person sent.
+        yield* this.projectMessageParts(
+          record,
+          'user',
+          emit,
+          replayMeta,
+          undefined,
+          (record.message?.parts ?? []).filter(
+            (part) => !isObjectRecord(part) || typeof part['text'] !== 'string',
+          ),
+        );
+        return;
       }
       if (displayText) {
         const isNotification = record.subtype === 'notification';
