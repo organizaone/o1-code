@@ -3973,7 +3973,12 @@ bad`);
         vi.spyOn(mockConfig, 'getHookSystem').mockReturnValue({
           getRegistry: () => ({ addAgentHooks: addAgentHooksSpy }),
         } as unknown as ReturnType<Config['getHookSystem']>);
-        vi.spyOn(mockConfig, 'isTrustedFolder').mockReturnValue(false);
+        // Folder trust switched off answers "trusted" for everything else,
+        // but nobody trusted this folder: its hooks must not register.
+        vi.spyOn(mockConfig, 'isTrustedFolder').mockReturnValue(true);
+        vi.spyOn(mockConfig, 'isExplicitlyTrustedFolder').mockReturnValue(
+          false,
+        );
 
         const result = await manager.createAgentHeadless(
           {
@@ -4002,7 +4007,7 @@ bad`);
         vi.spyOn(mockConfig, 'getHookSystem').mockReturnValue({
           getRegistry: () => ({ addAgentHooks: addAgentHooksSpy }),
         } as unknown as ReturnType<Config['getHookSystem']>);
-        vi.spyOn(mockConfig, 'isTrustedFolder').mockReturnValue(true);
+        vi.spyOn(mockConfig, 'isExplicitlyTrustedFolder').mockReturnValue(true);
 
         const result = await manager.createAgentHeadless(
           {

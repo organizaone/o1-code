@@ -13,6 +13,7 @@ import { registerSkillHooks } from '../hooks/registerSkillHooks.js';
 import { ToolNames } from './tool-names.js';
 import { escapeXml } from '../utils/xml.js';
 import { createDebugLogger } from '../utils/debugLogger.js';
+import { EXPLICIT_TRUST_HINT } from '../utils/explicit-trust-hint.js';
 
 const debugLogger = createDebugLogger('SKILL');
 
@@ -283,17 +284,16 @@ ${escapeXml(entry.description)}
  * frontmatter hooks — may be applied. A project skill is discovered from
  * `<repo>/.o1-code/skills/` regardless of folder trust because its body only
  * influences the model, but its side effects grant tool approvals or run
- * repo-supplied commands, so they need a trusted folder: the same gate
- * `Config.getProjectHooks()` applies to settings-file hooks. User, extension
- * and bundled skills are not repo-controlled and are unaffected.
+ * repo-supplied commands, so they need a folder someone explicitly trusted;
+ * folder trust being switched off is not that. User, extension and bundled
+ * skills are not repo-controlled and are unaffected.
  */
 export function canApplySkillSideEffects(
   skill: Pick<SkillConfig, 'level'>,
-  config: Pick<Config, 'isTrustedFolder'>,
+  config: Pick<Config, 'isExplicitlyTrustedFolder'>,
 ): boolean {
-  return skill.level !== 'project' || config.isTrustedFolder();
+  return skill.level !== 'project' || config.isExplicitlyTrustedFolder();
 }
-
 /**
  * Grants a skill's `allowedTools` as session-scoped permission allow rules.
  *
@@ -425,7 +425,7 @@ export class ReviewWorkflowActivationError extends Error {
 export async function applySkillSideEffects(
   config:
     | (Pick<Config, 'getHookSystem' | 'getSessionId' | 'getPermissionManager'> &
-        Pick<Config, 'isTrustedFolder' | 'enableReviewWorkflow'>)
+        Pick<Config, 'isExplicitlyTrustedFolder' | 'enableReviewWorkflow'>)
     | null
     | undefined,
   skill: SkillConfig,
@@ -436,7 +436,7 @@ export async function applySkillSideEffects(
   if (!canApplySkillSideEffects(skill, config)) {
     if (skill.allowedTools?.length || skill.hooks) {
       debugLogger.warn(
-        `Skill "${skill.name}" is a project skill in an untrusted folder; ignoring its allowedTools and hooks.`,
+        `Skill "${skill.name}" requires explicit folder trust; ignoring its allowedTools and hooks. ${EXPLICIT_TRUST_HINT}`,
       );
     }
     return;

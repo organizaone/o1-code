@@ -167,9 +167,9 @@ async function getMemoryFilePathsInternalForEachDir(
 
       const upwardPaths: string[] = [];
       let currentDir = resolvedCwd;
-      const ultimateStopDir = projectRoot
-        ? path.dirname(projectRoot)
-        : path.dirname(resolvedHome);
+      // The repository is what the user opened and trusted; a file in the
+      // directory above it belongs to whoever owns that directory.
+      const ultimateStopDir = projectRoot ?? path.dirname(resolvedHome);
 
       while (currentDir && currentDir !== path.dirname(currentDir)) {
         if (

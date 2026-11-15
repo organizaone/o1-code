@@ -33,6 +33,7 @@ import type {
   LspTextDocumentSync,
 } from './types.js';
 import { createDebugLogger } from '../utils/debugLogger.js';
+import { EXPLICIT_TRUST_HINT } from '../utils/explicit-trust-hint.js';
 import { lspServerConfigHash } from './configHash.js';
 
 const debugLogger = createDebugLogger('LSP');
@@ -383,11 +384,13 @@ export class LspServerManager {
   ): Promise<void> {
     const workspaceTrusted = this.config.isTrustedFolder();
     if (
-      (this.requireTrustedWorkspace || handle.config.trustRequired) &&
-      !workspaceTrusted
+      ((this.requireTrustedWorkspace || handle.config.trustRequired) &&
+        !workspaceTrusted) ||
+      (handle.config.source === 'workspace' &&
+        !this.config.isExplicitlyTrustedFolder())
     ) {
       debugLogger.warn(
-        `LSP server ${name} requires trusted workspace, skipping startup`,
+        `LSP server ${name} requires trusted workspace, skipping startup. A workspace .lsp.json requires explicit trust. ${EXPLICIT_TRUST_HINT}`,
       );
       handle.status = 'FAILED';
       this.serverConfigHashes.delete(name);

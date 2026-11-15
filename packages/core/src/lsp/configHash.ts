@@ -26,6 +26,7 @@ export function lspServerConfigHash(config: LspServerConfig): string {
     restartOnCrash: config.restartOnCrash,
     maxRestarts: config.maxRestarts,
     trustRequired: config.trustRequired,
+    source: config.source,
     socket: config.socket,
   } satisfies Record<keyof LspServerConfig, unknown>;
   const stableConfig = sortJsonValue(hashInput);

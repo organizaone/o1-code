@@ -3006,6 +3006,74 @@ describe('CoreToolScheduler', () => {
     expect(execute).not.toHaveBeenCalled();
   });
 
+  // An ask rule always asks. AUTO_EDIT approves an edit by default, and the
+  // arm without a matching rule keeps the assertion from passing vacuously.
+  it.each([
+    ['a matching permissions.ask rule', true, false],
+    ['no matching rule', false, true],
+  ])(
+    'AUTO_EDIT with %s: executes without asking = %s',
+    async (_case, askRuleMatches, autoApproved) => {
+      const execute = vi.fn().mockResolvedValue({
+        llmContent: 'executed',
+        returnDisplay: 'executed',
+      });
+      const tool = new MockTool({
+        name: 'guarded_edit',
+        getDefaultPermission: async () => 'ask',
+        getConfirmationDetails: async () => ({
+          type: 'info',
+          title: 'Edit a protected file',
+          prompt: 'Approve?',
+          onConfirm: vi.fn(),
+        }),
+        execute,
+      });
+      const onToolCallsUpdate = vi.fn();
+      const onAllToolCallsComplete = vi.fn();
+      const { scheduler } = createSchedulerForLegacyToolTests({
+        toolsByName: new Map([[tool.name, tool]]),
+        approvalMode: ApprovalMode.AUTO_EDIT,
+        onToolCallsUpdate,
+        onAllToolCallsComplete,
+        permissionManager: {
+          isToolEnabled: async () => true,
+          findMatchingDenyRule: () => undefined,
+          hasRelevantRules: () => askRuleMatches,
+          evaluate: async () => 'ask',
+          hasMatchingAskRule: () => askRuleMatches,
+        },
+      });
+
+      await scheduler.schedule(
+        [
+          {
+            callId: 'guarded-edit',
+            name: tool.name,
+            args: {},
+            isClientInitiated: false,
+            prompt_id: 'prompt-guarded-edit',
+          },
+        ],
+        new AbortController().signal,
+      );
+
+      if (autoApproved) {
+        await vi.waitFor(() =>
+          expect(onAllToolCallsComplete).toHaveBeenCalled(),
+        );
+        expect(execute).toHaveBeenCalled();
+      } else {
+        expect(
+          onToolCallsUpdate.mock.calls
+            .flatMap((call) => call[0] as ToolCall[])
+            .some((call) => call.status === 'awaiting_approval'),
+        ).toBe(true);
+        expect(execute).not.toHaveBeenCalled();
+      }
+    },
+  );
+
   it('does not auto-approve an interaction-required sibling after ProceedAlways', async () => {
     let siblingWouldOtherwiseAllow = false;
     const firstExecute = vi.fn().mockResolvedValue({

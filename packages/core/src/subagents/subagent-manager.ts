@@ -57,6 +57,7 @@ import {
   type AuthOverrides,
 } from '../models/content-generator-config.js';
 import { createDebugLogger } from '../utils/debugLogger.js';
+import { EXPLICIT_TRUST_HINT } from '../utils/explicit-trust-hint.js';
 import { normalizeContent } from '../utils/textUtils.js';
 import {
   buildModelIdContext,
@@ -1187,13 +1188,15 @@ export class SubagentManager {
       const hookSystem = runtimeContext.getHookSystem();
       const hookRegistry = hookSystem?.getRegistry();
       if (config.hooks && Object.keys(config.hooks).length > 0) {
-        if (config.level === 'project' && !runtimeContext.isTrustedFolder()) {
+        if (
+          config.level === 'project' &&
+          !runtimeContext.isExplicitlyTrustedFolder()
+        ) {
           // Project agents load from <repo>/.o1-code/agents/ regardless of
           // trust (read-only use is fine), but their hooks are repo-supplied
-          // code execution — the same gate Config.getProjectHooks() applies
-          // to settings-file hooks.
+          // code execution, which needs a folder someone explicitly trusted.
           debugLogger.warn(
-            `Subagent "${config.name}" is a project agent in an untrusted folder; ignoring its hooks.`,
+            `Subagent "${config.name}" requires explicit folder trust; ignoring its hooks. ${EXPLICIT_TRUST_HINT}`,
           );
         } else if (hookRegistry) {
           // Scoped to this invocation: the scope is the id the agent runs

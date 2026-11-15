@@ -225,6 +225,10 @@ function isNetworkPseudoDevice(target: string): boolean {
   return /^\/dev\/(tcp|udp)\//.test(target);
 }
 
+/** A redirect operator and its target written as one token: `>file`, `2>&1`. */
+const COMBINED_REDIRECT =
+  /^(<<-?|1>>|1>\||1>|>>|>\||>|2>>|2>\||2>|&>>|&>|<)([\s\S]+)$/;
+
 /**
  * Extract I/O redirections from a token array.
  *
@@ -245,7 +249,7 @@ function extractRedirects(tokens: string[], cwd: string): RedirectResult {
     const tok = tokens[i]!;
 
     // ── Separate-token redirect operators ─────────────────────────────────
-    if (tok === '>' || tok === '1>') {
+    if (tok === '>' || tok === '1>' || tok === '>|' || tok === '1>|') {
       const target = tokens[i + 1];
       if (target && looksLikePath(target)) {
         if (!isNetworkPseudoDevice(target)) {
@@ -281,7 +285,13 @@ function extractRedirects(tokens: string[], cwd: string): RedirectResult {
         toRemove.add(i + 1);
         i++;
       }
-    } else if (tok === '2>' || tok === '2>>' || tok === '&>' || tok === '&>>') {
+    } else if (
+      tok === '2>' ||
+      tok === '2>|' ||
+      tok === '2>>' ||
+      tok === '&>' ||
+      tok === '&>>'
+    ) {
       // stderr / combined redirect — consume target
       const target = tokens[i + 1];
       if (target) {
@@ -299,13 +309,22 @@ function extractRedirects(tokens: string[], cwd: string): RedirectResult {
     }
     // ── Combined redirect tokens without space: `>file`, `>>file`, etc. ───
     else {
-      const m = tok.match(/^(<<-?|1>>|1>|>>|>|2>>|2>|&>>|&>|<)([\s\S]+)$/);
+      const m = tok.match(COMBINED_REDIRECT);
       if (m) {
         const op = m[1]!;
-        const target = m[2]!;
+        let target = m[2]!;
         if (op.startsWith('<<')) {
           toRemove.add(i);
           continue;
+        }
+        if (target.startsWith('&')) {
+          // `2>&1`, `>&2`, `2>&-` duplicate or close a descriptor: no file is
+          // touched. `>&file` is the old spelling of `&>file`, and does write.
+          target = target.slice(1);
+          if (target === '' || /^(\d+|-)$/.test(target)) {
+            toRemove.add(i);
+            continue;
+          }
         }
         if (
           target !== '/dev/null' &&
@@ -2064,6 +2083,8 @@ function resolveCdTargetCwd(
   cwdUnknown: boolean,
 ): CdResolution {
   const words = tokenize(command);
+  // The redirects are dropped here only to find the target; the caller reports
+  // them through `extractRedirectOperations`.
   extractRedirects(words, cwd);
 
   if (words[0] === 'popd') return { kind: 'dynamic' };
@@ -2257,6 +2278,23 @@ function getHeredocDelimiters(line: string): string[] {
   return delimiters;
 }
 
+function extractRedirectOperations(
+  command: string,
+  cwd: string,
+): ShellOperation[] {
+  const { readFiles, writeFiles } = extractRedirects(tokenize(command), cwd);
+  return [
+    ...readFiles.map((filePath) => ({
+      virtualTool: 'read_file' as const,
+      filePath,
+    })),
+    ...writeFiles.map((filePath) => ({
+      virtualTool: 'write_file' as const,
+      filePath,
+    })),
+  ];
+}
+
 function walkCompoundCommand(
   command: string,
   cwd: string,
@@ -2278,6 +2316,17 @@ function walkCompoundCommand(
     const backgrounded = terminator === '&';
 
     const cdTarget = resolveCdTargetCwd(sub, effectiveCwd, cwdUnknown);
+    if (cdTarget.kind !== 'not-cd') {
+      // A `cd` moves the cwd but its own redirect is opened first, in the
+      // directory the segment starts in: `cd /tmp > settings.json` truncates
+      // the file here, not in /tmp.
+      const redirectOps = extractRedirectOperations(sub, effectiveCwd);
+      ops.push(
+        ...(cwdUnknown
+          ? markCwdUnknownOps(redirectOps, sub, effectiveCwd)
+          : redirectOps),
+      );
+    }
     if (cdTarget.kind === 'static') {
       if (!backgrounded) {
         effectiveCwd = cdTarget.cwd;
@@ -2330,9 +2379,10 @@ function hasAbsolutePathTokenForOperation(
   filePath: string,
 ): boolean {
   for (const token of tokenize(command)) {
-    const redirectTarget = token.match(
-      /^(?:1>>|1>|>>|>|2>>|2>|&>>|&>|<)([\s\S]+)$/,
-    )?.[1];
+    const redirect = token.match(COMBINED_REDIRECT);
+    const redirectTarget = redirect?.[1]?.startsWith('<<')
+      ? undefined
+      : redirect?.[2]?.replace(/^&/, '');
     const candidate = redirectTarget ?? token;
     if (
       looksLikePath(candidate) &&

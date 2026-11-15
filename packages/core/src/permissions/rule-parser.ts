@@ -1108,6 +1108,11 @@ function findOperatorBoundaries(
       if (op === '&' && (arithmeticDepth > 0 || !isAsyncOperator(command, i))) {
         continue;
       }
+      // `>|` is the clobbering redirect: its `|` is not a pipe, and reading
+      // it as one would turn the file into a command of its own.
+      if (op === '|' && command[i - 1] === '>') {
+        continue;
+      }
       boundaries.push({ start: i, end: i + op.length, operator: op });
       i += op.length - 1; // -1 because the loop will i++
       break;

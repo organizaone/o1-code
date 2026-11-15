@@ -290,6 +290,10 @@ export const WORKSPACE_RESTRICTED_SETTINGS = [
   { section: 'goals', key: 'modelProposed' },
   { section: 'outboundCorrelation', key: 'allowDynamicHeaderValues' },
   { section: 'serve', key: 'tokenQr' },
+  // Background memory agents spend the user's tokens unattended; a cloned
+  // repository must not lift their limits (0 removes them).
+  { section: 'memory', key: 'agentMaxTurns' },
+  { section: 'memory', key: 'agentTimeoutMinutes' },
 ] as const satisfies ReadonlyArray<{
   readonly section: keyof Settings;
   readonly key: string;

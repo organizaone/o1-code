@@ -114,8 +114,8 @@ describe('applySkillAllowedTools', () => {
 });
 
 describe('canApplySkillSideEffects', () => {
-  const trusted = { isTrustedFolder: () => true };
-  const untrusted = { isTrustedFolder: () => false };
+  const trusted = { isExplicitlyTrustedFolder: () => true };
+  const untrusted = { isExplicitlyTrustedFolder: () => false };
 
   it('gates project skills on folder trust', () => {
     expect(canApplySkillSideEffects({ level: 'project' }, trusted)).toBe(true);
@@ -168,7 +168,7 @@ describe('applySkillSideEffects', () => {
     const { pm, addSessionAllowRule } = mockPermissionManager();
     const addSessionHook = vi.fn();
     const config = {
-      isTrustedFolder: () => true,
+      isExplicitlyTrustedFolder: () => true,
       getPermissionManager: () => pm,
       getSessionId: () => 'session-1',
       enableReviewWorkflow: vi.fn().mockResolvedValue(undefined),
@@ -278,7 +278,10 @@ describe('applySkillSideEffects', () => {
       level: 'project',
     } as unknown as SkillConfig;
     await applySkillSideEffects(
-      { ...config, isTrustedFolder: () => false } as unknown as Config,
+      {
+        ...config,
+        isExplicitlyTrustedFolder: () => false,
+      } as unknown as Config,
       projectSkill,
     );
     expect(addSessionAllowRule).not.toHaveBeenCalled();
@@ -297,14 +300,17 @@ describe('applySkillSideEffects', () => {
     } as unknown as SkillConfig;
 
     await applySkillSideEffects(
-      { ...config, isTrustedFolder: () => false } as unknown as Config,
+      {
+        ...config,
+        isExplicitlyTrustedFolder: () => false,
+      } as unknown as Config,
       hooksOnly,
     );
 
     expect(addSessionAllowRule).not.toHaveBeenCalled();
     expect(addSessionHook).not.toHaveBeenCalled();
     expect(debugLoggerSpies.warn).toHaveBeenCalledWith(
-      expect.stringContaining('untrusted folder'),
+      expect.stringContaining('requires explicit folder trust'),
     );
   });
 

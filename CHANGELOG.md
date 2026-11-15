@@ -7,6 +7,26 @@ follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.25.0] - 2026-11-15
+
+### Changed
+
+- **Breaking:** hooks and `allowedTools` of project skills, hooks of project subagents and the
+  language servers of a workspace `.lsp.json` now need an explicitly trusted folder: enable
+  `security.folderTrust.enabled` and trust the folder, or grant workspace trust in your IDE.
+- **Breaking:** context files are no longer loaded from the directory above the Git root.
+- **Breaking:** `o1-code serve` no longer takes `O1CODE_SERVER_TOKEN` from a project `.env` or from
+  `env` in `settings.json`. Use `--token`, an exported variable or a `.env` in your home directory.
+- `memory.agentMaxTurns` and `memory.agentTimeoutMinutes` are no longer read from workspace settings.
+
+### Fixed
+
+- A `permissions.ask` rule now asks in auto-edit mode too.
+- Shell commands that write through `cd dir > file` or `>|` are now recognized as file writes, and
+  `2>&1` is no longer taken for a file.
+- In editor sessions, a file edit cut off by the output limit is refused instead of written.
+- File-history backups are written atomically, so a rewind never restores an incomplete copy.
+
 ## [0.24.4] - 2026-11-13
 
 ### Fixed

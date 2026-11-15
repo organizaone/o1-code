@@ -41,6 +41,8 @@ function makeConfig(options: {
   safeMode?: boolean;
   bareMode?: boolean;
   trusted?: boolean;
+  /** Defaults to `trusted`: set apart to model folder trust switched off. */
+  explicitlyTrusted?: boolean;
   systemHooks?: Record<string, unknown>;
   userHooks?: Record<string, unknown>;
   projectHooks?: Record<string, unknown>;
@@ -60,6 +62,9 @@ function makeConfig(options: {
     getBareMode: vi.fn().mockReturnValue(options.bareMode ?? false),
     getSessionId: vi.fn().mockReturnValue(options.sessionId ?? SESSION_ID),
     isTrustedFolder: vi.fn().mockReturnValue(options.trusted ?? true),
+    isExplicitlyTrustedFolder: vi
+      .fn()
+      .mockReturnValue(options.explicitlyTrusted ?? options.trusted ?? true),
     getSystemHooks: vi.fn().mockReturnValue(options.systemHooks),
     getUserHooks: vi.fn().mockReturnValue(options.userHooks),
     getProjectHooks: vi.fn().mockReturnValue(options.projectHooks),

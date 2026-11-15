@@ -6,6 +6,8 @@ The Trusted Folders feature is a security setting that gives you control over wh
 
 The Trusted Folders feature is **disabled by default**. To use it, you must first enable it in your settings.
 
+Leaving the feature disabled does not authorize the commands a repository supplies itself: the hooks in a project skill's or subagent's frontmatter, a project skill's `allowedTools`, and the language servers in a workspace `.lsp.json`. Those need the feature enabled and the folder trusted, or workspace trust granted through your IDE. The instructions of project skills and subagents still load either way.
+
 Add the following to your user `settings.json` file:
 
 ```json

@@ -310,7 +310,7 @@ Code action kinds:
 
 ## Security
 
-LSP servers are only started in trusted workspaces by default. This is because language servers run with your user permissions and can execute code.
+LSP servers are only started in trusted workspaces by default. This is because language servers run with your user permissions and can execute code. Servers defined in a workspace's own `.lsp.json` go further and need explicit trust: enable `security.folderTrust.enabled` in user settings and trust the directory, or grant workspace trust through your IDE. Folder trust being disabled is not enough, and the file cannot lift this with `trustRequired: false`.
 
 ### Trust Controls
 

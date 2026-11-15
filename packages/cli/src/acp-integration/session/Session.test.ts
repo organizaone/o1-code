@@ -31084,6 +31084,146 @@ describe('Session', () => {
       expect(executeSpy).toHaveBeenCalled();
     });
 
+    it.each([
+      ['a matching permissions.ask rule', true],
+      ['no matching rule', false],
+    ])('AUTO_EDIT with %s: asks = %s', async (_label, askRuleMatches) => {
+      const cwd = '/repo';
+      const permissionManager = {
+        isToolEnabled: vi.fn().mockResolvedValue(true),
+        hasRelevantRules: vi.fn().mockReturnValue(true),
+        evaluate: vi.fn().mockResolvedValue('ask'),
+        hasMatchingAskRule: vi.fn().mockReturnValue(askRuleMatches),
+        findMatchingDenyRule: vi.fn(),
+      };
+      const executeSpy = vi.fn().mockResolvedValue({
+        llmContent: 'ok',
+        returnDisplay: 'ok',
+      });
+      const invocation = {
+        params: { file_path: '/repo/src/a.ts', content: 'x' },
+        getDefaultPermission: vi.fn().mockResolvedValue('ask'),
+        getConfirmationDetails: vi.fn().mockResolvedValue({
+          type: 'edit',
+          title: 'Confirm file write',
+          fileName: '/repo/src/a.ts',
+          fileDiff: 'diff',
+          onConfirm: vi.fn(),
+        }),
+        getDescription: vi.fn().mockReturnValue('Write file'),
+        toolLocations: vi.fn().mockReturnValue([]),
+        execute: executeSpy,
+      };
+      const tool = {
+        name: core.ToolNames.WRITE_FILE,
+        kind: core.Kind.Edit,
+        build: vi.fn().mockReturnValue(invocation),
+      };
+
+      mockToolRegistry.getTool.mockReturnValue(tool);
+      mockConfig.getApprovalMode = vi
+        .fn()
+        .mockReturnValue(ApprovalMode.AUTO_EDIT);
+      mockConfig.getTargetDir = vi.fn().mockReturnValue(cwd);
+      mockConfig.getCwd = vi.fn().mockReturnValue(cwd);
+      mockConfig.getPermissionManager = vi
+        .fn()
+        .mockReturnValue(permissionManager);
+      mockConfig.getDisableAllHooks = vi.fn().mockReturnValue(true);
+      mockConfig.getMessageBus = vi.fn().mockReturnValue(undefined);
+      mockChat.sendMessageStream = vi.fn().mockResolvedValue(
+        createStreamWithChunks([
+          {
+            type: core.StreamEventType.CHUNK,
+            value: {
+              functionCalls: [
+                {
+                  id: 'call-auto-edit-write',
+                  name: core.ToolNames.WRITE_FILE,
+                  args: { file_path: '/repo/src/a.ts', content: 'x' },
+                },
+              ],
+            },
+          },
+        ]),
+      );
+
+      await session.prompt({
+        sessionId: 'test-session-id',
+        prompt: [{ type: 'text', text: 'write the file' }],
+      });
+
+      expect(
+        vi.mocked(mockClient.requestPermission).mock.calls.length > 0,
+      ).toBe(askRuleMatches);
+    });
+
+    it.each([
+      ['cut off by the output limit', 'MAX_TOKENS', false],
+      ['complete', 'STOP', true],
+    ])(
+      'file write from a response %s: runs = %s',
+      async (_label, finishReason, runs) => {
+        const executeSpy = vi.fn().mockResolvedValue({
+          llmContent: 'ok',
+          returnDisplay: 'ok',
+        });
+        const invocation = {
+          params: { file_path: '/repo/src/a.ts', content: 'x' },
+          getDefaultPermission: vi.fn().mockResolvedValue('allow'),
+          getConfirmationDetails: vi.fn().mockResolvedValue(false),
+          getDescription: vi.fn().mockReturnValue('Write file'),
+          toolLocations: vi.fn().mockReturnValue([]),
+          execute: executeSpy,
+        };
+        const build = vi.fn().mockReturnValue(invocation);
+        mockToolRegistry.getTool.mockReturnValue({
+          name: core.ToolNames.WRITE_FILE,
+          kind: core.Kind.Edit,
+          build,
+        });
+        mockConfig.getApprovalMode = vi.fn().mockReturnValue(ApprovalMode.YOLO);
+        mockConfig.getDisableAllHooks = vi.fn().mockReturnValue(true);
+        mockConfig.getMessageBus = vi.fn().mockReturnValue(undefined);
+        mockChat.sendMessageStream = vi
+          .fn()
+          .mockResolvedValueOnce(
+            createStreamWithChunks([
+              {
+                type: core.StreamEventType.CHUNK,
+                value: {
+                  functionCalls: [
+                    {
+                      id: 'call-truncated-write',
+                      name: core.ToolNames.WRITE_FILE,
+                      args: { file_path: '/repo/src/a.ts', content: 'x' },
+                    },
+                  ],
+                },
+              },
+              {
+                type: core.StreamEventType.CHUNK,
+                value: { candidates: [{ finishReason }] },
+              },
+            ]),
+          )
+          .mockResolvedValue(createEmptyStream());
+
+        await session.prompt({
+          sessionId: 'test-session-id',
+          prompt: [{ type: 'text', text: 'write the file' }],
+        });
+
+        expect(executeSpy.mock.calls.length > 0).toBe(runs);
+        if (!runs) {
+          expect(build).not.toHaveBeenCalled();
+          expect(
+            JSON.stringify(vi.mocked(mockChat.sendMessageStream).mock.calls),
+          ).toContain('truncated due to max_tokens');
+        }
+      },
+    );
+
     it('routes ACP Bash(*) protected writes through AUTO review', async () => {
       const cwd = '/repo';
       const command = "echo '{}' > .o1-code/settings.json";

@@ -246,12 +246,28 @@ describe('LspConfigLoader config-driven behavior', () => {
     const loader = new LspConfigLoader(workspaceRoot);
 
     await expect(loader.loadUserConfigs()).resolves.toEqual([
-      expect.objectContaining({ trustRequired: true }),
+      expect.objectContaining({ trustRequired: true, source: 'workspace' }),
     ]);
     await expect(loader.loadUserConfigsStrict()).resolves.toEqual({
       ok: true,
       configs: [expect.objectContaining({ trustRequired: true })],
     });
+  });
+
+  it('does not let the workspace file name its own source', async () => {
+    writeLspConfig(
+      workspaceRoot,
+      JSON.stringify({
+        typescript: {
+          command: 'typescript-language-server',
+          source: 'extension',
+        },
+      }),
+    );
+
+    await expect(
+      new LspConfigLoader(workspaceRoot).loadUserConfigs(),
+    ).resolves.toEqual([expect.objectContaining({ source: 'workspace' })]);
   });
 });
 
