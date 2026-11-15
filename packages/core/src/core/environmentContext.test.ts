@@ -303,6 +303,25 @@ describe('getInitialChatHistory', () => {
     );
   });
 
+  it('adds the Git snapshot as its own reminder after the startup context', async () => {
+    const [history] = await getInitialChatHistory(mockConfig as Config, [], {
+      gitStatus: 'Current branch: main',
+    });
+
+    const parts = history[0]?.parts ?? [];
+    expect(parts).toHaveLength(2);
+    expect(parts[1]?.text).toContain(SYSTEM_REMINDER_OPEN);
+    expect(parts[1]?.text).toContain('Current branch: main');
+  });
+
+  it('leaves the prelude as it was when there is no Git snapshot', async () => {
+    const [history] = await getInitialChatHistory(mockConfig as Config, [], {
+      gitStatus: null,
+    });
+
+    expect(history[0]?.parts).toHaveLength(1);
+  });
+
   it('prepends the startup reminder before extra history', async () => {
     const extraHistory: Content[] = [
       { role: 'user', parts: [{ text: 'custom context' }] },

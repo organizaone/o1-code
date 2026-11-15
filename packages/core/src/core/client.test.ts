@@ -3973,46 +3973,53 @@ describe('Gemini Client (client.ts)', () => {
       ).not.toContain('Host Git snapshot');
     });
 
-    it('records the gitStatus-free base as the static system prefix on Config', () => {
+    it('keeps the Git snapshot out of the system instruction', () => {
       vi.mocked(getCoreSystemPrompt).mockReturnValueOnce('core base prompt');
-      vi.mocked(getRecentGitStatus).mockReturnValueOnce('Git snapshot A');
+      vi.mocked(getRecentGitStatus).mockReturnValue('Git snapshot A');
 
       const instruction = (
         client as unknown as { getMainSessionSystemInstruction: () => string }
       ).getMainSessionSystemInstruction();
 
-      // The recorded prefix must be exactly the instruction minus the
-      // volatile git tail — that's the boundary the Anthropic converter's
-      // startsWith split relies on for the early cache breakpoint.
+      // With no auto-memory, the instruction is exactly the recorded prefix:
+      // the boundary the Anthropic converter's startsWith split relies on.
       const recorded = vi
         .mocked(client['config'].setStaticSystemPrefix)
         .mock.calls.at(-1)?.[0];
       expect(recorded).toBeTruthy();
-      expect(instruction).toBe(`${recorded}\n\nGit snapshot A`);
+      expect(instruction).toBe(recorded);
+      expect(instruction).not.toContain('Git snapshot A');
     });
   });
 
   describe('resetChat', () => {
-    it('refreshes the live system instruction after the working directory changes', async () => {
+    const historyText = () => JSON.stringify(client.getChat().getHistory());
+    // `getInitialChatHistory` is mocked in this file, so the prelude is
+    // checked through the snapshot handed to it.
+    const lastPreludeGitStatus = () =>
+      vi.mocked(getInitialChatHistory).mock.calls.at(-1)?.[2]?.gitStatus;
+
+    it('announces the Git snapshot in the startup prelude and again after /cd', async () => {
       vi.mocked(getRecentGitStatus)
         .mockReturnValueOnce('Git snapshot A')
         .mockReturnValueOnce('Git snapshot B');
       vi.mocked(getRecentGitStatus).mockClear();
 
       await client.startChat();
-      expect(client.getChat()['generationConfig'].systemInstruction).toContain(
-        'Git snapshot A',
-      );
+      expect(lastPreludeGitStatus()).toBe('Git snapshot A');
+      expect(
+        client.getChat()['generationConfig'].systemInstruction,
+      ).not.toContain('Git snapshot A');
 
       await client.addWorkingDirectoryChangedContext(
         '/test/project/root',
         '/test/other/root',
       );
 
-      const systemInstruction = client.getChat()['generationConfig']
-        .systemInstruction as string;
-      expect(systemInstruction).not.toContain('Git snapshot A');
-      expect(systemInstruction).toContain('Git snapshot B');
+      expect(historyText()).toContain('Git snapshot B');
+      expect(
+        client.getChat()['generationConfig'].systemInstruction,
+      ).not.toContain('Git snapshot B');
       expect(getRecentGitStatus).toHaveBeenCalledTimes(2);
     });
 
@@ -4022,30 +4029,15 @@ describe('Gemini Client (client.ts)', () => {
         .mockReturnValueOnce('Git snapshot B');
       vi.mocked(getRecentGitStatus).mockClear();
 
-      const instructionBeforeReset = (
-        client as unknown as {
-          getMainSessionSystemInstruction: () => string;
-        }
-      ).getMainSessionSystemInstruction();
-      const instructionBeforeSecondCall = (
-        client as unknown as {
-          getMainSessionSystemInstruction: () => string;
-        }
-      ).getMainSessionSystemInstruction();
+      await client.startChat();
+      await client.refreshStartupContextReminder();
 
-      expect(instructionBeforeReset).toContain('Git snapshot A');
-      expect(instructionBeforeSecondCall).toContain('Git snapshot A');
+      expect(lastPreludeGitStatus()).toBe('Git snapshot A');
       expect(getRecentGitStatus).toHaveBeenCalledTimes(1);
 
       await client.resetChat();
 
-      const instructionAfterReset = (
-        client as unknown as {
-          getMainSessionSystemInstruction: () => string;
-        }
-      ).getMainSessionSystemInstruction();
-
-      expect(instructionAfterReset).toContain('Git snapshot B');
+      expect(lastPreludeGitStatus()).toBe('Git snapshot B');
       expect(getRecentGitStatus).toHaveBeenCalledTimes(2);
     });
 
@@ -15836,12 +15828,13 @@ Other open files:
       );
     });
 
-    it('caches git status across repeated system instruction generation', async () => {
+    it('sends the same system instruction whatever the Git snapshot is', async () => {
       const contents = [{ role: 'user', parts: [{ text: 'hello' }] }];
       const abortSignal = new AbortController().signal;
 
-      vi.mocked(getRecentGitStatus).mockReturnValue('Git snapshot cached');
-      vi.mocked(getRecentGitStatus).mockClear();
+      vi.mocked(getRecentGitStatus)
+        .mockReturnValueOnce('Git snapshot one')
+        .mockReturnValue('Git snapshot two');
       vi.mocked(getCoreSystemPrompt).mockReturnValue('Core prompt');
 
       await client.generateContent(
@@ -15857,12 +15850,11 @@ Other open files:
         DEFAULT_O1CODE_FLASH_MODEL,
       );
 
-      expect(getRecentGitStatus).toHaveBeenCalledTimes(1);
       expect(mockContentGenerator.generateContent).toHaveBeenNthCalledWith(
         1,
         expect.objectContaining({
           config: expect.objectContaining({
-            systemInstruction: 'Core prompt\n\nGit snapshot cached',
+            systemInstruction: 'Core prompt',
           }),
         }),
         'test-session-id',
@@ -15871,7 +15863,7 @@ Other open files:
         2,
         expect.objectContaining({
           config: expect.objectContaining({
-            systemInstruction: 'Core prompt\n\nGit snapshot cached',
+            systemInstruction: 'Core prompt',
           }),
         }),
         'test-session-id',
