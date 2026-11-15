@@ -217,6 +217,26 @@ export function classifyRetryError(
           ...common,
         };
       }
+      // A 4xx that arrived with no body at all ("400 status code (no body)")
+      // carries nothing to act on, and the same request succeeds when sent
+      // again. The SDK stamps a request id on these, which makes the marker
+      // text itself the provider message; a real provider code or type still
+      // fails fast. `transportCode` stays unset, as above.
+      if (
+        providerCode === undefined &&
+        providerFields.providerType === undefined &&
+        details.providerType === undefined &&
+        (providerMessage === undefined ||
+          EMPTY_BODY_MESSAGE_RE.test(providerMessage)) &&
+        isEmptyBodyError(error)
+      ) {
+        return {
+          kind,
+          diagnosis: 'retryable',
+          reason: 'empty-body-4xx',
+          ...common,
+        };
+      }
       return {
         kind,
         diagnosis: 'fail-fast',
@@ -373,6 +393,21 @@ export function hasNetworkFailureCause(error: unknown): boolean {
       typeof message === 'string' &&
       NETWORK_FAILURE_MESSAGE_RE.test(message)
     ) {
+      return true;
+    }
+    current = current instanceof Error ? current.cause : undefined;
+  }
+  return false;
+}
+
+const EMPTY_BODY_MESSAGE_RE = /status code \(no body\)/i;
+
+export function isEmptyBodyError(error: unknown): boolean {
+  let current: unknown = error;
+  for (let depth = 0; depth <= MAX_TRANSPORT_CAUSE_DEPTH; depth++) {
+    if (typeof current !== 'object' || current === null) return false;
+    const message = (current as { message?: unknown }).message;
+    if (typeof message === 'string' && EMPTY_BODY_MESSAGE_RE.test(message)) {
       return true;
     }
     current = current instanceof Error ? current.cause : undefined;
