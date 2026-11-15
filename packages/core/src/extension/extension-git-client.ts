@@ -136,6 +136,7 @@ export function createExtensionGitClient(
           allowEnvironment: [
             'GIT_CONFIG_NOSYSTEM',
             'GIT_CONFIG_GLOBAL',
+            'GIT_TERMINAL_PROMPT',
             ...(authentication
               ? ['GIT_CONFIG_COUNT', 'GIT_CONFIG_KEY_0', 'GIT_CONFIG_VALUE_0']
               : []),
@@ -152,6 +153,9 @@ export function createExtensionGitClient(
     // os.devNull's win32 value ('\\\\.\\nul') is rejected as
     // "fatal: unable to access '\\.\nul': Invalid argument".
     GIT_CONFIG_GLOBAL: '/dev/null',
+    // The global config is gone, and the credential helper with it: a source
+    // that needs credentials must fail, not wait on a prompt nobody sees.
+    GIT_TERMINAL_PROMPT: '0',
   };
   for (const key of [
     'PATH',

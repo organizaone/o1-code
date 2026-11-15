@@ -488,6 +488,127 @@ function trimBashEdgeSeparators(command: string): string {
   return command.slice(start, end);
 }
 
+const ANSI_C_SIMPLE_ESCAPES: Readonly<Record<string, number>> = {
+  a: 0x07,
+  b: 0x08,
+  e: 0x1b,
+  E: 0x1b,
+  f: 0x0c,
+  n: 0x0a,
+  r: 0x0d,
+  t: 0x09,
+  v: 0x0b,
+  '\\': 0x5c,
+  "'": 0x27,
+  '"': 0x22,
+  '?': 0x3f,
+};
+
+/**
+ * Decode the body of a bash ANSI-C quote (`$'…'`, without the delimiters) into
+ * the word the shell builds. Byte escapes are collected before the UTF-8
+ * conversion, so `\xc3\xa9` is one character, and a NUL ends the word as it
+ * does in bash.
+ */
+export function decodeAnsiCString(body: string): string {
+  const bytes: number[] = [];
+  let literal = '';
+  const flushLiteral = () => {
+    if (literal) {
+      bytes.push(...Buffer.from(literal, 'utf8'));
+      literal = '';
+    }
+  };
+  const readDigits = (from: number, max: number, pattern: RegExp): string => {
+    let digits = '';
+    while (
+      digits.length < max &&
+      pattern.test(body[from + digits.length] ?? '')
+    ) {
+      digits += body[from + digits.length];
+    }
+    return digits;
+  };
+
+  for (let i = 0; i < body.length; i++) {
+    const ch = body[i]!;
+    if (ch !== '\\' || i + 1 >= body.length) {
+      literal += ch;
+      continue;
+    }
+    const next = body[i + 1]!;
+    let byte: number | undefined;
+    let codePoint: number | undefined;
+    let consumed = 1;
+
+    if (next in ANSI_C_SIMPLE_ESCAPES) {
+      byte = ANSI_C_SIMPLE_ESCAPES[next];
+    } else if (next === 'x') {
+      const digits = readDigits(i + 2, 2, /[0-9a-fA-F]/);
+      if (digits) {
+        byte = parseInt(digits, 16);
+        consumed += digits.length;
+      }
+    } else if (/[0-7]/.test(next)) {
+      const digits = readDigits(i + 1, 3, /[0-7]/);
+      byte = parseInt(digits, 8) & 0xff;
+      consumed = digits.length;
+    } else if (next === 'u' || next === 'U') {
+      const digits = readDigits(i + 2, next === 'u' ? 4 : 8, /[0-9a-fA-F]/);
+      if (digits) {
+        codePoint = parseInt(digits, 16);
+        consumed += digits.length;
+      }
+    } else if (next === 'c' && i + 2 < body.length) {
+      byte = body.charCodeAt(i + 2) & 0x1f;
+      consumed = 2;
+    }
+
+    if (byte === undefined && codePoint === undefined) {
+      // Not an escape bash knows: the backslash stays in the word.
+      literal += ch;
+      continue;
+    }
+    if (byte === 0 || codePoint === 0) {
+      break;
+    }
+    flushLiteral();
+    if (byte !== undefined) {
+      bytes.push(byte);
+    } else if (codePoint !== undefined && codePoint <= 0x10ffff) {
+      bytes.push(...Buffer.from(String.fromCodePoint(codePoint), 'utf8'));
+    }
+    i += consumed;
+  }
+  flushLiteral();
+  return Buffer.from(bytes).toString('utf8');
+}
+
+/** The word a single static shell token stands for, quotes removed. */
+function decodeStaticShellWord(token: string): string {
+  const trimmed = token.trim();
+  if (
+    trimmed.length >= 3 &&
+    trimmed.startsWith("$'") &&
+    trimmed.endsWith("'")
+  ) {
+    return decodeAnsiCString(trimmed.slice(2, -1));
+  }
+  return stripSymmetricQuotes(trimmed).value;
+}
+
+function isPosixShellWrapper(wrapperToken: string): boolean {
+  const base = getShellWrapperBase(wrapperToken);
+  return (
+    base === 'sh' ||
+    base === 'sh.exe' ||
+    base === 'bash' ||
+    base === 'bash.exe' ||
+    base === 'zsh' ||
+    base === 'zsh.exe'
+  );
+}
+
 export function stripShellWrapper(command: string): string {
   const trimmed = trimBashEdgeSeparators(command);
   let rest = trimmed;
@@ -514,8 +635,19 @@ export function stripShellWrapper(command: string): string {
     if (!token) return trimmed;
 
     if (isMonitorCommandMarker(wrapperToken.token, token.token)) {
-      const commandToken = takeLeadingToken(token.rest);
+      let commandToken = takeLeadingToken(token.rest);
       if (!commandToken) return trimmed;
+      const posix = isPosixShellWrapper(wrapperToken.token);
+      if (posix && decodeStaticShellWord(commandToken.token) === '--') {
+        // `sh -c -- 'script'` runs the script: the option terminator, however
+        // it is spelled (`'--'`, `$'--'`, `$'--\0x'`), is not the command. A
+        // lone terminator keeps its reading as the command word.
+        const afterTerminator = takeLeadingToken(commandToken.rest);
+        if (afterTerminator) commandToken = afterTerminator;
+      }
+      if (posix && commandToken.token.trim().startsWith("$'")) {
+        return decodeStaticShellWord(commandToken.token) || trimmed;
+      }
       const { value: innerCommand, quote } = stripSymmetricQuotes(
         commandToken.token,
       );

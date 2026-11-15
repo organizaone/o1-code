@@ -318,7 +318,11 @@ describe('git extension helpers', () => {
       }
 
       expect(simpleGit).toHaveBeenLastCalledWith('/dest', {
-        allowEnvironment: ['GIT_CONFIG_NOSYSTEM', 'GIT_CONFIG_GLOBAL'],
+        allowEnvironment: [
+          'GIT_CONFIG_NOSYSTEM',
+          'GIT_CONFIG_GLOBAL',
+          'GIT_TERMINAL_PROMPT',
+        ],
         config: [
           'http.curloptResolve=github.com:443:8.8.8.8',
           'http.followRedirects=false',
@@ -338,6 +342,7 @@ describe('git extension helpers', () => {
         expect.objectContaining({
           GIT_CONFIG_NOSYSTEM: '1',
           GIT_CONFIG_GLOBAL: expect.any(String),
+          GIT_TERMINAL_PROMPT: '0',
         }),
       );
       expect(mockGit.env.mock.calls[0]?.[0]).not.toHaveProperty(
@@ -383,7 +388,11 @@ describe('git extension helpers', () => {
       );
 
       expect(simpleGit).toHaveBeenLastCalledWith('/dest', {
-        allowEnvironment: ['GIT_CONFIG_NOSYSTEM', 'GIT_CONFIG_GLOBAL'],
+        allowEnvironment: [
+          'GIT_CONFIG_NOSYSTEM',
+          'GIT_CONFIG_GLOBAL',
+          'GIT_TERMINAL_PROMPT',
+        ],
         config: [
           'http.curloptResolve=github.com:443:8.8.8.8',
           'http.followRedirects=false',
@@ -1867,7 +1876,11 @@ describe('git extension helpers', () => {
 
       expect(result).toBe(ExtensionUpdateState.UP_TO_DATE);
       expect(simpleGit).toHaveBeenLastCalledWith('/ext', {
-        allowEnvironment: ['GIT_CONFIG_NOSYSTEM', 'GIT_CONFIG_GLOBAL'],
+        allowEnvironment: [
+          'GIT_CONFIG_NOSYSTEM',
+          'GIT_CONFIG_GLOBAL',
+          'GIT_TERMINAL_PROMPT',
+        ],
         config: [
           'http.curloptResolve=github.com:443:8.8.8.8',
           'http.followRedirects=false',

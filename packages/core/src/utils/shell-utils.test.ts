@@ -24,6 +24,7 @@ import {
   splitCommands,
   stripTrailingBackgroundAmp,
   stripShellWrapper,
+  decodeAnsiCString,
 } from './shell-utils.js';
 import type { Config } from '../config/config.js';
 import { ReadFileTool } from '../tools/read-file.js';
@@ -714,6 +715,32 @@ describe('getCommandRoots', () => {
 describe('stripShellWrapper', () => {
   it('should strip sh -c with quotes', async () => {
     expect(stripShellWrapper('sh -c "ls -l"')).toEqual('ls -l');
+  });
+
+  it.each([
+    ["sh -c -- 'pkill -f o1-code'", 'pkill -f o1-code'],
+    ["bash -c '--' 'pkill -f o1-code'", 'pkill -f o1-code'],
+    ["sh -c $'--' 'pkill -f o1-code'", 'pkill -f o1-code'],
+    ["sh -c $'--\\0x' 'pkill -f o1-code'", 'pkill -f o1-code'],
+    ["sh -c $'pkill\\x20-f o1-code'", 'pkill -f o1-code'],
+    // A lone terminator keeps its reading as the command word.
+    ['sh -c --', '--'],
+    // Not a POSIX shell: `--` is no option terminator there.
+    ['cmd.exe /c -- dir', '-- dir'],
+  ])('reads the script the shell runs: %s', (command, script) => {
+    expect(stripShellWrapper(command)).toEqual(script);
+  });
+
+  it.each([
+    ['a\\nb', 'a\nb'],
+    ['\\x41\\102\\u0043', 'ABC'],
+    ['\\xc3\\xa9', 'é'],
+    ['\\U0001F600', '😀'],
+    ['a\\0b', 'a'],
+    ['\\q', '\\q'],
+    ['\\cA', '\u0001'],
+  ])('decodes the ANSI-C body %s', (body, word) => {
+    expect(decodeAnsiCString(body)).toBe(word);
   });
 
   it('should strip bash -c with extra whitespace', async () => {

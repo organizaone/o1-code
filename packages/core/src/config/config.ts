@@ -116,6 +116,7 @@ import {
   type MemoryPressureConfig,
 } from '../services/memoryPressureMonitor.js';
 import { findGitRoot } from '../utils/gitUtils.js';
+import { EXPLICIT_TRUST_HINT } from '../utils/explicit-trust-hint.js';
 
 // Tools — only lightweight imports; tool classes are lazy-loaded via dynamic import
 import {
@@ -5498,6 +5499,11 @@ export class Config {
     const extra = memoryContextWarning
       ? [...ruleWarnings, memoryContextWarning]
       : ruleWarnings;
+    if (this.hasProjectHooksWithheldByTrust()) {
+      extra.push(
+        `Project hooks in the workspace settings were not loaded: this folder is not explicitly trusted. ${EXPLICIT_TRUST_HINT}`,
+      );
+    }
     return extra.length > 0 ? [...this.warnings, ...extra] : this.warnings;
   }
 
@@ -10104,17 +10110,43 @@ export class Config {
 
   /**
    * Get project-level hooks configuration.
-   * Returns hooks from workspace settings, only in trusted folders.
+   * Returns hooks from workspace settings, only in explicitly trusted folders.
    * Used by HookRegistry to load project-specific hooks with proper source attribution.
    */
   getProjectHooks(): { [K in HookEventName]?: HookDefinition[] } | undefined {
     if (this.getBareMode() || this.isSafeMode()) {
       return undefined;
     }
-    // Only return project hooks if workspace is trusted
-    if (!this.isTrustedFolder()) {
+    // The repository supplies these commands, so a disabled folder-trust
+    // feature must not authorize them, in any mode: a headless run in a fresh
+    // clone would otherwise execute them unasked.
+    if (!this.isExplicitlyTrustedFolder()) {
       return undefined;
     }
+    return this.readProjectHooks();
+  }
+
+  /**
+   * Whether the workspace configured hooks that are not loaded because the
+   * folder is not explicitly trusted. Feeds the startup warning, so hooks do
+   * not stop silently.
+   */
+  hasProjectHooksWithheldByTrust(): boolean {
+    if (
+      this.getBareMode() ||
+      this.isSafeMode() ||
+      this.getDisableAllHooks() ||
+      this.isExplicitlyTrustedFolder()
+    ) {
+      return false;
+    }
+    const hooks = this.readProjectHooks();
+    return hooks !== undefined && Object.keys(hooks).length > 0;
+  }
+
+  private readProjectHooks():
+    | { [K in HookEventName]?: HookDefinition[] }
+    | undefined {
     // The legacy merged `hooks` stands in only when no scope was supplied.
     const hooks =
       this.projectHooks ?? (this.hasScopedHooks() ? undefined : this.hooks);
