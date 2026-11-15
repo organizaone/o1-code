@@ -297,22 +297,22 @@ describe('subagent.ts', () => {
       expect(result).toBe('Use {0} and {1}, not ${0} or ${1}.');
     });
 
-    it('should still throw for missing valid identifier placeholders', () => {
+    it('leaves a placeholder with no value as written', () => {
       const context = new ContextState();
       context.set('name', 'Agent');
-      expect(() =>
-        templateString('Hello ${name}, missing ${missing}.', context),
-      ).toThrow('Missing context values for the following keys: missing');
+      expect(
+        templateString('Hello ${name}, run `echo ${HOME}`.', context),
+      ).toBe('Hello Agent, run `echo ${HOME}`.');
     });
 
     it('should handle mixed numeric and identifier placeholders', () => {
       const context = new ContextState();
       context.set('var', 'value');
       // ${var} and ${_private} are valid identifiers; ${0} is literal
-      // ${_private} is missing from context, so it should throw
-      expect(() =>
-        templateString('${var} and ${0} and ${_private}', context),
-      ).toThrow('Missing context values for the following keys: _private');
+      // ${_private} is missing from context, so it stays as written
+      expect(templateString('${var} and ${0} and ${_private}', context)).toBe(
+        'value and ${0} and ${_private}',
+      );
     });
 
     it('should handle ${0} alongside valid placeholders without error', () => {
@@ -1083,30 +1083,6 @@ describe('subagent.ts', () => {
         const generationConfig = getGenerationConfigFromMock();
         // No ${name} substitution and no non-interactive rules appended.
         expect(generationConfig.systemInstruction).toBe(rendered);
-      });
-
-      it('should throw an error if template variables are missing', async () => {
-        const { config } = await createMockConfig();
-        const promptConfig: PromptConfig = {
-          systemPrompt: 'Hello ${name}, you are missing ${missing}.',
-        };
-        const context = new ContextState();
-        context.set('name', 'Agent');
-        // 'missing' is not set
-
-        const scope = await AgentHeadless.create(
-          'test-agent',
-          config,
-          promptConfig,
-          defaultModelConfig,
-          defaultRunConfig,
-        );
-
-        // The error from templating causes the execute to reject and the terminate_reason to be ERROR.
-        await expect(scope.execute(context)).rejects.toThrow(
-          'Missing context values for the following keys: missing',
-        );
-        expect(scope.getTerminateMode()).toBe(AgentTerminateMode.ERROR);
       });
 
       it('should validate that systemPrompt and renderedSystemPrompt are mutually exclusive', async () => {

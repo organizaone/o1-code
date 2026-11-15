@@ -89,42 +89,24 @@ export class ContextState {
 /**
  * Replaces `${...}` placeholders in a template string with values from a context.
  *
- * This function identifies all placeholders in the format `${key}`, validates that
- * each key exists in the provided `ContextState`, and then performs the substitution.
+ * This function identifies all placeholders in the format `${key}` and
+ * substitutes the ones the `ContextState` knows. A placeholder with no value
+ * stays as written: the template is a whole system prompt, where `${name}`
+ * is as likely to be shell or template syntax the author is quoting.
  *
  * @param template The template string containing placeholders.
  * @param context The `ContextState` object providing placeholder values.
- * @returns The populated string with all placeholders replaced.
- * @throws {Error} if any placeholder key is not found in the context.
+ * @returns The populated string with the known placeholders replaced.
  */
 export function templateString(
   template: string,
   context: ContextState,
 ): string {
   const placeholderRegex = /\$\{([a-zA-Z_]\w*)\}/g;
-
-  // First, find all unique keys required by the template.
-  const requiredKeys = new Set(
-    Array.from(template.matchAll(placeholderRegex), (match) => match[1]),
-  );
-
-  // Check if all required keys exist in the context.
   const contextKeys = new Set(context.get_keys());
-  const missingKeys = Array.from(requiredKeys).filter(
-    (key) => !contextKeys.has(key),
-  );
 
-  if (missingKeys.length > 0) {
-    throw new Error(
-      `Missing context values for the following keys: ${missingKeys.join(
-        ', ',
-      )}`,
-    );
-  }
-
-  // Perform the replacement using a replacer function.
-  return template.replace(placeholderRegex, (_match, key) =>
-    String(context.get(key)),
+  return template.replace(placeholderRegex, (match, key: string) =>
+    contextKeys.has(key) ? String(context.get(key)) : match,
   );
 }
 
@@ -139,6 +121,7 @@ export function templateString(
 export class AgentHeadless implements SubagentExecutor {
   private readonly core: AgentCore;
   private finalText: string = '';
+  private lastError: string | undefined;
   private terminateMode: AgentTerminateMode = AgentTerminateMode.ERROR;
   // Which loop detector fired when terminateMode is LOOP_DETECTED.
   private loopType: string | null = null;
@@ -235,6 +218,7 @@ export class AgentHeadless implements SubagentExecutor {
 
     this.executing = true;
     this.finalText = '';
+    this.lastError = undefined;
     this.terminateMode = AgentTerminateMode.ERROR;
     // A re-executed instance (stop-hook continuation, resident turns) must
     // not carry the previous run's loop attribution into an ERROR/FINISH
@@ -404,6 +388,13 @@ export class AgentHeadless implements SubagentExecutor {
       } catch (error) {
         debugLogger.error('Error during subagent execution:', error);
         this.terminateMode = AgentTerminateMode.ERROR;
+        // Kept for the parent's tool result: one line, bounded.
+        this.lastError = (
+          error instanceof Error ? error.message : String(error)
+        )
+          .replace(/\s+/g, ' ')
+          .trim()
+          .slice(0, 500);
         this.core.eventEmitter?.emit(AgentEventType.ERROR, {
           subagentId: this.core.subagentId,
           error: error instanceof Error ? error.message : String(error),
@@ -498,6 +489,10 @@ export class AgentHeadless implements SubagentExecutor {
 
   getTerminateMode(): AgentTerminateMode {
     return this.terminateMode;
+  }
+
+  getLastError(): string | undefined {
+    return this.lastError;
   }
 
   /**

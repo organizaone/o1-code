@@ -9,6 +9,7 @@ import { promises as fs } from 'node:fs';
 import * as fsSync from 'node:fs';
 import path from 'node:path';
 import toml from '@iarna/toml';
+import { stripUtf8Bom } from '../config/execution-sandbox-settings.js';
 import { glob } from 'glob';
 import { z } from 'zod';
 import type { Config } from '@organizaone/o1-code-core';
@@ -277,7 +278,7 @@ export class FileCommandLoader implements ICommandLoader {
 
     let parsed: unknown;
     try {
-      parsed = toml.parse(fileContent);
+      parsed = toml.parse(stripUtf8Bom(fileContent));
     } catch (error: unknown) {
       debugLogger.error(
         `[FileCommandLoader] Failed to parse TOML file ${filePath}:`,

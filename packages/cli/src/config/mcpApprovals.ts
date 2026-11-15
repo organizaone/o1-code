@@ -16,6 +16,7 @@ import {
   type MCPServerConfig,
 } from '@organizaone/o1-code-core';
 import stripJsonComments from 'strip-json-comments';
+import { stripUtf8Bom } from './execution-sandbox-settings.js';
 import { writeStderrLine } from '../utils/stdioHelpers.js';
 
 export const MCP_APPROVALS_FILENAME = 'mcpApprovals.json';
@@ -225,7 +226,9 @@ export function loadMcpApprovals(): LoadedMcpApprovals {
   try {
     if (fs.existsSync(filePath)) {
       const content = fs.readFileSync(filePath, 'utf-8');
-      const parsed: unknown = JSON.parse(stripJsonComments(content));
+      const parsed: unknown = JSON.parse(
+        stripJsonComments(stripUtf8Bom(content)),
+      );
       if (
         typeof parsed !== 'object' ||
         parsed === null ||

@@ -36209,6 +36209,47 @@ describe('Session', () => {
       );
     });
 
+    it('tells the model that a cancelled shell command did not complete', async () => {
+      vi.spyOn(core, 'logToolCall').mockImplementation(() => {});
+      const abortController = new AbortController();
+      mockConfig.getDisableAllHooks = vi.fn().mockReturnValue(true);
+      mockConfig.getApprovalMode = vi.fn().mockReturnValue(ApprovalMode.YOLO);
+      const execute = vi.fn().mockImplementation(async () => {
+        abortController.abort();
+        return {
+          llmContent: 'Command was cancelled.\nline 1 of 3',
+          returnDisplay: {
+            type: 'shell_result',
+            version: 1,
+            text: 'line 1 of 3',
+            output: 'line 1 of 3',
+            directory: '/repo',
+            exitCode: null,
+            signal: null,
+            pid: null,
+            error: null,
+            outcome: 'cancelled',
+            notices: [],
+            truncated: false,
+            outputFiles: [],
+          },
+        };
+      });
+      mockToolRegistry.getTool.mockReturnValue(
+        mockAllowedTool('cancel_shell_tool', execute),
+      );
+
+      const result = await (
+        session as unknown as ToolCallInternals
+      ).runToolCalls(abortController.signal, 'prompt-shell-cancel', [
+        { id: 'shell_cancel_call', name: 'cancel_shell_tool', args: {} },
+      ]);
+
+      expect(result.parts[0].functionResponse?.response).toEqual({
+        error: `${core.TOOL_CANCELLED_BEFORE_COMPLETION_MESSAGE}\n\nCommand was cancelled.\nline 1 of 3`,
+      });
+    });
+
     it('records execution-stage cancellation on both axes', async () => {
       const logToolCallSpy = vi
         .spyOn(core, 'logToolCall')

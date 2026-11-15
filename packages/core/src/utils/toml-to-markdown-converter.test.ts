@@ -32,6 +32,12 @@ This is a test prompt
 `);
   });
 
+  it('converts TOML saved with a UTF-8 byte order mark', () => {
+    expect(convertTomlToMarkdown('\uFEFFprompt = "Simple prompt"')).toBe(
+      'Simple prompt\n',
+    );
+  });
+
   it('should convert TOML without description to Markdown', () => {
     const tomlContent = `prompt = "Simple prompt"`;
 

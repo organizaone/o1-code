@@ -8,6 +8,7 @@ import { createHash } from 'node:crypto';
 import * as fs from 'node:fs/promises';
 import { ideContextStore } from '@organizaone/o1-code-core';
 import stripJsonComments from 'strip-json-comments';
+import { stripUtf8Bom } from './execution-sandbox-settings.js';
 import {
   getSystemDefaultsPath,
   getSystemSettingsPath,
@@ -141,7 +142,7 @@ async function readJsonObjectOnce(
 
   try {
     const raw = await fs.readFile(filePath, 'utf8');
-    const parsed: unknown = JSON.parse(stripJsonComments(raw));
+    const parsed: unknown = JSON.parse(stripJsonComments(stripUtf8Bom(raw)));
     if (
       typeof parsed !== 'object' ||
       parsed === null ||

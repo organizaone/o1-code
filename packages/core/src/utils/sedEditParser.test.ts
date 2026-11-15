@@ -18,6 +18,36 @@ describe('sedEditParser', () => {
     });
   });
 
+  it('lets `.` match the carriage return of a CRLF line, as sed does', () => {
+    const info = parseSedEditCommand("sed -i 's/=.*$/=new/' file.txt");
+
+    expect(info).not.toBeNull();
+    expect(applySedSubstitution('a=1\r\nb=2\r\n', info!)).toBe(
+      'a=new\nb=new\n',
+    );
+  });
+
+  it('treats a character outside the BMP as one character', () => {
+    const info = parseSedEditCommand("sed -i 's/^.//' file.txt");
+
+    expect(info).not.toBeNull();
+    expect(applySedSubstitution('😀 title\n', info!)).toBe(' title\n');
+  });
+
+  it.each(["sed -i 's/[ \\t]*$//' file.txt", "sed -i 's/[^\\n]x/y/' file.txt"])(
+    'declines a bracket expression holding a character escape: %s',
+    (command) => {
+      expect(parseSedEditCommand(command)).toBeNull();
+    },
+  );
+
+  it('reads a backslash inside an extended bracket expression as a member', () => {
+    const info = parseSedEditCommand("sed -i -E 's/[\\.]/x/g' file.txt");
+
+    expect(info).not.toBeNull();
+    expect(applySedSubstitution('a.b\\c-d\n', info!)).toBe('axbxc-d\n');
+  });
+
   it('parses long in-place flag without consuming the expression', () => {
     expect(parseSedEditCommand("sed --in-place 's/foo/bar/' file.txt")).toEqual(
       {

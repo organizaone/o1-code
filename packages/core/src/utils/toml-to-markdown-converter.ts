@@ -25,7 +25,7 @@ export interface TomlCommandFormat {
 export function convertTomlToMarkdown(tomlContent: string): string {
   let parsed: unknown;
   try {
-    parsed = toml.parse(tomlContent);
+    parsed = toml.parse(tomlContent.replace(/^\uFEFF/, ''));
   } catch (error) {
     throw new Error(
       `Failed to parse TOML: ${error instanceof Error ? error.message : String(error)}`,
@@ -72,7 +72,7 @@ ${prompt}
  */
 export function isTomlFormat(content: string): boolean {
   try {
-    toml.parse(content);
+    toml.parse(content.replace(/^\uFEFF/, ''));
     return true;
   } catch {
     return false;
