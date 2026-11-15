@@ -175,17 +175,52 @@ function hasShellVariableReference(value: string): boolean {
   );
 }
 
+/**
+ * `s` so `.` matches the `\r` of a CRLF line as it does in sed (lines are
+ * split on `\n`, which a line never holds); `u` so `.` and a bracket
+ * expression match a whole character outside the BMP, not half of one. A
+ * pattern `u` rejects fails to compile, and the command runs as the real sed.
+ */
+const SED_REGEX_FLAGS = 'su';
+
+/**
+ * Inside a bracket expression GNU sed reads `\t`, `\n` and their kin as the
+ * character they name, while POSIX reads a backslash and a letter. The
+ * simulation cannot know which sed will run, so it declines.
+ */
+function hasBracketCharacterEscape(pattern: string): boolean {
+  let inClass = false;
+  for (let i = 0; i < pattern.length; i++) {
+    const char = pattern[i]!;
+    if (inClass) {
+      if (char === ']') {
+        inClass = false;
+      } else if (char === '\\' && /[ntrfvadoxc]/u.test(pattern[i + 1] ?? '')) {
+        return true;
+      }
+      continue;
+    }
+    if (char === '\\') {
+      i++;
+    } else if (char === '[') {
+      inClass = true;
+    }
+  }
+  return false;
+}
+
 function canCompileSedPattern(sedInfo: SedEditInfo): boolean {
   try {
     const jsPattern = toJavascriptPattern(sedInfo);
     if (
       hasPosixBracketExpression(jsPattern) ||
       hasLeadingBracketLiteral(jsPattern) ||
-      hasSedJavascriptDivergentEscape(jsPattern)
+      hasSedJavascriptDivergentEscape(jsPattern) ||
+      hasBracketCharacterEscape(unescapeSedDelimiter(sedInfo.pattern))
     ) {
       return false;
     }
-    new RegExp(jsPattern);
+    new RegExp(jsPattern, SED_REGEX_FLAGS);
     if (
       hasReplacementBackrefBeyondCaptures(
         sedInfo.replacement,
@@ -227,7 +262,7 @@ function hasLeadingBracketLiteral(pattern: string): boolean {
 }
 
 function hasSedJavascriptDivergentEscape(pattern: string): boolean {
-  return /\\[<>dDwWsS]/u.test(pattern);
+  return /\\[<>dDwWsSpPu]/u.test(pattern);
 }
 
 function hasReplacementBackrefBeyondCaptures(
@@ -481,7 +516,7 @@ export function applySedSubstitution(
   const replaceAll = sedInfo.flags.includes('g');
 
   try {
-    const globalRegex = new RegExp(jsPattern, 'g');
+    const globalRegex = new RegExp(jsPattern, SED_REGEX_FLAGS + 'g');
     const parts = content.split(/(\n)/);
     const processableParts = content.endsWith('\n')
       ? parts.slice(0, -1)
@@ -506,7 +541,26 @@ function toJavascriptPattern(sedInfo: SedEditInfo): string {
   const pattern = unescapeSedDelimiter(sedInfo.pattern);
 
   if (sedInfo.extendedRegex) {
-    return pattern;
+    // The syntax is JavaScript's except inside a bracket expression, where a
+    // backslash is an ordinary member in sed and an escape in JavaScript.
+    let extended = '';
+    let inClass = false;
+    for (let i = 0; i < pattern.length; i++) {
+      const char = pattern[i]!;
+      if (inClass) {
+        extended += char === '\\' ? '\\\\' : char;
+        if (char === ']') inClass = false;
+        continue;
+      }
+      if (char === '\\' && i + 1 < pattern.length) {
+        extended += char + pattern[i + 1]!;
+        i++;
+        continue;
+      }
+      if (char === '[') inClass = true;
+      extended += char;
+    }
+    return extended;
   }
 
   let jsPattern = '';

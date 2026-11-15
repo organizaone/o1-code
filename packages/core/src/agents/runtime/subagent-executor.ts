@@ -42,6 +42,8 @@ export interface SubagentExecutor {
 
   getFinalText(): string;
   getTerminateMode(): AgentTerminateMode;
+  /** The error that ended the last run, when one did. */
+  getLastError?(): string | undefined;
   getExecutionSummary(): AgentStatsSummary;
   getCore(): SubagentExecutorCore;
 

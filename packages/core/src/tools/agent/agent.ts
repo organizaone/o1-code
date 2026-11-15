@@ -115,7 +115,10 @@ import {
   appendStopHookBlockingCapWarning,
   formatStopHookBlockingCapWarning,
 } from '../../hooks/stopHookCap.js';
-import { toModelVisibleSubagentResult } from '../../agents/subagent-result.js';
+import {
+  subagentTerminalReason,
+  toModelVisibleSubagentResult,
+} from '../../agents/subagent-result.js';
 import {
   ApprovalMode,
   deriveConfig,
@@ -4627,8 +4630,15 @@ class AgentToolInvocation extends BaseToolInvocation<AgentParams, ToolResult> {
           (await cleanupAfterExecution()) +
           (subagentConfig.executor !== undefined ? EXTERNAL_USAGE_NOTICE : '');
         if (terminateMode === AgentTerminateMode.ERROR) {
+          const reason = subagentTerminalReason(
+            terminateMode,
+            subagent.getLastError?.(),
+          );
           return {
-            llmContent: (finalText || 'Subagent execution failed.') + wtSuffix,
+            llmContent:
+              (finalText
+                ? `${reason} Partial result follows:\n\n${finalText}`
+                : reason) + wtSuffix,
             returnDisplay: this.currentDisplay!,
           };
         }
@@ -4647,6 +4657,20 @@ class AgentToolInvocation extends BaseToolInvocation<AgentParams, ToolResult> {
             llmContent: [
               {
                 text: `Agent was cancelled by the user. Partial result follows:\n\n${partial}${wtSuffix}`,
+              },
+            ],
+            returnDisplay: this.currentDisplay!,
+          };
+        }
+        if (terminateMode !== AgentTerminateMode.GOAL) {
+          // A run cut short by a limit returned the same shape as a finished
+          // one, so the parent took a partial answer for the whole answer.
+          const reason = subagentTerminalReason(terminateMode);
+          const partial = finalText || '(no partial result captured)';
+          return {
+            llmContent: [
+              {
+                text: `${reason} Partial result follows:\n\n${partial}${wtSuffix}`,
               },
             ],
             returnDisplay: this.currentDisplay!,

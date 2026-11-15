@@ -17,6 +17,7 @@ import {
 } from '@organizaone/o1-code-core';
 import type { Settings } from './settings.js';
 import stripJsonComments from 'strip-json-comments';
+import { stripUtf8Bom } from './execution-sandbox-settings.js';
 import { parseJsoncObject, updateJsoncContent } from '../utils/jsonc-editor.js';
 import {
   arePathsEquivalent,
@@ -159,7 +160,9 @@ export function loadTrustedFolders(): LoadedTrustedFolders {
   try {
     if (fs.existsSync(userPath)) {
       const content = fs.readFileSync(userPath, 'utf-8');
-      const parsed: unknown = JSON.parse(stripJsonComments(content));
+      const parsed: unknown = JSON.parse(
+        stripJsonComments(stripUtf8Bom(content)),
+      );
 
       if (
         typeof parsed !== 'object' ||

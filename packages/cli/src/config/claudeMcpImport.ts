@@ -12,6 +12,7 @@ import {
   normalizeClaudeMcpServer,
 } from '@organizaone/o1-code-core';
 import stripJsonComments from 'strip-json-comments';
+import { stripUtf8Bom } from './execution-sandbox-settings.js';
 import { SettingScope, type LoadedSettings } from './settings.js';
 
 export type ClaudeMcpImportSource = 'all' | 'claude-code' | 'claude-desktop';
@@ -102,7 +103,7 @@ function readJsonObject(filePath: string): {
 
   let parsed: unknown;
   try {
-    parsed = JSON.parse(stripJsonComments(raw));
+    parsed = JSON.parse(stripJsonComments(stripUtf8Bom(raw)));
   } catch (error) {
     return {
       found: true,

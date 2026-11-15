@@ -4,7 +4,10 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { shellResultText } from '@organizaone/o1-code-core/shellResult';
+import {
+  isShellResultDisplay,
+  shellResultText,
+} from '@organizaone/o1-code-core/shellResult';
 import { evaluateMediaPolicyToolCall } from '@organizaone/o1-code-core/omni/policy/model-access.js';
 
 import { Buffer } from 'node:buffer';
@@ -104,6 +107,7 @@ import {
   DEFERRED_TOOL_CALL_CANCELLATION_PREFIX,
   resolveDeferredToolCall,
   TRUNCATION_EDIT_REJECTION,
+  TOOL_CANCELLED_BEFORE_COMPLETION_MESSAGE,
   CreateSubSessionTool,
   fireNotificationHook,
   firePermissionRequestHook,
@@ -14577,16 +14581,30 @@ export class Session implements SessionContext {
             }
           }
 
+          let cancelledMessage = TOOL_POST_EXECUTION_CANCELLED_MESSAGE;
           if (
             activeToolAbortSignal.aborted &&
             !(isExecutionTimeout && parentAbortedAtExecutionSettle)
           ) {
             status = 'cancelled';
+            // A shell command killed mid-flight did not complete: saying it
+            // had makes the model skip work that never happened. Its partial
+            // output goes along, as in the terminal scheduler.
+            const interruptedShell =
+              isShellResultDisplay(toolResult.returnDisplay) &&
+              toolResult.returnDisplay.outcome === 'cancelled';
+            cancelledMessage = interruptedShell
+              ? TOOL_CANCELLED_BEFORE_COMPLETION_MESSAGE
+              : TOOL_POST_EXECUTION_CANCELLED_MESSAGE;
             responseParts = convertToFunctionErrorResponse(
               modelFacingToolName,
               callId,
-              TOOL_POST_EXECUTION_CANCELLED_MESSAGE,
-              TOOL_POST_EXECUTION_CANCELLED_MESSAGE,
+              interruptedShell &&
+                typeof toolResult.llmContent === 'string' &&
+                toolResult.llmContent
+                ? `${cancelledMessage}\n\n${toolResult.llmContent}`
+                : cancelledMessage,
+              cancelledMessage,
             );
           }
           terminalStatus = status;
@@ -14595,7 +14613,7 @@ export class Session implements SessionContext {
             status === 'error' && toolResult.error
               ? new Error(toolResult.error.message)
               : status === 'cancelled'
-                ? new Error(TOOL_POST_EXECUTION_CANCELLED_MESSAGE)
+                ? new Error(cancelledMessage)
                 : undefined;
           if (isTrustedTodoWriteTool && status === 'cancelled') {
             this.todoStopGuard.suspend();

@@ -11,6 +11,7 @@ import {
   normalizeClaudeMcpServer,
 } from '@organizaone/o1-code-core';
 import stripJsonComments from 'strip-json-comments';
+import { stripUtf8Bom } from './execution-sandbox-settings.js';
 
 /** Project-scoped MCP config filename, read from the workspace root. */
 export const PROJECT_MCP_FILENAME = '.mcp.json';
@@ -53,7 +54,7 @@ export function loadProjectMcpServers(
 
   let parsed: unknown;
   try {
-    parsed = JSON.parse(stripJsonComments(raw));
+    parsed = JSON.parse(stripJsonComments(stripUtf8Bom(raw)));
   } catch (e) {
     return {
       servers: {},

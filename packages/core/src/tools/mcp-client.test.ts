@@ -1699,6 +1699,50 @@ lOTTGqPpwFUbw2EMOOpFYuIyzGMIpUNMBjE2gvJiqFQ=
       expect(promptRegistry.registerPrompt).not.toHaveBeenCalled();
     });
 
+    it('keeps the uniquely named tools of a server that lists a name twice', async () => {
+      const listToolsMock = vi
+        .fn()
+        .mockResolvedValueOnce({
+          tools: [{ name: 'alpha' }, { name: 'dup' }],
+          nextCursor: 'page-2',
+        })
+        // The cursor repeats: the walk must end rather than loop.
+        .mockResolvedValue({
+          tools: [{ name: 'dup' }, { name: 'beta' }],
+          nextCursor: 'page-2',
+        });
+      const mockedClient = {
+        listTools: listToolsMock,
+      } as unknown as ClientLib.Client;
+      // Stands in for the real adapter, which builds its declarations from
+      // the list it is handed and throws on a repeated name.
+      vi.mocked(GenAiLib.mcpToTool).mockImplementation(((adapter: {
+        listTools: () => Promise<{ tools: Array<{ name: string }> }>;
+      }) => ({
+        tool: async () => {
+          const { tools } = await adapter.listTools();
+          const names = tools.map(({ name }) => name);
+          if (new Set(names).size !== names.length) {
+            throw new Error('Duplicate function name');
+          }
+          return { functionDeclarations: names.map((name) => ({ name })) };
+        },
+      })) as unknown as typeof GenAiLib.mcpToTool);
+
+      const tools = await discoverTools(
+        'dup-server',
+        { command: 'test-command' },
+        mockedClient,
+        cfgWithResources(),
+      );
+
+      expect(tools.map((tool) => tool.serverToolName)).toEqual([
+        'alpha',
+        'beta',
+      ]);
+      expect(listToolsMock).toHaveBeenCalledTimes(2);
+    });
+
     it('marks discovered tools alwaysLoad when the MCP server config requests it', async () => {
       const mockedClient = {
         listTools: vi.fn().mockResolvedValue({ tools: [] }),

@@ -1585,6 +1585,9 @@ type ToolDiscoveryResult = {
   hadVisibilityFilteredTools: boolean;
 };
 
+/** A server whose cursors never end must not hold discovery forever. */
+const MCP_MAX_TOOL_LIST_PAGES = 100;
+
 async function discoverToolsWithMetadata(
   mcpServerName: string,
   mcpServerConfig: MCPServerConfig,
@@ -1594,25 +1597,59 @@ async function discoverToolsWithMetadata(
 ): Promise<ToolDiscoveryResult> {
   try {
     const { mcpToTool } = await import('@google/genai');
-    const listedTools: Array<
-      Awaited<ReturnType<Client['listTools']>>['tools'][number]
-    > = [];
+    type ListedTool = Awaited<ReturnType<Client['listTools']>>['tools'][number];
+    const listedTools: ListedTool[] = [];
     let didListTools = false;
-    const listTools = async (params?: { cursor?: string }) => {
+    let hadDuplicateToolNames = false;
+    const listToolsPage = async (params?: { cursor?: string }) =>
       // Clients without getProtocolEra (tests and the genai adapter) keep
       // the typed helper. Modern sessions use it only when `tools` is
       // declared; otherwise the v2 helper returns [] without a wire request.
-      const result =
-        typeof mcpClient.getProtocolEra !== 'function' ||
-        canUseModernTypedHelper(mcpClient, 'tools')
-          ? await mcpClient.listTools(params)
-          : await mcpClient.request(
-              { method: 'tools/list', params: params ?? {} },
-              ListToolsResultSchema,
-            );
+      typeof mcpClient.getProtocolEra !== 'function' ||
+      canUseModernTypedHelper(mcpClient, 'tools')
+        ? await mcpClient.listTools(params)
+        : await mcpClient.request(
+            { method: 'tools/list', params: params ?? {} },
+            ListToolsResultSchema,
+          );
+    const listTools = async (params?: { cursor?: string }) => {
+      // Every page is read here and handed over as one: the adapter throws on
+      // a repeated function name, which would cost the server all its tools.
+      // A name listed twice is ambiguous, so neither copy is offered.
+      const allTools: ListedTool[] = [];
+      const seenCursors = new Set<string>();
+      let cursor = params?.cursor;
+      let result = await listToolsPage(cursor ? { cursor } : undefined);
+      allTools.push(...result.tools);
+      while (
+        result.nextCursor &&
+        !seenCursors.has(result.nextCursor) &&
+        seenCursors.size < MCP_MAX_TOOL_LIST_PAGES
+      ) {
+        cursor = result.nextCursor;
+        seenCursors.add(cursor);
+        result = await listToolsPage({ cursor });
+        allTools.push(...result.tools);
+      }
+      const nameCounts = new Map<string, number>();
+      for (const listed of allTools) {
+        nameCounts.set(listed.name, (nameCounts.get(listed.name) ?? 0) + 1);
+      }
+      const duplicated = [...nameCounts]
+        .filter(([, count]) => count > 1)
+        .map(([name]) => name);
+      if (duplicated.length > 0) {
+        hadDuplicateToolNames = true;
+        debugLogger.warn(
+          `MCP server '${mcpServerName}' lists these tool names more than once; they are not offered: ${duplicated.join(', ')}`,
+        );
+      }
       didListTools = true;
-      listedTools.push(...result.tools);
-      return result;
+      listedTools.length = 0;
+      listedTools.push(
+        ...allTools.filter((listed) => nameCounts.get(listed.name) === 1),
+      );
+      return { ...result, tools: [...listedTools], nextCursor: undefined };
     };
     // @google/genai still types this structural adapter against SDK v1. Its
     // discovery path only calls listTools(); execution stays on the v2 client.
@@ -1655,7 +1692,7 @@ async function discoverToolsWithMetadata(
     const mcpTimeout = mcpServerConfig.timeout ?? MCP_DEFAULT_TIMEOUT_MSEC;
     const applyConfigFilters = opts?.applyConfigFilters ?? true;
     const discoveredTools: DiscoveredMCPTool[] = [];
-    let hadVisibilityFilteredTools = false;
+    let hadVisibilityFilteredTools = hadDuplicateToolNames;
     for (const funcDecl of tool.functionDeclarations) {
       try {
         if (!funcDecl.name) {

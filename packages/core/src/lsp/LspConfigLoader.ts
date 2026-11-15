@@ -41,7 +41,7 @@ export class LspConfigLoader {
 
     try {
       const configContent = fs.readFileSync(lspConfigPath, 'utf-8');
-      const data = JSON.parse(configContent);
+      const data = JSON.parse(configContent.replace(/^\uFEFF/, ''));
       return this.parseConfigSource(data, lspConfigPath, {
         forceTrustRequired: true,
       });
@@ -55,7 +55,7 @@ export class LspConfigLoader {
     const lspConfigPath = path.join(this.workspaceRoot, '.lsp.json');
     try {
       const configContent = fs.readFileSync(lspConfigPath, 'utf-8');
-      const data = JSON.parse(configContent);
+      const data = JSON.parse(configContent.replace(/^\uFEFF/, ''));
       return this.parseUserConfigSourceStrict(data, lspConfigPath);
     } catch (error) {
       if ((error as NodeJS.ErrnoException).code === 'ENOENT') {
@@ -97,7 +97,9 @@ export class LspConfigLoader {
 
         try {
           const configContent = fs.readFileSync(configPath, 'utf-8');
-          const data = JSON.parse(configContent) as JsonValue;
+          const data = JSON.parse(
+            configContent.replace(/^\uFEFF/, ''),
+          ) as JsonValue;
           const hydrated = this.hydrateExtensionLspConfig(data, extension.path);
           configs.push(
             ...this.parseConfigSource(

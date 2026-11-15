@@ -3216,7 +3216,31 @@ describe('AgentTool', () => {
       ).createInvocation(params);
       const result = await invocation.execute();
 
-      expect(partToString(result.llmContent)).toBe(raw);
+      expect(partToString(result.llmContent)).toBe(
+        `Subagent did not complete (terminate mode: ERROR). Partial result follows:\n\n${raw}`,
+      );
+    });
+
+    it.each([
+      [AgentTerminateMode.MAX_TURNS, 'It reached its turn limit.'],
+      [AgentTerminateMode.TIMEOUT, 'It ran out of its time limit.'],
+    ])('tells the parent that a subagent stopped at %s', async (mode, hint) => {
+      vi.mocked(mockAgent.getFinalText).mockReturnValue('half an answer');
+      vi.mocked(mockAgent.getTerminateMode).mockReturnValue(mode);
+
+      const invocation = (
+        agentTool as AgentToolWithProtectedMethods
+      ).createInvocation({
+        description: 'Search files',
+        prompt: 'Find all TypeScript files',
+        subagent_type: 'file-search',
+        run_in_background: false,
+      });
+      const result = await invocation.execute();
+
+      expect(partToString(result.llmContent)).toBe(
+        `Subagent did not complete (terminate mode: ${mode}). ${hint} Partial result follows:\n\nhalf an answer`,
+      );
     });
 
     it('explains successful subagents with no model-visible output', async () => {

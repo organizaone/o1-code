@@ -64,6 +64,17 @@ describe('loadProjectMcpServers', () => {
     });
   });
 
+  it('loads a file saved with a UTF-8 byte order mark', () => {
+    write(
+      '\uFEFF' + JSON.stringify({ mcpServers: { slack: { command: 'node' } } }),
+    );
+
+    const { servers, errors } = loadProjectMcpServers(dir);
+
+    expect(errors).toEqual([]);
+    expect(servers['slack']).toMatchObject({ command: 'node' });
+  });
+
   it('normalizes Claude-style type-based transports (.mcp.json is a Claude convention)', () => {
     write(
       JSON.stringify({

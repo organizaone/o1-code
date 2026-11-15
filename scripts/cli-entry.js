@@ -336,7 +336,19 @@ if (isInProcessFastPath()) {
     { stdio: 'inherit', env },
   );
 
-  if (result.signal) {
+  // A spawn that never started has no status and no signal: without this the
+  // entry exited 1 and said nothing.
+  const exitOnSpawnError = (command, error) => {
+    const detail = [error.code, error.syscall].filter(Boolean).join(' ');
+    process.stderr.write(
+      `Failed to start ${command}: ${error.message}${detail ? ` (${detail})` : ''}\n`,
+    );
+    process.exit(126);
+  };
+
+  if (result.error) {
+    exitOnSpawnError(process.execPath, result.error);
+  } else if (result.signal) {
     process.kill(process.pid, result.signal);
   } else if (result.status !== UPDATE_COMPLETE_EXIT_CODE) {
     process.exit(result.status ?? 1);
@@ -387,7 +399,12 @@ if (isInProcessFastPath()) {
               env: relaunchEnv,
             },
           );
-      if (relaunchResult.signal) {
+      if (relaunchResult.error) {
+        process.stderr.write(
+          'Update successful! The new version will be used on your next run.\n',
+        );
+        exitOnSpawnError(launcher ?? process.execPath, relaunchResult.error);
+      } else if (relaunchResult.signal) {
         process.kill(process.pid, relaunchResult.signal);
       } else {
         process.exit(relaunchResult.status ?? 1);

@@ -114,6 +114,35 @@ describe('scripts/cli-entry.js production entry', () => {
     }
   });
 
+  it('reports a child that could not be started and exits 126', async () => {
+    const spawnImpl = spawnSyncMock.getMockImplementation();
+    spawnSyncMock.mockImplementation(() => ({
+      status: null,
+      signal: null,
+      error: Object.assign(new Error('spawn node ENOMEM'), {
+        code: 'ENOMEM',
+        syscall: 'spawn',
+      }),
+    }));
+    const stderrSpy = vi
+      .spyOn(process.stderr, 'write')
+      .mockImplementation(() => true);
+    try {
+      await import('../cli-entry.js?reports-spawn-failure');
+      expect(
+        stderrSpy.mock.calls.some(([text]) =>
+          /^Failed to start .*: spawn node ENOMEM \(ENOMEM spawn\)\n$/.test(
+            String(text),
+          ),
+        ),
+      ).toBe(true);
+      expect(exitSpy).toHaveBeenCalledWith(126);
+    } finally {
+      stderrSpy.mockRestore();
+      spawnSyncMock.mockImplementation(spawnImpl);
+    }
+  });
+
   it('initializes the version for a fresh CLI process', async () => {
     const inherited = process.env.O1CODE_STARTUP_VERSION;
     delete process.env.O1CODE_STARTUP_VERSION;

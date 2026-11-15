@@ -141,6 +141,29 @@ function stripAnalysisOutsideSummary(text: string): string {
   }
 }
 
+const TERMINAL_REASON_HINTS: Partial<Record<AgentTerminateMode, string>> = {
+  [AgentTerminateMode.TIMEOUT]: 'It ran out of its time limit.',
+  [AgentTerminateMode.MAX_TURNS]: 'It reached its turn limit.',
+  [AgentTerminateMode.LOOP_DETECTED]: 'It was stopped for repeating itself.',
+  [AgentTerminateMode.SHUTDOWN]: 'Its session was shut down.',
+};
+
+/**
+ * One line telling the parent model that a subagent did not finish and why,
+ * so a partial answer is not taken for a complete one.
+ */
+export function subagentTerminalReason(
+  terminateMode: AgentTerminateMode,
+  lastError?: string,
+): string {
+  const detail = lastError
+    ? ` Error: ${lastError}`
+    : TERMINAL_REASON_HINTS[terminateMode]
+      ? ` ${TERMINAL_REASON_HINTS[terminateMode]}`
+      : '';
+  return `Subagent did not complete (terminate mode: ${terminateMode}).${detail}`;
+}
+
 /** Keeps successful subagent scratchpad tags out of the parent model context. */
 export function toModelVisibleSubagentResult(
   text: string,
