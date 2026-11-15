@@ -54,7 +54,7 @@ let tempWorkspace: string | undefined;
 let tempLaunchCwd: string | undefined;
 let tempO1CodeHome: string | undefined;
 let tempSymlink: string | undefined;
-const originalToken = process.env['O1CODE_SERVER_TOKEN'];
+const originalToken = process.env['FAST_PATH_TEST_KEY'];
 const originalO1CodeHome = process.env['O1CODE_HOME'];
 const originalHome = process.env['HOME'];
 const originalUserProfile = process.env['USERPROFILE'];
@@ -279,13 +279,24 @@ function pickServeFastPathComparable(
   return out;
 }
 
+const originalServerToken = process.env['O1CODE_SERVER_TOKEN'];
+
+function restoreServerToken(): void {
+  if (originalServerToken === undefined) {
+    delete process.env['O1CODE_SERVER_TOKEN'];
+  } else {
+    process.env['O1CODE_SERVER_TOKEN'] = originalServerToken;
+  }
+}
+
 afterEach(() => {
   vi.restoreAllMocks();
   process.chdir(originalCwd);
+  restoreServerToken();
   if (originalToken === undefined) {
-    delete process.env['O1CODE_SERVER_TOKEN'];
+    delete process.env['FAST_PATH_TEST_KEY'];
   } else {
-    process.env['O1CODE_SERVER_TOKEN'] = originalToken;
+    process.env['FAST_PATH_TEST_KEY'] = originalToken;
   }
   if (originalO1CodeHome === undefined) {
     delete process.env['O1CODE_HOME'];
@@ -1298,7 +1309,7 @@ describe('serve fast path environment bootstrap', () => {
   it.each([
     [
       'advanced.excludedEnvVars',
-      { advanced: { excludedEnvVars: 'O1CODE_SERVER_TOKEN' } },
+      { advanced: { excludedEnvVars: 'FAST_PATH_TEST_KEY' } },
     ],
     [
       'advanced.runtimeOutputDir',
@@ -1323,8 +1334,53 @@ describe('serve fast path environment bootstrap', () => {
     },
   );
 
-  it('loads O1CODE_SERVER_TOKEN from the workspace .env before the daemon starts', async () => {
+  // The bearer token is the operator's: a repository that could set it would
+  // know the token of the daemon started inside it.
+  it('never takes the daemon token from the workspace', async () => {
     delete process.env['O1CODE_SERVER_TOKEN'];
+    useTempO1CodeHome();
+    tempWorkspace = realpathSync(
+      mkdtempSync(join(os.tmpdir(), 'qws-fast-path-token-')),
+    );
+    mkdirSync(join(tempWorkspace, '.o1-code'));
+    writeFileSync(
+      join(tempWorkspace, '.env'),
+      'O1CODE_SERVER_TOKEN=from-workspace-env\n',
+    );
+    writeFileSync(
+      join(tempWorkspace, '.o1-code', '.env'),
+      'o1code_server_token=from-workspace-o1-code-env\n',
+    );
+    writeFileSync(
+      join(tempWorkspace, '.o1-code', 'settings.json'),
+      JSON.stringify({ env: { O1CODE_SERVER_TOKEN: 'from-settings-env' } }),
+    );
+    process.chdir(tempWorkspace);
+
+    await bootstrapServeFastPathEnvironment(tempWorkspace);
+
+    expect(process.env['O1CODE_SERVER_TOKEN']).toBeUndefined();
+    expect(process.env['o1code_server_token']).toBeUndefined();
+  });
+
+  it('still takes the daemon token from the home .env', async () => {
+    delete process.env['O1CODE_SERVER_TOKEN'];
+    const o1codeHome = useTempO1CodeHome();
+    tempWorkspace = realpathSync(
+      mkdtempSync(join(os.tmpdir(), 'qws-fast-path-home-token-')),
+    );
+    writeFileSync(
+      join(o1codeHome, '.env'),
+      'O1CODE_SERVER_TOKEN=from-home-env\n',
+    );
+
+    await bootstrapServeFastPathEnvironment(tempWorkspace);
+
+    expect(process.env['O1CODE_SERVER_TOKEN']).toBe('from-home-env');
+  });
+
+  it('loads FAST_PATH_TEST_KEY from the workspace .env before the daemon starts', async () => {
+    delete process.env['FAST_PATH_TEST_KEY'];
     useTempO1CodeHome();
     tempWorkspace = realpathSync(
       mkdtempSync(join(os.tmpdir(), 'qws-fast-path-env-')),
@@ -1332,13 +1388,13 @@ describe('serve fast path environment bootstrap', () => {
     mkdirSync(join(tempWorkspace, '.o1-code'));
     writeFileSync(
       join(tempWorkspace, '.o1-code', '.env'),
-      'O1CODE_SERVER_TOKEN=from-workspace-env\n',
+      'FAST_PATH_TEST_KEY=from-workspace-env\n',
     );
     process.chdir(tempWorkspace);
 
     await bootstrapServeFastPathEnvironment(tempWorkspace);
 
-    expect(process.env['O1CODE_SERVER_TOKEN']).toBe('from-workspace-env');
+    expect(process.env['FAST_PATH_TEST_KEY']).toBe('from-workspace-env');
   });
 
   it('preserves workspace .env compile cache over the pending default', async () => {
@@ -1362,7 +1418,7 @@ describe('serve fast path environment bootstrap', () => {
   });
 
   it('loads .env from --workspace even when launched from another directory', async () => {
-    delete process.env['O1CODE_SERVER_TOKEN'];
+    delete process.env['FAST_PATH_TEST_KEY'];
     useTempO1CodeHome();
     tempWorkspace = realpathSync(
       mkdtempSync(join(os.tmpdir(), 'qws-fast-path-workspace-env-')),
@@ -1373,19 +1429,19 @@ describe('serve fast path environment bootstrap', () => {
     mkdirSync(join(tempWorkspace, '.o1-code'));
     writeFileSync(
       join(tempWorkspace, '.o1-code', '.env'),
-      'O1CODE_SERVER_TOKEN=from-explicit-workspace-env\n',
+      'FAST_PATH_TEST_KEY=from-explicit-workspace-env\n',
     );
     process.chdir(tempLaunchCwd);
 
     await bootstrapServeFastPathEnvironment(tempWorkspace);
 
-    expect(process.env['O1CODE_SERVER_TOKEN']).toBe(
+    expect(process.env['FAST_PATH_TEST_KEY']).toBe(
       'from-explicit-workspace-env',
     );
   });
 
   it('loads home .env after workspace .env for daemon boot-time keys', async () => {
-    delete process.env['O1CODE_SERVER_TOKEN'];
+    delete process.env['FAST_PATH_TEST_KEY'];
     delete process.env['O1CODE_SERVE_RATE_LIMIT'];
     delete process.env['O1CODE_SERVE_RATE_LIMIT_PROMPT'];
     const o1codeHome = useTempO1CodeHome();
@@ -1398,7 +1454,7 @@ describe('serve fast path environment bootstrap', () => {
     );
     writeFileSync(
       join(o1codeHome, '.env'),
-      ['O1CODE_SERVER_TOKEN=from-home-env', 'O1CODE_SERVE_RATE_LIMIT=1'].join(
+      ['FAST_PATH_TEST_KEY=from-home-env', 'O1CODE_SERVE_RATE_LIMIT=1'].join(
         '\n',
       ),
     );
@@ -1406,33 +1462,33 @@ describe('serve fast path environment bootstrap', () => {
     await bootstrapServeFastPathEnvironment(tempWorkspace);
 
     expect(process.env['O1CODE_SERVE_RATE_LIMIT_PROMPT']).toBe('123');
-    expect(process.env['O1CODE_SERVER_TOKEN']).toBe('from-home-env');
+    expect(process.env['FAST_PATH_TEST_KEY']).toBe('from-home-env');
     expect(process.env['O1CODE_SERVE_RATE_LIMIT']).toBe('1');
   });
 
   it('applies legacy excludedProjectEnvVars before loading workspace .env', async () => {
-    delete process.env['O1CODE_SERVER_TOKEN'];
+    delete process.env['FAST_PATH_TEST_KEY'];
     const o1codeHome = useTempO1CodeHome();
     writeFileSync(
       join(o1codeHome, 'settings.json'),
-      JSON.stringify({ excludedProjectEnvVars: ['O1CODE_SERVER_TOKEN'] }),
+      JSON.stringify({ excludedProjectEnvVars: ['FAST_PATH_TEST_KEY'] }),
     );
     tempWorkspace = realpathSync(
       mkdtempSync(join(os.tmpdir(), 'qws-fast-path-legacy-env-')),
     );
     writeFileSync(
       join(tempWorkspace, '.env'),
-      'O1CODE_SERVER_TOKEN=from-workspace-env\n',
+      'FAST_PATH_TEST_KEY=from-workspace-env\n',
     );
     process.chdir(tempWorkspace);
 
     await bootstrapServeFastPathEnvironment(tempWorkspace);
 
-    expect(process.env['O1CODE_SERVER_TOKEN']).toBeUndefined();
+    expect(process.env['FAST_PATH_TEST_KEY']).toBeUndefined();
   });
 
-  it('loads O1CODE_SERVER_TOKEN from workspace settings.env without the full settings loader', async () => {
-    delete process.env['O1CODE_SERVER_TOKEN'];
+  it('loads FAST_PATH_TEST_KEY from workspace settings.env without the full settings loader', async () => {
+    delete process.env['FAST_PATH_TEST_KEY'];
     useTempO1CodeHome();
     tempWorkspace = realpathSync(
       mkdtempSync(join(os.tmpdir(), 'qws-fast-path-settings-env-')),
@@ -1441,14 +1497,14 @@ describe('serve fast path environment bootstrap', () => {
     writeFileSync(
       join(tempWorkspace, '.o1-code', 'settings.json'),
       JSON.stringify({
-        env: { O1CODE_SERVER_TOKEN: 'from-workspace-settings-env' },
+        env: { FAST_PATH_TEST_KEY: 'from-workspace-settings-env' },
       }),
     );
     process.chdir(tempWorkspace);
 
     await bootstrapServeFastPathEnvironment(tempWorkspace);
 
-    expect(process.env['O1CODE_SERVER_TOKEN']).toBe(
+    expect(process.env['FAST_PATH_TEST_KEY']).toBe(
       'from-workspace-settings-env',
     );
   });
@@ -1529,7 +1585,7 @@ describe('serve fast path environment bootstrap', () => {
       JSON.stringify({
         approvalMode: 'yolo',
         contextFileName: 'LEGACY.md',
-        excludedProjectEnvVars: ['O1CODE_SERVER_TOKEN'],
+        excludedProjectEnvVars: ['FAST_PATH_TEST_KEY'],
         fileFiltering: { customIgnoreFiles: ['.legacy-ignore'] },
         folderTrust: true,
         sandbox: false,
@@ -1539,7 +1595,7 @@ describe('serve fast path environment bootstrap', () => {
     const settings = loadServeFastPathSettings(tempWorkspace);
 
     expect(settings).toMatchObject({
-      advanced: { excludedEnvVars: ['O1CODE_SERVER_TOKEN'] },
+      advanced: { excludedEnvVars: ['FAST_PATH_TEST_KEY'] },
       context: {
         fileName: 'LEGACY.md',
         fileFiltering: { customIgnoreFiles: ['.legacy-ignore'] },
@@ -1755,7 +1811,7 @@ describe('serve fast path environment bootstrap', () => {
         $version: 5,
         approvalMode: 'yolo',
         contextFileName: 'LEGACY.md',
-        excludedProjectEnvVars: ['O1CODE_SERVER_TOKEN'],
+        excludedProjectEnvVars: ['FAST_PATH_TEST_KEY'],
         fileFiltering: { customIgnoreFiles: ['.legacy-ignore'] },
         folderTrust: true,
         sandbox: false,
@@ -1771,7 +1827,7 @@ describe('serve fast path environment bootstrap', () => {
   });
 
   it('uses trusted-folders path from home .env before loading workspace env', async () => {
-    delete process.env['O1CODE_SERVER_TOKEN'];
+    delete process.env['FAST_PATH_TEST_KEY'];
     delete process.env['O1CODE_RUNTIME_DIR'];
     delete process.env['O1CODE_TRUSTED_FOLDERS_PATH'];
     const o1codeHome = useTempO1CodeHome();
@@ -1793,7 +1849,7 @@ describe('serve fast path environment bootstrap', () => {
     );
     writeFileSync(
       join(tempWorkspace, '.env'),
-      'O1CODE_SERVER_TOKEN=from-untrusted-workspace-env\n',
+      'FAST_PATH_TEST_KEY=from-untrusted-workspace-env\n',
     );
 
     await bootstrapServeFastPathEnvironment(tempWorkspace);
@@ -1801,11 +1857,11 @@ describe('serve fast path environment bootstrap', () => {
     expect(process.env['O1CODE_TRUSTED_FOLDERS_PATH']).toBe(
       customTrustedFoldersPath,
     );
-    expect(process.env['O1CODE_SERVER_TOKEN']).toBeUndefined();
+    expect(process.env['FAST_PATH_TEST_KEY']).toBeUndefined();
   });
 
   it('uses legacy folderTrust before loading workspace env', async () => {
-    delete process.env['O1CODE_SERVER_TOKEN'];
+    delete process.env['FAST_PATH_TEST_KEY'];
     const o1codeHome = useTempO1CodeHome();
     tempWorkspace = realpathSync(
       mkdtempSync(join(os.tmpdir(), 'qws-fast-path-legacy-trust-')),
@@ -1824,16 +1880,16 @@ describe('serve fast path environment bootstrap', () => {
     );
     writeFileSync(
       join(tempWorkspace, '.env'),
-      'O1CODE_SERVER_TOKEN=from-untrusted-workspace-env\n',
+      'FAST_PATH_TEST_KEY=from-untrusted-workspace-env\n',
     );
 
     await bootstrapServeFastPathEnvironment(tempWorkspace);
 
-    expect(process.env['O1CODE_SERVER_TOKEN']).toBeUndefined();
+    expect(process.env['FAST_PATH_TEST_KEY']).toBeUndefined();
   });
 
   it('caches trusted folders during a single fast-path bootstrap', () => {
-    delete process.env['O1CODE_SERVER_TOKEN'];
+    delete process.env['FAST_PATH_TEST_KEY'];
     const o1codeHome = useTempO1CodeHome();
     tempWorkspace = realpathSync(
       mkdtempSync(join(os.tmpdir(), 'qws-fast-path-trust-cache-')),
@@ -1850,7 +1906,7 @@ describe('serve fast path environment bootstrap', () => {
       process.env['O1CODE_TRUSTED_FOLDERS_PATH'],
       JSON.stringify({ [tempWorkspace]: TrustLevel.TRUST_FOLDER }),
     );
-    writeFileSync(join(tempWorkspace, '.env'), 'O1CODE_SERVER_TOKEN=trusted\n');
+    writeFileSync(join(tempWorkspace, '.env'), 'FAST_PATH_TEST_KEY=trusted\n');
 
     const settings = loadServeFastPathSettings(tempWorkspace);
     writeFileSync(
@@ -1860,7 +1916,7 @@ describe('serve fast path environment bootstrap', () => {
 
     loadServeFastPathEnvironment(settings, tempWorkspace);
 
-    expect(process.env['O1CODE_SERVER_TOKEN']).toBe('trusted');
+    expect(process.env['FAST_PATH_TEST_KEY']).toBe('trusted');
   });
 
   it.each(['.env', '.o1-code/.env', 'settings.env'])(
@@ -2375,7 +2431,7 @@ describe('serve fast path environment bootstrap', () => {
   });
 
   it('does not load env from an explicitly untrusted nested workspace', async () => {
-    delete process.env['O1CODE_SERVER_TOKEN'];
+    delete process.env['FAST_PATH_TEST_KEY'];
     const o1codeHome = useTempO1CodeHome();
     tempWorkspace = realpathSync(
       mkdtempSync(join(os.tmpdir(), 'qws-fast-path-trust-precedence-')),
@@ -2397,14 +2453,11 @@ describe('serve fast path environment bootstrap', () => {
         [childWorkspace]: TrustLevel.DO_NOT_TRUST,
       }),
     );
-    writeFileSync(
-      join(childWorkspace, '.env'),
-      'O1CODE_SERVER_TOKEN=trusted\n',
-    );
+    writeFileSync(join(childWorkspace, '.env'), 'FAST_PATH_TEST_KEY=trusted\n');
 
     await bootstrapServeFastPathEnvironment(childWorkspace);
 
-    expect(process.env['O1CODE_SERVER_TOKEN']).toBeUndefined();
+    expect(process.env['FAST_PATH_TEST_KEY']).toBeUndefined();
   });
 
   it('honours folder trust enabled only in system defaults', async () => {
@@ -2465,7 +2518,7 @@ describe('serve fast path environment bootstrap', () => {
   });
 
   it('does not load env before a folder trust decision', async () => {
-    delete process.env['O1CODE_SERVER_TOKEN'];
+    delete process.env['FAST_PATH_TEST_KEY'];
     const o1codeHome = useTempO1CodeHome();
     tempWorkspace = realpathSync(
       mkdtempSync(join(os.tmpdir(), 'qws-fast-path-undecided-trust-')),
@@ -2476,16 +2529,16 @@ describe('serve fast path environment bootstrap', () => {
     );
     writeFileSync(
       join(tempWorkspace, '.env'),
-      'O1CODE_SERVER_TOKEN=from-undecided-workspace\n',
+      'FAST_PATH_TEST_KEY=from-undecided-workspace\n',
     );
 
     await bootstrapServeFastPathEnvironment(tempWorkspace);
 
-    expect(process.env['O1CODE_SERVER_TOKEN']).toBeUndefined();
+    expect(process.env['FAST_PATH_TEST_KEY']).toBeUndefined();
   });
 
   it('does not load env from a descendant of an explicitly untrusted workspace', async () => {
-    delete process.env['O1CODE_SERVER_TOKEN'];
+    delete process.env['FAST_PATH_TEST_KEY'];
     const o1codeHome = useTempO1CodeHome();
     tempWorkspace = realpathSync(
       mkdtempSync(join(os.tmpdir(), 'qws-fast-path-trust-descendant-')),
@@ -2510,16 +2563,16 @@ describe('serve fast path environment bootstrap', () => {
     );
     writeFileSync(
       join(childWorkspace, '.env'),
-      'O1CODE_SERVER_TOKEN=from-untrusted-descendant-env\n',
+      'FAST_PATH_TEST_KEY=from-untrusted-descendant-env\n',
     );
 
     await bootstrapServeFastPathEnvironment(subDir);
 
-    expect(process.env['O1CODE_SERVER_TOKEN']).toBeUndefined();
+    expect(process.env['FAST_PATH_TEST_KEY']).toBeUndefined();
   });
 
   it('allows a trusted child rule to override an untrusted parent', async () => {
-    delete process.env['O1CODE_SERVER_TOKEN'];
+    delete process.env['FAST_PATH_TEST_KEY'];
     const o1codeHome = useTempO1CodeHome();
     tempWorkspace = realpathSync(
       mkdtempSync(join(os.tmpdir(), 'qws-fast-path-trust-opt-in-')),
@@ -2544,16 +2597,16 @@ describe('serve fast path environment bootstrap', () => {
     );
     writeFileSync(
       join(trustedWorkspace, '.env'),
-      'O1CODE_SERVER_TOKEN=from-trusted-child-env\n',
+      'FAST_PATH_TEST_KEY=from-trusted-child-env\n',
     );
 
     await bootstrapServeFastPathEnvironment(subDir);
 
-    expect(process.env['O1CODE_SERVER_TOKEN']).toBe('from-trusted-child-env');
+    expect(process.env['FAST_PATH_TEST_KEY']).toBe('from-trusted-child-env');
   });
 
   it('does not load a distrusted parent .env for a trusted child workspace', async () => {
-    delete process.env['O1CODE_SERVER_TOKEN'];
+    delete process.env['FAST_PATH_TEST_KEY'];
     const o1codeHome = useTempO1CodeHome();
     tempWorkspace = realpathSync(
       mkdtempSync(join(os.tmpdir(), 'qws-fast-path-trusted-child-')),
@@ -2562,7 +2615,7 @@ describe('serve fast path environment bootstrap', () => {
     mkdirSync(childWorkspace);
     writeFileSync(
       join(tempWorkspace, '.env'),
-      'O1CODE_SERVER_TOKEN=from-distrusted-parent-env\n',
+      'FAST_PATH_TEST_KEY=from-distrusted-parent-env\n',
     );
     writeFileSync(
       join(o1codeHome, 'settings.json'),
@@ -2582,11 +2635,11 @@ describe('serve fast path environment bootstrap', () => {
 
     await bootstrapServeFastPathEnvironment(childWorkspace);
 
-    expect(process.env['O1CODE_SERVER_TOKEN']).toBeUndefined();
+    expect(process.env['FAST_PATH_TEST_KEY']).toBeUndefined();
   });
 
   it('loads an ancestor .env of an explicitly trusted child workspace', async () => {
-    delete process.env['O1CODE_SERVER_TOKEN'];
+    delete process.env['FAST_PATH_TEST_KEY'];
     const o1codeHome = useTempO1CodeHome();
     tempWorkspace = realpathSync(
       mkdtempSync(join(os.tmpdir(), 'qws-fast-path-trusted-ancestor-')),
@@ -2595,7 +2648,7 @@ describe('serve fast path environment bootstrap', () => {
     mkdirSync(childWorkspace);
     writeFileSync(
       join(tempWorkspace, '.env'),
-      'O1CODE_SERVER_TOKEN=from-trusted-ancestor-env\n',
+      'FAST_PATH_TEST_KEY=from-trusted-ancestor-env\n',
     );
     writeFileSync(
       join(o1codeHome, 'settings.json'),
@@ -2617,13 +2670,11 @@ describe('serve fast path environment bootstrap', () => {
 
     await bootstrapServeFastPathEnvironment(childWorkspace);
 
-    expect(process.env['O1CODE_SERVER_TOKEN']).toBe(
-      'from-trusted-ancestor-env',
-    );
+    expect(process.env['FAST_PATH_TEST_KEY']).toBe('from-trusted-ancestor-env');
   });
 
   it('treats TRUST_PARENT as trusting the containing folder', async () => {
-    delete process.env['O1CODE_SERVER_TOKEN'];
+    delete process.env['FAST_PATH_TEST_KEY'];
     const o1codeHome = useTempO1CodeHome();
     tempWorkspace = realpathSync(
       mkdtempSync(join(os.tmpdir(), 'qws-fast-path-trust-parent-')),
@@ -2642,11 +2693,11 @@ describe('serve fast path environment bootstrap', () => {
         [join(tempWorkspace, 'marker')]: TrustLevel.TRUST_PARENT,
       }),
     );
-    writeFileSync(join(tempWorkspace, '.env'), 'O1CODE_SERVER_TOKEN=trusted\n');
+    writeFileSync(join(tempWorkspace, '.env'), 'FAST_PATH_TEST_KEY=trusted\n');
 
     await bootstrapServeFastPathEnvironment(tempWorkspace);
 
-    expect(process.env['O1CODE_SERVER_TOKEN']).toBe('trusted');
+    expect(process.env['FAST_PATH_TEST_KEY']).toBe('trusted');
   });
 
   it('matches Cloud Shell default project behavior for empty env values', async () => {
@@ -2664,7 +2715,7 @@ describe('serve fast path environment bootstrap', () => {
   });
 
   it('expands process environment placeholders in workspace settings.env', async () => {
-    delete process.env['O1CODE_SERVER_TOKEN'];
+    delete process.env['FAST_PATH_TEST_KEY'];
     useTempO1CodeHome();
     process.env['FAST_PATH_REFERENCED_TOKEN'] = 'from-referenced-env';
     tempWorkspace = realpathSync(
@@ -2674,14 +2725,14 @@ describe('serve fast path environment bootstrap', () => {
     writeFileSync(
       join(tempWorkspace, '.o1-code', 'settings.json'),
       JSON.stringify({
-        env: { O1CODE_SERVER_TOKEN: '${FAST_PATH_REFERENCED_TOKEN}' },
+        env: { FAST_PATH_TEST_KEY: '${FAST_PATH_REFERENCED_TOKEN}' },
       }),
     );
     process.chdir(tempWorkspace);
 
     await bootstrapServeFastPathEnvironment(tempWorkspace);
 
-    expect(process.env['O1CODE_SERVER_TOKEN']).toBe('from-referenced-env');
+    expect(process.env['FAST_PATH_TEST_KEY']).toBe('from-referenced-env');
   });
 
   it('never expands internal secrets referenced from workspace settings.env', async () => {
@@ -2713,11 +2764,12 @@ describe('serve fast path environment bootstrap', () => {
       );
     } finally {
       delete process.env['FAST_PATH_LEAKED_COPY'];
+      restoreServerToken();
     }
   });
 
   it('expands home .env fallback placeholders in workspace settings.env', async () => {
-    delete process.env['O1CODE_SERVER_TOKEN'];
+    delete process.env['FAST_PATH_TEST_KEY'];
     delete process.env['FAST_PATH_REFERENCED_TOKEN'];
     const o1codeHome = useTempO1CodeHome();
     writeFileSync(
@@ -2731,23 +2783,23 @@ describe('serve fast path environment bootstrap', () => {
     writeFileSync(
       join(tempWorkspace, '.o1-code', 'settings.json'),
       JSON.stringify({
-        env: { O1CODE_SERVER_TOKEN: '${FAST_PATH_REFERENCED_TOKEN}' },
+        env: { FAST_PATH_TEST_KEY: '${FAST_PATH_REFERENCED_TOKEN}' },
       }),
     );
     process.chdir(tempWorkspace);
 
     await bootstrapServeFastPathEnvironment(tempWorkspace);
 
-    expect(process.env['O1CODE_SERVER_TOKEN']).toBe('from-home-env');
+    expect(process.env['FAST_PATH_TEST_KEY']).toBe('from-home-env');
   });
 
   it.each([
-    ['malformed JSON', '{ "env": { "O1CODE_SERVER_TOKEN": "broken" }'],
+    ['malformed JSON', '{ "env": { "FAST_PATH_TEST_KEY": "broken" }'],
     ['non-object JSON', '[]'],
   ])(
     'rejects %s workspace settings so the full settings loader can handle it',
     async (_name, settingsJson) => {
-      delete process.env['O1CODE_SERVER_TOKEN'];
+      delete process.env['FAST_PATH_TEST_KEY'];
       useTempO1CodeHome();
       tempWorkspace = realpathSync(
         mkdtempSync(join(os.tmpdir(), 'qws-fast-path-bad-settings-')),
@@ -2762,7 +2814,7 @@ describe('serve fast path environment bootstrap', () => {
       await expect(
         bootstrapServeFastPathEnvironment(tempWorkspace),
       ).rejects.toThrow(/settings/i);
-      expect(process.env['O1CODE_SERVER_TOKEN']).toBeUndefined();
+      expect(process.env['FAST_PATH_TEST_KEY']).toBeUndefined();
     },
   );
 
@@ -2793,7 +2845,7 @@ describe('serve fast path environment bootstrap', () => {
   });
 
   it('does not load env from an explicit untrusted workspace when launched elsewhere', async () => {
-    delete process.env['O1CODE_SERVER_TOKEN'];
+    delete process.env['FAST_PATH_TEST_KEY'];
     const o1codeHome = useTempO1CodeHome();
     tempWorkspace = realpathSync(
       mkdtempSync(join(os.tmpdir(), 'qws-fast-path-untrusted-env-')),
@@ -2819,23 +2871,23 @@ describe('serve fast path environment bootstrap', () => {
     );
     writeFileSync(
       join(tempWorkspace, '.env'),
-      'O1CODE_SERVER_TOKEN=from-untrusted-workspace-env\n',
+      'FAST_PATH_TEST_KEY=from-untrusted-workspace-env\n',
     );
     writeFileSync(
       join(tempWorkspace, '.o1-code', 'settings.json'),
       JSON.stringify({
-        env: { O1CODE_SERVER_TOKEN: 'from-untrusted-workspace-settings' },
+        env: { FAST_PATH_TEST_KEY: 'from-untrusted-workspace-settings' },
       }),
     );
     process.chdir(tempLaunchCwd);
 
     await bootstrapServeFastPathEnvironment(tempWorkspace);
 
-    expect(process.env['O1CODE_SERVER_TOKEN']).toBeUndefined();
+    expect(process.env['FAST_PATH_TEST_KEY']).toBeUndefined();
   });
 
   it('checks trust against the canonical explicit workspace path', async () => {
-    delete process.env['O1CODE_SERVER_TOKEN'];
+    delete process.env['FAST_PATH_TEST_KEY'];
     const o1codeHome = useTempO1CodeHome();
     tempWorkspace = realpathSync(
       mkdtempSync(join(os.tmpdir(), 'qws-fast-path-real-untrusted-env-')),
@@ -2862,12 +2914,12 @@ describe('serve fast path environment bootstrap', () => {
     );
     writeFileSync(
       join(tempWorkspace, '.env'),
-      'O1CODE_SERVER_TOKEN=from-symlinked-untrusted-workspace-env\n',
+      'FAST_PATH_TEST_KEY=from-symlinked-untrusted-workspace-env\n',
     );
     process.chdir(tempLaunchCwd);
 
     await bootstrapServeFastPathEnvironment(tempSymlink);
 
-    expect(process.env['O1CODE_SERVER_TOKEN']).toBeUndefined();
+    expect(process.env['FAST_PATH_TEST_KEY']).toBeUndefined();
   });
 });

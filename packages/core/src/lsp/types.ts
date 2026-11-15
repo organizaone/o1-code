@@ -466,6 +466,8 @@ export interface LspServerConfig {
   maxRestarts?: number;
   /** Whether trusted workspace is required */
   trustRequired?: boolean;
+  /** Where the definition came from. Set by the loader, never read from JSON. */
+  source?: 'workspace' | 'extension';
   /** Socket connection options */
   socket?: LspSocketOptions;
 }

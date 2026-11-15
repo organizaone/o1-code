@@ -24,6 +24,10 @@ class MockConfig {
     return true;
   }
 
+  isExplicitlyTrustedFolder(): boolean {
+    return this.isTrustedFolder();
+  }
+
   get(_key: string) {
     return undefined;
   }

@@ -409,6 +409,42 @@ describe('loadServerHierarchicalMemory', () => {
     });
   });
 
+  it.each([
+    ['directory', (p: string) => createEmptyDir(p)],
+    ['file', (p: string) => createTestFile(p, 'gitdir: elsewhere')],
+  ])(
+    'stops loading context at the Git root with a .git %s',
+    async (_kind, createGitMarker) => {
+      await createGitMarker(path.join(projectRoot, '.git'));
+      await createTestFile(
+        path.join(testRootDir, DEFAULT_CONTEXT_FILENAME),
+        'Above the repository',
+      );
+      const projectRootMemoryFile = await createTestFile(
+        path.join(projectRoot, DEFAULT_CONTEXT_FILENAME),
+        'Project root memory',
+      );
+      const cwdMemoryFile = await createTestFile(
+        path.join(cwd, DEFAULT_CONTEXT_FILENAME),
+        'CWD memory',
+      );
+
+      const result = await loadServerHierarchicalMemory(
+        cwd,
+        [],
+        new FileDiscoveryService(projectRoot),
+        [],
+        DEFAULT_FOLDER_TRUST,
+      );
+
+      expect(result.memoryContent).not.toContain('Above the repository');
+      expect(result.contextFilePaths).toEqual([
+        path.relative(cwd, projectRootMemoryFile),
+        path.relative(cwd, cwdMemoryFile),
+      ]);
+    },
+  );
+
   it('should load and correctly order global and upward context files', async () => {
     const defaultContextFile = await createTestFile(
       path.join(homedir, O1CODE_DIR, DEFAULT_CONTEXT_FILENAME),
@@ -1092,7 +1128,7 @@ describe('loadServerHierarchicalMemory', () => {
 
     it('still loads through a symlink when the target is outside the project-root scan boundary', async () => {
       // A .git marker makes cwd the project root, so the upward scan stops
-      // at its parent and never reaches testRootDir. The outside file can
+      // there and never reaches testRootDir. The outside file can
       // then only be loaded through the workspace symlink.
       await createEmptyDir(path.join(cwd, '.git'));
       await createTestFile(

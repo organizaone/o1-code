@@ -46,11 +46,6 @@ export const SETTINGS_DIRECTORY_NAME = O1CODE_DIR;
 
 const RELOAD_EXCLUDED_KEYS = new Set([
   ...PROJECT_ENV_HARDCODED_EXCLUSIONS,
-  // The daemon auth token: the full loader never takes it from
-  // settings.env, and a mid-session .env edit must not rotate it. (The
-  // serve fast path consults only the hardcoded tier, so its documented
-  // workspace-settings.env token feature is unaffected.)
-  'O1CODE_SERVER_TOKEN',
   // Loader-class keys are rejected by the isLoaderEnvKey guard before this
   // Set is consulted, so they are not spread here. These three keep their
   // pre-denylist reload-only exclusion: too compatibility-heavy for the

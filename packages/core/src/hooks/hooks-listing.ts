@@ -106,6 +106,7 @@ export type HooksListingConfig = Pick<
   | 'getBareMode'
   | 'getSessionId'
   | 'isTrustedFolder'
+  | 'isExplicitlyTrustedFolder'
   | 'getSystemHooks'
   | 'getUserHooks'
   | 'getProjectHooks'
@@ -441,7 +442,11 @@ export function buildHooksListing(config: HooksListingConfig): HooksListing {
             hookId: entry.hookId,
             skillRoot: entry.skillRoot,
           },
-          gates,
+          // A repository's own hook fires only under explicit trust, so the
+          // listing must not show it as enabled on the weaker answer.
+          entry.trustGated
+            ? { ...gates, trustedFolder: config.isExplicitlyTrustedFolder() }
+            : gates,
         ),
       );
     }

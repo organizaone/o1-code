@@ -9571,6 +9571,36 @@ describe('Server Config (config.ts)', () => {
     }
   });
 
+  describe('isExplicitlyTrustedFolder', () => {
+    afterEach(async () => {
+      const { ideContextStore } = await import('../ide/ideContext.js');
+      ideContextStore.clear();
+    });
+
+    it.each([
+      // folder trust off: every folder counts as trusted, nobody decided it
+      [{ folderTrust: false }, undefined, true, false],
+      [{ folderTrust: true, trustedFolder: true }, undefined, true, true],
+      [{ folderTrust: true, trustedFolder: false }, undefined, false, false],
+      [{ folderTrust: true }, undefined, false, false],
+      // the IDE's answer is a decision, whatever the setting says
+      [{ folderTrust: false }, true, true, true],
+      [{ folderTrust: true, trustedFolder: true }, false, false, false],
+    ])(
+      '%j with IDE trust %s: trusted = %s, explicitly = %s',
+      async (params, ideTrust, trusted, explicitly) => {
+        const { ideContextStore } = await import('../ide/ideContext.js');
+        if (ideTrust !== undefined) {
+          ideContextStore.set({ workspaceState: { isTrusted: ideTrust } });
+        }
+        const config = new Config({ ...baseParams, ...params });
+
+        expect(config.isTrustedFolder()).toBe(trusted);
+        expect(config.isExplicitlyTrustedFolder()).toBe(explicitly);
+      },
+    );
+  });
+
   it('refreshHierarchicalMemory should not load team memory from untrusted workspaces', async () => {
     const config = new Config({ ...baseParams, enableTeamMemory: true });
     vi.spyOn(config, 'isTrustedFolder').mockReturnValue(false);

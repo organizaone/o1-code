@@ -3775,7 +3775,9 @@ describe('Settings Loading and Merging', () => {
           key,
           key === 'allowedInsecureVoiceBaseUrls'
             ? ['http://voice.example/v1']
-            : true,
+            : section === 'memory'
+              ? 0
+              : true,
         );
       }
       (fs.readFileSync as Mock).mockImplementation(
@@ -3813,6 +3815,15 @@ describe('Settings Loading and Merging', () => {
       );
       expect(WORKSPACE_RESTRICTED_SETTING_KEYS).toContain(
         'tools.workflowsEnabled',
+      );
+    });
+
+    it('lists the memory agent limits, which a repository must not lift', () => {
+      expect(WORKSPACE_RESTRICTED_SETTING_KEYS).toEqual(
+        expect.arrayContaining([
+          'memory.agentMaxTurns',
+          'memory.agentTimeoutMinutes',
+        ]),
       );
     });
   });

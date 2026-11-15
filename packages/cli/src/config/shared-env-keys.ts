@@ -42,6 +42,9 @@ export const PROJECT_ENV_HARDCODED_EXCLUSIONS = [
   'O1CODE_SYSTEM_DEFAULTS_PATH',
   // Downloaded updates execute as the user; a project must not select them.
   'O1CODE_UPDATE_BASE_URL',
+  // The daemon's bearer token is the operator's secret. A repository that
+  // could set it would know the token of the daemon started inside it.
+  'O1CODE_SERVER_TOKEN',
   // This points to a host temp file that carries build warnings. A project
   // `.env` must not redirect it to an arbitrary file to read or delete.
   'O1CODE_WARNINGS_FILE',

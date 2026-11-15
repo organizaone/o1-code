@@ -185,11 +185,11 @@ describe('serve fast path --open import boundary', () => {
     );
   });
 
-  it('loads settings environment before applying authenticated open', async () => {
+  it('loads the home environment before applying authenticated open', async () => {
     useTempO1CodeHome();
     fs.writeFileSync(
-      path.join(tempO1CodeHome!, 'settings.json'),
-      JSON.stringify({ env: { O1CODE_SERVER_TOKEN: 'from-settings' } }),
+      path.join(tempO1CodeHome!, '.env'),
+      'O1CODE_SERVER_TOKEN=from-settings\n',
     );
     delete process.env['O1CODE_SERVER_TOKEN'];
 

@@ -54,6 +54,7 @@ import { createHash, createHmac, randomBytes } from 'node:crypto';
 import { promises as fsp } from 'node:fs';
 import { atomicWriteFile } from '../utils/atomicFileWrite.js';
 import { createDebugLogger } from '../utils/debugLogger.js';
+import { EXPLICIT_TRUST_HINT } from '../utils/explicit-trust-hint.js';
 import { globSync } from 'glob';
 
 const debugLogger = createDebugLogger('LSP');
@@ -317,9 +318,13 @@ export class NativeLspService {
     const admitted: LspServerConfig[] = [];
     const skipped: LspSkippedServer[] = [];
     for (const config of configs) {
-      if (!workspaceTrusted && config.trustRequired) {
+      if (
+        (!workspaceTrusted && config.trustRequired) ||
+        (config.source === 'workspace' &&
+          !this.config.isExplicitlyTrustedFolder())
+      ) {
         debugLogger.warn(
-          `LSP server ${config.name} requires trusted workspace, skipping`,
+          `LSP server ${config.name} requires trusted workspace, skipping. A workspace .lsp.json requires explicit trust. ${EXPLICIT_TRUST_HINT}`,
         );
         skipped.push({ name: config.name, reason: 'server_trust_required' });
         continue;

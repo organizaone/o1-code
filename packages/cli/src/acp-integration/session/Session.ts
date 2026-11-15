@@ -18,6 +18,7 @@ import type {
   GenerateContentResponseUsageMetadata,
   Part,
 } from '@google/genai';
+import { FinishReason } from '@google/genai';
 import {
   type Config,
   type ContentGeneratorConfig,
@@ -102,6 +103,7 @@ import {
   DEFERRED_TOOL_CALL_REFUSAL_PREFIX,
   DEFERRED_TOOL_CALL_CANCELLATION_PREFIX,
   resolveDeferredToolCall,
+  TRUNCATION_EDIT_REJECTION,
   CreateSubSessionTool,
   fireNotificationHook,
   firePermissionRequestHook,
@@ -8170,7 +8172,48 @@ export class Session implements SessionContext {
     const responseStream = goalPermit
       ? await chat.sendMessageStream(model, request, promptId, goalPermit)
       : await chat.sendMessageStream(model, request, promptId);
-    return { responseStream, requestRouteKey };
+    return {
+      // A send that produced no stream keeps failing where it always did.
+      responseStream: responseStream
+        ? this.#markTruncatedToolCalls(responseStream)
+        : responseStream,
+      requestRouteKey,
+    };
+  }
+
+  readonly #truncatedToolCalls = new WeakSet<FunctionCall>();
+
+  /**
+   * Remembers the tool calls of a response the output limit cut off, so
+   * `runTool` can refuse the file-modifying ones: their arguments may stop in
+   * the middle of the content.
+   */
+  async *#markTruncatedToolCalls(
+    stream: AsyncGenerator<StreamEvent>,
+  ): AsyncGenerator<StreamEvent> {
+    let attemptCalls: FunctionCall[] = [];
+    let truncated = false;
+    for await (const event of stream) {
+      if (
+        event.type === StreamEventType.RETRY ||
+        event.type === StreamEventType.MODEL_FALLBACK
+      ) {
+        attemptCalls = [];
+        truncated = false;
+      } else if (event.type === StreamEventType.CHUNK) {
+        attemptCalls.push(...(event.value.functionCalls ?? []));
+        truncated ||=
+          event.value.candidates?.some(
+            (candidate) => candidate.finishReason === FinishReason.MAX_TOKENS,
+          ) ?? false;
+        if (truncated) {
+          for (const call of attemptCalls) {
+            this.#truncatedToolCalls.add(call);
+          }
+        }
+      }
+      yield event;
+    }
   }
 
   #clearPendingRestoreNotices(): void {
@@ -12657,6 +12700,17 @@ export class Session implements SessionContext {
         },
       );
     }
+    if (this.#truncatedToolCalls.has(fc) && tool.kind === Kind.Edit) {
+      return earlyErrorResponse(
+        new Error(TRUNCATION_EDIT_REJECTION),
+        toolName,
+        {
+          status: 'error',
+          errorType: ToolErrorType.OUTPUT_TRUNCATED,
+          executionStatus: 'not_started',
+        },
+      );
+    }
     toolType = tool instanceof DiscoveredMCPTool ? 'mcp' : 'native';
     mcpServerName =
       tool instanceof DiscoveredMCPTool ? tool.serverName : undefined;
@@ -13428,8 +13482,10 @@ export class Session implements SessionContext {
 
             // AUTO_EDIT mode: auto-approve edit and info tools
             // (same as coreToolScheduler L5 — NOT delegated to the extension)
+            // A call that matched a user `permissions.ask` rule still asks.
             if (
               !requiresUserInteraction &&
+              !pmForcedAsk &&
               approvalMode === ApprovalMode.AUTO_EDIT &&
               (confirmationDetails.type === 'edit' ||
                 confirmationDetails.type === 'info')

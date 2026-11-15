@@ -10288,6 +10288,20 @@ export class Config {
     return this.trustedFolder ?? !this.folderTrust;
   }
 
+  /**
+   * Whether someone actually said this folder is trusted: the folder-trust
+   * feature is on and the folder passed it, or the IDE reports the workspace
+   * as trusted. With the feature off every folder counts as trusted, which is
+   * not a decision anyone made; commands a repository supplies (frontmatter
+   * hooks, tool grants, its own language servers) need this stronger answer.
+   */
+  isExplicitlyTrustedFolder(): boolean {
+    const ideTrust = ideContextStore.get()?.workspaceState?.isTrusted;
+    return (
+      (this.folderTrust || ideTrust !== undefined) && this.isTrustedFolder()
+    );
+  }
+
   setIdeMode(value: boolean): void {
     if (this.shellExecutionSandbox && value)
       throw new Error(

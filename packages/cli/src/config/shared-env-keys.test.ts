@@ -270,13 +270,9 @@ describe('PROJECT_ENV_HARDCODED_EXCLUSIONS', () => {
     }
   });
 
-  // Workspace settings.env O1CODE_SERVER_TOKEN is an intentional fast-path
-  // feature (fast-path.test.ts loads it without the full settings loader);
-  // it stays reload-only rather than hardcoded-excluded.
-  it('keeps O1CODE_SERVER_TOKEN out of the hardcoded exclusions', () => {
-    expect(PROJECT_ENV_HARDCODED_EXCLUSIONS).not.toContain(
-      'O1CODE_SERVER_TOKEN',
-    );
+  // A repository that could set the daemon's bearer token would know it.
+  it('excludes the daemon bearer token', () => {
+    expect(PROJECT_ENV_HARDCODED_EXCLUSIONS).toContain('O1CODE_SERVER_TOKEN');
   });
 
   it('does not bootstrap attribution markers from a home .env', () => {
@@ -296,7 +292,8 @@ describe('isHardcodedProjectEnvExclusion', () => {
     expect(isHardcodedProjectEnvExclusion('o1code_cli_entry')).toBe(true);
     expect(isHardcodedProjectEnvExclusion('DEV')).toBe(true);
     expect(isHardcodedProjectEnvExclusion('dev')).toBe(true);
-    expect(isHardcodedProjectEnvExclusion('O1CODE_SERVER_TOKEN')).toBe(false);
+    expect(isHardcodedProjectEnvExclusion('O1CODE_SERVER_TOKEN')).toBe(true);
+    expect(isHardcodedProjectEnvExclusion('o1code_server_token')).toBe(true);
     expect(isHardcodedProjectEnvExclusion('NODE_OPTIONS')).toBe(false);
   });
 

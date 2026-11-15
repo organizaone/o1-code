@@ -1958,11 +1958,13 @@ function makeConfig(
      */
     eagerTools: string[];
     /** Live folder trust; absent reads as trusted. */
-    isTrustedFolder: () => boolean;
+    isExplicitlyTrustedFolder: () => boolean;
   }> = {},
 ): PermissionManagerConfig {
   return {
-    ...(opts.isTrustedFolder ? { isTrustedFolder: opts.isTrustedFolder } : {}),
+    ...(opts.isExplicitlyTrustedFolder
+      ? { isExplicitlyTrustedFolder: opts.isExplicitlyTrustedFolder }
+      : {}),
     getPermissionsAllow: () => opts.permissionsAllow,
     getPermissionsAsk: () => opts.permissionsAsk,
     getPermissionsDeny: () => opts.permissionsDeny,
@@ -3678,7 +3680,7 @@ describe('PermissionManager', () => {
       // second side of the gate applied on the way in.
       let trusted = true;
       pm = new PermissionManager(
-        makeConfig({ isTrustedFolder: () => trusted }),
+        makeConfig({ isExplicitlyTrustedFolder: () => trusted }),
       );
       pm.initialize();
       const call = { toolName: 'run_shell_command', command: 'git commit' };
@@ -3710,7 +3712,7 @@ describe('PermissionManager', () => {
       // trust suspends. A gated re-arrival (skill reload) stays a skip.
       let trusted = true;
       pm = new PermissionManager(
-        makeConfig({ isTrustedFolder: () => trusted }),
+        makeConfig({ isExplicitlyTrustedFolder: () => trusted }),
       );
       pm.initialize();
       const call = { toolName: 'run_shell_command', command: 'git commit' };
@@ -3728,14 +3730,16 @@ describe('PermissionManager', () => {
       ).toHaveLength(1);
     });
 
-    it('a trust-gated rule stays in force when the config reports no trust probe', async () => {
+    // A grant a repository made needs someone to have trusted the folder; a
+    // host that cannot say so must not be read as a yes.
+    it('a trust-gated rule is not in force when the config reports no trust probe', async () => {
       pm.addSessionAllowRule('Bash(git *)', { trustGated: true });
       expect(
         await pm.evaluate({
           toolName: 'run_shell_command',
           command: 'git commit',
         }),
-      ).toBe('allow');
+      ).not.toBe('allow');
     });
 
     it('clearSessionAllowRules drops live and AUTO-stashed session grants', async () => {

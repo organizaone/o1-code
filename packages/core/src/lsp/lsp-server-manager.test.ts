@@ -86,6 +86,7 @@ function createTrustedManager(): LspServerManager {
   return new LspServerManager(
     {
       isTrustedFolder: vi.fn().mockReturnValue(true),
+      isExplicitlyTrustedFolder: vi.fn().mockReturnValue(true),
     } as unknown as CoreConfig,
     {} as WorkspaceContext,
     {} as FileDiscoveryService,
@@ -575,6 +576,7 @@ describe('LspServerManager', () => {
     const manager = new LspServerManager(
       {
         isTrustedFolder: vi.fn().mockReturnValue(true),
+        isExplicitlyTrustedFolder: vi.fn().mockReturnValue(true),
       } as unknown as CoreConfig,
       {} as WorkspaceContext,
       {} as FileDiscoveryService,
@@ -646,6 +648,37 @@ describe('LspServerManager', () => {
       expect.any(Error),
     );
   });
+
+  it.each([
+    ['workspace', false],
+    ['extension', true],
+  ] as const)(
+    'without explicit trust a %s server is admitted = %s',
+    async (source, admitted) => {
+      const manager = createTrustedManager();
+      const config = (
+        manager as unknown as {
+          config: { isExplicitlyTrustedFolder: () => boolean };
+        }
+      ).config;
+      vi.spyOn(config, 'isExplicitlyTrustedFolder').mockReturnValue(false);
+      const checkWorkspaceTrust = vi
+        .spyOn(
+          manager as unknown as {
+            checkWorkspaceTrust: () => Promise<boolean>;
+          },
+          'checkWorkspaceTrust',
+        )
+        // Stop right after the admission gate: the rest of startup is not
+        // what this test is about.
+        .mockResolvedValue(false);
+
+      manager.setServerConfigs([{ ...serverConfig, source }]);
+      await manager.startAll();
+
+      expect(checkWorkspaceTrust).toHaveBeenCalledTimes(admitted ? 1 : 0);
+    },
+  );
 
   it('logs when workspace trust check blocks startup', async () => {
     const manager = createTrustedManager();

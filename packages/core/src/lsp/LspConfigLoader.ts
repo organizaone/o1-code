@@ -353,6 +353,8 @@ export class LspConfigLoader {
       restartOnCrash,
       maxRestarts,
       trustRequired,
+      // Only the workspace's own .lsp.json is loaded with the forced flag.
+      source: options.forceTrustRequired ? 'workspace' : 'extension',
       socket,
     };
   }

@@ -4,8 +4,8 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { createHash } from 'node:crypto';
-import type { Stats } from 'node:fs';
+import { createHash, randomUUID } from 'node:crypto';
+import { constants, type Stats } from 'node:fs';
 import {
   chmod,
   copyFile,
@@ -18,6 +18,7 @@ import {
 import { dirname, isAbsolute, join, relative, resolve, sep } from 'node:path';
 import { diffLines, structuredPatch, type Hunk } from 'diff';
 import { Storage } from '../config/storage.js';
+import { renameWithRetry } from '../utils/atomicFileWrite.js';
 import { createDebugLogger } from '../utils/debugLogger.js';
 import { MAX_DIFF_SIZE_BYTES } from '../utils/gitDiff.js';
 
@@ -227,16 +228,62 @@ function resolveBackupPath(backupFileName: string, sessionId: string): string {
 async function safeCopyFile(
   src: string,
   dst: string,
+  mode = 0,
 ): Promise<'ok' | 'src-missing'> {
   try {
-    await copyFile(src, dst);
+    await copyFile(src, dst, mode);
     return 'ok';
   } catch (e: unknown) {
     if (!isENOENT(e)) throw e;
     if (!(await pathExists(src))) return 'src-missing';
     await mkdir(dirname(dst), { recursive: true });
-    await copyFile(src, dst);
+    await copyFile(src, dst, mode);
     return 'ok';
+  }
+}
+
+const BACKUP_RENAME_RETRIES = 3;
+const BACKUP_RENAME_DELAY_MS = 50;
+
+// A backup is what a rewind writes back over the user's file, so it must
+// never be seen half-written: the copy goes to a temporary name, reaches the
+// disk, and only then takes the backup's name.
+async function copyBackupAtomically(
+  filePath: string,
+  backupPath: string,
+  mode: number,
+): Promise<'ok' | 'src-missing'> {
+  const tempPath = `${backupPath}.${randomUUID()}.tmp`;
+  try {
+    const result = await safeCopyFile(
+      filePath,
+      tempPath,
+      constants.COPYFILE_EXCL,
+    );
+    if (result === 'src-missing') {
+      await unlink(tempPath).catch(() => undefined);
+      return result;
+    }
+    // Flushing needs a writable handle, which a read-only source's copy
+    // would refuse.
+    await chmod(tempPath, (mode & 0o7777) | 0o600);
+    const handle = await open(tempPath, 'r+');
+    try {
+      await handle.sync();
+    } finally {
+      await handle.close();
+    }
+    await chmod(tempPath, mode);
+    await renameWithRetry(
+      tempPath,
+      backupPath,
+      BACKUP_RENAME_RETRIES,
+      BACKUP_RENAME_DELAY_MS,
+    );
+    return 'ok';
+  } catch (e: unknown) {
+    await unlink(tempPath).catch(() => undefined);
+    throw e;
   }
 }
 
@@ -258,12 +305,14 @@ async function createBackup(
     throw e;
   }
 
-  const result = await safeCopyFile(filePath, backupPath);
+  const result = await copyBackupAtomically(
+    filePath,
+    backupPath,
+    srcStats.mode,
+  );
   if (result === 'src-missing') {
     return { backupFileName: null, version, backupTime: new Date() };
   }
-
-  await chmod(backupPath, srcStats.mode);
 
   return { backupFileName, version, backupTime: new Date() };
 }

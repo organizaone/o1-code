@@ -703,6 +703,55 @@ describe('extractShellOperations', () => {
 // Shared compound shell analysis for permission rules and AUTO review.
 
 describe('extractShellOperationsAcrossCommand', () => {
+  // The shell opens a redirect before it runs the command, `cd` included, so
+  // the target is written from the directory the segment starts in.
+  it.each([
+    ['cd sub > .o1-code/settings.json', false],
+    ['pushd sub > .o1-code/settings.json', false],
+    ['cd "$DIR" > .o1-code/settings.json', false],
+    ['cd sub > .o1-code/settings.json & echo done', false],
+  ])('reports the redirect of a directory change: %s', (command) => {
+    expect(extractShellOperationsAcrossCommand(command, '/repo')).toEqual([
+      { virtualTool: 'write_file', filePath: '/repo/.o1-code/settings.json' },
+    ]);
+  });
+
+  it('resolves the redirect of a `cd` from where the segment starts', () => {
+    expect(
+      extractShellOperationsAcrossCommand(
+        'cd sub > out.txt && echo x > in.txt',
+        '/repo',
+      ),
+    ).toEqual([
+      { virtualTool: 'write_file', filePath: '/repo/out.txt' },
+      { virtualTool: 'write_file', filePath: '/repo/sub/in.txt' },
+    ]);
+  });
+
+  // `>|` writes even under `noclobber`; it is a redirect, not a pipe.
+  it.each([
+    'echo x >| .o1-code/settings.json',
+    'echo x >|.o1-code/settings.json',
+  ])('sees the write in a clobbering redirect: %s', (command) => {
+    expect(extractShellOperationsAcrossCommand(command, '/repo')).toEqual([
+      { virtualTool: 'write_file', filePath: '/repo/.o1-code/settings.json' },
+    ]);
+  });
+
+  // Duplicating a descriptor names no file.
+  it.each(['make 2>&1', 'make >&2', 'make 2>&-', 'make 1>&2 2>&1'])(
+    'reports no file for a descriptor duplication: %s',
+    (command) => {
+      expect(extractShellOperationsAcrossCommand(command, '/repo')).toEqual([]);
+    },
+  );
+
+  it('keeps the file of a redirect next to a descriptor duplication', () => {
+    expect(
+      extractShellOperationsAcrossCommand('make > build.log 2>&1', '/repo'),
+    ).toEqual([{ virtualTool: 'write_file', filePath: '/repo/build.log' }]);
+  });
+
   it('tracks literal `cd` across compound segments before resolving writes', () => {
     expect(
       extractShellOperationsAcrossCommand(

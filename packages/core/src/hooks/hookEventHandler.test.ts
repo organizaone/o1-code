@@ -1230,7 +1230,7 @@ describe('HookEventHandler', () => {
   describe('project-skill trust gate at fire time', () => {
     // The second side of the gate `applySideEffects` enforces on the way
     // in: a hook registered from a repository's `.o1-code/skills/` frontmatter
-    // fires only while the folder is STILL trusted. `isTrustedFolder()` is
+    // fires only while the folder is STILL trusted. `isExplicitlyTrustedFolder()` is
     // live under an IDE connection, so a revocation mid-session must
     // silence the hook at its next event — no restart, no unregistration.
     const gated = {
@@ -1248,8 +1248,8 @@ describe('HookEventHandler', () => {
     };
     const trust = (value: boolean) => {
       (
-        mockConfig as unknown as { isTrustedFolder: () => boolean }
-      ).isTrustedFolder = vi.fn().mockReturnValue(value);
+        mockConfig as unknown as { isExplicitlyTrustedFolder: () => boolean }
+      ).isExplicitlyTrustedFolder = vi.fn().mockReturnValue(value);
     };
     const fire = async () => {
       vi.mocked(mockHookPlanner.createExecutionPlan).mockReturnValue(null);
@@ -1312,8 +1312,8 @@ describe('HookEventHandler', () => {
       // gate costs nothing on rounds that registered no project-skill hook.
       const probe = vi.fn().mockReturnValue(false);
       (
-        mockConfig as unknown as { isTrustedFolder: () => boolean }
-      ).isTrustedFolder = probe;
+        mockConfig as unknown as { isExplicitlyTrustedFolder: () => boolean }
+      ).isExplicitlyTrustedFolder = probe;
       vi.mocked(mockSessionHooksManager.getMatchingHooks).mockReturnValue([
         ungated,
       ] as never);
