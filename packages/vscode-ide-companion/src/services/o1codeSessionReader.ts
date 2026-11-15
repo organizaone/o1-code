@@ -13,6 +13,8 @@ import { getGitBranch, getProjectHash } from '@organizaone/o1-code-core';
 import { getRuntimeBaseDir } from '../utils/paths.js';
 import { truncatePanelTitle } from '../webview/utils/panelTitleUtils.js';
 import {
+  isHiddenO1CodeUserRecord,
+  isSyntheticO1CodeUserRecord,
   o1codeContentToText,
   o1codeRecordToText,
 } from './o1codeTranscriptText.js';
@@ -271,7 +273,7 @@ export class O1CodeSessionReader {
             type === 'user'
               ? o1codeRecordToText(obj)
               : o1codeContentToText(obj.message);
-          if (includeMessages) {
+          if (includeMessages && !isHiddenO1CodeUserRecord(obj)) {
             messages.push({
               id: uuid || `${messages.length}`,
               timestamp: typeof obj.timestamp === 'string' ? obj.timestamp : '',
@@ -280,7 +282,12 @@ export class O1CodeSessionReader {
             });
           }
 
-          if (!firstUserText && type === 'user' && text) {
+          if (
+            !firstUserText &&
+            type === 'user' &&
+            text &&
+            !isSyntheticO1CodeUserRecord(obj)
+          ) {
             firstUserText = text;
           }
         }

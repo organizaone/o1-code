@@ -1677,6 +1677,31 @@ describe('createTranscriptReplayMachine', () => {
     ]);
   });
 
+  it('drops the synthetic prefix of an image-only mid-turn record that carries its image inline', () => {
+    const projected = updates(
+      createTranscriptReplayMachine(),
+      record('mid-turn-inline-image-prefixed', 'user', {
+        subtype: 'mid_turn_user_message',
+        message: {
+          role: 'user',
+          parts: [
+            { text: '[User message received during tool execution]: ' },
+            { inlineData: { data: 'AQID', mimeType: 'image/png' } },
+          ],
+        },
+        systemPayload: { displayText: '' },
+      }),
+    );
+
+    expect(projected).toHaveLength(1);
+    expect(projected).toMatchObject([
+      {
+        sessionUpdate: 'user_message_chunk',
+        content: { type: 'image', data: 'AQID', mimeType: 'image/png' },
+      },
+    ]);
+  });
+
   it('falls back to inline parts for an image-only mid-turn record without references', () => {
     const projected = updates(
       createTranscriptReplayMachine(),

@@ -18,6 +18,7 @@ import {
   type O1CodeSession,
 } from './o1codeSessionReader.js';
 import {
+  isHiddenO1CodeUserRecord,
   o1codeContentToText,
   o1codeRecordToText,
 } from './o1codeTranscriptText.js';
@@ -779,6 +780,7 @@ export class O1CodeAgentManager {
       for (const r of allRecords) {
         // Handle user and assistant messages
         if ((r.type === 'user' || r.type === 'assistant') && r.message) {
+          if (isHiddenO1CodeUserRecord(r)) continue;
           msgs.push({
             role:
               r.type === 'user' ? ('user' as const) : ('assistant' as const),
