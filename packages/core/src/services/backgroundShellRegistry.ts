@@ -24,7 +24,11 @@ import type { TaskBase, TaskRegistration } from '../agents/tasks/types.js';
 import { atomicWriteFileSync } from '../utils/atomicFileWrite.js';
 import { createDebugLogger } from '../utils/debugLogger.js';
 import { openSyncNoFollow } from '../utils/no-follow-open.js';
-import { todoWorkChainContext } from '../utils/promptIdContext.js';
+import { getInvocationContext } from '../utils/invocation-context.js';
+import {
+  promptIdContext,
+  todoWorkChainContext,
+} from '../utils/promptIdContext.js';
 import {
   isBidiControlChar,
   stripDisplayControlChars,
@@ -223,6 +227,7 @@ export interface ShellNotificationMeta {
   status: BackgroundShellStatus;
   exitCode?: number;
   todoWorkChainId?: string;
+  sourceTurnId?: string;
 }
 
 export type BackgroundShellNotificationCallback = (
@@ -314,6 +319,8 @@ export class BackgroundShellRegistry {
     entry.outputOffset = 0;
     entry.notified = false;
     entry.todoWorkChainId ??= todoWorkChainContext.getStore();
+    entry.sourceTurnId =
+      getInvocationContext()?.promptId ?? promptIdContext.getStore();
     this.entries.set(entry.shellId, entry);
     this.writeStatusFile(entry);
     this.fireRegister(entry);
@@ -557,6 +564,7 @@ export class BackgroundShellRegistry {
       status: entry.status,
       exitCode: entry.exitCode,
       todoWorkChainId: entry.todoWorkChainId,
+      sourceTurnId: entry.sourceTurnId,
     };
 
     try {

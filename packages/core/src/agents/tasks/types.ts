@@ -98,6 +98,11 @@ export interface TaskBase<Status extends string = TaskStatus> {
   notified: boolean;
   /** Todo work chain that created this task, when it was model-launched. */
   todoWorkChainId?: string;
+  /**
+   * The turn that registered this task. A notification carrying it can be
+   * delivered inside that turn while it is still running.
+   */
+  sourceTurnId?: string;
   /** Unified cancellation handle. */
   abortController: AbortController;
 }

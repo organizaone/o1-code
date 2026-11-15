@@ -253,6 +253,19 @@ describe('LspServerManager', () => {
           textDocumentSync,
         });
         expect(connection.initialize).toHaveBeenCalledOnce();
+        const [initializeParams] = vi.mocked(connection.initialize).mock
+          .calls[0] as unknown as [
+          {
+            capabilities: {
+              textDocument: Record<string, { dynamicRegistration: boolean }>;
+            };
+          },
+        ];
+        expect(
+          Object.values(initializeParams.capabilities.textDocument).map(
+            (capability) => capability.dynamicRegistration,
+          ),
+        ).toEqual([false, false, false, false, false, false]);
         expect(connection.send).toHaveBeenCalledWith(
           expect.objectContaining({ method: 'initialized' }),
         );

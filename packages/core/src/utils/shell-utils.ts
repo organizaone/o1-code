@@ -7,6 +7,7 @@
 import type { AnyDeclarativeTool, AnyToolInvocation } from '../tools/tools.js';
 import type { Config } from '../config/config.js';
 import os from 'node:os';
+import path from 'node:path';
 import { resolveAgentShell } from './agent-shell.js';
 import { parse, quote } from 'shell-quote';
 import { isTool } from './is-tool.js';
@@ -109,6 +110,31 @@ const ENV_ASSIGNMENT_REGEX = /^[A-Za-z_][A-Za-z0-9_]*=/;
 
 export function getShellConfiguration(): ShellConfiguration {
   return resolveAgentShell({}, { platform: os.platform(), env: process.env });
+}
+
+export function getExecutableBasename(executable: string): string {
+  return path.basename(path.win32.basename(executable));
+}
+
+/** The name a person would call the shell by, for text shown to the model. */
+export function getShellDisplayName({
+  executable,
+  shell,
+}: ShellConfiguration): string {
+  switch (shell) {
+    case 'cmd':
+      return 'cmd.exe';
+    case 'powershell': {
+      const basename = getExecutableBasename(executable).toLowerCase();
+      return basename === 'pwsh.exe' ? 'pwsh.exe' : 'powershell.exe';
+    }
+    case 'bash':
+      return 'bash';
+    default: {
+      const _exhaustive: never = shell;
+      return _exhaustive;
+    }
+  }
 }
 
 /**

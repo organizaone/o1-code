@@ -26,7 +26,10 @@ import {
   statusFilePathFor,
   type ShellTaskRegistration,
 } from './backgroundShellRegistry.js';
-import { todoWorkChainContext } from '../utils/promptIdContext.js';
+import {
+  promptIdContext,
+  todoWorkChainContext,
+} from '../utils/promptIdContext.js';
 import { escapeXml } from '../utils/xml.js';
 import { stripDisplayControlChars } from '../utils/terminalSafe.js';
 
@@ -108,6 +111,23 @@ describe('BackgroundShellRegistry', () => {
       );
 
       expect(entry.todoWorkChainId).toBe('work-chain-1');
+    });
+
+    it('carries the registering turn on the completion notification', () => {
+      const reg = new BackgroundShellRegistry();
+      const callback = vi.fn();
+      reg.setNotificationCallback(callback);
+      const entry = promptIdContext.run('turn-42', () =>
+        reg.register(makeEntry({ shellId: 'turn-shell' })),
+      );
+      reg.complete(entry.shellId, 0, Date.now());
+
+      expect(callback.mock.calls[0]?.[2].sourceTurnId).toBe('turn-42');
+    });
+
+    it('leaves the turn unset when registration has no turn context', () => {
+      const reg = new BackgroundShellRegistry();
+      expect(reg.register(makeEntry()).sourceTurnId).toBeUndefined();
     });
 
     it('round-trips a registered entry by id', () => {

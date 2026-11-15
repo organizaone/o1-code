@@ -58,7 +58,7 @@ export function isPidAlive(pid: number): boolean {
  * Unreadable `/proc` degrades to "not a zombie" — the conservative
  * direction, since the sweep only ever acts on a positive answer.
  */
-function isZombie(pid: number): boolean {
+export function isZombie(pid: number): boolean {
   if (process.platform !== 'linux') return false;
   let raw: string;
   try {

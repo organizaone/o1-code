@@ -173,8 +173,23 @@ describe('getEnvironmentContext', () => {
     expect(parts[0].text).toContain("Today's date is");
     expect(parts[0].text).toContain('Use workspace tools');
     expect(parts[0].text).not.toContain('My operating system is:');
+    expect(parts[0].text).not.toContain('Shell commands run under:');
     expect(parts[0].text).not.toContain('/test/dir');
     expect(getFolderStructure).not.toHaveBeenCalled();
+  });
+
+  it('names the shell the agent is configured to run commands under', async () => {
+    mockConfig.getAgentShellConfiguration = vi.fn().mockReturnValue({
+      executable: 'C:\\Program Files\\PowerShell\\7\\pwsh.exe',
+      argsPrefix: ['-NoProfile', '-Command'],
+      shell: 'powershell',
+    });
+
+    const parts = await getEnvironmentContext(mockConfig as Config);
+
+    expect(parts[0].text).toContain(
+      `My operating system is: ${process.platform}\nShell commands run under: pwsh.exe\n`,
+    );
   });
 
   it('should return basic environment context for multiple directories', async () => {

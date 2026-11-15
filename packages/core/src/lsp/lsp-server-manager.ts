@@ -1173,13 +1173,16 @@ export class LspServerManager {
       rootPath: workspaceFolderPath,
       workspaceFolders: [workspaceFolder],
       capabilities: {
+        // No handler answers `client/registerCapability`, so a server told it
+        // may register dynamically would have its registration refused and
+        // the capability lost. Declared false, it advertises them statically.
         textDocument: {
-          completion: { dynamicRegistration: true },
-          hover: { dynamicRegistration: true },
-          definition: { dynamicRegistration: true },
-          references: { dynamicRegistration: true },
-          documentSymbol: { dynamicRegistration: true },
-          codeAction: { dynamicRegistration: true },
+          completion: { dynamicRegistration: false },
+          hover: { dynamicRegistration: false },
+          definition: { dynamicRegistration: false },
+          references: { dynamicRegistration: false },
+          documentSymbol: { dynamicRegistration: false },
+          codeAction: { dynamicRegistration: false },
         },
         workspace: {
           workspaceFolders: true,

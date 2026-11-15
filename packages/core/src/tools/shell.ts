@@ -85,7 +85,9 @@ import {
   detectSelfKillCommand,
   getCommandRoot,
   getCommandRoots,
+  getExecutableBasename,
   getShellConfiguration,
+  getShellDisplayName,
   hasShellSubstitution,
   SHELL_SELF_KILL_REJECTION,
   type ShellConfiguration,
@@ -5548,30 +5550,6 @@ export class ShellToolInvocation extends BaseToolInvocation<
         'Pass `--body "..."` inline to enable automatic attribution.',
     );
     return command;
-  }
-}
-
-function getExecutableBasename(executable: string): string {
-  return path.basename(path.win32.basename(executable));
-}
-
-function getShellDisplayName({
-  executable,
-  shell,
-}: ShellConfiguration): string {
-  switch (shell) {
-    case 'cmd':
-      return 'cmd.exe';
-    case 'powershell': {
-      const basename = getExecutableBasename(executable).toLowerCase();
-      return basename === 'pwsh.exe' ? 'pwsh.exe' : 'powershell.exe';
-    }
-    case 'bash':
-      return 'bash';
-    default: {
-      const _exhaustive: never = shell;
-      return _exhaustive;
-    }
   }
 }
 

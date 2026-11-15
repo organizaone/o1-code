@@ -9908,6 +9908,7 @@ export class Session implements SessionContext {
         displayText,
         modelText,
         taskId: meta.monitorId,
+        sourceTurnId: meta.sourceTurnId,
         status: meta.status,
         kind: 'monitor',
         continuesTodoStopGuardWorkChain:
@@ -9938,6 +9939,7 @@ export class Session implements SessionContext {
         displayText,
         modelText,
         taskId: meta.shellId,
+        sourceTurnId: meta.sourceTurnId,
         status: meta.status,
         kind: 'shell',
         continuesTodoStopGuardWorkChain:
@@ -9971,6 +9973,7 @@ export class Session implements SessionContext {
         displayText,
         modelText,
         taskId: meta.runId,
+        sourceTurnId: meta.sourceTurnId,
         status: meta.status,
         kind: 'workflow',
         continuesTodoStopGuardWorkChain:
