@@ -7,6 +7,40 @@ follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.26.0] - 2026-11-15
+
+### Changed
+
+- **Breaking:** project hooks in `.o1-code/settings.json` now need an explicitly trusted folder:
+  enable `security.folderTrust.enabled` and trust the folder, or grant workspace trust in your IDE.
+  A warning is shown when they are not loaded.
+- `security.folderTrust` is no longer read from workspace settings.
+- The branch and recent commits are now given to the model at the start of the conversation
+  instead of in the system prompt, so the prompt cache survives from one session to the next.
+- The model is told which shell runs its commands.
+
+### Fixed
+
+- Shell commands written with `$'...'` quoting, or with `--` after `-c`, are now analyzed like any
+  other command.
+- Configuration files saved with a byte order mark now load.
+- `sed` edits no longer corrupt files with CRLF line endings or emoji.
+- When a subagent stops at a limit or on an error, the main model is told why.
+- An MCP server that lists a tool name twice keeps its other tools.
+- In editor sessions, a cancelled shell command is no longer reported as completed, and the result
+  of a background task reaches the model in the turn that started it.
+- Internal notes meant for the model no longer appear when a session is reopened in VS Code or in
+  the Web Shell.
+- Requests no longer exceed a small configured context window.
+- Context overflow reported by llama.cpp and Hugging Face TGI servers now triggers compaction.
+- A provider error that arrives with no body is retried.
+- Claude Opus 5.5, Sonnet 5.5, Fable 5.1+ and Mythos 5.1+ no longer fail on internal structured
+  requests.
+- Anthropic-compatible servers that require a signature on thinking blocks no longer reject the
+  conversation history.
+- A session whose process has exited no longer keeps its worktree marked as in use.
+- Language servers no longer lose capabilities at startup.
+
 ## [0.25.0] - 2026-11-15
 
 ### Changed
