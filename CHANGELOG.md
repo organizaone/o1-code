@@ -7,6 +7,19 @@ follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.28.0] - 2026-11-16
+
+### Added
+
+- `/logout` (or `/disconnect`) signs out of the connected provider. It shows which account is
+  connected and asks before removing anything.
+
+### Fixed
+
+- The command list under `/` keeps one height while you type, instead of growing and shrinking
+  with every key.
+- In full-screen mode, the conversation no longer shows above a command's confirmation dialog.
+
 ## [0.27.0] - 2026-11-16
 
 ### Added
