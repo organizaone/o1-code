@@ -401,10 +401,8 @@ export const useSlashCommandProcessor = (
         approvedCommands?: string[],
       ) => void;
     }>(null);
-  const [confirmationRequest, setConfirmationRequest] = useState<null | {
-    prompt: React.ReactNode;
-    onConfirm: (confirmed: boolean) => void;
-  }>(null);
+  const [confirmationRequest, setConfirmationRequest] =
+    useState<null | ConfirmationRequest>(null);
 
   const [sessionShellAllowlist, setSessionShellAllowlist] = useState(
     new Set<string>(),
@@ -1475,6 +1473,9 @@ export const useSlashCommandProcessor = (
                   }>((resolve) => {
                     setConfirmationRequest({
                       prompt: result.prompt,
+                      confirmLabel: result.confirmLabel,
+                      cancelLabel: result.cancelLabel,
+                      defaultDeny: result.defaultDeny,
                       onConfirm: (resolvedConfirmed) => {
                         setConfirmationRequest(null);
                         resolve({ confirmed: resolvedConfirmed });

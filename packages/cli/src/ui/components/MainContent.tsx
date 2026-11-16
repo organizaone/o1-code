@@ -620,6 +620,9 @@ export const MainContent = ({
       uiState.isRewindSelectorOpen ||
       uiState.isDiffDialogOpen ||
       uiState.isRemoteDialogOpen ||
+      // A command's confirmation stands on its own: the rows of transcript
+      // left above it, thinking line included, read as part of the dialog.
+      Boolean(uiState.confirmationRequest) ||
       uiState.auth.isAuthDialogOpen ||
       uiState.auth.isAuthenticating ||
       uiState.auth.authError)

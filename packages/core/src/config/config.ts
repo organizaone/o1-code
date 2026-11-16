@@ -5383,6 +5383,28 @@ export class Config {
   }
 
   /**
+   * Signs this session out: closes the tunnel and drops the content generator
+   * and the resolved configuration, with the key they hold. The session is
+   * then as it was before the first sign-in, until the next refreshAuth.
+   * Saved keys are the caller's to remove.
+   */
+  async clearAuth(): Promise<void> {
+    await this.closeO1ConnectSession();
+    this.modelsConfig.clearResolvedApiKey();
+    // Declared as always set because refreshAuth assigns them; unset is the
+    // state every reader already handles before the first sign-in.
+    const session = this as unknown as {
+      contentGenerator?: ContentGenerator;
+      contentGeneratorConfig?: ContentGeneratorConfig;
+      baseLlmClient?: BaseLlmClient;
+    };
+    session.contentGenerator = undefined;
+    session.contentGeneratorConfig = undefined;
+    session.baseLlmClient = undefined;
+    this.contentGeneratorConfigSources = {};
+  }
+
+  /**
    * Provides access to the BaseLlmClient for stateless LLM operations.
    */
   getBaseLlmClient(): BaseLlmClient {

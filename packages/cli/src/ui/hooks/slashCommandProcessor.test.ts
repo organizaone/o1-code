@@ -2164,6 +2164,44 @@ describe('useSlashCommandProcessor', () => {
       });
     });
 
+    it("passes a confirm action's labels and default to the confirmation", async () => {
+      const action = vi
+        .fn()
+        .mockResolvedValueOnce({
+          type: 'confirm_action',
+          prompt: 'Sign out?',
+          confirmLabel: 'Sign out',
+          cancelLabel: 'Cancel',
+          defaultDeny: true,
+          originalInvocation: { raw: '/labelcmd' },
+        } as ConfirmActionReturn)
+        .mockResolvedValueOnce(undefined);
+      const command = createTestCommand({ name: 'labelcmd', action });
+
+      const result = setupProcessorHook([command]);
+      await waitFor(() => expect(result.current.slashCommands).toHaveLength(1));
+
+      act(() => {
+        result.current.handleSlashCommand('/labelcmd');
+      });
+      await waitFor(() => {
+        expect(result.current.confirmationRequest).toMatchObject({
+          prompt: 'Sign out?',
+          confirmLabel: 'Sign out',
+          cancelLabel: 'Cancel',
+          defaultDeny: true,
+        });
+      });
+
+      await act(async () => {
+        result.current.confirmationRequest?.onConfirm(false);
+      });
+      await waitFor(() => {
+        expect(result.current.confirmationRequest).toBeNull();
+      });
+      expect(action).toHaveBeenCalledTimes(1);
+    });
+
     it('should not duplicate user history when a confirmed action submits a prompt', async () => {
       const action = vi
         .fn()

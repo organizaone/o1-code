@@ -317,6 +317,12 @@ export interface ConfirmActionReturn {
   type: 'confirm_action';
   /** The React node to display as the confirmation prompt. */
   prompt: ReactNode;
+  /** The label of the choice that confirms; "Yes" when omitted. */
+  confirmLabel?: string;
+  /** The label of the choice that cancels; "No" when omitted. */
+  cancelLabel?: string;
+  /** Starts on the cancelling choice, and Esc cancels. */
+  defaultDeny?: boolean;
   /** The original invocation context to be re-run after confirmation. */
   originalInvocation: {
     raw: string;

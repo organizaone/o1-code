@@ -8434,6 +8434,60 @@ describe('Server Config (config.ts)', () => {
       expect(close).toHaveBeenCalledTimes(1);
     });
 
+    it('clearAuth closes the tunnel and leaves the session as before a sign-in', async () => {
+      const close = vi.fn().mockResolvedValue(undefined);
+      openO1ConnectMock.mockReset();
+      openO1ConnectMock.mockResolvedValue({
+        baseUrl: 'http://127.0.0.1:4242',
+        openaiBaseUrl: 'http://127.0.0.1:4242/v1',
+        apiKey: 'session-key',
+        device: 'my-laptop',
+        close,
+      });
+      const config = new Config({
+        ...baseParams,
+        authType: AuthType.USE_ANTHROPIC,
+        model: 'claude-sonnet-4-5',
+        modelProvidersConfig: {
+          anthropic: [
+            {
+              id: 'claude-sonnet-4-5',
+              baseUrl: 'https://api.organizaone.com',
+              connection: 'o1-connect',
+            },
+          ],
+        },
+      });
+      vi.mocked(resolveContentGeneratorConfigWithSources).mockImplementation(
+        (_config, authType, generationConfig) => ({
+          config: { ...generationConfig, model: 'claude-sonnet-4-5', authType },
+          sources: {},
+        }),
+      );
+      await config.refreshAuth(AuthType.USE_ANTHROPIC);
+      expect(config.getAuthType()).toBe(AuthType.USE_ANTHROPIC);
+
+      await config.clearAuth();
+
+      expect(close).toHaveBeenCalledTimes(1);
+      expect(config.getO1ConnectSession()).toBeUndefined();
+      expect(config.getAuthType()).toBeUndefined();
+      expect(config.getContentGeneratorConfig()).toBeUndefined();
+      expect(config.getContentGenerator()).toBeUndefined();
+      expect(() => config.getBaseLlmClient()).toThrow(
+        'BaseLlmClient not initialized',
+      );
+      expect(
+        config.getModelsConfig().getGenerationConfig().apiKey,
+      ).toBeUndefined();
+
+      // Signing in again builds a new generator.
+      await config.refreshAuth(AuthType.USE_ANTHROPIC);
+      expect(config.getAuthType()).toBe(AuthType.USE_ANTHROPIC);
+      expect(openO1ConnectMock).toHaveBeenCalledTimes(2);
+      await config.shutdown({ shutdownTelemetry: false });
+    });
+
     it('does not touch the tunnel for a model reached directly', async () => {
       openO1ConnectMock.mockReset();
       const config = new Config({

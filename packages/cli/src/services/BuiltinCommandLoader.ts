@@ -47,6 +47,7 @@ import { importConfigCommand } from '../ui/commands/importConfigCommand.js';
 import { createDebugLogger } from '@organizaone/o1-code-core';
 import { initCommand } from '../ui/commands/initCommand.js';
 import { languageCommand } from '../ui/commands/languageCommand.js';
+import { logoutCommand } from '../ui/commands/logout-command.js';
 import { mcpCommand } from '../ui/commands/mcpCommand.js';
 import { dreamCommand } from '../ui/commands/dreamCommand.js';
 import { forgetCommand } from '../ui/commands/forgetCommand.js';
@@ -166,6 +167,7 @@ export class BuiltinCommandLoader implements ICommandLoader {
       initCommand,
       languageCommand,
       learnCommand,
+      logoutCommand,
       mcpCommand,
       ...(this.config?.isManagedMemoryAvailable()
         ? [dreamCommand, forgetCommand]
