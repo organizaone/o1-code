@@ -1909,6 +1909,171 @@ describe('BackgroundTasksDialog', () => {
     );
   });
 
+  describe('opening for a parked workflow approval', () => {
+    function parked(approvalId: string): WorkflowApproval {
+      return {
+        approvalId,
+        subagentId: 'sub-1',
+        callId: `call-${approvalId}`,
+        name: 'Shell',
+        description: 'run',
+        confirmationDetails: {
+          type: 'exec',
+          title: 'Confirm workflow command',
+          command: 'echo workflow',
+          rootCommand: 'echo',
+        } as WorkflowApproval['confirmationDetails'],
+        at: 1,
+      };
+    }
+    function waiting(
+      runId: string,
+      approvals: WorkflowApproval[],
+    ): DialogEntry {
+      return workflowEntry({
+        id: runId,
+        runId,
+        status: 'running',
+        pendingApprovals: approvals,
+      } as Partial<WorkflowTask>);
+    }
+    // Entries arrive after mount, as they do from the registry, so the
+    // provider's effect runs inside act().
+    function arrive(entries: readonly DialogEntry[]): Harness {
+      const h = setup([]);
+      h.setEntries(entries);
+      return h;
+    }
+
+    it('opens on the list with the waiting run selected', () => {
+      const h = setup([monitorEntry()]);
+      expect(h.probe.current!.state.dialogMode).toBe('closed');
+
+      h.setEntries([monitorEntry(), waiting('wf_a', [parked('wfap-1')])]);
+
+      expect(h.probe.current!.state.dialogMode).toBe('list');
+      expect(h.probe.current!.state.selectedIndex).toBe(1);
+      expect(h.probe.current!.state.autoOpened).toBe(true);
+      const frame = h.lastFrame() ?? '';
+      expect(frame).toContain('A workflow needs approval');
+      expect(frame).not.toContain('Enter view');
+      expect(frame).not.toContain('x stop');
+    });
+
+    it('does not open for an agent approval or an empty workflow queue', () => {
+      const h = arrive([
+        entry({
+          pendingApprovals: [
+            parked('agent-1'),
+          ] as unknown as AgentDialogEntry['pendingApprovals'],
+        }),
+        waiting('wf_a', []),
+      ]);
+      expect(h.probe.current!.state.dialogMode).toBe('closed');
+    });
+
+    it('ignores keys aimed at the composer until an arrow key', () => {
+      const h = arrive([waiting('wf_a', [parked('wfap-1')])]);
+      expect(h.probe.current!.state.autoOpened).toBe(true);
+
+      for (const key of [
+        { sequence: 'x' },
+        { sequence: 'p' },
+        { sequence: 'r' },
+        { sequence: 'a' },
+        { sequence: 'k', name: 'k' },
+        { name: 'return' },
+        { name: 'escape' },
+        { name: 'left' },
+        { name: 'up', ctrl: true },
+      ]) {
+        h.pressKey(key);
+      }
+
+      expect(h.workflowCancel).not.toHaveBeenCalled();
+      expect(h.workflowPause).not.toHaveBeenCalled();
+      expect(h.workflowResolvePendingApproval).not.toHaveBeenCalled();
+      expect(h.probe.current!.state.dialogMode).toBe('list');
+      expect(h.probe.current!.state.autoOpened).toBe(true);
+    });
+
+    it('does not close on the global dialog close before the acknowledgement', () => {
+      const h = arrive([waiting('wf_a', [parked('wfap-1')])]);
+
+      h.call(() => h.probe.current!.actions.closeDialog());
+
+      expect(h.probe.current!.state.dialogMode).toBe('list');
+    });
+
+    it('spends the arrow on the acknowledgement, then answers from the request', () => {
+      const h = arrive([
+        waiting('wf_a', [parked('wfap-1')]),
+        waiting('wf_b', []),
+      ]);
+
+      h.pressKey({ name: 'down' });
+
+      expect(h.probe.current!.state.autoOpened).toBe(false);
+      expect(h.probe.current!.state.selectedIndex).toBe(0);
+      expect(h.lastFrame()).toContain('Enter view');
+
+      h.pressKey({ name: 'return' });
+      expect(h.probe.current!.state.dialogMode).toBe('detail');
+      expect(h.lastFrame()).toContain('echo workflow');
+
+      h.pressKeyBroadcast({ name: 'escape' });
+      expect(h.workflowResolvePendingApproval).toHaveBeenCalledWith(
+        'wf_a',
+        'wfap-1',
+        ToolConfirmationOutcome.Cancel,
+        undefined,
+      );
+    });
+
+    it('stays closed after the user closes it, and opens again for a new approval', () => {
+      const first = waiting('wf_a', [parked('wfap-1')]);
+      const second = waiting('wf_b', [parked('wfap-2')]);
+      const h = arrive([first, second]);
+      expect(h.probe.current!.state.selectedIndex).toBe(0);
+
+      h.pressKey({ name: 'up' });
+      h.pressKey({ name: 'escape' });
+      expect(h.probe.current!.state.dialogMode).toBe('closed');
+
+      // The same snapshot again: neither the shown approval nor the one
+      // parked on the other run reopens the dialog.
+      h.setEntries([{ ...first }, { ...second }]);
+      expect(h.probe.current!.state.dialogMode).toBe('closed');
+
+      h.setEntries([first, waiting('wf_b', [parked('wfap-3')])]);
+      expect(h.probe.current!.state.dialogMode).toBe('list');
+      expect(h.probe.current!.state.selectedIndex).toBe(1);
+      expect(h.probe.current!.state.autoOpened).toBe(true);
+    });
+
+    it('prompts for an approval queued behind the head once it becomes head', () => {
+      const h = arrive([waiting('wf_a', [parked('wfap-1'), parked('wfap-2')])]);
+      h.pressKey({ name: 'up' });
+      h.pressKey({ name: 'escape' });
+      expect(h.probe.current!.state.dialogMode).toBe('closed');
+
+      h.setEntries([waiting('wf_a', [parked('wfap-2')])]);
+
+      expect(h.probe.current!.state.dialogMode).toBe('list');
+      expect(h.probe.current!.state.autoOpened).toBe(true);
+    });
+
+    it('arms the keys when the user opens the dialog', () => {
+      const h = arrive([waiting('wf_a', [parked('wfap-1')])]);
+
+      h.call(() => h.probe.current!.actions.openDialog());
+
+      expect(h.probe.current!.state.autoOpened).toBe(false);
+      h.pressKey({ sequence: 'x' });
+      expect(h.workflowCancel).toHaveBeenCalledWith('wf_a', expect.any(Number));
+    });
+  });
+
   describe('nested sub-agent display', () => {
     // Entries are passed pre-grouped (parent before child) — in production
     // useBackgroundTaskView applies reorderChildrenUnderParents before the

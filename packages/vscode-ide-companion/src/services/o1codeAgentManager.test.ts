@@ -335,3 +335,28 @@ describe('O1CodeAgentManager session-update transcript forwarding', () => {
     expect(onTranscriptUpdate).toHaveBeenCalledWith(notification);
   });
 });
+
+describe('O1CodeAgentManager.getSessionListPaged', () => {
+  it('hands the agent cursor back unchanged', async () => {
+    const manager = new O1CodeAgentManager();
+    const issued = '1700000000000|session-1.jsonl';
+    const listSessions = vi.fn().mockResolvedValue({
+      sessions: [{ sessionId: 'session-1' }],
+      nextCursor: issued,
+    });
+    (
+      manager as unknown as {
+        connection: { listSessions: typeof listSessions };
+      }
+    ).connection = { listSessions };
+
+    const page = await manager.getSessionListPaged({ size: 1 });
+
+    expect(page.hasMore).toBe(true);
+    expect(page.nextCursor).toBe(issued);
+
+    await manager.getSessionListPaged({ size: 1, cursor: page.nextCursor });
+
+    expect(listSessions).toHaveBeenLastCalledWith({ size: 1, cursor: issued });
+  });
+});

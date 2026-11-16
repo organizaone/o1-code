@@ -967,6 +967,9 @@ describe('MonitorTool', () => {
       expect(result.llmContent).toContain(
         'Monitor was cancelled before it could start.',
       );
+      // Returned, not thrown: without this the scheduler reports a monitor
+      // that never spawned as completed.
+      expect(result).toMatchObject({ interruptedBeforeCompletion: true });
     });
 
     it('truncates long monitor descriptions in display surfaces', async () => {

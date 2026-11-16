@@ -141,26 +141,48 @@ export function invalidateWorkspaceSessionListCache(
 export class InvalidCursorError extends Error {
   constructor(
     cursor: string,
-    kind: 'numeric' | 'organized' | 'live' | 'parent' | 'metadata' = 'numeric',
+    kind:
+      | 'numeric'
+      | 'persisted'
+      | 'organized'
+      | 'live'
+      | 'parent'
+      | 'metadata' = 'numeric',
   ) {
     super(`Invalid cursor: "${cursor}" is not a valid ${kind} cursor`);
     this.name = 'InvalidCursorError';
   }
 }
 
-function parseSessionCursor(cursor: string): number | undefined {
-  if (cursor === '') return undefined;
+/**
+ * True when `cursor` addresses the persisted session store: the
+ * `"<mtime>|<file name>"` cursor SessionService.listSessions issues, or the
+ * bare mtime it issued before. The route uses it to choose the persisted list
+ * over the live one, whose cursors are base64url and never contain `|`.
+ */
+export function isPersistedSessionCursor(cursor: string): boolean {
   const trimmed = cursor.trim();
-  const parsed = Number(trimmed);
-  if (
-    trimmed === '' ||
-    !Number.isFinite(parsed) ||
-    parsed < 0 ||
-    parsed > Number.MAX_SAFE_INTEGER
-  ) {
-    throw new InvalidCursorError(cursor);
+  if (trimmed === '') return false;
+  const parts = trimmed.split('|');
+  if (parts.length === 2) {
+    // Number('') is 0, so an empty mtime would otherwise pass as a position.
+    if (parts[0]!.trim() === '' || parts[1]!.length === 0) return false;
+    const mtime = Number(parts[0]);
+    return Number.isFinite(mtime) && mtime >= 0;
   }
-  return parsed;
+  const parsed = Number(trimmed);
+  return (
+    Number.isFinite(parsed) && parsed >= 0 && parsed <= Number.MAX_SAFE_INTEGER
+  );
+}
+
+function parseSessionCursor(cursor: string): number | string | undefined {
+  if (cursor === '') return undefined;
+  if (!isPersistedSessionCursor(cursor)) {
+    throw new InvalidCursorError(cursor, 'persisted');
+  }
+  const trimmed = cursor.trim();
+  return trimmed.includes('|') ? trimmed : Number(trimmed);
 }
 
 interface OrganizedCursor {
@@ -718,7 +740,7 @@ async function loadAllPersistedSummaries(
   const sessions: BridgeSessionSummary[] = [];
   let truncated = false;
   let scanPages = 0;
-  let cursor: number | undefined;
+  let cursor: number | string | undefined;
   do {
     scanPages += 1;
     const page = await sessionService.listSessions({
@@ -1446,16 +1468,16 @@ async function listWorkspaceSessionsForResponseInRuntime(
     );
   }
 
-  let numericCursor: number | undefined;
+  let persistedCursor: number | string | undefined;
   if (options?.cursor != null) {
-    numericCursor = parseSessionCursor(options.cursor);
+    persistedCursor = parseSessionCursor(options.cursor);
   }
-  const isFirstPage = numericCursor === undefined;
+  const isFirstPage = persistedCursor === undefined;
 
   const sessionService = new SessionService(workspaceCwd);
   const archiveState = options?.archiveState ?? 'active';
   const persisted = await sessionService.listSessions({
-    cursor: numericCursor,
+    cursor: persistedCursor,
     size: pageSize,
     archiveState,
     ...(readOptions.signal ? { signal: readOptions.signal } : {}),

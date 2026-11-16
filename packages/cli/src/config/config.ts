@@ -207,6 +207,8 @@ export interface CliArgs {
   telemetryLogPrompts: boolean | undefined;
   telemetryOutfile: string | undefined;
   allowedMcpServerNames: string[] | undefined;
+  // Optional, unlike its neighbours, so hand-built CliArgs objects keep compiling.
+  disableMcpServer?: string[] | undefined;
   mcpConfig: string | undefined;
   allowedTools: string[] | undefined;
   acp: boolean | undefined;
@@ -692,6 +694,14 @@ export async function parseArguments(): Promise<CliArgs> {
             // Handle comma-separated values
             mcpServerNames.flatMap((mcpServerName) =>
               mcpServerName.split(',').map((m) => m.trim()),
+            ),
+        })
+        .option('disable-mcp-server', {
+          ...DEFAULT_COMMAND_OPTIONS['disable-mcp-server'],
+          string: true,
+          coerce: (disabledServerNames: string[]) =>
+            disabledServerNames.flatMap((disabledServerName) =>
+              disabledServerName.split(',').map((m) => m.trim()),
             ),
         })
         .option('mcp-config', DEFAULT_COMMAND_OPTIONS['mcp-config'])
@@ -2171,6 +2181,18 @@ export async function loadCliConfig(
       ? new Set(settings.mcp.excluded.filter(Boolean))
       : undefined;
   }
+  // `--disable-mcp-server` is an explicit per-invocation argument, so it is
+  // applied outside the chain above: inside the settings branch it would be
+  // lost under bare/safe mode, and next to `--allowed-mcp-server-names` the
+  // first branch leaves the exclude set empty. A server named by both flags
+  // ends up disabled.
+  const cliDisabledMcpServerNames = argv.disableMcpServer?.filter(Boolean);
+  if (cliDisabledMcpServerNames && cliDisabledMcpServerNames.length > 0) {
+    excludedMcpServers = new Set([
+      ...(excludedMcpServers ?? []),
+      ...cliDisabledMcpServerNames,
+    ]);
+  }
 
   const selectedAuthType =
     (argv.authType as AuthType | undefined) ||
@@ -2535,6 +2557,12 @@ export async function loadCliConfig(
     cliAllowedMcpServerNames: argv.allowedMcpServerNames
       ? argv.allowedMcpServerNames.filter(Boolean)
       : undefined,
+    // The flag ONLY — the floor a hot-reload adds back under the
+    // settings-derived exclude list. Undefined when the flag was not passed.
+    cliDisabledMcpServerNames:
+      cliDisabledMcpServerNames && cliDisabledMcpServerNames.length > 0
+        ? cliDisabledMcpServerNames
+        : undefined,
     excludedMcpServers: excludedMcpServers
       ? Array.from(excludedMcpServers)
       : undefined,

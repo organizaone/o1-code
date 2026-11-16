@@ -298,6 +298,8 @@ export interface AgentTask extends TaskBase {
    * model selector at launch time). Used to enforce per-model concurrency
    * caps (`agents.maxParallelAgentsByModel`); undefined when the model
    * could not be resolved, in which case only the global cap applies.
+   * Foreground entries leave it unset: their slot is a reservation held for
+   * the whole run, not a count of running entries.
    */
   model?: string;
   /**
@@ -477,10 +479,11 @@ export interface BackgroundTaskRegistryOptions {
   maxConcurrentBackgroundAgents?: number;
   /**
    * Per-model concurrency caps keyed by concrete model ID. Each value is the
-   * maximum number of background sub-agents that may run concurrently on that
-   * model. A model not present here is bounded only by the global
-   * `maxConcurrentBackgroundAgents` cap. Useful when a model has a lower
-   * concurrency capacity than the rest of the fleet.
+   * maximum number of top-level sub-agents, background and foreground
+   * together, that may run concurrently on that model. A model not present
+   * here is bounded only by the global `maxConcurrentBackgroundAgents` cap
+   * for background launches and is unbounded for foreground ones. Useful when
+   * a model has a lower concurrency capacity than the rest of the fleet.
    */
   maxConcurrentBackgroundAgentsByModel?:
     | ReadonlyMap<string, number>
@@ -515,10 +518,19 @@ interface BackgroundSlotClaim {
   readonly model: string | undefined;
   /** Undefined means the caller did not opt into owner tracking. */
   readonly ownerId: string | null | undefined;
+  /**
+   * Set for a slot held by a foreground run. It counts toward its model's cap
+   * like any other claim, but not toward the global background budget: a
+   * synchronous run is not a background agent.
+   */
+  readonly foreground?: boolean;
 }
 
 const BACKGROUND_SLOT_WAIT_CANCELLED =
   'Agent launch cancelled while waiting for a background slot.';
+
+export const FOREGROUND_MODEL_SLOT_WAIT_CANCELLED =
+  'Agent launch cancelled while waiting for a model slot.';
 
 export class BackgroundTaskRegistry {
   private readonly agents = new Map<string, AgentTask>();
@@ -530,6 +542,10 @@ export class BackgroundTaskRegistry {
     Set<(settled: boolean) => void>
   >();
   private readonly waitQueue: BackgroundSlotWaiter[] = [];
+  // Foreground launches waiting on their model's cap. A separate queue
+  // because they are admitted on per-model headroom alone, while `waitQueue`
+  // is also gated by the global background budget.
+  private readonly foregroundWaitQueue: BackgroundSlotWaiter[] = [];
   // Maps each outstanding slot reservation to the concrete model ID and the
   // owner that initiated it. A Map rather than a Set lets concurrency checks
   // count the model while owner-scoped notifications count launches that have
@@ -541,7 +557,7 @@ export class BackgroundTaskRegistry {
   private readonly maxConcurrentBackgroundAgents: number;
   // Per-model concurrency caps keyed by concrete model ID. Empty when no
   // `agents.maxParallelAgentsByModel` is configured, in which case only the
-  // global cap is enforced.
+  // global cap is enforced, and only on background launches.
   private readonly maxConcurrentBackgroundAgentsByModel: Map<string, number>;
   private notificationCallback?: BackgroundNotificationCallback;
   private registerCallback?: BackgroundRegisterCallback;
@@ -619,7 +635,7 @@ export class BackgroundTaskRegistry {
   }
 
   /** Configured per-model cap for `model`, or undefined when none applies. */
-  private resolvePerModelCap(model?: string): number | undefined {
+  resolvePerModelCap(model?: string): number | undefined {
     if (model === undefined) {
       return undefined;
     }
@@ -670,13 +686,85 @@ export class BackgroundTaskRegistry {
     return this.reserveBackgroundSlot(model, ownerId);
   }
 
+  /**
+   * Reserve a slot on `model` for a foreground run. Only the per-model cap is
+   * consulted, so background agents on other models never hold a foreground
+   * run back. Returns undefined when the model is at its cap, and also when
+   * it has no cap at all — callers check `resolvePerModelCap` first and skip
+   * the reservation for an uncapped model.
+   */
+  tryReserveForegroundModelSlot(
+    model: string,
+  ): BackgroundSlotReservation | undefined {
+    const cap = this.resolvePerModelCap(model);
+    if (cap === undefined || this.getClaimedBackgroundSlotCount(model) >= cap) {
+      return undefined;
+    }
+    return this.reserveBackgroundSlot(model, undefined, true);
+  }
+
+  /**
+   * Wait until `model` has room under its per-model cap and reserve the slot.
+   * An abort removes the waiter from the queue and rejects with
+   * `FOREGROUND_MODEL_SLOT_WAIT_CANCELLED`.
+   */
+  async waitForForegroundModelSlot(
+    signal: AbortSignal | undefined,
+    model: string,
+  ): Promise<BackgroundSlotReservation> {
+    if (signal?.aborted) {
+      throw new Error(FOREGROUND_MODEL_SLOT_WAIT_CANCELLED);
+    }
+    const reservation = this.tryReserveForegroundModelSlot(model);
+    if (reservation) {
+      return reservation;
+    }
+    if (this.resolvePerModelCap(model) === undefined) {
+      // Nothing would ever wake a waiter on an uncapped model.
+      throw new Error(`No concurrency cap is configured for model "${model}".`);
+    }
+
+    return new Promise<BackgroundSlotReservation>((resolve, reject) => {
+      const onAbort = () => {
+        const index = this.foregroundWaitQueue.indexOf(waiter);
+        if (index !== -1) {
+          this.foregroundWaitQueue.splice(index, 1);
+        }
+        reject(new Error(FOREGROUND_MODEL_SLOT_WAIT_CANCELLED));
+      };
+      const waiter: BackgroundSlotWaiter = {
+        signal,
+        model,
+        ownerId: undefined,
+        resolve,
+        reject,
+        onAbort,
+      };
+      signal?.addEventListener('abort', onAbort, { once: true });
+      this.foregroundWaitQueue.push(waiter);
+    });
+  }
+
   getQueuedCount(): number {
     return this.waitQueue.length;
   }
 
+  /** Foreground launches currently waiting on a per-model slot. */
+  getForegroundQueuedCount(): number {
+    return this.foregroundWaitQueue.length;
+  }
+
+  /**
+   * Slots in use on `model`: running background agents plus outstanding
+   * background and foreground reservations.
+   */
+  getClaimedModelSlotCount(model: string): number {
+    return this.getClaimedBackgroundSlotCount(model);
+  }
+
   releaseBackgroundSlot(reservation: BackgroundSlotReservation): void {
     if (this.reservedBackgroundSlots.delete(reservation.id)) {
-      this.drainWaitQueue();
+      this.drainQueues();
     }
   }
 
@@ -736,7 +824,7 @@ export class BackgroundTaskRegistry {
       wasRunningBackground &&
       (!entry.isBackgrounded || entry.status !== 'running')
     ) {
-      this.drainWaitQueue();
+      this.drainQueues();
     }
 
     // Foreground entries are paired with a synchronous tool-call result on
@@ -873,7 +961,7 @@ export class BackgroundTaskRegistry {
     }
     this.emitNotification(entry);
     this.emitStatusChange(entry);
-    this.drainWaitQueue();
+    this.drainQueues();
   }
 
   /**
@@ -906,7 +994,7 @@ export class BackgroundTaskRegistry {
     this.deleteAgent(agentId);
     this.emitStatusChange(entry);
     debugLogger.info(`Unregistered foreground agent: ${agentId}`);
-    this.drainWaitQueue();
+    this.drainQueues();
   }
 
   // See complete() for the cancelled → terminal path rationale.
@@ -927,7 +1015,7 @@ export class BackgroundTaskRegistry {
     this.emitNotification(entry);
     this.emitStatusChange(entry);
     this.disposeResidentAgent(agentId);
-    this.drainWaitQueue();
+    this.drainQueues();
   }
 
   // Cancellation aborts the signal and marks the entry as cancelled, but
@@ -974,7 +1062,7 @@ export class BackgroundTaskRegistry {
     }
     debugLogger.info(`Background agent cancelled: ${agentId}`);
     this.emitStatusChange(entry);
-    this.drainWaitQueue();
+    this.drainQueues();
 
     // Foreground entries don't emit XML notifications and unregister
     // themselves in the tool-call's finally path, so the grace timer
@@ -985,7 +1073,7 @@ export class BackgroundTaskRegistry {
       // Session reset paths intentionally suppress the old task's terminal
       // notification so it cannot leak into a new conversation.
       entry.notified = true;
-      this.drainWaitQueue();
+      this.drainQueues();
       return;
     }
 
@@ -1012,7 +1100,7 @@ export class BackgroundTaskRegistry {
     this.rejectPendingApprovals(entry);
     this.emitStatusChange(entry);
     this.disposeResidentAgent(agentId);
-    this.drainWaitQueue();
+    this.drainQueues();
   }
 
   // Emit the terminal cancelled notification once the agent's natural
@@ -1039,7 +1127,7 @@ export class BackgroundTaskRegistry {
     this.emitNotification(entry);
     this.emitStatusChange(entry);
     this.disposeResidentAgent(agentId);
-    this.drainWaitQueue();
+    this.drainQueues();
   }
 
   // Emit the terminal cancelled notification for entries that were cancelled
@@ -1059,7 +1147,7 @@ export class BackgroundTaskRegistry {
     this.emitNotification(entry);
     this.emitStatusChange(entry);
     this.disposeResidentAgent(agentId);
-    this.drainWaitQueue();
+    this.drainQueues();
   }
 
   /**
@@ -1353,7 +1441,14 @@ export class BackgroundTaskRegistry {
 
   private getReservedBackgroundSlotCount(model?: string): number {
     if (model === undefined) {
-      return this.reservedBackgroundSlots.size;
+      // Global background budget: foreground claims do not consume it.
+      let background = 0;
+      for (const claim of this.reservedBackgroundSlots.values()) {
+        if (!claim.foreground) {
+          background++;
+        }
+      }
+      return background;
     }
     let count = 0;
     for (const claim of this.reservedBackgroundSlots.values()) {
@@ -1389,9 +1484,14 @@ export class BackgroundTaskRegistry {
   private reserveBackgroundSlot(
     model?: string,
     ownerId?: string | null,
+    foreground?: boolean,
   ): BackgroundSlotReservation {
     const id = Symbol('background-slot');
-    this.reservedBackgroundSlots.set(id, { model, ownerId });
+    this.reservedBackgroundSlots.set(id, {
+      model,
+      ownerId,
+      ...(foreground ? { foreground } : {}),
+    });
     return { id, model };
   }
 
@@ -1400,6 +1500,37 @@ export class BackgroundTaskRegistry {
       throw new Error(
         'Invalid background agent slot reservation; it may have been invalidated by session reset.',
       );
+    }
+  }
+
+  /**
+   * Re-scan both queues after capacity frees. Foreground waiters go first: a
+   * parked foreground launch is blocking the user's turn, while a background
+   * launch delivers its result later anyway.
+   */
+  private drainQueues(): void {
+    this.drainForegroundWaitQueue();
+    this.drainWaitQueue();
+  }
+
+  private drainForegroundWaitQueue(): void {
+    for (let i = 0; i < this.foregroundWaitQueue.length; ) {
+      const waiter = this.foregroundWaitQueue[i]!;
+      const cap = this.resolvePerModelCap(waiter.model);
+      if (
+        cap === undefined ||
+        this.getClaimedBackgroundSlotCount(waiter.model) >= cap
+      ) {
+        i++;
+        continue;
+      }
+      this.foregroundWaitQueue.splice(i, 1);
+      waiter.signal?.removeEventListener('abort', waiter.onAbort);
+      if (waiter.signal?.aborted) {
+        waiter.reject(new Error(FOREGROUND_MODEL_SLOT_WAIT_CANCELLED));
+        continue;
+      }
+      waiter.resolve(this.reserveBackgroundSlot(waiter.model, undefined, true));
     }
   }
 
@@ -1435,6 +1566,11 @@ export class BackgroundTaskRegistry {
     for (const waiter of waiters) {
       waiter.signal?.removeEventListener('abort', waiter.onAbort);
       waiter.reject(new Error(BACKGROUND_SLOT_WAIT_CANCELLED));
+    }
+    const foregroundWaiters = this.foregroundWaitQueue.splice(0);
+    for (const waiter of foregroundWaiters) {
+      waiter.signal?.removeEventListener('abort', waiter.onAbort);
+      waiter.reject(new Error(FOREGROUND_MODEL_SLOT_WAIT_CANCELLED));
     }
     this.reservedBackgroundSlots.clear();
   }

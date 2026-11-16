@@ -250,7 +250,7 @@ class AskUserQuestionToolInvocation extends BaseToolInvocation<
     return details;
   }
 
-  async execute(_signal: AbortSignal): Promise<ToolResult> {
+  async execute(signal: AbortSignal): Promise<ToolResult> {
     try {
       // In non-interactive mode without ACP support, we cannot collect user input
       if (!this.canCollectAnswers()) {
@@ -267,6 +267,9 @@ class AskUserQuestionToolInvocation extends BaseToolInvocation<
         return {
           llmContent: cancellationMessage,
           returnDisplay: cancellationMessage,
+          // Declining is an answer. Only a cancelled turn leaves the
+          // questions without one.
+          ...(signal.aborted ? { interruptedBeforeCompletion: true } : {}),
         };
       }
 

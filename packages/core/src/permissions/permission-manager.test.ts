@@ -3787,6 +3787,62 @@ describe('PermissionManager', () => {
         }),
       ).not.toBe('deny');
     });
+
+    it('reports a dropped malformed session deny rule on the console', () => {
+      const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+      try {
+        pm.addSessionDenyRule('Bash(rm -rf /)*');
+        expect(warn).toHaveBeenCalledTimes(1);
+        expect(warn.mock.calls[0]![0]).toContain('deny rule');
+        expect(warn.mock.calls[0]![0]).toContain('Bash(rm -rf /)*');
+      } finally {
+        warn.mockRestore();
+      }
+    });
+
+    it('reports a dropped malformed session ask rule on the console', () => {
+      const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+      try {
+        pm.addSessionAskRule('Bash(git commit');
+        expect(warn).toHaveBeenCalledTimes(1);
+        expect(warn.mock.calls[0]![0]).toContain('ask rule');
+      } finally {
+        warn.mockRestore();
+      }
+    });
+
+    it('reports a dropped malformed persistent rule on the console', () => {
+      const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+      try {
+        pm.addPersistentRule('Bash(git push', 'allow');
+        expect(warn).toHaveBeenCalledTimes(1);
+        expect(warn.mock.calls[0]![0]).toContain('allow rule');
+      } finally {
+        warn.mockRestore();
+      }
+    });
+
+    it('reports malformed settings rules by list, and stays quiet about valid ones', () => {
+      const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+      try {
+        pm = new PermissionManager(
+          makeConfig({
+            permissionsAllow: ['Bash(git *)'],
+            permissionsAsk: ['Bash(git commit'],
+            permissionsDeny: ['Bash(rm -rf /)*'],
+          }),
+        );
+        pm.initialize();
+        const messages = warn.mock.calls.map((call) => String(call[0]));
+        expect(messages).toHaveLength(2);
+        expect(messages[0]).toContain('ask rule');
+        expect(messages[0]).toContain('Bash(git commit');
+        expect(messages[1]).toContain('deny rule');
+        expect(messages[1]).toContain('Bash(rm -rf /)*');
+      } finally {
+        warn.mockRestore();
+      }
+    });
   });
 
   describe('allowedTools via permissionsAllow', () => {

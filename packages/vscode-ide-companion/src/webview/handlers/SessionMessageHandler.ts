@@ -186,7 +186,7 @@ export class SessionMessageHandler extends BaseMessageHandler {
 
       case 'getO1CodeSessions':
         await this.handleGetO1CodeSessions(
-          (data?.cursor as number | undefined) ?? undefined,
+          (data?.cursor as number | string | undefined) ?? undefined,
           (data?.size as number | undefined) ?? undefined,
         );
         break;
@@ -1441,7 +1441,7 @@ export class SessionMessageHandler extends BaseMessageHandler {
    * Handle get O1-Code sessions request
    */
   private async handleGetO1CodeSessions(
-    cursor?: number,
+    cursor?: number | string,
     size?: number,
   ): Promise<void> {
     try {
@@ -1450,7 +1450,7 @@ export class SessionMessageHandler extends BaseMessageHandler {
         cursor,
         size,
       });
-      const append = typeof cursor === 'number';
+      const append = cursor !== undefined && cursor !== '';
       this.sendToWebView({
         type: 'o1codeSessionList',
         data: {

@@ -2666,6 +2666,8 @@ export default {
     'rejected — edit config to re-approve',
   'Background agent needs approval': 'Background agent needs approval',
   'Approve or deny the request above': 'Approve or deny the request above',
+  'A workflow needs approval · press ↑ or ↓ to continue':
+    'A workflow needs approval · press ↑ or ↓ to continue',
   'from nested agent': 'from nested agent',
   Running: 'Running',
   Pausing: 'Pausing',

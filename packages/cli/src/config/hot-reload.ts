@@ -86,6 +86,10 @@ export function mcpGatingEqual(a: McpGating, b: McpGating): boolean {
  *   narrow within the launch bound but never widen beyond it. With no settings
  *   allow-list, the boot bound applies in full. Without the flag (`bootAllowed`
  *   undefined), settings fully drive admission.
+ * - **CLI disable list is a floor**: if launched with `--disable-mcp-server`,
+ *   `bootExcluded` is that flag value and it is always part of the exclude
+ *   list — a settings edit may exclude more servers but never re-admit one
+ *   the launch flag disabled, including by removing `mcp.excluded` entirely.
  *
  * The pending list is always recomputed so a hot-reload never
  * connects an unapproved gated server.
@@ -96,10 +100,16 @@ export function recomputeMcpGating(
   cwd: string,
   bootAllowed: readonly string[] | undefined,
   isYolo: boolean,
+  bootExcluded?: readonly string[],
 ): McpGating {
   // Preserve `[]` (deny-all); only an absent key yields `undefined` (allow-all).
   const settingsAllowed = settings.merged.mcp?.allowed?.filter(Boolean);
-  const excluded = settings.merged.mcp?.excluded?.filter(Boolean);
+  const excluded = [
+    ...new Set([
+      ...(settings.merged.mcp?.excluded?.filter(Boolean) ?? []),
+      ...(bootExcluded ?? []),
+    ]),
+  ];
   let allowed = settingsAllowed;
   if (bootAllowed) {
     allowed = settingsAllowed
@@ -108,7 +118,7 @@ export function recomputeMcpGating(
   }
   return {
     allowed,
-    excluded: excluded && excluded.length > 0 ? excluded : undefined,
+    excluded: excluded.length > 0 ? excluded : undefined,
     pending: isYolo ? undefined : getPendingGatedMcpServers(assembled, cwd),
   };
 }
@@ -166,13 +176,29 @@ export function registerMcpHotReload(
     // boot, just reached through the gating list's SOURCE instead of the
     // mcpServers map). Only the CLI `--allowed-mcp-server-names` bound
     // (explicit, per-invocation, not ambient state) still applies, mirroring
-    // topTierMcpServers' own treatment; `excluded`/`pending` are irrelevant
-    // once nothing but the never-gated top-tier servers can be present.
+    // topTierMcpServers' own treatment; the settings `excluded` list and
+    // `pending` are irrelevant once nothing but the never-gated top-tier
+    // servers can be present. The `--disable-mcp-server` names are the same
+    // kind of explicit argument as the allow bound, so they stay excluded.
     const bootAllowed = config.getCliAllowedMcpServerNames();
+    const bootExcluded = config.getCliDisabledMcpServerNames();
     const nextGating: McpGating =
       config.getBareMode() || config.isSafeMode()
-        ? { allowed: bootAllowed ? [...bootAllowed] : undefined }
-        : recomputeMcpGating(settings, next, cwd, bootAllowed, isYolo);
+        ? {
+            allowed: bootAllowed ? [...bootAllowed] : undefined,
+            excluded:
+              bootExcluded && bootExcluded.length > 0
+                ? [...bootExcluded]
+                : undefined,
+          }
+        : recomputeMcpGating(
+            settings,
+            next,
+            cwd,
+            bootAllowed,
+            isYolo,
+            bootExcluded,
+          );
 
     const prevServers = config.getSettingsMcpServers();
     const prevGating = config.getMcpGating();

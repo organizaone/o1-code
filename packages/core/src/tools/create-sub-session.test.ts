@@ -186,6 +186,8 @@ describe('CreateSubSessionTool', () => {
 
     expect(res.returnDisplay).toBe('Cancelled');
     expect(res.llmContent).toMatch(/cancelled/i);
+    // Returned, not thrown: the scheduler needs to be told it did not finish.
+    expect(res.interruptedBeforeCompletion).toBe(true);
     // The sub-session is NOT cancelled — it has no abort seam — so the tool
     // must say so rather than implying the work was undone.
     expect(res.llmContent).toMatch(/runs independently|not cancelled/i);
@@ -209,6 +211,7 @@ describe('CreateSubSessionTool', () => {
 
     expect(spawner).not.toHaveBeenCalled();
     expect(res.returnDisplay).toBe('Cancelled');
+    expect(res.interruptedBeforeCompletion).toBe(true);
     // Nothing was created, so the message must not hedge.
     expect(res.llmContent).toMatch(/no sub-session was created/i);
     expect(res.llmContent).not.toMatch(/may already have been created/i);

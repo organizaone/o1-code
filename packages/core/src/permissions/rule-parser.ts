@@ -556,10 +556,33 @@ export function parseRule(raw: string): PermissionRule {
 }
 
 /**
- * Parse an array of raw rule strings into PermissionRule objects,
- * silently skipping any empty entries.
+ * Tell the operator, on the terminal, that a rule was parsed but can never
+ * match. An invalid rule is dropped everywhere, so a malformed `deny` or `ask`
+ * entry leaves the tool exactly as reachable as if the rule had not been
+ * written, while the settings file still reads as if it were guarded. The debug
+ * log is off in a default run, which is why this goes to the console as well.
  */
-export function parseRules(raws: string[]): PermissionRule[] {
+export function warnDroppedPermissionRule(
+  raw: string,
+  kind?: 'allow' | 'ask' | 'deny',
+): void {
+  // eslint-disable-next-line no-console -- operator-facing: the debug log is off by default, and a dropped rule would otherwise go unseen
+  console.warn(
+    `[permissions] ignoring malformed ${kind ? `${kind} ` : ''}rule ` +
+      `(unbalanced parentheses): ${raw} — it matches nothing, so it has ` +
+      `no effect. Balance the parentheses to make it apply.`,
+  );
+}
+
+/**
+ * Parse an array of raw rule strings into PermissionRule objects,
+ * skipping any empty entries. `kind` only names the list in the warning for
+ * a malformed entry.
+ */
+export function parseRules(
+  raws: string[],
+  kind?: 'allow' | 'ask' | 'deny',
+): PermissionRule[] {
   return raws
     .filter((r) => r && r.trim())
     .map(parseRule)
@@ -568,6 +591,7 @@ export function parseRules(raws: string[]): PermissionRule[] {
         debugLogger.warn(
           `Ignoring malformed rule (unbalanced parentheses): ${r.raw}`,
         );
+        warnDroppedPermissionRule(r.raw, kind);
       }
       return r;
     });

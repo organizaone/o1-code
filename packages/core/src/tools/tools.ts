@@ -614,6 +614,14 @@ export interface ToolResult {
   outputBudgetApplied?: boolean;
 
   /**
+   * Set by a tool that stopped because the turn was cancelled and says so by
+   * returning a result instead of throwing. The scheduler cannot tell that
+   * result from finished work on its own; with this it tells the model the
+   * call was interrupted and keeps the tool's account of how far it got.
+   */
+  interruptedBeforeCompletion?: boolean;
+
+  /**
    * Markdown string for user display.
    * This provides a user-friendly summary or visualization of the result.
    * NOTE: This might also be considered UI-specific and could potentially be

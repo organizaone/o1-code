@@ -24,6 +24,7 @@ import { FULL_OUTPUT_DIGEST_LABEL } from '../tools/truncation.js';
 import { ToolNames } from '../tools/tool-names.js';
 import {
   DEFAULT_MAX_TOOL_CALLS_PER_TURN,
+  isAttemptRestartEvent,
   LoopDetectionService,
 } from './loopDetectionService.js';
 
@@ -284,6 +285,23 @@ describe('LoopDetectionService', () => {
         expect(service.checkAlwaysOnSafeties(event)).toBe(false);
       }
       expect(loggers.logLoopDetected).not.toHaveBeenCalled();
+    });
+
+    it('reports the in-session disable and which events restart an attempt', () => {
+      expect(service.isDisabledForSession()).toBe(false);
+      service.disableForSession();
+      expect(service.isDisabledForSession()).toBe(true);
+
+      const eventOf = (type: LlmEventType) =>
+        ({ type }) as unknown as ServerLlmStreamEvent;
+      expect(isAttemptRestartEvent(eventOf(LlmEventType.Retry))).toBe(true);
+      expect(isAttemptRestartEvent(eventOf(LlmEventType.ModelFallback))).toBe(
+        true,
+      );
+      expect(isAttemptRestartEvent(eventOf(LlmEventType.Finished))).toBe(false);
+      expect(isAttemptRestartEvent(eventOf(LlmEventType.ToolCallRequest))).toBe(
+        false,
+      );
     });
 
     it('should not detect a loop when disabled for session', () => {

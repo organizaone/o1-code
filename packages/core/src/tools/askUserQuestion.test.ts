@@ -422,6 +422,34 @@ describe('AskUserQuestionTool', () => {
 
       const result = await invocation.execute(new AbortController().signal);
       expect(result.llmContent).toContain('declined to answer');
+      // Declining is an answer, not interrupted work.
+      expect(result.interruptedBeforeCompletion).toBeUndefined();
+    });
+
+    it('marks the questions as interrupted when the turn was cancelled', async () => {
+      const invocation = tool.build({
+        questions: [
+          {
+            question: 'Test?',
+            header: 'Test',
+            options: [
+              { label: 'A', description: 'Option A' },
+              { label: 'B', description: 'Option B' },
+            ],
+            multiSelect: false,
+          },
+        ],
+      });
+      const controller = new AbortController();
+      const confirmation = await invocation.getConfirmationDetails(
+        controller.signal,
+      );
+      await confirmation.onConfirm(ToolConfirmationOutcome.Cancel);
+      controller.abort();
+
+      const result = await invocation.execute(controller.signal);
+      expect(result.llmContent).toContain('declined to answer');
+      expect(result.interruptedBeforeCompletion).toBe(true);
     });
 
     it('should return formatted answers when user provides them', async () => {

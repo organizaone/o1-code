@@ -13,6 +13,7 @@ import {
   splitCompoundCommand,
   SHELL_TOOL_NAMES,
   toolMatchesRuleToolName,
+  warnDroppedPermissionRule,
 } from './rule-parser.js';
 import type { PathMatchContext } from './rule-parser.js';
 import { extractShellOperationsAcrossCommand } from './shell-semantics.js';
@@ -313,9 +314,9 @@ export class PermissionManager {
    */
   initialize(): void {
     this.persistentRules = {
-      allow: parseRules(this.config.getPermissionsAllow() ?? []),
-      ask: parseRules(this.config.getPermissionsAsk() ?? []),
-      deny: parseRules(this.config.getPermissionsDeny() ?? []),
+      allow: parseRules(this.config.getPermissionsAllow() ?? [], 'allow'),
+      ask: parseRules(this.config.getPermissionsAsk() ?? [], 'ask'),
+      deny: parseRules(this.config.getPermissionsDeny() ?? [], 'deny'),
     };
 
     // Build the coreTools allowlist (legacy whitelist semantic).
@@ -1492,6 +1493,7 @@ export class PermissionManager {
         debugLogger.warn(
           `Ignoring malformed allow rule (unbalanced parentheses): ${rule.raw}`,
         );
+        warnDroppedPermissionRule(rule.raw, 'allow');
         return;
       }
       // AUTO mode invariant: while dangerous allow rules are stripped,
@@ -1545,6 +1547,7 @@ export class PermissionManager {
         debugLogger.warn(
           `Ignoring malformed deny rule (unbalanced parentheses): ${rule.raw}`,
         );
+        warnDroppedPermissionRule(rule.raw, 'deny');
         return;
       }
       this.sessionRules.deny.push(rule);
@@ -1561,6 +1564,7 @@ export class PermissionManager {
         debugLogger.warn(
           `Ignoring malformed ask rule (unbalanced parentheses): ${rule.raw}`,
         );
+        warnDroppedPermissionRule(rule.raw, 'ask');
         return;
       }
       this.sessionRules.ask.push(rule);
@@ -1586,6 +1590,7 @@ export class PermissionManager {
       debugLogger.warn(
         `Ignoring malformed ${type} rule (unbalanced parentheses): ${rule.raw}`,
       );
+      warnDroppedPermissionRule(rule.raw, type);
       return rule;
     }
     // AUTO mode invariant: see addSessionAllowRule above. A dangerous

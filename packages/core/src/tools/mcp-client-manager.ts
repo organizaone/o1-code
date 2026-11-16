@@ -43,6 +43,7 @@ import {
 import { listDescendantPids, sigtermPids } from './pid-descendants.js';
 import { mcpSessionMetadataKey } from './mcp-session-config.js';
 import { warnOnUnmatchedEagerToolEntries } from '../permissions/eager-allowlist-coverage.js';
+import { warnOnUnmatchedDisabledToolEntries } from '../permissions/disabled-tools-coverage.js';
 
 const debugLogger = createDebugLogger('MCP');
 export const RUNTIME_MCP_IF_ABSENT_CONFIG_FLAG = '__o1codeRuntimeMcpIfAbsent';
@@ -1227,6 +1228,8 @@ export class McpClientManager {
     // The registry is settled, so `tools.eager` entries that name no
     // discovered tool can be reported without warning prematurely.
     warnOnUnmatchedEagerToolEntries(cliConfig);
+    // Same boundary for `tools.disabled` entries that remove nothing.
+    warnOnUnmatchedDisabledToolEntries(cliConfig);
   }
 
   /**
@@ -1770,6 +1773,7 @@ export class McpClientManager {
     }
     // Same settled-registry report as the per-session bulk pass.
     warnOnUnmatchedEagerToolEntries(cliConfig);
+    warnOnUnmatchedDisabledToolEntries(cliConfig);
   }
 
   private releaseAllPooledConnections(): void {
@@ -2389,6 +2393,7 @@ export class McpClientManager {
     // MCP hot-reload reconcile both land here, so this is where a misspelt
     // `tools.eager` entry becomes visible.
     warnOnUnmatchedEagerToolEntries(cliConfig);
+    warnOnUnmatchedDisabledToolEntries(cliConfig);
   }
 
   /**

@@ -503,6 +503,7 @@ describe('ArtifactTool', () => {
       .execute(controller.signal);
     expect(res.error).toBeUndefined();
     expect(res.llmContent).toMatch(/cancelled/i);
+    expect(res.interruptedBeforeCompletion).toBe(true);
     expect(openSpy).not.toHaveBeenCalled();
   });
 });

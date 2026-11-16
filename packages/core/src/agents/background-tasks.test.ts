@@ -9,6 +9,7 @@ import {
   BACKGROUND_AGENT_CONCURRENCY_ENV,
   BackgroundTaskRegistry,
   DEFAULT_MAX_CONCURRENT_BACKGROUND_AGENTS,
+  FOREGROUND_MODEL_SLOT_WAIT_CANCELLED,
   MAX_CONCURRENT_BACKGROUND_AGENTS,
   MAX_RETAINED_TERMINAL_AGENTS,
   resolveMaxConcurrentBackgroundAgents,
@@ -1373,6 +1374,191 @@ describe('BackgroundTaskRegistry', () => {
       expect(() =>
         registry.register(makeRegistration('bg-2', { model: 'weak-model' })),
       ).toThrow('for model "weak-model" (1) reached');
+    });
+  });
+
+  describe('foreground per-model slots', () => {
+    const cappedRegistry = (global = 10) =>
+      new BackgroundTaskRegistry({
+        maxConcurrentBackgroundAgents: global,
+        maxConcurrentBackgroundAgentsByModel: { 'weak-model': 1 },
+      });
+
+    it('reserves nothing for a model without a cap', async () => {
+      registry = cappedRegistry();
+
+      expect(registry.resolvePerModelCap('other-model')).toBeUndefined();
+      expect(
+        registry.tryReserveForegroundModelSlot('other-model'),
+      ).toBeUndefined();
+      await expect(
+        registry.waitForForegroundModelSlot(undefined, 'other-model'),
+      ).rejects.toThrow('No concurrency cap is configured');
+      expect(registry.getForegroundQueuedCount()).toBe(0);
+    });
+
+    it('shares one count between foreground and background launches', () => {
+      registry = cappedRegistry();
+
+      const foreground = registry.tryReserveForegroundModelSlot('weak-model');
+      expect(foreground?.model).toBe('weak-model');
+      expect(registry.getClaimedModelSlotCount('weak-model')).toBe(1);
+
+      // A foreground run holds the model's only slot against both paths.
+      expect(
+        registry.tryReserveForegroundModelSlot('weak-model'),
+      ).toBeUndefined();
+      expect(registry.tryReserveBackgroundSlot('weak-model')).toBeUndefined();
+      expect(() =>
+        registry.register(makeRegistration('bg-1', { model: 'weak-model' })),
+      ).toThrow('for model "weak-model" (1) reached');
+
+      registry.releaseBackgroundSlot(foreground!);
+      expect(registry.getClaimedModelSlotCount('weak-model')).toBe(0);
+
+      // And a running background agent holds it against a foreground run.
+      registry.register(makeRegistration('bg-2', { model: 'weak-model' }));
+      expect(
+        registry.tryReserveForegroundModelSlot('weak-model'),
+      ).toBeUndefined();
+    });
+
+    it('keeps foreground slots out of the global background budget', () => {
+      registry = new BackgroundTaskRegistry({
+        maxConcurrentBackgroundAgents: 1,
+        maxConcurrentBackgroundAgentsByModel: { 'weak-model': 2 },
+      });
+
+      expect(
+        registry.tryReserveForegroundModelSlot('weak-model'),
+      ).toBeDefined();
+      // The single background slot is still free...
+      expect(registry.canStartBackgroundAgent('other-model')).toBe(true);
+      registry.register(makeRegistration('bg-1', { model: 'other-model' }));
+      // ...and a full background budget does not hold a foreground run back.
+      expect(registry.canStartBackgroundAgent('weak-model')).toBe(false);
+      expect(
+        registry.tryReserveForegroundModelSlot('weak-model'),
+      ).toBeDefined();
+    });
+
+    it('queues a foreground launch and admits it when the slot is released', async () => {
+      registry = cappedRegistry();
+      const first = registry.tryReserveForegroundModelSlot('weak-model');
+
+      const waiting = registry.waitForForegroundModelSlot(
+        new AbortController().signal,
+        'weak-model',
+      );
+      expect(registry.getForegroundQueuedCount()).toBe(1);
+      // Foreground waiters are not background waiters.
+      expect(registry.getQueuedCount()).toBe(0);
+
+      registry.releaseBackgroundSlot(first!);
+      const second = await waiting;
+
+      expect(second.model).toBe('weak-model');
+      expect(registry.getForegroundQueuedCount()).toBe(0);
+      expect(registry.getClaimedModelSlotCount('weak-model')).toBe(1);
+    });
+
+    it('admits a queued foreground launch when a background agent on the model finishes', async () => {
+      registry = cappedRegistry();
+      registry.register(makeRegistration('bg-1', { model: 'weak-model' }));
+
+      const waiting = registry.waitForForegroundModelSlot(
+        undefined,
+        'weak-model',
+      );
+      expect(registry.getForegroundQueuedCount()).toBe(1);
+
+      registry.complete('bg-1', 'done');
+
+      await expect(waiting).resolves.toMatchObject({ model: 'weak-model' });
+    });
+
+    it('serves a foreground waiter before a background waiter on the same model', async () => {
+      registry = cappedRegistry();
+      const held = registry.tryReserveForegroundModelSlot('weak-model');
+
+      const background = registry.waitForBackgroundSlot(
+        new AbortController().signal,
+        'weak-model',
+      );
+      const foreground = registry.waitForForegroundModelSlot(
+        new AbortController().signal,
+        'weak-model',
+      );
+
+      registry.releaseBackgroundSlot(held!);
+      const foregroundSlot = await foreground;
+      expect(registry.getQueuedCount()).toBe(1);
+
+      registry.releaseBackgroundSlot(foregroundSlot);
+      await expect(background).resolves.toMatchObject({ model: 'weak-model' });
+    });
+
+    it('leaves the queue clean when a wait is aborted', async () => {
+      registry = cappedRegistry();
+      const held = registry.tryReserveForegroundModelSlot('weak-model');
+      const abortController = new AbortController();
+
+      const aborted = registry.waitForForegroundModelSlot(
+        abortController.signal,
+        'weak-model',
+      );
+      const survivor = registry.waitForForegroundModelSlot(
+        new AbortController().signal,
+        'weak-model',
+      );
+      expect(registry.getForegroundQueuedCount()).toBe(2);
+
+      abortController.abort();
+      await expect(aborted).rejects.toThrow(
+        FOREGROUND_MODEL_SLOT_WAIT_CANCELLED,
+      );
+      expect(registry.getForegroundQueuedCount()).toBe(1);
+      // The aborted waiter took no slot with it.
+      expect(registry.getClaimedModelSlotCount('weak-model')).toBe(1);
+
+      registry.releaseBackgroundSlot(held!);
+      await expect(survivor).resolves.toMatchObject({ model: 'weak-model' });
+      expect(registry.getClaimedModelSlotCount('weak-model')).toBe(1);
+    });
+
+    it('rejects a wait that starts already aborted without queueing it', async () => {
+      registry = cappedRegistry();
+      registry.tryReserveForegroundModelSlot('weak-model');
+      const abortController = new AbortController();
+      abortController.abort();
+
+      await expect(
+        registry.waitForForegroundModelSlot(
+          abortController.signal,
+          'weak-model',
+        ),
+      ).rejects.toThrow(FOREGROUND_MODEL_SLOT_WAIT_CANCELLED);
+      expect(registry.getForegroundQueuedCount()).toBe(0);
+    });
+
+    it('rejects queued foreground launches and drops their slots on reset', async () => {
+      registry = cappedRegistry();
+      const held = registry.tryReserveForegroundModelSlot('weak-model');
+      const waiting = registry.waitForForegroundModelSlot(
+        undefined,
+        'weak-model',
+      );
+
+      registry.reset();
+
+      await expect(waiting).rejects.toThrow(
+        FOREGROUND_MODEL_SLOT_WAIT_CANCELLED,
+      );
+      expect(registry.getForegroundQueuedCount()).toBe(0);
+      expect(registry.getClaimedModelSlotCount('weak-model')).toBe(0);
+      // Releasing a reservation the reset already dropped is harmless.
+      registry.releaseBackgroundSlot(held!);
+      expect(registry.getClaimedModelSlotCount('weak-model')).toBe(0);
     });
   });
 

@@ -1423,7 +1423,7 @@ export const BackgroundTasksDialog: React.FC<BackgroundTasksDialogProps> = ({
   availableTerminalHeight,
   terminalWidth,
 }) => {
-  const { entries, selectedIndex, dialogOpen, dialogMode } =
+  const { entries, selectedIndex, dialogOpen, dialogMode, autoOpened } =
     useBackgroundTaskViewState();
   const isDetailMode =
     dialogMode === 'detail' || dialogMode === 'detail-from-panel';
@@ -1434,6 +1434,7 @@ export const BackgroundTasksDialog: React.FC<BackgroundTasksDialogProps> = ({
     openDialog,
     enterDetail,
     exitDetail,
+    acknowledgeAutoOpen,
     cancelSelected,
     resumeSelected,
     toggleSelectedWorkflowPause,
@@ -1812,6 +1813,24 @@ export const BackgroundTasksDialog: React.FC<BackgroundTasksDialogProps> = ({
       // P7b-A3: the save overlay owns the keyboard while open — yield every
       // key to it (its own `useKeypress` handles name input / scope / save).
       if (saveActive) return;
+      // The dialog opened itself for an approval, possibly in the middle of
+      // a sentence, and every key press reaches every listener. Until an
+      // arrow key says the user has seen it, nothing else acts: a letter
+      // would stop, pause or resume a run, and Enter would lead to the
+      // request. Only the arrow keys qualify, since typed text can produce
+      // the other selection keys (j, k). The arrow itself is spent on the
+      // acknowledgement, so the selection stays on the waiting run.
+      if (autoOpened) {
+        if (
+          (key.name === 'up' || key.name === 'down') &&
+          !key.ctrl &&
+          !key.meta &&
+          !key.shift
+        ) {
+          acknowledgeAutoOpen();
+        }
+        return;
+      }
       // While a parked approval is shown, the embedded ToolConfirmationMessage
       // owns the selection keys (↑/↓/numbers/Enter, Esc = deny this call).
       // Keep two escape hatches for compact approvals that don't have their
@@ -2019,6 +2038,11 @@ export const BackgroundTasksDialog: React.FC<BackgroundTasksDialogProps> = ({
   const selectedWorkflowPauseHint = workflowPauseHint(selectedEntry);
   const showCancelConfirmHint =
     pendingCancelEntryId !== null && pendingCancelEntryId === selectedEntryKey;
+  // Shown in place of the key hints while the keys are held back: listing
+  // `Enter view` or `x stop` there would advertise keys that do nothing.
+  const autoOpenNotice = autoOpened
+    ? t('A workflow needs approval · press ↑ or ↓ to continue')
+    : undefined;
   const hints: string[] = [];
   if (approvalActive) {
     // The embedded ToolConfirmationMessage renders its own selectable
@@ -2156,7 +2180,8 @@ export const BackgroundTasksDialog: React.FC<BackgroundTasksDialogProps> = ({
         height={availableTerminalHeight}
         actionHints={actionHints}
         footerMessage={
-          showCancelConfirmHint
+          autoOpenNotice ??
+          (showCancelConfirmHint
             ? t(
                 'Press x again to stop; this ends the blocking turn. Esc cancels.',
               )
@@ -2164,7 +2189,7 @@ export const BackgroundTasksDialog: React.FC<BackgroundTasksDialogProps> = ({
               ? t(
                   'Pause/resume was rejected; the workflow state changed. Try again.',
                 )
-              : undefined
+              : undefined)
         }
         renderOtherDetail={(entry, height, width) => (
           <DetailBody entry={entry} maxHeight={height} maxWidth={width} />
@@ -2254,7 +2279,11 @@ export const BackgroundTasksDialog: React.FC<BackgroundTasksDialogProps> = ({
         />
       ) : (
         <Box marginTop={1} paddingX={1}>
-          {pauseRejected && pauseRejected.entryKey === selectedEntryKey ? (
+          {autoOpenNotice ? (
+            <Text color={theme.status.warning} wrap="truncate-end">
+              {autoOpenNotice}
+            </Text>
+          ) : pauseRejected && pauseRejected.entryKey === selectedEntryKey ? (
             <Text color={theme.status.warning}>
               {t(
                 'Pause/resume was rejected; the workflow state changed. Try again.',

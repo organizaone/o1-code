@@ -199,6 +199,24 @@ export const DEFAULT_MAX_TOOL_CALLS_PER_TURN = 100;
 const ADAPTIVE_CAP_HARD_MULTIPLIER = 10;
 
 /**
+ * Whether a stream event throws away the current attempt so it is streamed
+ * again. The client uses it for the state it keeps per attempt (the
+ * exploration budget and the set of call ids already fed to the loop guards),
+ * so both react to the same events.
+ *
+ * The detector itself does not use it: its own cap rollback stays tied to
+ * `Retry`, because a model fallback carries no calls of its own and clearing
+ * the repetition evidence on each one would silence the guards for a turn
+ * served through repeated fallbacks.
+ */
+export function isAttemptRestartEvent(event: ServerLlmStreamEvent): boolean {
+  return (
+    event.type === LlmEventType.Retry ||
+    event.type === LlmEventType.ModelFallback
+  );
+}
+
+/**
  * Halt predicate of the per-turn tool-call cap, shared with the daemon's
  * turn-loop guard (ACP Session's recordDaemonToolCalls) so both runtimes
  * decide identically and cannot drift. `cap` is the resolved effective cap
@@ -450,6 +468,10 @@ export class LoopDetectionService {
       this.config,
       new LoopDetectionDisabledEvent(this.promptId),
     );
+  }
+
+  isDisabledForSession(): boolean {
+    return this.disabledForSession;
   }
 
   /**

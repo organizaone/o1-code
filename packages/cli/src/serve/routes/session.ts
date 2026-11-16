@@ -123,6 +123,7 @@ import {
   InvalidCursorError,
   getWorkspaceSessionInfoForResponse,
   invalidateWorkspaceSessionListCache,
+  isPersistedSessionCursor,
   listLiveWorkspaceSessionsForResponse,
   listWorkspaceSessionsForResponse,
   parseSessionPageSizeQuery,
@@ -1447,17 +1448,6 @@ export function registerSessionRoutes(
       signal.throwIfAborted();
       return false;
     }
-  };
-
-  const isNumericSessionCursor = (cursor: string): boolean => {
-    const trimmed = cursor.trim();
-    if (trimmed === '') return false;
-    const parsed = Number(trimmed);
-    return (
-      Number.isFinite(parsed) &&
-      parsed >= 0 &&
-      parsed <= Number.MAX_SAFE_INTEGER
-    );
   };
 
   const requireTrustedRuntimeForWorkspaceRoute = (
@@ -8287,7 +8277,8 @@ export function registerSessionRoutes(
           // active persisted sessions, so the live-only fallback would drop them.
           // Metadata filters gather the whole workspace
           // (persisted + live) to filter completely and paginates with an opaque
-          // activity cursor, so the numeric-cursor live fallback can't serve it.
+          // activity cursor, so the live fallback can't serve it. A cursor the
+          // persisted store issued continues there; any other one is a live one.
           const usePersisted =
             readOnlySecondary ||
             runtime.primary ||
@@ -8296,7 +8287,7 @@ export function registerSessionRoutes(
             parentSessionId !== undefined ||
             parsedSource.sourceType !== undefined ||
             (cursor !== undefined && cursor !== ''
-              ? isNumericSessionCursor(cursor)
+              ? isPersistedSessionCursor(cursor)
               : await hasActivePersistedSessions(runtime, controller.signal));
           // The live path only reads cursor/size; persisted-only options
           // (organized view or archived state) would be silently dropped there.

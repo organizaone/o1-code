@@ -26856,12 +26856,15 @@ describe('O1CodeAgent unstable_listSessions cursor parsing', () => {
         '-1',
         '9007199254740992',
         '   ',
+        '|session-a.jsonl',
+        ' |session-a.jsonl',
+        '1700000000000|',
+        'abc|session-a.jsonl',
+        '-1|session-a.jsonl',
       ]) {
         await expect(
           agent.unstable_listSessions({ cwd: '/tmp/project', cursor }),
-        ).rejects.toThrow(
-          `Invalid cursor: "${cursor}" is not a valid numeric cursor`,
-        );
+        ).rejects.toThrow(`Invalid cursor: "${cursor}" is not a valid cursor`);
       }
       expect(SessionService).not.toHaveBeenCalled();
     } finally {
@@ -27030,6 +27033,39 @@ describe('O1CodeAgent unstable_listSessions cursor parsing', () => {
       expect(listSessions).toHaveBeenCalledWith({
         cursor: 1_797_860_000_000.5,
         size: 2,
+      });
+    } finally {
+      mockConnectionState.resolve();
+      await agentPromise;
+    }
+  });
+
+  it('round-trips the cursor SessionService issues', async () => {
+    const issued = '1797859999000.25|session-1.jsonl';
+    const listSessions = vi.fn().mockResolvedValue({
+      items: [],
+      nextCursor: issued,
+    });
+    vi.mocked(SessionService).mockImplementation(function MockConstructor() {
+      return {
+        listSessions,
+      } as unknown as InstanceType<typeof SessionService>;
+    });
+    const { agent, agentPromise } = await bootAgent();
+
+    try {
+      const first = (await agent.unstable_listSessions({
+        cwd: '/tmp/project',
+      })) as { nextCursor?: string };
+      expect(first.nextCursor).toBe(issued);
+
+      await agent.unstable_listSessions({
+        cwd: '/tmp/project',
+        cursor: first.nextCursor,
+      });
+      expect(listSessions).toHaveBeenLastCalledWith({
+        cursor: issued,
+        size: undefined,
       });
     } finally {
       mockConnectionState.resolve();
@@ -30649,6 +30685,7 @@ describe('O1CodeAgent extMethod runtime MCP add/remove (T2.8)', () => {
       getTopTierMcpServers: vi.fn().mockReturnValue(undefined),
       getRuntimeMcpServers: vi.fn().mockReturnValue({}),
       getCliAllowedMcpServerNames: vi.fn().mockReturnValue(undefined),
+      getCliDisabledMcpServerNames: vi.fn().mockReturnValue(undefined),
       getApprovalMode: vi.fn().mockReturnValue('default'),
       getBareMode: vi.fn().mockReturnValue(false),
       isSafeMode: vi.fn().mockReturnValue(false),
@@ -30721,6 +30758,7 @@ describe('O1CodeAgent extMethod runtime MCP add/remove (T2.8)', () => {
       getTopTierMcpServers: vi.fn().mockReturnValue(undefined),
       getRuntimeMcpServers: vi.fn().mockReturnValue({}),
       getCliAllowedMcpServerNames: vi.fn().mockReturnValue(undefined),
+      getCliDisabledMcpServerNames: vi.fn().mockReturnValue(undefined),
       getApprovalMode: vi.fn().mockReturnValue('default'),
       getBareMode: vi.fn().mockReturnValue(false),
       isSafeMode: vi.fn().mockReturnValue(false),
@@ -30915,6 +30953,7 @@ describe('O1CodeAgent extMethod runtime MCP add/remove (T2.8)', () => {
       getTopTierMcpServers: vi.fn().mockReturnValue(undefined),
       getRuntimeMcpServers: vi.fn().mockReturnValue({}),
       getCliAllowedMcpServerNames: vi.fn().mockReturnValue(undefined),
+      getCliDisabledMcpServerNames: vi.fn().mockReturnValue(undefined),
       getApprovalMode: vi.fn().mockReturnValue('default'),
       getBareMode: vi.fn().mockReturnValue(false),
       isSafeMode: vi.fn().mockReturnValue(false),
@@ -31003,6 +31042,7 @@ describe('O1CodeAgent extMethod runtime MCP add/remove (T2.8)', () => {
       getTopTierMcpServers: vi.fn().mockReturnValue(undefined),
       getRuntimeMcpServers: vi.fn().mockReturnValue({}),
       getCliAllowedMcpServerNames: vi.fn().mockReturnValue(undefined),
+      getCliDisabledMcpServerNames: vi.fn().mockReturnValue(undefined),
       getApprovalMode: vi.fn().mockReturnValue('default'),
       getBareMode: vi.fn().mockReturnValue(false),
       isSafeMode: vi.fn().mockReturnValue(false),
