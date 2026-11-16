@@ -11,10 +11,12 @@ import picomatch from 'picomatch';
 import { parse } from 'shell-quote';
 import { createDebugLogger } from '../utils/debugLogger.js';
 import {
+  generateLegacyMcpToolName,
   normalizeMcpToolName,
   sanitizeToolNameForProvider,
 } from '../utils/tool-name-utils.js';
 import { isNodeError } from '../utils/errors.js';
+import type { McpToolIdentity } from './types.js';
 
 const debugLogger = createDebugLogger('PERMISSIONS');
 
@@ -1680,6 +1682,119 @@ export function matchesMcpPattern(pattern: string, toolName: string): boolean {
 }
 
 /**
+ * How firmly an allow rule names an MCP tool, read from the identity the tool
+ * was registered with rather than from its flattened name. Higher values
+ * outrank lower ones when two servers claim the same rule.
+ */
+export const McpGrantStrength = {
+  NONE: 0,
+  /** Through a sanitized or historical spelling, which other keys can share. */
+  LOSSY: 1,
+  /** Through the server key exactly as configured. */
+  SERVER: 2,
+  /** The tool's registered or raw full name. */
+  EXACT: 3,
+  /** A prefix that names no server boundary: deliberately broad. */
+  COARSE: 4,
+} as const;
+
+/** The configured key first, then its historical and provider-safe forms. */
+function mcpSegmentSpellings(segment: string): string[] {
+  return [
+    segment,
+    segment.replace(/[^A-Za-z0-9_.-]/g, '_'),
+    segment.replace(/[^A-Za-z0-9_-]/g, '_'),
+  ];
+}
+
+/**
+ * Grade how an allow rule's tool name covers one MCP tool. Nothing here
+ * splits on `__`: the server boundary is the one the identity states, so
+ * `mcp__foo` and `mcp__foo__*` cover server `foo` and never `foo__bar`.
+ *
+ * A sanitized spelling still matches (`mcp__foo_bar` for server `foo.bar`),
+ * but only as LOSSY; {@link isMcpGrantContested} decides whether it may grant.
+ */
+export function mcpGrantStrength(
+  pattern: string,
+  registeredName: string,
+  identity: McpToolIdentity,
+): number {
+  const { serverName, serverToolName } = identity;
+  const rawName = `mcp__${serverName}__${serverToolName}`;
+  const serverSpellings = mcpSegmentSpellings(serverName);
+
+  if (!pattern.endsWith('*')) {
+    if (pattern === registeredName || pattern === rawName) {
+      return McpGrantStrength.EXACT;
+    }
+    if (pattern === `mcp__${serverName}`) {
+      return McpGrantStrength.SERVER;
+    }
+    return pattern === generateLegacyMcpToolName(rawName) ||
+      serverSpellings.some((server) => pattern === `mcp__${server}`)
+      ? McpGrantStrength.LOSSY
+      : McpGrantStrength.NONE;
+  }
+
+  const prefix = pattern.slice(0, -1);
+  if (!prefix.startsWith('mcp__')) {
+    return prefix !== '' && 'mcp__'.startsWith(prefix)
+      ? McpGrantStrength.COARSE
+      : McpGrantStrength.NONE;
+  }
+  const body = prefix.slice('mcp__'.length);
+  if (!body.includes('__')) {
+    return serverSpellings.some((server) => `${server}__`.startsWith(body))
+      ? McpGrantStrength.COARSE
+      : McpGrantStrength.NONE;
+  }
+
+  // The prefix claims a server boundary, so it must be this server's own.
+  const registeredBoundary = `mcp__${serverSpellings[2]}__`;
+  const toolSpellings = [
+    ...mcpSegmentSpellings(serverToolName),
+    // Keeps a prefix that reaches into a hash or truncation suffix.
+    ...(registeredName.startsWith(registeredBoundary)
+      ? [registeredName.slice(registeredBoundary.length)]
+      : []),
+  ];
+  let strength: number = McpGrantStrength.NONE;
+  serverSpellings.forEach((server, index) => {
+    const boundary = `${server}__`;
+    if (!body.startsWith(boundary)) return;
+    const toolPrefix = body.slice(boundary.length);
+    if (toolSpellings.some((spelling) => spelling.startsWith(toolPrefix))) {
+      strength = Math.max(
+        strength,
+        index === 0 ? McpGrantStrength.SERVER : McpGrantStrength.LOSSY,
+      );
+    }
+  });
+  return strength;
+}
+
+/**
+ * Whether another registered server claims an allow rule at least as firmly
+ * as the tool being checked. Such a rule cannot be attributed to one server,
+ * so it grants neither and the call falls back to its normal approval.
+ */
+export function isMcpGrantContested(
+  pattern: string,
+  registeredName: string,
+  identity: McpToolIdentity,
+  registeredTools: ReadonlyArray<McpToolIdentity & { name: string }>,
+): boolean {
+  const own = mcpGrantStrength(pattern, registeredName, identity);
+  if (own === McpGrantStrength.COARSE) return false;
+  return registeredTools.some(
+    (other) =>
+      other.serverName !== identity.serverName &&
+      mcpGrantStrength(pattern, other.name, other) >= own,
+  );
+}
+
+/**
  * Whether a deny entry covers a tool name, as a subagent's tool filter judges
  * it: an MCP tool matches server-level, wildcard and exact MCP patterns (see
  * {@link matchesMcpPattern}); every other tool matches only its exact name.
@@ -1732,6 +1847,10 @@ export interface PathMatchContext {
  * @param domain - Domain (for WebFetch rules)
  * @param pathContext - Project root and cwd for resolving relative path patterns
  * @param pathMatchMode - Whether path rules also match canonical destinations
+ * @param mcp - The identity of the MCP tool being called. With `grant` (an
+ *   allow rule) the name is matched only through {@link mcpGrantStrength};
+ *   otherwise (deny and ask rules) the lossy matcher stays in use as well,
+ *   because over-matching a restriction fails closed.
  */
 export function matchesRule(
   rule: PermissionRule,
@@ -1744,6 +1863,7 @@ export function matchesRule(
   toolParams?: Record<string, unknown>,
   toolAliases?: readonly string[],
   pathMatchMode: 'lexical' | 'canonical' = 'lexical',
+  mcp?: { identity: McpToolIdentity; grant: boolean },
 ): boolean {
   const canonicalCtxToolName = resolveToolName(toolName);
 
@@ -1763,9 +1883,15 @@ export function matchesRule(
       (toolAliases ?? []).some(
         (alias) => rule.toolName === resolveToolName(alias),
       );
-    const matchesMcpName =
-      matchesMcpPattern(rule.toolName, canonicalCtxToolName) ||
-      matchesLegacyExactName;
+    const matchesIdentity =
+      mcp !== undefined &&
+      mcpGrantStrength(rule.toolName, canonicalCtxToolName, mcp.identity) !==
+        McpGrantStrength.NONE;
+    const matchesMcpName = mcp?.grant
+      ? matchesIdentity
+      : matchesMcpPattern(rule.toolName, canonicalCtxToolName) ||
+        matchesLegacyExactName ||
+        matchesIdentity;
     if (!matchesMcpName) {
       return false;
     }

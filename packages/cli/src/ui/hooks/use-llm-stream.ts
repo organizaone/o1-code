@@ -4910,9 +4910,12 @@ export const useLlmStream = (
       // in-flight scheduler result must be marked submitted NOW —
       // `useReactToolScheduler.allToolCallsCompleteHandler` is single-shot
       // per batch, so a later active-stream early-return would leave
-      // the tool stuck in `completed-but-not-submitted` forever. The real
-      // result is dropped on the wire — same trade-off Claude Code makes
-      // when its
+      // the tool stuck in `completed-but-not-submitted` forever. When the
+      // response in history is one of those synthesized placeholders, the
+      // real result takes its place and is recorded, so a tool that did
+      // run is not left reported as "not recorded". Only a true duplicate
+      // (a real response already present for the id) is dropped on the
+      // wire — same trade-off Claude Code makes when its
       // `StreamingToolExecutor.discard()` follows a
       // `yieldMissingToolResultBlocks` synthesis (`query.ts:733` + `:984`).
       // Walk raw history WITHOUT cloning — `llmClient.getHistory()`
@@ -4934,11 +4937,91 @@ export const useLlmStream = (
       );
       const dedupedCallIds = dedupedTools.map((tc) => tc.request.callId);
       if (dedupedCallIds.length > 0) {
-        debugLogger.warn(
-          `[REPAIR] Dropping ${dedupedCallIds.length} late tool result(s) ` +
-            `whose callId already has a functionResponse in history: ` +
-            `${dedupedCallIds.join(', ')}`,
+        const synthesizedRepairCallIds: Set<string> =
+          llmClient?.getSynthesizedRepairCallIds() ?? new Set<string>();
+        const replaceableTools = dedupedTools.filter((tc) =>
+          synthesizedRepairCallIds.has(tc.request.callId),
         );
+        const replacedCallIds = new Set<string>();
+        let sessionChangedDuringFinalize = false;
+        if (llmClient && replaceableTools.length > 0) {
+          const sessionIdAtCompletion = config.getSessionId();
+          const finalizedReplaceable = await finalizeToolResponses(
+            config,
+            replaceableTools.map(({ request, response }) => ({
+              callId: request.callId,
+              toolName: request.name,
+              responseParts: response.responseParts,
+              persistedOutputFiles: response.persistedOutputFiles,
+              artifacts: response.artifacts,
+            })),
+            new Map(
+              replaceableTools.flatMap(({ request }) =>
+                request.prompt_id
+                  ? [[request.callId, request.prompt_id] as const]
+                  : [],
+              ),
+            ),
+          );
+          // The recorder resolves its session when it writes. If the session
+          // was swapped (/clear, /resume) while finalizing, recording now
+          // would put the old session's result into the new transcript.
+          if (config.getSessionId() === sessionIdAtCompletion) {
+            finalizedReplaceable.forEach((entry, index) => {
+              const { request, response, status } = replaceableTools[index]!;
+              // The chat checks again at swap time: history may have been
+              // rewritten while finalizing.
+              if (
+                !llmClient.replaceSynthesizedToolResponse(
+                  entry.callId,
+                  entry.responseParts,
+                )
+              ) {
+                return;
+              }
+              replacedCallIds.add(entry.callId);
+              dualOutput?.emitToolResult(request, response);
+              // The placeholder lives only in memory, so this is the first
+              // answer for the call that reaches the transcript.
+              config.getChatRecordingService?.()?.recordToolResult?.(
+                entry.responseParts,
+                {
+                  callId: entry.callId,
+                  status,
+                  resultDisplay: response.resultDisplay,
+                  persistedOutputFiles: entry.persistedOutputFiles,
+                  artifacts: entry.artifacts,
+                  error: response.error,
+                  errorType: response.errorType,
+                  executionStatus: response.executionStatus,
+                },
+                goalToolResultProvenance(request),
+              );
+            });
+          } else {
+            sessionChangedDuringFinalize = true;
+          }
+        }
+        if (replacedCallIds.size > 0) {
+          debugLogger.warn(
+            `[REPAIR] Replaced synthesized placeholder(s) with late real ` +
+              `tool result(s) for callId(s): ${[...replacedCallIds].join(', ')}`,
+          );
+        }
+        const droppedCallIds = dedupedCallIds.filter(
+          (callId) => !replacedCallIds.has(callId),
+        );
+        if (droppedCallIds.length > 0) {
+          debugLogger.warn(
+            `[REPAIR] Dropping ${droppedCallIds.length} late tool result(s) ` +
+              `whose callId already has a functionResponse in history: ` +
+              `${droppedCallIds.join(', ')}` +
+              (sessionChangedDuringFinalize
+                ? ` (the session changed while finalizing, so no ` +
+                  `placeholder was replaced)`
+                : ``),
+          );
+        }
         // Even though the wire-side submission is dropped, the tool DID
         // run locally — `toolCallCount` and `skillsModifiedInSession`
         // must reflect that. Without this, deduped skill-write tools

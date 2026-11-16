@@ -1044,6 +1044,8 @@ describe('CoreToolScheduler', () => {
     deferredHiddenNames?: ReadonlySet<string>;
     includeToolSearch?: boolean;
     isToolExecutionAllowed?: (name: string) => boolean;
+    /** Non-interactive run whose host answers permission requests. */
+    streamJsonHost?: boolean;
   }) {
     let autoModeDenialState = options.autoModeDenialState ?? {
       consecutiveBlock: 0,
@@ -1150,8 +1152,9 @@ describe('CoreToolScheduler', () => {
         getWorkspaceContext: () => ({
           isPathWithinWorkspace: () => false,
         }),
-        isInteractive: () => true,
-        getInputFormat: () => undefined,
+        isInteractive: () => !options.streamJsonHost,
+        getInputFormat: () =>
+          options.streamJsonHost ? InputFormat.STREAM_JSON : undefined,
         getExperimentalZedIntegration: () => false,
         getActiveTodoWorkChainOwner: options.getActiveTodoWorkChainOwner,
         // Threaded into resolveDeferredToolCall so the bridge's exclusion
@@ -6586,6 +6589,162 @@ describe('CoreToolScheduler', () => {
       totalUnavailable: 0,
     });
     expect(execute).toHaveBeenCalledOnce();
+  });
+
+  describe('destructive-command guard escalation in AUTO mode', () => {
+    const scheduleDestructive = async (options: {
+      hookBehavior: 'allow' | 'deny';
+      consecutiveBlock: number;
+      streamJsonHost?: boolean;
+    }) => {
+      const onConfirmSpy = vi.fn().mockResolvedValue(undefined);
+      const execute = vi.fn().mockResolvedValue({
+        llmContent: 'executed',
+        returnDisplay: 'executed',
+      });
+      const toolsByName = new Map<string, MockTool>([
+        [
+          ToolNames.SHELL,
+          new MockTool({
+            name: ToolNames.SHELL,
+            kind: Kind.Execute,
+            getDefaultPermission: MOCK_TOOL_GET_DEFAULT_PERMISSION,
+            getConfirmationDetails: vi.fn().mockResolvedValue({
+              type: 'exec',
+              title: 'Run command',
+              command: 'git reset --hard',
+              rootCommand: 'git',
+              onConfirm: onConfirmSpy,
+            }),
+            execute,
+          }),
+        ],
+      ]);
+      const messageBus = {
+        request: vi.fn().mockImplementation(
+          async (request: {
+            eventName: string;
+          }): Promise<HookExecutionResponse> => ({
+            type: MessageBusType.HOOK_EXECUTION_RESPONSE,
+            correlationId: `${request.eventName}-hook`,
+            success: true,
+            output:
+              request.eventName === 'PermissionRequest'
+                ? {
+                    hookSpecificOutput: {
+                      decision: { behavior: options.hookBehavior },
+                    },
+                  }
+                : { decision: 'allow' },
+          }),
+        ),
+      };
+      const created = createSchedulerForLegacyToolTests({
+        toolsByName,
+        approvalMode: ApprovalMode.AUTO,
+        messageBus,
+        disableHooks: false,
+        streamJsonHost: options.streamJsonHost,
+        autoModeDenialState: {
+          consecutiveBlock: options.consecutiveBlock,
+          consecutiveUnavailable: 0,
+          totalBlock: options.consecutiveBlock,
+          totalUnavailable: 0,
+        },
+      });
+      await created.scheduler.schedule(
+        [
+          {
+            callId: 'destructive-escalation',
+            name: ToolNames.SHELL,
+            args: { command: 'git reset --hard' },
+            isClientInitiated: false,
+            prompt_id: 'prompt-destructive-escalation',
+          },
+        ],
+        new AbortController().signal,
+      );
+      return { ...created, execute, onConfirmSpy };
+    };
+
+    const lastCalls = (onToolCallsUpdate: Mock<ToolCallsUpdateHandler>) =>
+      onToolCallsUpdate.mock.calls.at(-1)?.[0] ?? [];
+    const completedStatus = (
+      onAllToolCallsComplete: Mock<AllToolCallsCompleteHandler>,
+    ) => onAllToolCallsComplete.mock.calls[0]?.[0][0]?.status;
+
+    it('refuses the command outright below the cap', async () => {
+      const { execute, onAllToolCallsComplete } = await scheduleDestructive({
+        hookBehavior: 'allow',
+        consecutiveBlock: 0,
+      });
+
+      await vi.waitFor(() => {
+        expect(onAllToolCallsComplete).toHaveBeenCalled();
+      });
+      expect(completedStatus(onAllToolCallsComplete)).toBe('error');
+      expect(execute).not.toHaveBeenCalled();
+    });
+
+    it('waits for the user at the cap even when a PermissionRequest hook allows', async () => {
+      const {
+        execute,
+        onConfirmSpy,
+        onAllToolCallsComplete,
+        onToolCallsUpdate,
+      } = await scheduleDestructive({
+        hookBehavior: 'allow',
+        consecutiveBlock: 2,
+      });
+
+      const call = lastCalls(onToolCallsUpdate)[0];
+      expect(call?.status).toBe('awaiting_approval');
+      if (call?.status === 'awaiting_approval') {
+        expect(call.confirmationDetails.autoModeFallback).toMatchObject({
+          reason: 'consecutive_block',
+        });
+        expect(call.confirmationDetails).toMatchObject({
+          hideAlwaysAllow: true,
+        });
+      }
+      expect(onConfirmSpy).not.toHaveBeenCalled();
+      expect(execute).not.toHaveBeenCalled();
+      expect(onAllToolCallsComplete).not.toHaveBeenCalled();
+    });
+
+    it('still applies a PermissionRequest hook deny at the cap', async () => {
+      const { execute, onConfirmSpy, onAllToolCallsComplete } =
+        await scheduleDestructive({
+          hookBehavior: 'deny',
+          consecutiveBlock: 2,
+        });
+
+      await vi.waitFor(() => {
+        expect(onAllToolCallsComplete).toHaveBeenCalled();
+      });
+      expect(onConfirmSpy).toHaveBeenCalledWith(
+        ToolConfirmationOutcome.Cancel,
+        undefined,
+      );
+      expect(completedStatus(onAllToolCallsComplete)).toBe('error');
+      expect(execute).not.toHaveBeenCalled();
+    });
+
+    it('denies at the cap when only a programmatic host could answer', async () => {
+      const { execute, onConfirmSpy, onAllToolCallsComplete } =
+        await scheduleDestructive({
+          hookBehavior: 'allow',
+          consecutiveBlock: 2,
+          streamJsonHost: true,
+        });
+
+      await vi.waitFor(() => {
+        expect(onAllToolCallsComplete).toHaveBeenCalled();
+      });
+      expect(completedStatus(onAllToolCallsComplete)).toBe('error');
+      expect(onConfirmSpy).not.toHaveBeenCalled();
+      expect(execute).not.toHaveBeenCalled();
+    });
   });
 
   it('fires PostToolBatch once after a resolved tool batch before completion callback', async () => {

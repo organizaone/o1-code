@@ -13087,6 +13087,9 @@ export class Session implements SessionContext {
           }
           let wasAutoModeManualFallback = false;
           let autoModeFallback: AutoModeFallbackConfirmation | undefined;
+          // True when the destructive-command guard, not the classifier,
+          // escalated; a PermissionRequest hook must not waive it here either.
+          let autoModeFallbackRequiresHuman = false;
 
           // ── L5: AUTO mode three-layer filter (duplicated from
           // coreToolScheduler.ts; ACP routes through this Session path).
@@ -13178,6 +13181,8 @@ export class Session implements SessionContext {
                 );
               case 'fallback':
                 // Drop through to the manual-approval flow below.
+                autoModeFallbackRequiresHuman =
+                  outcome.requiresHumanDecision === true;
                 wasAutoModeManualFallback =
                   isDenialFallbackReason(outcome.reason) ||
                   outcome.reason === 'classifier_unavailable' ||
@@ -13403,7 +13408,8 @@ export class Session implements SessionContext {
 
               if (
                 hookResult.hasDecision &&
-                (!hookResult.shouldAllow || !requiresUserInteraction)
+                (!hookResult.shouldAllow ||
+                  (!requiresUserInteraction && !autoModeFallbackRequiresHuman))
               ) {
                 hookHandled = true;
                 if (hookResult.shouldAllow) {

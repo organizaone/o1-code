@@ -1161,6 +1161,33 @@ export class ToolRegistry {
   }
 
   /**
+   * The server key, server-side tool name and registered name of every MCP
+   * tool, whether or not the model currently sees it. Permission checks use
+   * this to tell when two servers claim the same allow rule.
+   */
+  getMcpToolIdentities(): Array<{
+    name: string;
+    serverName: string;
+    serverToolName: string;
+  }> {
+    const identities: Array<{
+      name: string;
+      serverName: string;
+      serverToolName: string;
+    }> = [];
+    for (const tool of this.tools.values()) {
+      if (tool instanceof DiscoveredMCPTool) {
+        identities.push({
+          name: tool.name,
+          serverName: tool.serverName,
+          serverToolName: tool.serverToolName,
+        });
+      }
+    }
+    return identities;
+  }
+
+  /**
    * Returns an array of tools registered from a specific MCP server.
    */
   getToolsByServer(serverName: string): AnyDeclarativeTool[] {

@@ -24,6 +24,7 @@ import {
 } from './types.js';
 import { extractInjections, type Injection } from './injectionParser.js';
 import { themeManager } from '../../ui/themes/theme-manager.js';
+import { isInjectedFilePart } from './injected-file-parts.js';
 
 export class ConfirmationRequiredError extends Error {
   constructor(
@@ -61,9 +62,21 @@ export class ShellProcessor implements IPromptProcessor {
     prompt: PromptPipelineContent,
     context: CommandContext,
   ): Promise<PromptPipelineContent> {
-    return flatMapTextParts(prompt, (text) =>
-      this.processString(text, context),
-    );
+    // File content read by `@{...}` is data: neither `!{...}` nor `{{args}}`
+    // inside it belongs to the command's author, so it is never scanned.
+    const output: PromptPipelineContent = [];
+    for (const part of prompt) {
+      if (isInjectedFilePart(part)) {
+        output.push(part);
+        continue;
+      }
+      output.push(
+        ...(await flatMapTextParts([part], (text) =>
+          this.processString(text, context),
+        )),
+      );
+    }
+    return output;
   }
 
   private async processString(

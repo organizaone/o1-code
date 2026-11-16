@@ -181,7 +181,9 @@ export function clearSessionCommits(): void {
 /**
  * Check whether a shell command is destructively blocked by the deterministic
  * guard. Runs before the L5.3 classifier — failures here are hard blocks
- * regardless of classifier availability.
+ * regardless of classifier availability, until denial tracking reaches the
+ * consecutive-block or session-total cap; there `applyAutoModeDecision` asks a
+ * human instead (`requiresHumanDecision`).
  *
  * @param command - The raw shell command string
  * @param userPrompt - The user's most recent prompt text
@@ -197,7 +199,11 @@ export function isDestructiveCommand(
 
   for (const pattern of DESTRUCTIVE_GIT_PATTERNS) {
     if (pattern.test(expanded) && !userMentionsDiscard(userPrompt)) {
-      const matched = command.match(pattern)?.[0] ?? command;
+      // The match can be arbitrarily long (or the whole command). Bound it so
+      // the recovery instruction after it survives the 200-char clamp applied
+      // to this reason downstream.
+      const match = command.match(pattern)?.[0] ?? command;
+      const matched = match.length > 80 ? `${match.slice(0, 79)}…` : match;
       return {
         blocked: true,
         reason: `Blocked destructive git command: "${matched}". To proceed, explicitly mention discarding local work in your prompt.`,

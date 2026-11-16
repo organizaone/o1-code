@@ -1026,6 +1026,13 @@ export interface SessionMetadataUpdate {
 
 export interface CloseSessionOpts {
   cause?: 'workspace_runtime_stop';
+  /**
+   * Close only when nothing holds the session: no work the daemon admitted,
+   * no restore in flight, and the owning child confirming it holds none. A
+   * refusal, a non-answer or an owner that cannot be trusted leaves the
+   * session live and resolves without error; idle cleanup retries later.
+   */
+  closeIfUnheld?: boolean;
   /** Override the default `'client_close'` reason in the `session_closed` event. */
   reason?: string;
   /**
@@ -1818,7 +1825,8 @@ export interface AcpSessionBridge extends WorkspaceEventBridge {
 
   /**
    * Explicitly close a live session. Force-closes even when other clients
-   * are attached. Throws `SessionNotFoundError` for unknown ids.
+   * are attached, unless `closeIfUnheld` asks for a conditional close. Throws
+   * `SessionNotFoundError` for unknown ids.
    */
   closeSession(
     sessionId: string,

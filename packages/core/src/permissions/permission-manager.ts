@@ -8,6 +8,7 @@ import {
   parseRules,
   parseRule,
   matchesRule,
+  isMcpGrantContested,
   resolveToolName,
   splitCompoundCommand,
   SHELL_TOOL_NAMES,
@@ -34,6 +35,7 @@ import {
 } from './dangerousRules.js';
 import { ToolNames } from '../tools/tool-names.js';
 import type {
+  McpToolIdentity,
   PermissionCheckContext,
   PermissionDecision,
   PermissionRule,
@@ -155,6 +157,18 @@ function splitCommandForRules(
  * PermissionManager therefore only needs these three getters.
  */
 export interface PermissionManagerConfig {
+  /**
+   * The live tool registry, read on every MCP allow decision to see which
+   * other servers are registered. Absent (or not yet created) means no other
+   * server can contest a rule.
+   */
+  getToolRegistry?():
+    | {
+        getMcpToolIdentities?(): ReadonlyArray<
+          McpToolIdentity & { name: string }
+        >;
+      }
+    | undefined;
   getAgentShellConfiguration?(): ShellConfiguration;
   getShellExecutionSandbox?(): unknown;
   /** Merged allow-rules (settings + coreTools + allowedTools). */
@@ -461,6 +475,43 @@ export class PermissionManager {
   }
 
   /**
+   * Whether an allow rule grants this call. For an MCP call that carries its
+   * identity, the rule must name that tool's own server, and no other
+   * registered server may claim the rule at least as firmly: a contested rule
+   * grants nobody, and the call falls back to its normal approval.
+   */
+  private allowRuleMatches(
+    rule: PermissionRule,
+    matchArgs: readonly [
+      string,
+      string | undefined,
+      string | undefined,
+      string | undefined,
+      PathMatchContext | undefined,
+      string | undefined,
+      Record<string, unknown> | undefined,
+      readonly string[] | undefined,
+    ],
+    ctx: PermissionCheckContext,
+  ): boolean {
+    const identity = ctx.mcpIdentity;
+    if (identity === undefined) return matchesRule(rule, ...matchArgs);
+    if (
+      !matchesRule(rule, ...matchArgs, 'lexical', { identity, grant: true })
+    ) {
+      return false;
+    }
+    const registered =
+      this.config.getToolRegistry?.()?.getMcpToolIdentities?.() ?? [];
+    return !isMcpGrantContested(
+      rule.toolName,
+      resolveToolName(ctx.toolName),
+      identity,
+      registered,
+    );
+  }
+
+  /**
    * Evaluate a single (non-compound) context against all rules.
    *
    * For shell commands (run_shell_command), the result is the most restrictive
@@ -474,6 +525,7 @@ export class PermissionManager {
     const {
       toolName,
       toolAliases,
+      mcpIdentity,
       command,
       cwd,
       filePath,
@@ -501,6 +553,7 @@ export class PermissionManager {
       toolParams,
       toolAliases,
     ] as const;
+    const mcpRestrict = mcpIdentity && { identity: mcpIdentity, grant: false };
 
     // Compute the base decision from explicit Bash/file/domain rules.
     // Using an IIFE to keep the priority-cascade logic clean.
@@ -512,21 +565,23 @@ export class PermissionManager {
         ...this.sessionRules.deny,
         ...this.persistentRules.deny,
       ]) {
-        if (matchesRule(rule, ...matchArgs, 'canonical')) return 'deny';
+        if (matchesRule(rule, ...matchArgs, 'canonical', mcpRestrict))
+          return 'deny';
       }
       // Priority 2: ask rules
       for (const rule of [
         ...this.sessionRules.ask,
         ...this.persistentRules.ask,
       ]) {
-        if (matchesRule(rule, ...matchArgs, 'canonical')) return 'ask';
+        if (matchesRule(rule, ...matchArgs, 'canonical', mcpRestrict))
+          return 'ask';
       }
       // Priority 3: allow rules
       for (const rule of [
         ...this.activeSessionAllowRules(),
         ...this.persistentRules.allow,
       ]) {
-        if (matchesRule(rule, ...matchArgs)) return 'allow';
+        if (this.allowRuleMatches(rule, matchArgs, ctx)) return 'allow';
       }
       return 'default';
     })();
@@ -1087,8 +1142,12 @@ export class PermissionManager {
       toolAliases,
     ] as const;
 
+    const mcpRestrict = ctx.mcpIdentity && {
+      identity: ctx.mcpIdentity,
+      grant: false,
+    };
     for (const rule of denyRules) {
-      if (matchesRule(rule, ...matchArgs, 'canonical')) {
+      if (matchesRule(rule, ...matchArgs, 'canonical', mcpRestrict)) {
         return rule.raw;
       }
     }
@@ -1268,10 +1327,15 @@ export class PermissionManager {
       toolAliases,
     ] as const;
 
+    const mcpRestrict = ctx.mcpIdentity && {
+      identity: ctx.mcpIdentity,
+      grant: false,
+    };
     return (
       restrictiveRules.some((rule) =>
-        matchesRule(rule, ...matchArgs, 'canonical'),
-      ) || allowRules.some((rule) => matchesRule(rule, ...matchArgs))
+        matchesRule(rule, ...matchArgs, 'canonical', mcpRestrict),
+      ) ||
+      allowRules.some((rule) => this.allowRuleMatches(rule, matchArgs, ctx))
     );
   }
 
@@ -1371,8 +1435,12 @@ export class PermissionManager {
       toolAliases,
     ] as const;
 
+    const mcpRestrict = ctx.mcpIdentity && {
+      identity: ctx.mcpIdentity,
+      grant: false,
+    };
     return askRules.some((rule) =>
-      matchesRule(rule, ...matchArgs, 'canonical'),
+      matchesRule(rule, ...matchArgs, 'canonical', mcpRestrict),
     );
   }
 

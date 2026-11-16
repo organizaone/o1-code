@@ -232,6 +232,16 @@ Auto Mode protects you from getting stuck:
   approval. The first unavailable result already asks; the threshold avoids
   repeatedly waiting for classifier retries.
 
+Blocks from the deterministic destructive-command guard (for example
+`git reset --hard` or `terraform destroy` that you did not ask for) count in
+the same streak as classifier policy blocks. The first two are refused
+outright; the call that reaches the third consecutive block, or the session
+limit of 20 denials, is put in front of you instead. Any allowed call in
+between starts the streak over. That prompt can only be answered by a person:
+a `PermissionRequest` hook that returns `allow` does not approve it (a `deny`
+still applies), and where nobody can be asked — headless runs, `stream-json`
+hosts and background agents — the command is denied.
+
 The session stays in Auto Mode unless you explicitly select the switch option.
 Only the fallback call goes through manual approval. The counters reset when
 you approve the fallback call or switch modes.

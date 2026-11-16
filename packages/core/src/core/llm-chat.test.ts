@@ -17,6 +17,8 @@ import { AuthType, type ContentGenerator } from './contentGenerator.js';
 import {
   LlmChat,
   InvalidStreamError,
+  ORPHAN_TOOL_USE_REPAIR_REASON,
+  isSynthesizedRepairPart,
   approvedPlanRedactionText,
   redactApprovedPlansInHistory,
   redactStructuredOutputArgsForRecording,
@@ -8728,6 +8730,155 @@ describe('LlmChat', async () => {
       const second = chat.getHistoryFunctionResponseIds();
       expect(second.has('cid_immut')).toBe(true);
       expect(second.has('cid_FAKE')).toBe(false);
+    });
+  });
+
+  describe('synthesized repair placeholders', () => {
+    const call = (id: string): Part => ({
+      functionCall: { id, name: 'edit', args: { path: '/tmp/a.txt' } },
+    });
+    const response = (id: string, body: Record<string, unknown>): Part => ({
+      functionResponse: { id, name: 'edit', response: body },
+    });
+    const placeholder = (id: string, extra: Record<string, unknown> = {}) =>
+      response(id, { error: ORPHAN_TOOL_USE_REPAIR_REASON, ...extra });
+
+    it('recognises only the single-key default-reason shape', () => {
+      expect(isSynthesizedRepairPart(placeholder('c1'))).toBe(true);
+      // A real failure quoting the same text next to other fields.
+      expect(
+        isSynthesizedRepairPart(placeholder('c1', { output: 'partial' })),
+      ).toBe(false);
+      expect(isSynthesizedRepairPart(response('c1', { error: 'other' }))).toBe(
+        false,
+      );
+      expect(isSynthesizedRepairPart(response('c1', { output: 'ok' }))).toBe(
+        false,
+      );
+      expect(isSynthesizedRepairPart({ text: 'not a response' })).toBe(false);
+    });
+
+    it('reports the ids the repair pass synthesized', () => {
+      chat.setHistory([
+        { role: 'user', parts: [{ text: 'edit it' }] },
+        { role: 'model', parts: [call('c1')] },
+        { role: 'user', parts: [{ text: 'unrelated' }] },
+      ]);
+
+      expect(chat.repairOrphanedToolUseTurns().injected).toEqual([
+        { callId: 'c1', name: 'edit' },
+      ]);
+      // Ties the shape the repair writes to the shape the detector accepts.
+      expect(chat.getSynthesizedRepairCallIds()).toEqual(new Set(['c1']));
+    });
+
+    it('replaces the placeholder in its slot and keeps the neighbours', () => {
+      const realParts: Part[] = [
+        response('c1', { output: 'Edit applied' }),
+        { text: '[tool output persisted]' },
+      ];
+      chat.setHistory([
+        { role: 'model', parts: [call('c0'), call('c1')] },
+        {
+          role: 'user',
+          parts: [
+            response('c0', { output: 'other' }),
+            placeholder('c1'),
+            { text: 'interleaved' },
+          ],
+        },
+      ]);
+
+      expect(chat.replaceSynthesizedToolResponse('c1', realParts)).toBe(true);
+
+      expect(chat.getHistory()[1]!.parts).toEqual([
+        response('c0', { output: 'other' }),
+        ...realParts,
+        { text: 'interleaved' },
+      ]);
+      expect(chat.getHistoryFunctionResponseIds()).toContain('c1');
+      expect(chat.getSynthesizedRepairCallIds()).toEqual(new Set());
+    });
+
+    it('does not overwrite a real response for the same id', () => {
+      chat.setHistory([
+        { role: 'model', parts: [call('c1')] },
+        { role: 'user', parts: [response('c1', { output: 'real' })] },
+      ]);
+
+      expect(chat.getSynthesizedRepairCallIds()).toEqual(new Set());
+      expect(
+        chat.replaceSynthesizedToolResponse('c1', [
+          response('c1', { output: 'late duplicate' }),
+        ]),
+      ).toBe(false);
+      expect(chat.getHistory()[1]!.parts).toEqual([
+        response('c1', { output: 'real' }),
+      ]);
+    });
+
+    it('returns false when the id has no answer', () => {
+      chat.setHistory([
+        { role: 'model', parts: [call('c1')] },
+        { role: 'user', parts: [{ text: 'nothing here' }] },
+      ]);
+
+      expect(
+        chat.replaceSynthesizedToolResponse('c1', [
+          response('c1', { output: 'late' }),
+        ]),
+      ).toBe(false);
+      expect(chat.getHistoryFunctionResponseIds().size).toBe(0);
+    });
+
+    it('sends the real result, not the placeholder, on the next request', async () => {
+      chat.setHistory([
+        { role: 'user', parts: [{ text: 'edit it' }] },
+        { role: 'model', parts: [call('c1')] },
+        { role: 'user', parts: [{ text: 'unrelated' }] },
+        { role: 'model', parts: [{ text: 'ok' }] },
+      ]);
+      chat.repairOrphanedToolUseTurns();
+      expect(
+        chat.replaceSynthesizedToolResponse('c1', [
+          response('c1', { output: 'Edit applied' }),
+        ]),
+      ).toBe(true);
+      vi.mocked(mockContentGenerator.generateContentStream).mockResolvedValue(
+        (async function* () {
+          yield {
+            candidates: [
+              {
+                content: { parts: [{ text: 'understood' }], role: 'model' },
+                finishReason: 'STOP',
+                index: 0,
+                safetyRatings: [],
+              },
+            ],
+            text: () => 'understood',
+          } as unknown as GenerateContentResponse;
+        })(),
+      );
+
+      const stream = await chat.sendMessageStream(
+        'test-model',
+        { message: 'next' },
+        'prompt-after-replace',
+      );
+      for await (const _ of stream) {
+        // consume stream
+      }
+
+      const contents = vi.mocked(mockContentGenerator.generateContentStream)
+        .mock.calls[0]?.[0].contents as Content[];
+      const answers = contents
+        .flatMap((entry) => entry.parts ?? [])
+        .filter((part) => part.functionResponse?.id === 'c1');
+      expect(answers).toHaveLength(1);
+      expect(answers[0]!.functionResponse?.response).toEqual({
+        output: 'Edit applied',
+      });
+      expect(JSON.stringify(contents)).not.toContain('was not recorded');
     });
   });
 

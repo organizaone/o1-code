@@ -31,6 +31,13 @@ export interface ToolInvocation<
   readonly permissionAliases?: readonly string[];
 
   /**
+   * For an MCP tool, the server key and server-side tool name it was
+   * registered from. Permission rules read the server from here because the
+   * flattened tool name cannot say where the server name ends.
+   */
+  readonly mcpIdentity?: { serverName: string; serverToolName: string };
+
+  /**
    * Gets a pre-execution description of the tool operation.
    *
    * @returns A markdown string describing what the tool will do.

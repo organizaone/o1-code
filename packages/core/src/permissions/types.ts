@@ -99,11 +99,27 @@ export interface PermissionRuleSet {
  * - WebFetch: provide `domain`
  * - Other tools: only `toolName` is needed
  */
+/**
+ * The server key and server-side tool name an MCP tool was registered from.
+ * Both may contain `_` and `__`, so the flattened `mcp__<server>__<tool>`
+ * name cannot tell where one ends and the other begins.
+ */
+export interface McpToolIdentity {
+  serverName: string;
+  serverToolName: string;
+}
+
 export interface PermissionCheckContext {
   /** The canonical tool name being checked. */
   toolName: string;
   /** Historical names that may still appear in persisted rules. */
   toolAliases?: readonly string[];
+  /**
+   * Set for a call to an MCP tool. Allow rules are then matched against this
+   * identity instead of a boundary guessed from `toolName`, so a rule written
+   * for one server cannot authorize another.
+   */
+  mcpIdentity?: McpToolIdentity;
   /**
    * The shell command being executed (only for Bash / run_shell_command).
    */

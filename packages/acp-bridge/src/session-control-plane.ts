@@ -2735,11 +2735,19 @@ export function createSessionControlPlane(
    * already a teardown candidate under consideration, and a second path
    * evaluating it concurrently would either duplicate the round trip or race
    * its own guards against the first one's outcome.
+   *
+   * The first half, `entryCanStartConditionalClose`, is also the whole gate of
+   * a caller-requested conditional close (`closeIfUnheld`). That caller has not
+   * proved the entry settled, so it passes `allowCondemnedOwnerClose: false`:
+   * a condemned owner cannot give a trustworthy answer, and only automatic
+   * cleanup is entitled to tear down without one.
    */
-  function entryIsAutoCloseCandidate(entry: SessionEntry): boolean {
+  function entryCanStartConditionalClose(
+    entry: SessionEntry,
+    allowCondemnedOwnerClose: boolean,
+  ): boolean {
     if (byId.get(entry.sessionId) !== entry) return false;
     if (isClosingOrAuthorizingClose(entry)) return false;
-    if (entry.events.subscriberCount > 0) return false;
     if (entryHasLocalWork(entry)) return false;
     // A restore in flight looks exactly like an abandoned Session and is the
     // opposite of one. `session/load` registers the entry before it awaits
@@ -2751,6 +2759,9 @@ export function createSessionControlPlane(
     // can elapse inside a slow restore too.
     const owner = channelInfoForEntry(entry);
     if (owner?.pendingRestoreIds.has(entry.sessionId)) return false;
+    if (owner && channelIsCondemned(owner) && !allowCondemnedOwnerClose) {
+      return false;
+    }
     // A child that negotiated active-work but cannot report every category
     // the daemon currently relies on must not authorize ordinary teardown.
     // This differs from a legacy child that never negotiated at all: legacy
@@ -2766,6 +2777,14 @@ export function createSessionControlPlane(
     ) {
       return false;
     }
+    return true;
+  }
+
+  /** The policy automatic teardown adds on top of the shared guards. */
+  function entryIsAutoCloseCandidate(entry: SessionEntry): boolean {
+    if (!entryCanStartConditionalClose(entry, true)) return false;
+    if (entry.events.subscriberCount > 0) return false;
+    const owner = channelInfoForEntry(entry);
     // A probe the child could not answer is retried on the next snapshot, but
     // not on every snapshot forever: a Session the child can never settle
     // would otherwise be re-probed at the report cadence for the lifetime of
@@ -2948,6 +2967,7 @@ export function createSessionControlPlane(
     await closeIfChildUnheld(entry, {
       trigger: reason,
       closeReason: 'last_client_detached',
+      allowCondemnedOwnerClose: true,
     });
   }
 
@@ -2966,12 +2986,24 @@ export function createSessionControlPlane(
    */
   async function closeIfChildUnheld(
     entry: SessionEntry,
-    opts: { trigger: string; closeReason: string },
+    opts: {
+      trigger: string;
+      closeReason: string;
+      /** Only automatic cleanup, which proved the entry settled, passes true. */
+      allowCondemnedOwnerClose: boolean;
+      context?: BridgeClientRequestContext;
+      closeOpts?: CloseSessionOpts;
+    },
   ): Promise<void> {
     if (runtimeStop) return;
+    if (!entryCanStartConditionalClose(entry, opts.allowCondemnedOwnerClose)) {
+      return;
+    }
     entry.activeWorkCloseInFlight = true;
     try {
-      if (!(await confirmChildUnheld(entry))) return;
+      if (!(await confirmChildUnheld(entry, opts.allowCondemnedOwnerClose))) {
+        return;
+      }
       // Re-check identity, not just liveness. `closeSessionImpl` re-resolves
       // the target by raw id, and the id can be re-registered to a *different*
       // entry during the round trip — an explicit kill removes this one (kill
@@ -2990,7 +3022,9 @@ export function createSessionControlPlane(
         condemnedOwner !== undefined && channelIsCondemned(condemnedOwner)
           ? ACTIVE_WORK_CLOSE_TIMEOUT_MS
           : undefined;
-      await closeSessionImpl(entry.sessionId, undefined, {
+      await closeSessionImpl(entry.sessionId, opts.context, {
+        ...opts.closeOpts,
+        closeIfUnheld: false,
         reason: opts.closeReason,
         ...(agentCloseTimeoutMs !== undefined ? { agentCloseTimeoutMs } : {}),
       }).catch((err) => {
@@ -3026,7 +3060,10 @@ export function createSessionControlPlane(
    * retried here — the next snapshot resolves it, and a Session that is truly
    * gone will be reported with no holds in that snapshot.
    */
-  async function confirmChildUnheld(entry: SessionEntry): Promise<boolean> {
+  async function confirmChildUnheld(
+    entry: SessionEntry,
+    allowCondemnedOwnerClose: boolean,
+  ): Promise<boolean> {
     const info = channelInfoForEntry(entry);
     if (!info?.harness.activeWork) return true;
     if (info.harness.isDying) return false;
@@ -3038,8 +3075,9 @@ export function createSessionControlPlane(
     // precisely the one that cannot answer this round trip inside
     // `ACTIVE_WORK_CLOSE_TIMEOUT_MS`. Nothing is attached to this session
     // (`maybeCloseIdleSession` gates on that), so proceed to local teardown.
+    // A caller-requested conditional close has no such proof, so it retains.
     if (channelIsCondemned(info)) {
-      return true;
+      return allowCondemnedOwnerClose;
     }
     try {
       const response = await withTimeout(
@@ -3484,6 +3522,7 @@ export function createSessionControlPlane(
         void closeIfChildUnheld(entry, {
           trigger: 'idle_timeout',
           closeReason: 'idle_timeout',
+          allowCondemnedOwnerClose: true,
         });
       }
     }, sessionReapIntervalMs);
@@ -8321,6 +8360,19 @@ export function createSessionControlPlane(
         'The session is already closing',
         'session_closing',
       );
+    }
+    if (closeOpts?.closeIfUnheld === true) {
+      if (context?.clientId !== undefined) {
+        resolveTrustedClientId(entry, context.clientId);
+      }
+      await closeIfChildUnheld(entry, {
+        trigger: closeOpts.reason ?? 'conditional_close',
+        closeReason: closeOpts.reason ?? 'client_close',
+        allowCondemnedOwnerClose: false,
+        context,
+        closeOpts,
+      });
+      return;
     }
     let originatorClientId: string | undefined;
     if (context?.clientId !== undefined) {

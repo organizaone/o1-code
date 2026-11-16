@@ -56,6 +56,10 @@ import {
   type CronTaskRun,
 } from '@organizaone/o1-code-core';
 import { SessionNotFoundError } from '@organizaone/o1-code-acp-bridge/bridgeErrors';
+import type {
+  BridgeClientRequestContext,
+  CloseSessionOpts,
+} from '@organizaone/o1-code-acp-bridge/bridgeTypes';
 import { parseCallerSuppliedSessionId } from '../../config/session-id.js';
 import { writeStderrLine } from '../../utils/stdioHelpers.js';
 import type {
@@ -109,7 +113,11 @@ export interface ScheduledTasksSessionBridge {
     signal?: AbortSignal,
     context?: { onPromptAdmitted?: () => void },
   ): Promise<unknown>;
-  closeSession(sessionId: string): Promise<unknown>;
+  closeSession(
+    sessionId: string,
+    context?: BridgeClientRequestContext,
+    opts?: CloseSessionOpts,
+  ): Promise<unknown>;
   /** Persist a restorable transcript anchor for an eligible default session. */
   ensureDefaultSessionPersisted?(sessionId: string): Promise<void>;
   /** Advance the in-memory session-catalog revision after a successful
@@ -1757,11 +1765,17 @@ function registerScheduledTaskCrudRoutes(
           .json({ error: 'Task not found', code: 'task_not_found' });
         return;
       }
-      // Stop the now-orphaned session (keeps its transcript on disk as history).
+      // The task is gone, but its session may still be running work the task
+      // started. Close it only if nothing holds it; otherwise it stays live
+      // and idle cleanup reclaims it once that work ends. The transcript
+      // stays on disk as history either way.
       if (boundSessionId && sessionOwnedByTask && bridge) {
         try {
           await runWithScheduledTaskTarget(target, () =>
-            bridge.closeSession(boundSessionId!),
+            bridge.closeSession(boundSessionId!, undefined, {
+              closeIfUnheld: true,
+              reason: 'scheduled_task_deleted',
+            }),
           );
         } catch (error) {
           if (sendActivityGateError(res, error)) return;
