@@ -18,6 +18,10 @@ import {
   recordHandledToolCall,
   reserveModelToolCallId,
 } from './toolCallIdUtils.js';
+import {
+  markToolCallArgumentsIncomplete,
+  toolCallArgumentsWereIncomplete,
+} from './incomplete-tool-call-args.js';
 
 describe('toolCallIdUtils', () => {
   it('suffixes cross-turn duplicate ids and drops same-turn replays', () => {
@@ -104,6 +108,32 @@ describe('toolCallIdUtils', () => {
     expect(
       normalized.map((part) => getProviderToolCallId(part.functionCall!)),
     ).toEqual([undefined, undefined]);
+  });
+
+  it('carries the incomplete-arguments marker across normalization', () => {
+    const parts: Part[] = [
+      { functionCall: { id: 'call-1', name: 'write_file', args: {} } },
+      { functionCall: { name: 'read_file', args: {} } },
+    ];
+    markToolCallArgumentsIncomplete([parts[0]!]);
+
+    const normalized = normalizeModelToolCallIds(
+      parts,
+      new Set<string>(),
+      new Set<string>(),
+    );
+
+    expect(toolCallArgumentsWereIncomplete(normalized[0]!.functionCall!)).toBe(
+      true,
+    );
+    expect(toolCallArgumentsWereIncomplete(normalized[1]!.functionCall!)).toBe(
+      false,
+    );
+    expect(Object.keys(normalized[0]!.functionCall!)).toEqual([
+      'id',
+      'name',
+      'args',
+    ]);
   });
 
   it('reserves a fresh model tool call id', () => {

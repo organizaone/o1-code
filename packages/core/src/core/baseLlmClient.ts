@@ -40,7 +40,20 @@ import { getResponseText } from '../utils/partUtils.js';
 import { createDebugLogger } from '../utils/debugLogger.js';
 import { resolveModelApiKey } from '../providers/model-api-key.js';
 import type { RuntimeContentGeneratorView } from '../agents/runtime/agent-context.js';
-import { slimCompactionInput } from '../services/compactionInputSlimming.js';
+import {
+  resolveSlimmingConfig,
+  slimCompactionInput,
+} from '../services/compactionInputSlimming.js';
+import {
+  CHARS_PER_TOKEN,
+  estimateContentTokens,
+} from '../services/tokenEstimation.js';
+import {
+  defaultOutputCeiling,
+  hasExplicitOutputLimit,
+  parsePositiveIntegerEnvValue,
+  tokenLimit,
+} from './tokenLimits.js';
 import { reachesOrganizaOne } from '../providers/presets/organizaone.js';
 import {
   createGatewayIndependentRequest,
@@ -64,6 +77,158 @@ function splitModelBaseUrl(model: string): { model: string; baseUrl?: string } {
 }
 
 /**
+ * Smallest room worth turning into an output budget. Below it the answer could
+ * only be a stub, which a text side query would report as a normal success.
+ */
+const MIN_BUDGETED_OUTPUT_TOKENS = 256;
+
+/**
+ * Smallest reasoning budget the manual Anthropic thinking shape accepts; a
+ * smaller one makes the provider layer drop thinking altogether.
+ */
+const MIN_THINKING_BUDGET_TOKENS = 1024;
+
+/**
+ * Estimated tokens of a system instruction. It travels beside `contents`, so
+ * the content estimator alone does not see it.
+ */
+function estimateSystemInstructionTokens(
+  systemInstruction: GenerateContentConfig['systemInstruction'],
+): number {
+  if (!systemInstruction) return 0;
+  const value = systemInstruction as Content | Part | Part[] | string;
+  if (typeof value === 'string') {
+    return Math.ceil(value.length / CHARS_PER_TOKEN);
+  }
+  // Every field of a bare `Part` is optional, so only an array under `parts`
+  // tells a `Content` apart from it.
+  let parts: Part[];
+  if (Array.isArray(value)) {
+    parts = value;
+  } else if (
+    typeof value === 'object' &&
+    'parts' in value &&
+    Array.isArray(value.parts)
+  ) {
+    parts = value.parts;
+  } else {
+    parts = [value as Part];
+  }
+  return estimateContentTokens([{ role: 'user', parts }]);
+}
+
+/**
+ * Estimated tokens of a payload that reaches the wire as JSON whatever the
+ * provider format: the tool declarations (in JSON mode they carry the caller's
+ * whole schema) and a caller-supplied response schema.
+ */
+function estimateSerializedTokens(value: unknown): number {
+  if (value === undefined) return 0;
+  if (Array.isArray(value) && value.length === 0) return 0;
+  return Math.ceil(JSON.stringify(value).length / CHARS_PER_TOKEN);
+}
+
+/**
+ * Gives a side query that carries no output limit one that fits the context
+ * window it is sent to, so `prompt + max_tokens <= window` holds for the terms
+ * measurable here: contents, system instruction, tool declarations and a
+ * response schema.
+ *
+ * Side queries never pass through the main turn's window clamp. Without a
+ * limit of their own, the provider layers that apply a ceiling use
+ * `defaultOutputCeiling(model)`, which knows nothing about the window, and a
+ * large prompt on a small window is rejected by a backend that validates the
+ * sum. `clampOutputTokensToWindow` is not reused: its 10K margin and 4K floor
+ * are sized for the main turn, which has compaction behind it.
+ *
+ * Only the window term is added. The request is returned as it came when:
+ * - the caller set `maxOutputTokens` (compaction budgets its own; the prompt
+ *   is not even measured);
+ * - the room is at or above the ceiling the wire would apply anyway — the
+ *   user's `samplingParams.max_tokens`, else `O1CODE_MAX_OUTPUT_TOKENS`, else
+ *   the model default. The explicit ceilings replace the default rather than
+ *   intersect it, the precedence the main turn and both provider layers use.
+ *   Emitting here would also newly cap the wires that apply no ceiling at all
+ *   (Gemini/Vertex and OpenAI Responses);
+ * - the room is too small to carry an answer, or too small to host both the
+ *   reasoning and the visible output of a thinking request. Capping there
+ *   would turn a loud provider rejection into a silent stub.
+ *
+ * `resolvedContextWindowSize` is the window of the model the request is sent
+ * to. It outranks `contentGeneratorConfig.contextWindowSize`, which a
+ * per-model config inherits from the session when the target declares none.
+ * It is undefined when the session generator sends the request (same model,
+ * or the fallback for an unregistered or unbuildable target); the session
+ * window is then the one the request meets, while the ceiling still describes
+ * `model`.
+ *
+ * Call it with the resolved model and the slimmed contents.
+ */
+function budgetOutputTokensForWindow(
+  requestConfig: GenerateContentConfig,
+  contents: Content[],
+  model: string,
+  contentGeneratorConfig: ContentGeneratorConfig | undefined,
+  resolvedContextWindowSize: number | undefined,
+  imageTokenEstimate: number,
+  tools?: Tool[],
+): GenerateContentConfig {
+  if (requestConfig.maxOutputTokens !== undefined) return requestConfig;
+
+  // The env override may not authorize more than a known model can emit: the
+  // wires without a clamp of their own would send it as given and get a 400.
+  // An id with no explicit output limit is left to the operator's value.
+  const envCeiling = parsePositiveIntegerEnvValue(
+    process.env['O1CODE_MAX_OUTPUT_TOKENS'],
+  );
+  const explicitCeiling =
+    contentGeneratorConfig?.samplingParams?.max_tokens ??
+    (envCeiling === undefined
+      ? undefined
+      : Math.min(
+          envCeiling,
+          hasExplicitOutputLimit(model)
+            ? tokenLimit(model, 'output')
+            : Number.POSITIVE_INFINITY,
+        ));
+  // A window of zero or less means "not configured", as elsewhere.
+  const declaredWindow = [
+    resolvedContextWindowSize,
+    contentGeneratorConfig?.contextWindowSize,
+  ].find((v): v is number => typeof v === 'number' && v > 0);
+  const room =
+    (declaredWindow ?? tokenLimit(model, 'input')) -
+    estimateContentTokens(contents, imageTokenEstimate) -
+    estimateSystemInstructionTokens(requestConfig.systemInstruction) -
+    estimateSerializedTokens(tools) -
+    estimateSerializedTokens(requestConfig.responseJsonSchema);
+
+  if (room < MIN_BUDGETED_OUTPUT_TOKENS) return requestConfig;
+
+  const ceiling = explicitCeiling ?? defaultOutputCeiling(model);
+  if (room >= ceiling) return requestConfig;
+
+  const thinking = requestConfig.thinkingConfig;
+  if (!thinking || thinking.includeThoughts === false) {
+    return { ...requestConfig, maxOutputTokens: room };
+  }
+  // Reasoning is paid out of the same budget, and the Anthropic layer clamps
+  // its thinking budget to just under `max_tokens`: an unpaired cap would
+  // leave a single visible token. Half the room goes to reasoning at most.
+  const thinkingBudget = Math.min(
+    thinking.thinkingBudget ?? room,
+    Math.floor(room / 2),
+  );
+  if (thinkingBudget < MIN_THINKING_BUDGET_TOKENS) return requestConfig;
+
+  return {
+    ...requestConfig,
+    maxOutputTokens: room,
+    thinkingConfig: { ...thinking, thinkingBudget },
+  };
+}
+
+/**
  * The pair of generator and retry-authType to use for a request targeting
  * a specific model. When the requested model differs from the main session
  * model, both fields are resolved against that model's provider so that
@@ -77,6 +242,13 @@ export interface ResolvedGeneratorForModel {
   retryAuthType: string | undefined;
   retryErrorCodes?: readonly number[];
   model: string;
+  /**
+   * Context window of the model the request is sent to, resolved against that
+   * target: the window its registry entry declares, else the known limit for
+   * its id. Undefined when the session generator sends the request, whose
+   * `contentGeneratorConfig.contextWindowSize` is then the window that counts.
+   */
+  contextWindowSize?: number;
 }
 
 /**
@@ -273,6 +445,7 @@ export class BaseLlmClient {
       retryAuthType,
       retryErrorCodes,
       model: requestModel,
+      contextWindowSize: resolvedContextWindowSize,
     } = await this.resolveForModel(model);
     const isGateway = reachesOrganizaOne(contentGeneratorConfig);
     const independent = isGateway
@@ -282,6 +455,16 @@ export class BaseLlmClient {
       isGateway ? gatewayIndependentInput(contents) : contents,
       contentGeneratorConfig.modalities,
     ).slimmedHistory;
+    const budgetedConfig = budgetOutputTokensForWindow(
+      requestConfig,
+      requestContents,
+      requestModel,
+      contentGeneratorConfig,
+      resolvedContextWindowSize,
+      resolveSlimmingConfig(this.config.getChatCompression?.())
+        .imageTokenEstimate,
+      tools,
+    );
 
     try {
       const apiCall = () =>
@@ -290,7 +473,7 @@ export class BaseLlmClient {
             model: requestModel,
             ...(independent ? { gatewayIndependentRequest: independent } : {}),
             config: {
-              ...requestConfig,
+              ...budgetedConfig,
               tools,
               // Force the model to call the respond_in_schema tool rather
               // than free-texting. Without this, Anthropic-native and
@@ -410,6 +593,7 @@ export class BaseLlmClient {
       retryAuthType,
       retryErrorCodes,
       model: requestModel,
+      contextWindowSize: resolvedContextWindowSize,
     } = await this.resolveForModel(model, { failClosed: options.failClosed });
     const isGateway = reachesOrganizaOne(contentGeneratorConfig);
     const independent = isGateway
@@ -419,12 +603,21 @@ export class BaseLlmClient {
       isGateway ? gatewayIndependentInput(contents) : contents,
       contentGeneratorConfig.modalities,
     ).slimmedHistory;
+    const budgetedConfig = budgetOutputTokensForWindow(
+      requestConfig,
+      requestContents,
+      requestModel,
+      contentGeneratorConfig,
+      resolvedContextWindowSize,
+      resolveSlimmingConfig(this.config.getChatCompression?.())
+        .imageTokenEstimate,
+    );
 
     try {
       const request: PromptCacheSharingParameters = {
         model: requestModel,
         ...(independent ? { gatewayIndependentRequest: independent } : {}),
-        config: requestConfig,
+        config: budgetedConfig,
         contents: requestContents,
         ...(options.promptCacheSharing && { promptCacheSharing: true }),
       };
@@ -616,13 +809,24 @@ export class BaseLlmClient {
       resolvedModel?.authType ?? mainAuthType ?? AuthType.USE_OPENAI;
     const retryErrorCodes =
       resolvedModel?.generationConfig?.retryErrorCodes ?? mainRetryErrorCodes;
+    const targetModel = resolvedModel?.id ?? requestModel;
+    // A per-model config starts as a copy of the session's, so unless the
+    // registry declares a window for the target it still carries the session
+    // model's. The fallback hands back the session config object itself, which
+    // is how the two routes are told apart.
+    const fellBackToSessionGenerator =
+      contentGeneratorConfig === mainGeneratorConfig;
 
     return {
       contentGenerator,
       contentGeneratorConfig,
       retryAuthType,
       retryErrorCodes,
-      model: resolvedModel?.id ?? requestModel,
+      model: targetModel,
+      contextWindowSize: fellBackToSessionGenerator
+        ? undefined
+        : (resolvedModel?.generationConfig?.contextWindowSize ??
+          tokenLimit(targetModel, 'input')),
     };
   }
 

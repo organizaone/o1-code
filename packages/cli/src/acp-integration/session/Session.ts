@@ -107,6 +107,8 @@ import {
   DEFERRED_TOOL_CALL_CANCELLATION_PREFIX,
   resolveDeferredToolCall,
   TRUNCATION_EDIT_REJECTION,
+  INCOMPLETE_ARGS_EDIT_REJECTION,
+  toolCallArgumentsWereIncomplete,
   TOOL_CANCELLED_BEFORE_COMPLETION_MESSAGE,
   CreateSubSessionTool,
   fireNotificationHook,
@@ -12734,6 +12736,19 @@ export class Session implements SessionContext {
         {
           status: 'error',
           errorType: ToolErrorType.OUTPUT_TRUNCATED,
+          executionStatus: 'not_started',
+        },
+      );
+    }
+    // Same refusal when the arguments arrived unterminated on a response the
+    // output limit did not cut: the content is partial either way.
+    if (toolCallArgumentsWereIncomplete(fc) && tool.kind === Kind.Edit) {
+      return earlyErrorResponse(
+        new Error(INCOMPLETE_ARGS_EDIT_REJECTION),
+        toolName,
+        {
+          status: 'error',
+          errorType: ToolErrorType.INVALID_TOOL_PARAMS,
           executionStatus: 'not_started',
         },
       );

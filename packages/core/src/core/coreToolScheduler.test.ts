@@ -11801,6 +11801,104 @@ describe('CoreToolScheduler truncated output protection', () => {
     expect(messages[1]).not.toContain('RETRY LOOP DETECTED');
     expect(messages[2]).toContain('RETRY LOOP DETECTED');
   });
+
+  const createWriteFileTool = () =>
+    new WriteFileTool({
+      getProjectRoot: () => '/tmp',
+      getTargetDir: () => '/tmp',
+      getFileSystemService: () => ({
+        readTextFile: vi.fn(),
+        writeTextFile: vi.fn(),
+      }),
+      getDefaultFileEncoding: () => undefined,
+      setApprovalMode: vi.fn(),
+    } as unknown as Config);
+
+  it('rejects Kind.Edit calls whose arguments were incomplete without a max_tokens cut', async () => {
+    const { scheduler, onAllToolCallsComplete } = createTruncationTestScheduler(
+      createWriteFileTool(),
+      [WriteFileTool.Name],
+    );
+
+    const messages: string[] = [];
+    for (let i = 1; i <= 3; i++) {
+      await scheduler.schedule(
+        [
+          {
+            callId: `incomplete-write-file-${i}`,
+            name: WriteFileTool.Name,
+            args: { file_path: '/tmp/test.txt', content: 'partial' },
+            isClientInitiated: false,
+            prompt_id: `prompt-id-write-file-incomplete-${i}`,
+            hadIncompleteArguments: true,
+          },
+        ],
+        new AbortController().signal,
+      );
+      await vi.waitFor(() => {
+        expect(onAllToolCallsComplete).toHaveBeenCalledTimes(i);
+      });
+      const completedCall = (
+        onAllToolCallsComplete.mock.calls.at(-1)?.[0] as ToolCall[]
+      )[0];
+      expect(completedCall.status).toBe('error');
+      if (completedCall.status === 'error') {
+        expect(completedCall.response.errorType).toBe(
+          ToolErrorType.INVALID_TOOL_PARAMS,
+        );
+        messages.push(completedCall.response.error?.message ?? '');
+      }
+    }
+
+    expect(messages[0]).toContain('arguments arrived incomplete');
+    expect(messages[0]).toContain(
+      'malformed generation rather than truncation',
+    );
+    expect(messages[0]).not.toContain('truncated due to max_tokens limit');
+    expect(messages[0]).not.toContain('RETRY LOOP DETECTED');
+    expect(messages[2]).toContain(
+      'RETRY LOOP DETECTED: The same incomplete file write',
+    );
+  });
+
+  it('explains a validation failure on incomplete arguments without blaming max_tokens', async () => {
+    const mockTool = new MockTool({ name: 'mockReadTool' });
+    vi.spyOn(mockTool, 'build').mockImplementation(() => {
+      throw new Error('params/limit must be integer');
+    });
+    const { scheduler, onAllToolCallsComplete } = createTruncationTestScheduler(
+      mockTool,
+      ['mockReadTool'],
+    );
+
+    await scheduler.schedule(
+      [
+        {
+          callId: '1',
+          name: 'mockReadTool',
+          args: {},
+          isClientInitiated: false,
+          prompt_id: 'prompt-id-read-incomplete',
+          hadIncompleteArguments: true,
+        },
+      ],
+      new AbortController().signal,
+    );
+    await vi.waitFor(() => {
+      expect(onAllToolCallsComplete).toHaveBeenCalled();
+    });
+
+    const completedCall = (
+      onAllToolCallsComplete.mock.calls[0][0] as ToolCall[]
+    )[0];
+    expect(completedCall.status).toBe('error');
+    if (completedCall.status === 'error') {
+      const message = completedCall.response.error?.message;
+      expect(message).toContain('params/limit must be integer');
+      expect(message).toContain('malformed generation rather than truncation');
+      expect(message).not.toContain('truncated due to max_tokens limit');
+    }
+  });
 });
 
 describe('CoreToolScheduler Sequential Execution', () => {

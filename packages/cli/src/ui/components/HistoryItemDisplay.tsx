@@ -395,7 +395,12 @@ const HistoryItemDisplayComponent: React.FC<HistoryItemDisplayProps> = ({
   // `gemini_thought_content` items; all of them key off the head id so one
   // click expands the whole group. Continuations receive the head id via
   // `thoughtHeadId`; the head itself falls back to its own id.
-  const thoughtGroupHeadId = thoughtHeadId ?? item.id;
+  // A block that carries its own group id keeps it across the history commit.
+  const thoughtGroupId =
+    item.type === 'gemini_thought' || item.type === 'gemini_thought_content'
+      ? item.thoughtGroupId
+      : undefined;
+  const thoughtGroupHeadId = thoughtGroupId ?? thoughtHeadId ?? item.id;
   // Ctrl+O full-detail forces every thought open; otherwise honor an explicit
   // `thoughtExpanded` prop, then the global Alt+T toggle / per-group click set.
   const resolvedThoughtExpanded =
@@ -476,7 +481,7 @@ const HistoryItemDisplayComponent: React.FC<HistoryItemDisplayProps> = ({
       {itemForDisplay.type === 'gemini_thought' && (
         <ClickableThinkMessage
           text={itemForDisplay.text.trimEnd()}
-          isPending={isPending}
+          isPending={isPending && itemForDisplay.isStreaming !== false}
           expanded={resolvedThoughtExpanded}
           availableTerminalHeight={
             availableTerminalHeightLlm ?? availableTerminalHeight
@@ -489,7 +494,7 @@ const HistoryItemDisplayComponent: React.FC<HistoryItemDisplayProps> = ({
       {itemForDisplay.type === 'gemini_thought_content' && (
         <ThinkMessageContent
           text={itemForDisplay.text.trimEnd()}
-          isPending={isPending}
+          isPending={isPending && itemForDisplay.isStreaming !== false}
           expanded={resolvedThoughtExpanded}
           availableTerminalHeight={
             availableTerminalHeightLlm ?? availableTerminalHeight

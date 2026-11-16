@@ -104,6 +104,7 @@ export * from './core/ask-user-question-restore.js';
 export * from './core/tokenLimits.js';
 export * from './core/tool-call-preparation.js';
 export * from './core/toolCallIdUtils.js';
+export { toolCallArgumentsWereIncomplete } from './core/incomplete-tool-call-args.js';
 export * from './core/tool-invocation-guard.js';
 export * from './core/turn.js';
 export * from './core/turn-interruption.js';

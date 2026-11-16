@@ -488,6 +488,76 @@ describe('<HistoryItemDisplay />', () => {
     expect(output).not.toContain('Inspecting the repository');
   });
 
+  it('renders a finished reasoning block collapsed while it is still a live row', () => {
+    const item: HistoryItem = {
+      id: 0,
+      type: 'gemini_thought',
+      text: 'Completed summary',
+      durationMs: 1200,
+      isStreaming: false,
+      thoughtGroupId: -1,
+    };
+
+    const { lastFrame } = renderWithProviders(
+      <HistoryItemDisplay item={item} terminalWidth={100} isPending />,
+    );
+
+    const output = lastFrame() ?? '';
+    expect(output).toContain('Thought for');
+    expect(output).toContain(`${toggleKeyHint} to expand`);
+    expect(output).not.toContain('Completed summary');
+  });
+
+  it('keeps a reasoning block expanded by its own group id across the history commit', () => {
+    const head: HistoryItem = {
+      id: 0,
+      type: 'gemini_thought',
+      text: 'Summary head',
+      durationMs: 1200,
+      isStreaming: false,
+      thoughtGroupId: -7,
+    };
+    const continuation: HistoryItem = {
+      id: 0,
+      type: 'gemini_thought_content',
+      text: 'Summary continuation',
+      isStreaming: false,
+      thoughtGroupId: -7,
+    };
+    const other: HistoryItem = {
+      ...head,
+      text: 'Other summary',
+      thoughtGroupId: -8,
+    };
+
+    for (const committed of [false, true]) {
+      const { lastFrame } = renderWithProviders(
+        <ThoughtExpandedProvider
+          value={{
+            allExpanded: false,
+            expandedHeadIds: new Set([-7]),
+            toggle: () => {},
+          }}
+        >
+          {[head, continuation, other].map((item, index) => (
+            <HistoryItemDisplay
+              key={index}
+              item={{ ...item, id: committed ? index + 101 : 0 }}
+              terminalWidth={100}
+              isPending={!committed}
+              thoughtHeadId={committed ? 101 : undefined}
+            />
+          ))}
+        </ThoughtExpandedProvider>,
+      );
+
+      const output = lastFrame() ?? '';
+      expect(output).toContain('Summary head');
+      expect(output).toContain('Summary continuation');
+      expect(output).not.toContain('Other summary');
+    }
+  });
+
   it('renders committed thinking continuations hidden by default', () => {
     const item: HistoryItem = {
       id: 1,

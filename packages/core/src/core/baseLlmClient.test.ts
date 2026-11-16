@@ -18,7 +18,12 @@ import * as fs from 'node:fs';
 import * as os from 'node:os';
 import * as path from 'node:path';
 import type { GenerateContentResponse } from '@google/genai';
-import { BaseLlmClient, type GenerateJsonOptions } from './baseLlmClient.js';
+import {
+  BaseLlmClient,
+  type GenerateJsonOptions,
+  type GenerateTextOptions,
+} from './baseLlmClient.js';
+import { CHARS_PER_TOKEN } from '../services/tokenEstimation.js';
 import { writeCredential } from '../providers/credential-store.js';
 import type { ContentGenerator } from './contentGenerator.js';
 import type { Config } from '../config/config.js';
@@ -84,6 +89,7 @@ const mockConfig = {
   // build a per-model one.
   getModel: vi.fn().mockReturnValue('test-model'),
   getModelsConfig: vi.fn().mockReturnValue(undefined),
+  getChatCompression: vi.fn().mockReturnValue(undefined),
 } as unknown as Mocked<Config>;
 
 // Helper to create a mock GenerateContentResponse with function call
@@ -1576,6 +1582,499 @@ describe('BaseLlmClient', () => {
         expect.any(Function),
         expect.objectContaining({ authType: AuthType.USE_ANTHROPIC }),
       );
+    });
+  });
+
+  describe('window-aware output budget', () => {
+    // Limits these cases lean on: `deepseek-r1` is 131_072 in / 65_536 out
+    // (default ceiling 64_000), `test-model` is unknown (200_000 in, ceiling
+    // 32_000).
+    const MODEL = 'deepseek-r1';
+
+    // The estimator charges four characters per token for plain text.
+    const promptOfTokens = (tokens: number) => [
+      { role: 'user', parts: [{ text: 'x'.repeat(tokens * CHARS_PER_TOKEN) }] },
+    ];
+
+    // Makes `model` the session model, so the request takes the same-model
+    // route and meets this window. No size leaves the window unconfigured.
+    function useWindow(model: string, contextWindowSize?: number) {
+      mockConfig.getModel.mockReturnValue(model);
+      mockConfig.getContentGeneratorConfig.mockReturnValue({
+        model,
+        authType: AuthType.USE_GEMINI,
+        ...(contextWindowSize === undefined ? {} : { contextWindowSize }),
+      });
+    }
+
+    type SentConfig = {
+      maxOutputTokens?: number;
+      thinkingConfig?: { includeThoughts?: boolean; thinkingBudget?: number };
+      tools?: unknown;
+    };
+    const sentConfig = (generator = mockGenerateContent) =>
+      (generator.mock.calls.at(-1)?.[0] as { config?: SentConfig } | undefined)
+        ?.config;
+    const sentBudget = (generator = mockGenerateContent) =>
+      sentConfig(generator)?.maxOutputTokens;
+    const serializedTokens = (value: unknown) =>
+      Math.ceil(JSON.stringify(value).length / CHARS_PER_TOKEN);
+
+    const askText = (
+      model: string,
+      tokens: number,
+      extra: Partial<GenerateTextOptions> = {},
+    ) => {
+      mockGenerateContent.mockResolvedValue(createMockTextResponse('ok'));
+      return client.generateText({
+        contents: promptOfTokens(tokens),
+        model,
+        abortSignal: abortController.signal,
+        promptId: 'p',
+        ...extra,
+      });
+    };
+
+    const wideSchema = {
+      type: 'object',
+      properties: Object.fromEntries(
+        Array.from({ length: 1_000 }, (_, i) => [
+          `field_${i}`,
+          { type: 'string', description: `column ${i} of the record` },
+        ]),
+      ),
+    };
+
+    beforeEach(() => {
+      vi.mocked(retryWithBackoff).mockImplementation(
+        async (fn) => await (fn as () => Promise<unknown>)(),
+      );
+      vi.mocked(getFunctionCalls).mockReturnValue(undefined);
+      // Both are read by the code under test; an ambient value would decide
+      // these cases instead of the mocks.
+      vi.stubEnv('O1CODE_MAX_OUTPUT_TOKENS', undefined);
+      vi.stubEnv('O1CODE_IMAGE_TOKEN_ESTIMATE', undefined);
+    });
+
+    afterEach(() => {
+      vi.unstubAllEnvs();
+      mockConfig.getModel.mockReturnValue('test-model');
+      mockConfig.getModelsConfig.mockReturnValue(
+        undefined as unknown as ReturnType<Config['getModelsConfig']>,
+      );
+      mockConfig.getChatCompression.mockReturnValue(undefined);
+      mockBuildAgentContentGeneratorConfig.mockReset();
+      mockCreateContentGenerator.mockReset();
+    });
+
+    it('shrinks the request so a large prompt still fits the window', async () => {
+      useWindow(MODEL, 131_072);
+
+      await askText(MODEL, 100_000);
+
+      expect(sentBudget()).toBe(31_072);
+    });
+
+    it('keeps a smaller caller-supplied maxOutputTokens', async () => {
+      useWindow(MODEL, 131_072);
+
+      await askText(MODEL, 100_000, { config: { maxOutputTokens: 300 } });
+
+      expect(sentBudget()).toBe(300);
+    });
+
+    it('sends a larger caller-supplied maxOutputTokens as given', async () => {
+      useWindow(MODEL, 131_072);
+
+      await askText(MODEL, 100_000, { config: { maxOutputTokens: 60_000 } });
+
+      expect(sentBudget()).toBe(60_000);
+    });
+
+    it('prices the schema declaration in JSON mode', async () => {
+      useWindow(MODEL, 131_072);
+      mockGenerateContent.mockResolvedValue(
+        createMockResponseWithFunctionCall({}),
+      );
+
+      await client.generateJson({
+        contents: promptOfTokens(100_000),
+        schema: wideSchema,
+        model: MODEL,
+        abortSignal: abortController.signal,
+        promptId: 'p',
+      });
+
+      const schemaTokens = serializedTokens(sentConfig()?.tools);
+      expect(schemaTokens).toBeGreaterThan(10_000);
+      expect(sentBudget()).toBe(31_072 - schemaTokens);
+    });
+
+    it('prices a caller-supplied responseJsonSchema on the text route', async () => {
+      useWindow(MODEL, 131_072);
+
+      await askText(MODEL, 100_000, {
+        config: {
+          responseMimeType: 'application/json',
+          responseJsonSchema: wideSchema,
+        },
+      });
+
+      expect(sentBudget()).toBe(31_072 - serializedTokens(wideSchema));
+    });
+
+    it('budgets the streaming request too', async () => {
+      useWindow(MODEL, 131_072);
+      mockGenerateContentStream.mockImplementation(async () =>
+        mockTextStream(['ok']),
+      );
+
+      await askText(MODEL, 100_000, { stream: true });
+
+      expect(sentBudget(mockGenerateContentStream)).toBe(31_072);
+    });
+
+    it('falls back to the model input limit when no window is configured', async () => {
+      useWindow(MODEL);
+
+      await askText(MODEL, 100_000);
+
+      expect(sentBudget()).toBe(31_072);
+    });
+
+    it('ignores a non-positive configured window', async () => {
+      useWindow(MODEL, 0);
+
+      await askText(MODEL, 100_000);
+
+      expect(sentBudget()).toBe(31_072);
+    });
+
+    it('leaves the request untouched when the window has room', async () => {
+      useWindow(MODEL, 200_000);
+
+      await askText(MODEL, 100_000);
+
+      expect(sentBudget()).toBeUndefined();
+    });
+
+    it('does not cap a Gemini side query at its tabled output limit', async () => {
+      // That wire applies no output ceiling of its own, so emitting whenever
+      // the request has none would newly cap it at the 8_192 row.
+      useWindow('gemini-2.5-pro', 1_000_000);
+
+      await askText('gemini-2.5-pro', 100);
+
+      expect(sentBudget()).toBeUndefined();
+    });
+
+    it('never requests the whole ceiling on a window smaller than it', async () => {
+      useWindow(MODEL, 32_768);
+
+      await askText(MODEL, 100);
+
+      expect(sentBudget()).toBe(32_668);
+    });
+
+    it('keeps prompt + max_tokens inside a tight window', async () => {
+      useWindow(MODEL, 8_192);
+
+      await askText(MODEL, 5_000);
+
+      expect(sentBudget()).toBe(3_192);
+    });
+
+    it('leaves the request uncapped when the prompt already fills the window', async () => {
+      useWindow(MODEL, 8_192);
+
+      await askText(MODEL, 9_000);
+
+      expect(sentBudget()).toBeUndefined();
+    });
+
+    it('leaves the request uncapped when the room cannot carry an answer', async () => {
+      useWindow(MODEL, 8_192);
+
+      await askText(MODEL, 8_180);
+
+      expect(sentBudget()).toBeUndefined();
+    });
+
+    it.each<[string, NonNullable<GenerateTextOptions['systemInstruction']>]>([
+      ['string', 'y'.repeat(2_000 * 4)],
+      ['Content', { role: 'user', parts: [{ text: 'y'.repeat(2_000 * 4) }] }],
+      ['Part[]', [{ text: 'y'.repeat(2_000 * 4) }]],
+      ['bare Part', { text: 'y'.repeat(2_000 * 4) }],
+    ])('counts a %s system instruction against the window', async (_l, si) => {
+      useWindow(MODEL, 8_192);
+
+      await askText(MODEL, 100, { systemInstruction: si });
+
+      expect(sentBudget()).toBe(8_192 - 100 - 2_000);
+    });
+
+    it('prices a kept image with the configured estimate', async () => {
+      mockConfig.getModel.mockReturnValue(MODEL);
+      mockConfig.getContentGeneratorConfig.mockReturnValue({
+        model: MODEL,
+        authType: AuthType.USE_GEMINI,
+        contextWindowSize: 32_768,
+        // Slimming keeps an image only for a target that declares the modality.
+        modalities: { image: true },
+      });
+      mockConfig.getChatCompression.mockReturnValue({
+        imageTokenEstimate: 3_000,
+      });
+      mockGenerateContent.mockResolvedValue(createMockTextResponse('ok'));
+
+      await client.generateText({
+        contents: [
+          {
+            role: 'user',
+            parts: [{ inlineData: { mimeType: 'image/png', data: 'aGk=' } }],
+          },
+        ],
+        model: MODEL,
+        abortSignal: abortController.signal,
+        promptId: 'p',
+      });
+
+      expect(sentBudget()).toBe(32_768 - 3_000);
+    });
+
+    it('measures the room on the slimmed payload, not the caller-supplied one', async () => {
+      // No image modality: the request carries the 18-character placeholder
+      // (5 tokens), not the image the raw part would be charged as.
+      useWindow(MODEL, 8_192);
+      mockGenerateContent.mockResolvedValue(createMockTextResponse('ok'));
+
+      await client.generateText({
+        contents: [
+          {
+            role: 'user',
+            parts: [{ inlineData: { mimeType: 'image/png', data: 'aGk=' } }],
+          },
+        ],
+        model: MODEL,
+        abortSignal: abortController.signal,
+        promptId: 'p',
+      });
+
+      expect(sentBudget()).toBe(8_187);
+    });
+
+    it('pairs the emitted budget with a thinking budget', async () => {
+      useWindow(MODEL, 65_536);
+
+      await askText(MODEL, 40_000, {
+        config: { thinkingConfig: { includeThoughts: true } },
+      });
+
+      expect(sentBudget()).toBe(25_536);
+      expect(sentConfig()?.thinkingConfig).toEqual({
+        includeThoughts: true,
+        thinkingBudget: 12_768,
+      });
+    });
+
+    it('keeps a caller thinking budget that is already below half the room', async () => {
+      useWindow(MODEL, 65_536);
+
+      await askText(MODEL, 40_000, {
+        config: {
+          thinkingConfig: { includeThoughts: true, thinkingBudget: 2_000 },
+        },
+      });
+
+      expect(sentBudget()).toBe(25_536);
+      expect(sentConfig()?.thinkingConfig?.thinkingBudget).toBe(2_000);
+    });
+
+    it('leaves a thinking request uncapped when the room cannot host both', async () => {
+      useWindow(MODEL, 8_192);
+
+      await askText(MODEL, 7_000, {
+        config: { thinkingConfig: { includeThoughts: true } },
+      });
+
+      expect(sentBudget()).toBeUndefined();
+      expect(sentConfig()?.thinkingConfig).toEqual({ includeThoughts: true });
+    });
+
+    it('budgets the no-thoughts shape side queries carry by default', async () => {
+      // Same room as the case above, but with no reasoning to pay for the
+      // whole of it is visible output.
+      useWindow(MODEL, 8_192);
+
+      await askText(MODEL, 7_000, {
+        config: { thinkingConfig: { includeThoughts: false } },
+      });
+
+      expect(sentBudget()).toBe(1_192);
+      expect(sentConfig()?.thinkingConfig).toEqual({ includeThoughts: false });
+    });
+
+    it('invents no thinking budget for a no-thoughts request', async () => {
+      useWindow(MODEL, 65_536);
+
+      await askText(MODEL, 40_000, {
+        config: { thinkingConfig: { includeThoughts: false } },
+      });
+
+      expect(sentBudget()).toBe(25_536);
+      expect(sentConfig()?.thinkingConfig).toEqual({ includeThoughts: false });
+    });
+
+    it('budgets against the target window, not the session window', async () => {
+      // The per-model config inherits the session's 8_192; the target declares
+      // no window and is tabled at 131_072.
+      useWindow('test-model', 8_192);
+      mockConfig.getModelsConfig.mockReturnValue({
+        getResolvedModel: vi.fn().mockReturnValue({
+          id: MODEL,
+          authType: AuthType.USE_GEMINI,
+          generationConfig: {},
+        }),
+      } as unknown as ReturnType<Config['getModelsConfig']>);
+      mockBuildAgentContentGeneratorConfig.mockReturnValue({
+        model: MODEL,
+        authType: AuthType.USE_GEMINI,
+        contextWindowSize: 8_192,
+      });
+      const targetGenerateContent = vi
+        .fn()
+        .mockResolvedValue(createMockTextResponse('ok'));
+      mockCreateContentGenerator.mockResolvedValue({
+        generateContent: targetGenerateContent,
+        generateContentStream: vi.fn(),
+        embedContent: vi.fn(),
+      });
+
+      await askText(MODEL, 100_000);
+
+      expect(targetGenerateContent).toHaveBeenCalledTimes(1);
+      expect(sentBudget(targetGenerateContent)).toBe(31_072);
+    });
+
+    it('prefers the window the registry declares for the target', async () => {
+      useWindow('test-model', 200_000);
+      mockConfig.getModelsConfig.mockReturnValue({
+        getResolvedModel: vi.fn().mockReturnValue({
+          id: MODEL,
+          authType: AuthType.USE_GEMINI,
+          generationConfig: { contextWindowSize: 16_384 },
+        }),
+      } as unknown as ReturnType<Config['getModelsConfig']>);
+      mockBuildAgentContentGeneratorConfig.mockReturnValue({
+        model: MODEL,
+        authType: AuthType.USE_GEMINI,
+        contextWindowSize: 16_384,
+      });
+      const targetGenerateContent = vi
+        .fn()
+        .mockResolvedValue(createMockTextResponse('ok'));
+      mockCreateContentGenerator.mockResolvedValue({
+        generateContent: targetGenerateContent,
+        generateContentStream: vi.fn(),
+        embedContent: vi.fn(),
+      });
+
+      await askText(MODEL, 10_000);
+
+      expect(sentBudget(targetGenerateContent)).toBe(6_384);
+    });
+
+    it('budgets against the session window when the target model is not registered', async () => {
+      // The session generator sends the request, so its window is the one the
+      // request meets, while the ceiling still describes the target.
+      useWindow('test-model', 8_192);
+
+      await askText(MODEL, 100);
+
+      expect(mockGenerateContent).toHaveBeenCalledWith(
+        expect.objectContaining({ model: MODEL }),
+        'p',
+      );
+      expect(sentBudget()).toBe(8_092);
+    });
+
+    describe('O1CODE_MAX_OUTPUT_TOKENS', () => {
+      const ENV_KEY = 'O1CODE_MAX_OUTPUT_TOKENS';
+
+      it('leaves the request to the provider when the override binds first', async () => {
+        // Room 5_000 against an operator ceiling of 2_000: emitting the room
+        // would displace the override the provider layer applies itself.
+        vi.stubEnv(ENV_KEY, '2000');
+        useWindow(MODEL, 5_100);
+
+        await askText(MODEL, 100);
+
+        expect(sentBudget()).toBeUndefined();
+      });
+
+      it('treats the override as a ceiling, not a floor', async () => {
+        vi.stubEnv(ENV_KEY, '100000');
+        useWindow(MODEL, 32_768);
+
+        await askText(MODEL, 100);
+
+        expect(sentBudget()).toBe(32_668);
+      });
+
+      it('ignores a malformed override', async () => {
+        vi.stubEnv(ENV_KEY, 'not-a-number');
+        useWindow(MODEL, 131_072);
+
+        await askText(MODEL, 100_000);
+
+        expect(sentBudget()).toBe(31_072);
+      });
+
+      it('lets a caller-supplied maxOutputTokens win over the override', async () => {
+        vi.stubEnv(ENV_KEY, '2000');
+        useWindow(MODEL, 131_072);
+
+        await askText(MODEL, 100_000, { config: { maxOutputTokens: 4_096 } });
+
+        expect(sentBudget()).toBe(4_096);
+      });
+
+      it('compares against an override above the default ceiling', async () => {
+        // Room 60_000 sits between the 32_000 default for an unknown id and
+        // the override, which replaces that default rather than meeting it.
+        vi.stubEnv(ENV_KEY, '100000');
+        useWindow('test-model', 60_100);
+
+        await askText('test-model', 100);
+
+        expect(sentBudget()).toBe(60_000);
+      });
+
+      it('lets samplingParams.max_tokens outrank the override', async () => {
+        vi.stubEnv(ENV_KEY, '2000');
+        mockConfig.getModel.mockReturnValue(MODEL);
+        mockConfig.getContentGeneratorConfig.mockReturnValue({
+          model: MODEL,
+          authType: AuthType.USE_GEMINI,
+          contextWindowSize: 40_100,
+          samplingParams: { max_tokens: 128_000 },
+        });
+
+        await askText(MODEL, 100);
+
+        expect(sentBudget()).toBe(40_000);
+      });
+
+      it('does not let the override authorize more than a known model can emit', async () => {
+        // Room 172_000 is under the override but over the 131_072 the model
+        // can emit, so the override is read as that limit and nothing is sent.
+        vi.stubEnv(ENV_KEY, '200000');
+        useWindow('gpt-5', 272_000);
+
+        await askText('gpt-5', 100_000);
+
+        expect(sentBudget()).toBeUndefined();
+      });
     });
   });
 });

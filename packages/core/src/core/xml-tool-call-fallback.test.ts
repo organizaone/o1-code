@@ -4,7 +4,8 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
+import { Lexer } from 'marked';
 
 const OPEN = '<' + 'invoke';
 const CLOSE = '</' + 'invoke>';
@@ -613,5 +614,536 @@ describe('tryRecoverXmlToolCalls', () => {
     const result = tryRecoverXmlToolCalls(text);
     expect(result.recovered).toBe(true);
     expect(result.remainingText).toBe('');
+  });
+});
+
+const FN_CLOSE = '</' + 'function>';
+
+function fn(name: string, params: string): string {
+  return `<tool_call><function=${name}>${params}${FN_CLOSE}</tool_call>`;
+}
+
+function flat(name: string, value: string): string {
+  return `${PARAM_OPEN}=${name}>${value}${PARAM_CLOSE}`;
+}
+
+function names(text: string): string[] {
+  return extractXmlToolCalls(text).map(({ name }) => name);
+}
+
+function expectInert(text: string): void {
+  expect(extractXmlToolCalls(text)).toEqual([]);
+  expect(tryRecoverXmlToolCalls(text)).toEqual({
+    recovered: false,
+    functionCallParts: [],
+    remainingText: text,
+  });
+}
+
+const SHELL = invoke('run_shell_command', param('command', 'rm -rf /tmp/x'));
+const READ = invoke('read_file', param('file_path', 'real.ts'));
+const READ_CALL = { name: 'read_file', args: { file_path: 'real.ts' } };
+
+describe('calls quoted inside a parameter value', () => {
+  it('recovers the outer call once with its complete content', () => {
+    const text = invoke(
+      'write_file',
+      param('file_path', 'doc.md') + param('content', `Usage:\n${SHELL}\n`),
+    );
+    const expected = {
+      name: 'write_file',
+      args: { file_path: 'doc.md', content: `Usage:\n${SHELL}` },
+    };
+    expect(extractXmlToolCalls(text)).toEqual([expected]);
+    const result = tryRecoverXmlToolCalls(text);
+    expect(result.recovered).toBe(true);
+    expect(result.functionCallParts.map((part) => part.functionCall)).toEqual([
+      expect.objectContaining(expected),
+    ]);
+    expect(result.remainingText).toBe('');
+  });
+
+  it('recovers the same shape in the function dialect', () => {
+    const quoted = fn('read_file', flat('file_path', 'x.txt'));
+    const content = `Usage:\n${quoted}\ntail`;
+    const text = fn(
+      'write_file',
+      flat('file_path', 'doc.md') + flat('content', content),
+    );
+    expect(extractXmlToolCalls(text)).toEqual([
+      { name: 'write_file', args: { file_path: 'doc.md', content } },
+    ]);
+    expect(tryRecoverXmlToolCalls(text).remainingText).toBe('');
+  });
+
+  it('still dispatches a real call that follows a value quoting one', () => {
+    const documented = invoke(
+      'write_file',
+      param('content', `Usage:\n${SHELL}\n`),
+    );
+    expect(extractXmlToolCalls(`${documented}\n${READ}`)).toEqual([
+      { name: 'write_file', args: { content: `Usage:\n${SHELL}` } },
+      READ_CALL,
+    ]);
+  });
+
+  it('recovers a trailing parameter behind a quoted value', () => {
+    const text = invoke(
+      'write_file',
+      param('content', `Usage:\n${READ}\n`) + param('file_path', 'doc.md'),
+    );
+    expect(extractXmlToolCalls(text)).toEqual([
+      {
+        name: 'write_file',
+        args: { content: `Usage:\n${READ}`, file_path: 'doc.md' },
+      },
+    ]);
+    expect(tryRecoverXmlToolCalls(text).remainingText).toBe('');
+  });
+
+  it('steps past two quoted values in one block', () => {
+    const text = invoke(
+      'write_file',
+      param('content', `Usage:\n${READ}\n`) + param('note', `Also:\n${READ}\n`),
+    );
+    expect(extractXmlToolCalls(text)).toEqual([
+      {
+        name: 'write_file',
+        args: { content: `Usage:\n${READ}`, note: `Also:\n${READ}` },
+      },
+    ]);
+    expect(tryRecoverXmlToolCalls(text).remainingText).toBe('');
+  });
+
+  it('recovers a complete value that documents a parameter element', () => {
+    const content = `Wrap each argument in ${param('x', 'y')} tags.`;
+    const write = invoke(
+      'write_file',
+      param('file_path', 'doc.md') + param('content', content),
+    );
+    expect(extractXmlToolCalls(write)).toEqual([
+      { name: 'write_file', args: { file_path: 'doc.md', content } },
+    ]);
+  });
+
+  it('recovers a value that mentions an open tag, and its sibling', () => {
+    const content = `Each argument is wrapped in ${PARAM_OPEN} name="x"> tags.`;
+    const write = invoke(
+      'write_file',
+      param('file_path', 'a.txt') + param('content', content),
+    );
+    expect(extractXmlToolCalls(`${write}\n${READ}`)).toEqual([
+      { name: 'write_file', args: { file_path: 'a.txt', content } },
+      READ_CALL,
+    ]);
+  });
+
+  it('does not bind the block to a closer the following prose mentions', () => {
+    const withTrailingParameter = invoke(
+      'write_file',
+      param('content', `Usage:\n${READ}\n`) +
+        `\nEscape ${CLOSE} in docs.\n` +
+        param('file_path', 'doc.md'),
+    );
+    expectInert(withTrailingParameter);
+    const proseOnly = invoke(
+      'write_file',
+      param('content', `Usage:\n${READ}\n`) + `\nNote: escape ${CLOSE} here.`,
+    );
+    expectInert(proseOnly);
+  });
+
+  it('does not bind a function-dialect block to a mentioned closer', () => {
+    const quoted = fn('read_file', flat('file_path', 'x.txt'));
+    const text = fn(
+      'write_file',
+      flat('content', `Well-formed:\n${quoted}\n`) +
+        `\nEscape ${FN_CLOSE}</tool_call> in docs.\n` +
+        flat('file_path', 'doc.md'),
+    );
+    expectInert(text);
+  });
+
+  it('rejects a block whose parameter names repeat', () => {
+    const text =
+      `${OPEN} name="run_shell_command">` +
+      param('command', 'echo safe') +
+      param('note', invoke('x', param('p', 'v'))) +
+      '\n    ' +
+      param('command', 'rm -rf /tmp/x') +
+      `\n${CLOSE}`;
+    expectInert(text);
+  });
+
+  it('does not dispatch a value truncated at a bare closing tag', () => {
+    const text =
+      `${OPEN} name="write_file">` +
+      `${PARAM_OPEN} name="content">Usage:\n` +
+      `${OPEN} name="run_shell_command">` +
+      param('command', 'rm -rf /tmp/x') +
+      param('note', `see ${OPEN} name="read_file">...${CLOSE}`) +
+      `${CLOSE}\n` +
+      param('stray', '') +
+      CLOSE;
+    expectInert(text);
+    // The unclosed write stays inert, and so do the calls its value quotes.
+    expect(names(`${text}\n${READ}`)).toEqual(['read_file']);
+  });
+
+  it('never dispatches a truncated value when a parameter name mixes quotes', () => {
+    const text =
+      `${OPEN} name="write_file">` +
+      param('file_path', 'doc.md') +
+      `${PARAM_OPEN} name='content">A' x>${invoke('a', param('p', 'v'))}${PARAM_CLOSE}` +
+      CLOSE;
+    expectInert(text);
+  });
+
+  it('does not excise a quoted value the block never consumed', () => {
+    const text =
+      `${OPEN} name="run_shell_command">` +
+      `${PARAM_OPEN} name="command">run\n` +
+      param('doc', `<function=b>${FN_CLOSE}`) +
+      `\n${CLOSE}`;
+    expectInert(text);
+  });
+});
+
+describe('per-block rejection', () => {
+  it('does not merge an unclosed block into the call that follows it', () => {
+    const text =
+      `${OPEN} name="write_file">` + param('file_path', 'a.ts') + `\n${READ}`;
+    expect(extractXmlToolCalls(text)).toEqual([READ_CALL]);
+  });
+
+  it('recovers calls on both sides of an unclosed open tag in prose', () => {
+    const before = invoke('read_file', param('file_path', 'a.ts'));
+    const after = invoke('write_file', param('file_path', 'b.ts'));
+    const text = `${before}\n${PARAM_OPEN} name="orphan">\n${after}`;
+    expect(extractXmlToolCalls(text)).toEqual([
+      { name: 'read_file', args: { file_path: 'a.ts' } },
+      { name: 'write_file', args: { file_path: 'b.ts' } },
+    ]);
+  });
+
+  it('treats parameter markup the grammar cannot parse as prose', () => {
+    for (const token of [
+      '<Parameter name="foo" />',
+      `${PARAM_OPEN} foo="bar">`,
+      `${PARAM_OPEN} name="foo" />`,
+      PARAM_OPEN + '>',
+    ]) {
+      expect(extractXmlToolCalls(`${token}\n${READ}`)).toEqual([READ_CALL]);
+    }
+  });
+
+  it('recovers a call whose value quotes non-canonical markup', () => {
+    const value = `${PARAM_OPEN} foo="bar">`;
+    expect(
+      extractXmlToolCalls(invoke('read_file', param('file_path', value))),
+    ).toEqual([{ name: 'read_file', args: { file_path: value } }]);
+  });
+
+  it('rejects a name with mixed quote characters, not its sibling', () => {
+    const body = `\n${param('file_path', 'doc.md')}\n${param('content', 'body')}\n`;
+    const mixed = `${OPEN} name='write_file">${body}${CLOSE}`;
+    expectInert(mixed);
+    expect(extractXmlToolCalls(`${mixed}\n${READ}`)).toEqual([READ_CALL]);
+    expect(
+      extractXmlToolCalls(`${OPEN} name='write_file'>${body}${CLOSE}`),
+    ).toEqual([
+      { name: 'write_file', args: { file_path: 'doc.md', content: 'body' } },
+    ]);
+  });
+
+  it('rejects an odd-quote function name without cancelling its sibling', () => {
+    const odd = fn("it's", param('command', 'ls'));
+    expect(extractXmlToolCalls(`${odd}\n${READ}`)).toEqual([READ_CALL]);
+  });
+
+  it('does not rescan the body of a block whose open tag is untrustworthy', () => {
+    for (const lead of ["it's", "it's > "]) {
+      const text =
+        `${OPEN} name='weird">\n` +
+        `${PARAM_OPEN} name="p">${lead}` +
+        invoke('rm', param('cmd', 'rm -rf /tmp/x')) +
+        '\n\n';
+      expect(extractXmlToolCalls(text)).toEqual([]);
+    }
+  });
+
+  it('rejects only the untrustworthy block before a quoted-value advance', () => {
+    const text =
+      `${OPEN} name='weird">` +
+      param('content', invoke('doc', param('p', 'v'))) +
+      '\n' +
+      fn('real', flat('q', 'w'));
+    expect(extractXmlToolCalls(text)).toEqual([
+      { name: 'real', args: { q: 'w' } },
+    ]);
+  });
+
+  it('recovers the genuine call in a markup-only turn with a stray opener', () => {
+    const text =
+      `${OPEN} name="a">` +
+      Array.from({ length: 16 }, (_, index) =>
+        param(`p${index}`, `v${index}`),
+      ).join(' ') +
+      ' ' +
+      invoke('read_file', param('file_path', 'a.ts'));
+    expect(names(text)).toEqual(['read_file']);
+    const result = tryRecoverXmlToolCalls(text);
+    expect(
+      result.functionCallParts.map((part) => part.functionCall?.name),
+    ).toEqual(['read_file']);
+    expect(result.remainingText).toContain(`${OPEN} name="a">`);
+  });
+});
+
+describe('documentation regions', () => {
+  it('does not dispatch a call documented in an HTML comment', () => {
+    const text =
+      'Docs:\n\n<!--\n' +
+      invoke('run_shell_command', param('command', `${SHELL} rm -rf /tmp/x`)) +
+      '\n-->\n\nend.';
+    expectInert(text);
+  });
+
+  it('does not dispatch a call whose tail a comment opener inside it masks', () => {
+    const text =
+      'Docs:\n\n' +
+      invoke(
+        'run_shell_command',
+        param('command', 'rm -rf /tmp/x') + '\n<!--',
+      ) +
+      '\n-->';
+    expectInert(text);
+  });
+
+  it('still extracts a live call that follows a commented-out one', () => {
+    const text = `Docs:\n\n<!--\n${SHELL}\n-->\n\n${READ}`;
+    expect(extractXmlToolCalls(text)).toEqual([READ_CALL]);
+  });
+
+  it('ignores a prose mention of the comment opener', () => {
+    const text = 'Use `<!--` to start an HTML comment, like this:\n\n' + READ;
+    expect(extractXmlToolCalls(text)).toEqual([READ_CALL]);
+  });
+
+  it('does not let a comment opener inside a fence mask the rest of the turn', () => {
+    expect(extractXmlToolCalls('```md\n<!--\n```\n\n' + READ)).toEqual([
+      READ_CALL,
+    ]);
+  });
+
+  it('closes an abrupt empty comment instead of masking the turn', () => {
+    for (const opener of ['<!-->', '<!--->']) {
+      expect(extractXmlToolCalls(`${opener}\n\n${READ}`)).toEqual([READ_CALL]);
+    }
+  });
+
+  it('does not let an unclosed comment in a value hide a sibling call', () => {
+    const content = '<body>\n<!-- footer goes here\n</body>';
+    const write = invoke(
+      'write_file',
+      param('file_path', 'a.html') + param('content', content),
+    );
+    expect(extractXmlToolCalls(`${write}\n${READ}`)).toEqual([
+      { name: 'write_file', args: { file_path: 'a.html', content } },
+      READ_CALL,
+    ]);
+  });
+
+  it('does not let a comment opener in a truncated value hide a sibling call', () => {
+    const truncated =
+      `${OPEN} name="write_file">` +
+      `${PARAM_OPEN} name="content">` +
+      '<body>\n<!-- footer goes here\n</body>';
+    expect(extractXmlToolCalls(`${truncated}\n${READ}`)).toEqual([READ_CALL]);
+  });
+
+  it('does not end a comment at a terminator inside a value', () => {
+    const closed =
+      'Docs:\n\n<!--\n' + invoke('a', param('p', 'x --> y')) + `\n${SHELL}`;
+    expectInert(`${closed}\n-->\n\nend.`);
+    expectInert(`${closed}\n\nend.`);
+    const truncated =
+      'Docs:\n\n<!--\n' +
+      `${OPEN} name="a">${PARAM_OPEN} name="p">x --> y\n` +
+      `${SHELL}\n-->\n`;
+    expect(extractXmlToolCalls(truncated)).toEqual([]);
+    expect(tryRecoverXmlToolCalls(truncated).recovered).toBe(false);
+  });
+
+  it('does not let a prose mention of the tags unmask a comment', () => {
+    const tail = `\n\n<!--\n${SHELL}\n`;
+    expectInert(
+      `The dialect writes ${PARAM_OPEN} name="value"> for arguments.${tail}`,
+    );
+    expectInert(
+      `The dialect writes ${OPEN} name="x"> and ${PARAM_OPEN} name="value"> for arguments.${tail}`,
+    );
+  });
+
+  it('keeps documentation markers working after a truncated value', () => {
+    const lead = `${OPEN} name="a">${PARAM_OPEN} name="p">x`;
+    for (const text of [
+      `${lead}\n<!--\n${SHELL}\n-->\n`,
+      `${lead}${FN_CLOSE}\n\`\`\`\n${SHELL}\n\`\`\`\n`,
+      `${lead}${FN_CLOSE}\n<example>\n${SHELL}\n</example>\n`,
+    ]) {
+      expect(extractXmlToolCalls(text)).toEqual([]);
+    }
+  });
+
+  it('does not dispatch a call documented in an indented code block', () => {
+    const documented = invoke(
+      'run_shell_command',
+      param('command', `${invoke('b', param('p', 'w'))}\nrm -rf /tmp/x`),
+    );
+    expect(extractXmlToolCalls(`Docs:\n\n    ${documented}\n${READ}`)).toEqual([
+      READ_CALL,
+    ]);
+  });
+
+  it('recovers a call indented under prose or a list item', () => {
+    for (const text of [
+      `Here is the command:\n    ${READ}`,
+      `Steps:\n\n- Run:\n    ${READ}`,
+      `Steps:\n\n- Read the config\n\n    ${READ}`,
+    ]) {
+      expect(extractXmlToolCalls(text)).toEqual([READ_CALL]);
+    }
+  });
+
+  it('keeps an indented line inside a value from becoming documentation', () => {
+    const content = 'body\n\n    indented tail';
+    const write = invoke(
+      'write_file',
+      param('file_path', 'a.txt') + param('content', content),
+    );
+    expect(extractXmlToolCalls(`${write}\n${READ}`)).toEqual([
+      { name: 'write_file', args: { file_path: 'a.txt', content } },
+      READ_CALL,
+    ]);
+  });
+
+  it('does not dispatch a call inside an example wrapper', () => {
+    expectInert(`<example>\n${SHELL}\n</example>`);
+    expect(
+      extractXmlToolCalls(`<example>\n${SHELL}\n</example>\n${READ}`),
+    ).toEqual([READ_CALL]);
+  });
+
+  it('reads an example tag inside a code span as text', () => {
+    expect(
+      extractXmlToolCalls(`Wrap samples in \`<example>\`.\n${READ}`),
+    ).toEqual([READ_CALL]);
+  });
+
+  it('does not let a prose parameter mention release an example-wrapped call', () => {
+    expectInert(
+      `The format mentions ${PARAM_OPEN} name="x"> without a terminator.\n<example>\n${SHELL}\n</example>`,
+    );
+  });
+
+  it('does not let a value-borne example closer end a prose-opened example', () => {
+    const text =
+      '<example>\n' +
+      invoke(
+        'w',
+        param('content', 'Use the closer tag to end the block</example>\ntail'),
+      ) +
+      `\n${SHELL}\n</example>\n${READ}`;
+    expect(extractXmlToolCalls(text)).toEqual([READ_CALL]);
+  });
+
+  it('does not let an indented example closer end a documentation region', () => {
+    const text =
+      'Docs:\n\n<example>\n' +
+      invoke('w', param('note', 'see')) +
+      `\n\n    </example>\n\n${SHELL}\n\n</example>\n`;
+    expect(extractXmlToolCalls(text)).toEqual([]);
+    expect(tryRecoverXmlToolCalls(text).recovered).toBe(false);
+  });
+
+  it('keeps documentation inert when only its quoted value closes the region', () => {
+    const quoted = invoke('b', param('p', 'w'));
+    const live = invoke('c', param('q', 'z'));
+    expectInert(
+      '<example>\n' +
+        `${OPEN} name="a">${PARAM_OPEN} name="content">${quoted}</example>\n${PARAM_CLOSE}${CLOSE}\n` +
+        live,
+    );
+    expectInert(
+      '```\n' +
+        `${OPEN} name="a">${PARAM_OPEN} name="content">${quoted}\n\`\`\`\n${PARAM_CLOSE}${CLOSE}\n` +
+        live,
+    );
+  });
+
+  it('does not let a stray later closer widen an example region', () => {
+    const quoted = invoke('b', param('p', 'w'));
+    const write = invoke(
+      'write_file',
+      param('content', `${quoted}\n<example>x</example>`),
+    );
+    const text = `<example>\n${write}\n</example>\n${READ}\nClose examples with </example>.`;
+    expect(names(text)).toEqual(['read_file']);
+  });
+
+  it('treats a fence line inside a value as data on both sides of it', () => {
+    const quoted = invoke('read_file', param('file_path', 'quoted-only.txt'));
+    const write = invoke(
+      'write_file',
+      param('content', `${quoted}\n\`\`\`\ntail`),
+    );
+    expect(names(`${write}\n\`\`\`\nDocumentation\n\`\`\`\n${READ}`)).toEqual([
+      'write_file',
+      'read_file',
+    ]);
+    // Inside a prose fence the write is documentation; its fence line does not
+    // close that fence, so the shell stays documented and the read is live.
+    expect(names(['```', write, SHELL, '```', READ].join('\n'))).toEqual([
+      'read_file',
+    ]);
+  });
+
+  it('skips the markdown lexer when the text has no example tag or is too long', () => {
+    const spy = vi.spyOn(Lexer, 'lexInline');
+    try {
+      expect(extractXmlToolCalls(READ)).toEqual([READ_CALL]);
+      expect(spy).not.toHaveBeenCalled();
+      const long = `<example>\n${SHELL}\n</example>\n${'data '.repeat(14000)}`;
+      expect(extractXmlToolCalls(long)).toEqual([]);
+      expect(spy).not.toHaveBeenCalled();
+      expect(extractXmlToolCalls(`<example>\n${SHELL}\n</example>`)).toEqual(
+        [],
+      );
+      expect(spy).toHaveBeenCalledTimes(1);
+    } finally {
+      spy.mockRestore();
+    }
+  });
+});
+
+describe('XmlToolCallTextBuffer in documentation regions', () => {
+  it('does not hold a call shown in a comment, an example or indented code', () => {
+    for (const text of [
+      `Docs:\n\n<!--\n${SHELL}\n-->\n`,
+      `Docs:\n\n<example>\n${SHELL}\n</example>\n`,
+      `Docs:\n\n    ${SHELL}\n`,
+    ]) {
+      const buffer = new XmlToolCallTextBuffer();
+      expect(buffer.accept(text)).toBe(text);
+      expect(buffer.buffered).toBe(false);
+    }
+  });
+
+  it('holds a live call that follows a documented one', () => {
+    const documented = `Docs:\n\n<!--\n${SHELL}\n-->\n\n`;
+    const buffer = new XmlToolCallTextBuffer();
+    expect(buffer.accept(documented + READ)).toBe(documented);
+    expect(buffer.remainingText).toBe(READ);
   });
 });

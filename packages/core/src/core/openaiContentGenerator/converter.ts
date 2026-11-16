@@ -21,6 +21,7 @@ import { GenerateContentResponse, FinishReason } from '@google/genai';
 import type OpenAI from 'openai';
 import { safeJsonParse } from '../../utils/safeJsonParse.js';
 import { createDebugLogger } from '../../utils/debugLogger.js';
+import { markToolCallArgumentsIncomplete } from '../incomplete-tool-call-args.js';
 import { createOpenAIReasoningThoughtPart } from '../../utils/thoughtUtils.js';
 import {
   estimateTextTokens,
@@ -47,6 +48,7 @@ import { isDisclosureText } from '../../omni/disclosure.js';
 import { evictOldestImagesBeyondCap } from './image-budget.js';
 import { setGenAiUsageProvenance } from '../../telemetry/gen-ai-usage.js';
 import { SchemaValidator } from '../../utils/schemaValidator.js';
+import { TrailingThinkingTagFilter } from './trailing-thinking-tag-filter.js';
 
 const debugLogger = createDebugLogger('CONVERTER');
 const SPLIT_TOOL_MEDIA_TEXT = '(attached media from previous tool call)';
@@ -485,10 +487,10 @@ export function convertLlmRequestToOpenAI(
   // Handle contents
   processContents(request.contents, messages, requestContext);
 
-  messages = mergeConsecutiveAssistantMessages(messages);
+  messages = normalizeAssistantMessages(messages);
   if (options.cleanOrphanToolCalls) {
     messages = cleanOrphanedToolCalls(messages);
-    messages = mergeConsecutiveAssistantMessages(messages);
+    messages = normalizeAssistantMessages(messages);
   }
 
   // Bound the number of images in the assembled request below the backing
@@ -669,6 +671,46 @@ function processContent(
   // break that contract when multiple parallel tool calls return media.
   const accumulatedSplitMedia: OpenAIContentPart[] = [];
 
+  const flushAssistantMessage = () => {
+    if (
+      contentParts.length === 0 &&
+      toolCalls.length === 0 &&
+      reasoningParts.length === 0
+    ) {
+      return;
+    }
+
+    const assistantTextContent = contentParts
+      .filter(
+        (part): part is OpenAI.Chat.ChatCompletionContentPartText =>
+          part.type === 'text',
+      )
+      .map((part) => part.text)
+      .join('');
+    const assistantMessage: ExtendedChatCompletionAssistantMessageParam = {
+      role: 'assistant',
+      // When there is reasoning content but no text, use "" instead of null.
+      // Some OpenAI-compatible providers (e.g. Ollama) reject content: null
+      // when reasoning_content is present, returning HTTP 400.
+      // For tool-call-only messages we keep null to stay spec-compliant.
+      content: assistantTextContent || (reasoningParts.length > 0 ? '' : null),
+    };
+
+    if (toolCalls.length > 0) {
+      assistantMessage.tool_calls = [...toolCalls];
+    }
+
+    const reasoningContent = reasoningParts.join('');
+    if (reasoningContent) {
+      assistantMessage.reasoning_content = reasoningContent;
+    }
+
+    messages.push(assistantMessage);
+    contentParts.length = 0;
+    reasoningParts.length = 0;
+    toolCalls.length = 0;
+  };
+
   for (const part of parts) {
     if (typeof part === 'string') {
       contentParts.push({ type: 'text' as const, text: part });
@@ -677,6 +719,11 @@ function processContent(
 
     if ('text' in part && 'thought' in part && part.thought) {
       if (role === 'assistant' && part.text) {
+        // Reasoning that follows text or a tool call opens a new segment, so
+        // the replay keeps the order the model produced them in.
+        if (contentParts.length > 0 || toolCalls.length > 0) {
+          flushAssistantMessage();
+        }
         reasoningParts.push(part.text);
       }
     }
@@ -819,40 +866,7 @@ function processContent(
   }
 
   if (role === 'assistant') {
-    if (
-      contentParts.length === 0 &&
-      toolCalls.length === 0 &&
-      reasoningParts.length === 0
-    ) {
-      return;
-    }
-
-    const assistantTextContent = contentParts
-      .filter(
-        (part): part is OpenAI.Chat.ChatCompletionContentPartText =>
-          part.type === 'text',
-      )
-      .map((part) => part.text)
-      .join('');
-    const assistantMessage: ExtendedChatCompletionAssistantMessageParam = {
-      role: 'assistant',
-      // When there is reasoning content but no text, use "" instead of null.
-      // Some OpenAI-compatible providers (e.g. Ollama) reject content: null
-      // when reasoning_content is present, returning HTTP 400.
-      // For tool-call-only messages we keep null to stay spec-compliant.
-      content: assistantTextContent || (reasoningParts.length > 0 ? '' : null),
-    };
-
-    if (toolCalls.length > 0) {
-      assistantMessage.tool_calls = toolCalls;
-    }
-
-    const reasoningContent = reasoningParts.join('');
-    if (reasoningContent) {
-      assistantMessage.reasoning_content = reasoningContent;
-    }
-
-    messages.push(assistantMessage);
+    flushAssistantMessage();
     return;
   }
 
@@ -1245,12 +1259,31 @@ function extractTextFromContentUnion(contentUnion: unknown): string {
 function convertOpenAITextToParts(
   text: string,
   requestContext: RequestContext,
-  final = true,
+  final: boolean,
+  completed: boolean,
 ): Part[] {
   if (
     !requestContext.responseParsingOptions?.taggedThinkingTags &&
     !requestContext.taggedThinkingParser
   ) {
+    if (requestContext.responseParsingOptions?.contentOnlyThinkingTagLeaks) {
+      const filter = (requestContext.trailingThinkingTagFilter ??=
+        new TrailingThinkingTagFilter());
+      // Tags in the reasoning channel make this a cross-channel leak, which
+      // the caller rejects: nothing is withheld or stripped for it.
+      text = filter.parse(
+        text,
+        final || requestContext.hasThinkingTagInReasoning === true,
+        completed && !requestContext.hasThinkingTagInReasoning,
+      );
+      if (filter.sanitizedTagName) {
+        requestContext.protocolTagSanitized = {
+          tagName: filter.sanitizedTagName,
+          toolCallCount: 0,
+        };
+        filter.sanitizedTagName = undefined;
+      }
+    }
     return text ? [{ text }] : [];
   }
 
@@ -1275,6 +1308,22 @@ const STANDALONE_CLOSING_THINKING_TAG_PATTERN =
 const STANDALONE_OPENING_THINKING_TAG_PATTERN =
   /^\s*<(think|thinking)\s*>\s*$/i;
 const MAX_THINKING_TAG_CANDIDATE_LENGTH = 128;
+
+/**
+ * Whether the response ended the way the candidate's STOP reports it: an
+ * absent reason and `tool_calls` count, a cut or a filtered answer does not.
+ * Thinking tags in the reasoning text also disqualify it; on the
+ * non-streaming path this is the only place that sees them.
+ */
+function completedNormally(
+  finishReason: string | null | undefined,
+  reasoningText: string | null | undefined,
+): boolean {
+  return (
+    mapOpenAIFinishReasonToLlm(finishReason || 'stop') === FinishReason.STOP &&
+    !THINKING_TAG_PATTERN.test(reasoningText ?? '')
+  );
+}
 
 function canBeStandaloneThinkingTagPrefix(text: string): boolean {
   const candidate = text.trimStart().toLowerCase();
@@ -1376,7 +1425,12 @@ export function convertOpenAIResponseToLlm(
   if (choice) {
     const parts: Part[] = [];
     const textParts = choice.message.content
-      ? convertOpenAITextToParts(choice.message.content, requestContext)
+      ? convertOpenAITextToParts(
+          choice.message.content,
+          requestContext,
+          true,
+          completedNormally(choice.finish_reason, reasoningText),
+        )
       : [];
 
     // Handle reasoning content (thoughts).
@@ -1535,6 +1589,14 @@ export function convertOpenAIChunkToLlm(
       (choice.delta as ExtendedCompletionChunkDelta)?.reasoning_content ??
       (choice.delta as ExtendedCompletionChunkDelta)?.reasoning;
 
+    // Set before the content of this same chunk is filtered.
+    if (
+      !requestContext.responseParsingOptions?.taggedThinkingTags &&
+      THINKING_TAG_PATTERN.test(reasoningText ?? '')
+    ) {
+      requestContext.hasThinkingTagInReasoning = true;
+    }
+
     // Handle text content
     if (typeof choice.delta?.content === 'string') {
       const rawContent = choice.delta.content;
@@ -1575,8 +1637,12 @@ export function convertOpenAIChunkToLlm(
       ) {
         requestContext.taggedThinkingParser ??= new TaggedThinkingParser();
         requestContext.pendingThinkingTagCandidate = undefined;
+        // The trailing-tag filter is not called again once this parser takes
+        // over, so whitespace it still holds moves across with the text.
+        const drainedWhitespace =
+          requestContext.trailingThinkingTagFilter?.drainWhitespace() ?? '';
         contentParts = requestContext.taggedThinkingParser.parse(
-          taggedThinkingCandidate,
+          drainedWhitespace + taggedThinkingCandidate,
           Boolean(choice.finish_reason),
         );
       } else if (normalizedContent || choice.finish_reason) {
@@ -1586,11 +1652,17 @@ export function convertOpenAIChunkToLlm(
           normalizedContent,
           requestContext,
           Boolean(choice.finish_reason),
+          completedNormally(choice.finish_reason, reasoningText),
         );
       }
     } else if (choice.finish_reason) {
       // Flush any buffered tagged-thinking content on stream end
-      contentParts = convertOpenAITextToParts('', requestContext, true);
+      contentParts = convertOpenAITextToParts(
+        '',
+        requestContext,
+        true,
+        completedNormally(choice.finish_reason, reasoningText),
+      );
     }
 
     if (
@@ -1884,6 +1956,12 @@ export function convertOpenAIChunkToLlm(
     const toolCallsTruncated = choice.finish_reason
       ? toolCallParser.hasIncompleteToolCalls()
       : false;
+    // The trailing-tag filter ran before the tool calls were parsed and could
+    // only record the tag name.
+    if (choice.finish_reason && requestContext.protocolTagSanitized) {
+      requestContext.protocolTagSanitized.toolCallCount =
+        completedToolCalls.length;
+    }
     if (
       choice.finish_reason &&
       requestContext.pendingThinkingTagCandidate?.closingTagName
@@ -1953,11 +2031,41 @@ export function convertOpenAIChunkToLlm(
     }
 
     // If tool call JSON was truncated, override to "length" so downstream
-    // (turn.ts) correctly sets wasOutputTruncated=true.
+    // (turn.ts) correctly sets wasOutputTruncated=true. Unterminated JSON
+    // alone does not prove a token-limit cut: a model can emit malformed
+    // arguments on a short response, and blaming max_tokens then sends it
+    // into identical retries. Usage far below the budget withdraws the
+    // override.
+    const suspectTruncation =
+      toolCallsTruncated && choice.finish_reason !== 'length';
+    const usageVerdict = corroborateTruncationFromCompletionTokens(
+      chunk.usage?.completion_tokens,
+      requestContext.maxOutputTokens,
+    );
+    if (suspectTruncation) {
+      debugLogger.debug('Truncated tool-call finish_reason override', {
+        providerFinishReason: choice.finish_reason,
+        completionTokens: chunk.usage?.completion_tokens ?? null,
+        maxOutputTokens: requestContext.maxOutputTokens ?? null,
+        verdict: usageVerdict,
+      });
+    }
     const effectiveFinishReason =
-      toolCallsTruncated && choice.finish_reason !== 'length'
+      suspectTruncation && usageVerdict !== 'disproved'
         ? 'length'
         : choice.finish_reason;
+    if (suspectTruncation && usageVerdict === 'unknown') {
+      // With `stream_options.include_usage` the totals arrive on a later
+      // `choices: []` chunk, so the pipeline decides once it has merged them.
+      requestContext.pendingTruncationOverride = {
+        finishReason: mapOpenAIFinishReasonToLlm(choice.finish_reason),
+      };
+    }
+    if (suspectTruncation && usageVerdict === 'disproved') {
+      // The arguments still arrived unterminated: keep the scheduler's
+      // refusal to write partial file content armed.
+      markToolCallArgumentsIncomplete(parts);
+    }
 
     // Only include finishReason key if finish_reason is present
     const candidate: Candidate = {
@@ -2046,6 +2154,40 @@ export function convertOpenAIChunkToLlm(
   return response;
 }
 
+/**
+ * Share of the output budget a response must have used before incomplete
+ * tool-call JSON may be blamed on the token limit. A real cut lands at about
+ * the whole budget, so half keeps every plausible cut.
+ */
+const TRUNCATION_COMPLETION_TOKEN_RATIO_THRESHOLD = 0.5;
+
+/** What reported usage says about a suspected token-limit cut. */
+export type TruncationUsageVerdict = 'corroborated' | 'disproved' | 'unknown';
+
+/**
+ * A missing, zero or non-numeric count is not a disproof: the caller already
+ * saw tool-call output, so it merely went uncounted on this chunk (some
+ * providers zero-fill usage on the finish chunk and report the totals later).
+ */
+export function corroborateTruncationFromCompletionTokens(
+  completionTokens: number | null | undefined,
+  maxOutputTokens: number | undefined,
+): TruncationUsageVerdict {
+  if (
+    typeof completionTokens !== 'number' ||
+    !Number.isFinite(completionTokens) ||
+    completionTokens <= 0 ||
+    maxOutputTokens === undefined ||
+    maxOutputTokens <= 0
+  ) {
+    return 'unknown';
+  }
+  return completionTokens >=
+    maxOutputTokens * TRUNCATION_COMPLETION_TOKEN_RATIO_THRESHOLD
+    ? 'corroborated'
+    : 'disproved';
+}
+
 function mapOpenAIFinishReasonToLlm(openaiReason: string | null): FinishReason {
   if (typeof openaiReason !== 'string') {
     return FinishReason.FINISH_REASON_UNSPECIFIED;
@@ -2127,7 +2269,8 @@ function isSplitToolMediaMessage(
 /**
  * Clean up orphaned tool calls from message history to prevent OpenAI API errors.
  *
- * Assumes consecutive assistant messages have already been merged.
+ * Assumes each run of consecutive assistant messages carries its tool calls on
+ * the last message.
  */
 function cleanOrphanedToolCalls(
   messages: OpenAI.Chat.ChatCompletionMessageParam[],
@@ -2196,11 +2339,6 @@ function cleanOrphanedToolCalls(
           if (lastToolResponseMatchesAssistant) {
             splitMediaIndexes.push(nextIndex);
           }
-          continue;
-        }
-
-        if (nextMessage.role === 'assistant' && !hasToolCalls(nextMessage)) {
-          // Consecutive assistant turns are merged before cleanup.
           continue;
         }
 
@@ -2292,109 +2430,82 @@ function cleanOrphanedToolCalls(
 }
 
 /**
- * Merge consecutive assistant messages to combine split text and tool calls.
+ * Normalizes each run of consecutive assistant messages. A message that
+ * brings reasoning starts a new segment, so reasoning and text keep the order
+ * the model produced them in; a message without reasoning is merged into the
+ * segment before it. The run's tool calls are gathered, in order, on its last
+ * segment, because a tool call's results must directly follow the message
+ * that made the call.
  */
-function mergeConsecutiveAssistantMessages(
+function normalizeAssistantMessages(
   messages: OpenAI.Chat.ChatCompletionMessageParam[],
 ): OpenAI.Chat.ChatCompletionMessageParam[] {
-  const merged: OpenAI.Chat.ChatCompletionMessageParam[] = [];
+  const normalized: OpenAI.Chat.ChatCompletionMessageParam[] = [];
+  let toolCalls: OpenAI.Chat.ChatCompletionMessageToolCall[] = [];
+  const flushToolCalls = () => {
+    if (toolCalls.length === 0) return;
+    const last = normalized.at(-1);
+    if (last?.role === 'assistant') {
+      last.tool_calls = toolCalls;
+    } else {
+      normalized.push({
+        role: 'assistant',
+        content: null,
+        tool_calls: toolCalls,
+      });
+    }
+    toolCalls = [];
+  };
 
   for (const message of messages) {
-    if (message.role === 'assistant' && merged.length > 0) {
-      const lastMessage = merged[merged.length - 1];
-
-      // If the last message is also an assistant message, merge them
-      if (lastMessage.role === 'assistant') {
-        const lastToolCalls =
-          'tool_calls' in lastMessage ? lastMessage.tool_calls || [] : [];
-        const currentToolCalls =
-          'tool_calls' in message ? message.tool_calls || [] : [];
-        // Combine content
-        const lastContent = lastMessage.content;
-        const currentContent = message.content;
-
-        // Determine if we should use array format (if either content is an array)
-        const useArrayFormat =
-          Array.isArray(lastContent) || Array.isArray(currentContent);
-
-        let combinedContent:
-          | string
-          | OpenAI.Chat.ChatCompletionContentPart[]
-          | null;
-
-        if (useArrayFormat) {
-          // Convert both to array format and merge
-          const lastParts = Array.isArray(lastContent)
-            ? lastContent
-            : typeof lastContent === 'string' && lastContent
-              ? [{ type: 'text' as const, text: lastContent }]
-              : [];
-
-          const currentParts = Array.isArray(currentContent)
-            ? currentContent
-            : typeof currentContent === 'string' && currentContent
-              ? [{ type: 'text' as const, text: currentContent }]
-              : [];
-
-          combinedContent = [
-            ...lastParts,
-            ...currentParts,
-          ] as OpenAI.Chat.ChatCompletionContentPart[];
-        } else {
-          // Both are strings or null, merge as strings
-          const lastText = typeof lastContent === 'string' ? lastContent : '';
-          const currentText =
-            typeof currentContent === 'string' ? currentContent : '';
-          const mergedText = [lastText, currentText].filter(Boolean).join('');
-          combinedContent = mergedText || null;
-        }
-
-        // Combine tool calls
-        const combinedToolCalls = [...lastToolCalls, ...currentToolCalls];
-
-        // Update the last message with combined data
-        (
-          lastMessage as OpenAI.Chat.ChatCompletionMessageParam & {
-            content: string | OpenAI.Chat.ChatCompletionContentPart[] | null;
-            tool_calls?: OpenAI.Chat.ChatCompletionMessageToolCall[];
-          }
-        ).content = combinedContent || null;
-        if (combinedToolCalls.length > 0) {
-          (
-            lastMessage as OpenAI.Chat.ChatCompletionMessageParam & {
-              content: string | OpenAI.Chat.ChatCompletionContentPart[] | null;
-              tool_calls?: OpenAI.Chat.ChatCompletionMessageToolCall[];
-            }
-          ).tool_calls = combinedToolCalls;
-        }
-
-        // Combine reasoning_content the same way content is combined. Otherwise
-        // the merged-away turn's reasoning is silently dropped, while
-        // cleanOrphanedToolCalls (which also merges assistant turns) keeps it.
-        const lastReasoning = (
-          lastMessage as ExtendedChatCompletionAssistantMessageParam
-        ).reasoning_content;
-        const currentReasoning = (
-          message as ExtendedChatCompletionAssistantMessageParam
-        ).reasoning_content;
-        const combinedReasoning = [lastReasoning, currentReasoning]
-          .filter(Boolean)
-          .join('');
-        if (combinedReasoning) {
-          (
-            lastMessage as ExtendedChatCompletionAssistantMessageParam
-          ).reasoning_content = combinedReasoning;
-        }
-
-        continue; // Skip adding the current message since it's been merged
-      }
+    if (message.role !== 'assistant') {
+      flushToolCalls();
+      normalized.push(message);
+      continue;
     }
 
-    // Add the message as-is if no merging is needed
-    merged.push(message);
+    // A copy: the caller's message is never changed.
+    const { tool_calls: calls = [], ...next } =
+      message as ExtendedChatCompletionAssistantMessageParam;
+    const last = normalized.at(-1) as
+      | ExtendedChatCompletionMessageParam
+      | undefined;
+    const lastAssistant =
+      last?.role === 'assistant'
+        ? (last as ExtendedChatCompletionAssistantMessageParam)
+        : undefined;
+    toolCalls.push(...calls);
+
+    if (!next.content && !next.reasoning_content && calls.length > 0) {
+      continue;
+    }
+    if (!lastAssistant || next.reasoning_content) {
+      normalized.push(next);
+      continue;
+    }
+
+    if (Array.isArray(lastAssistant.content) || Array.isArray(next.content)) {
+      const asParts = (
+        content: OpenAI.Chat.ChatCompletionAssistantMessageParam['content'],
+      ) =>
+        Array.isArray(content)
+          ? content
+          : content
+            ? [{ type: 'text' as const, text: content }]
+            : [];
+      lastAssistant.content = [
+        ...asParts(lastAssistant.content),
+        ...asParts(next.content),
+      ];
+    } else {
+      const text = (lastAssistant.content || '') + (next.content || '');
+      lastAssistant.content =
+        text || (lastAssistant.reasoning_content ? '' : null);
+    }
   }
 
-  return merged;
+  flushToolCalls();
+  return normalized;
 }
 
 export const OpenAIContentConverter = {

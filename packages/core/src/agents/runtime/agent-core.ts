@@ -79,6 +79,7 @@ import type {
   GenerateContentResponseUsageMetadata,
 } from '@google/genai';
 import { LlmChat } from '../../core/llm-chat.js';
+import { toolCallArgumentsWereIncomplete } from '../../core/incomplete-tool-call-args.js';
 import { assembleSystemPrompt } from '../../core/prompts.js';
 import {
   dedupeToolCallsById,
@@ -2432,6 +2433,9 @@ export class AgentCore {
         prompt_id: promptId,
         response_id: responseId,
         wasOutputTruncated,
+        ...(toolCallArgumentsWereIncomplete(fc)
+          ? { hadIncompleteArguments: true }
+          : {}),
         ...(toolName === ToolNames.EXEC &&
         this.runtimeContext.getToolMode?.() === ToolMode.CodeModeOnly
           ? {

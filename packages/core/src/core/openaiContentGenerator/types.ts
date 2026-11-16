@@ -4,7 +4,11 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import type { GenerateContentParameters, Part } from '@google/genai';
+import type {
+  FinishReason,
+  GenerateContentParameters,
+  Part,
+} from '@google/genai';
 import type { Config } from '../../config/config.js';
 import type {
   ContentGeneratorConfig,
@@ -14,6 +18,7 @@ import type { OpenAICompatibleProvider } from './provider/index.js';
 import type { OpenAIResponseParsingOptions } from './responseParsingOptions.js';
 import type { StreamingToolCallParser } from './streamingToolCallParser.js';
 import type { TaggedThinkingParser } from './taggedThinkingParser.js';
+import type { TrailingThinkingTagFilter } from './trailing-thinking-tag-filter.js';
 
 export interface StreamingTextDeltaState {
   /**
@@ -48,6 +53,21 @@ export interface RequestContext {
    */
   inlineMediaOnly?: boolean;
   startTime: number;
+  /**
+   * Output-token ceiling sent on the wire (`max_tokens` or a provider-specific
+   * budget key), set by the pipeline once the request is built. The converter
+   * weighs reported usage against it before reading incomplete tool-call JSON
+   * as a token-limit cut.
+   */
+  maxOutputTokens?: number;
+  /**
+   * Set by the converter when it rewrote a finish reason to "length" on
+   * incomplete tool-call JSON while the finish chunk carried no usable usage.
+   * Holds the provider's own reason; the pipeline settles the rewrite on the
+   * parked finish response once the trailing usage chunk has been merged in,
+   * and clears this field.
+   */
+  pendingTruncationOverride?: { finishReason: FinishReason };
   toolCallParser?: StreamingToolCallParser;
   responseParsingOptions?: OpenAIResponseParsingOptions;
   taggedThinkingParser?: TaggedThinkingParser;
@@ -64,6 +84,8 @@ export interface RequestContext {
    * reused across requests — stale state will silently corrupt text output.
    */
   textDeltaState?: StreamingTextDeltaState;
+  /** Per-stream state of the trailing closing-tag filter; never shared. */
+  trailingThinkingTagFilter?: TrailingThinkingTagFilter;
   /**
    * Same as textDeltaState but for the reasoning/thinking content channel.
    * The two channels are tracked independently so interleaved chunks on each

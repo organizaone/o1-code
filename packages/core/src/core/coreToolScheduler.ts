@@ -489,6 +489,25 @@ export const TRUNCATION_EDIT_REJECTION =
   'then use edit to add the remaining sections incrementally. ' +
   'Do NOT retry with the same large content.';
 
+// The next two cover arguments that arrived incomplete on a response the
+// output limit did not cut. Blaming max_tokens there sends the model into
+// identical retries, so the guidance names the real cause.
+const INCOMPLETE_ARGS_PARAM_GUIDANCE =
+  "Note: This tool call's arguments arrived incomplete, but the response did " +
+  'not come close to the max_tokens limit, so this was malformed generation ' +
+  'rather than truncation. Retrying the same call unchanged will fail the same ' +
+  'way. Issue one tool call per turn and send schema-valid parameters; in ' +
+  "particular, do not nest one call's argument object inside another's.";
+
+export const INCOMPLETE_ARGS_EDIT_REJECTION =
+  "This tool call's arguments arrived incomplete, so the file content would " +
+  'have been partial. The response did not come close to the max_tokens limit, ' +
+  'so this was malformed generation rather than truncation. The tool call has ' +
+  'been rejected to prevent writing incomplete content to the file. Re-issue ' +
+  'it as the only tool call this turn with the full content, or write a ' +
+  'skeleton first and add the rest with incremental edits. ' +
+  'Do NOT retry unchanged.';
+
 function setToolSpanFailure(
   span: Span,
   failureKind: string,
@@ -1082,6 +1101,12 @@ const TRUNCATION_RETRY_LOOP_DIRECTIVE =
   '\n\n⚠ RETRY LOOP DETECTED: The same truncated file write has been rejected multiple times. ' +
   'STOP resending the same large content. Either split it into smaller write_file + incremental edit calls, ' +
   'or explain to the user that the content is too large to write safely in one call.';
+
+/** Directive injected when an incomplete-arguments file-modifying call repeats. */
+const INCOMPLETE_ARGS_RETRY_LOOP_DIRECTIVE =
+  '\n\n⚠ RETRY LOOP DETECTED: The same incomplete file write has been rejected multiple times. ' +
+  'STOP resending the entire content in a single call. Write a skeleton first and fill in the rest with ' +
+  'incremental edit calls, or explain to the user why the content cannot be written safely.';
 
 const createErrorResponse = (
   request: ToolCallRequestInfo,
@@ -3105,17 +3130,30 @@ export class CoreToolScheduler {
             continue;
           }
 
-          // Reject file-modifying calls when truncated to prevent
-          // writing incomplete content, even if params failed schema validation.
-          if (reqInfo.wasOutputTruncated && toolInstance.kind === Kind.Edit) {
+          // Reject file-modifying calls whose arguments arrived incomplete, to
+          // prevent writing partial content even when repair made the params
+          // schema-valid. Whatever cut the arguments, the content is partial;
+          // only the wording and the error type follow the cause.
+          if (
+            (reqInfo.wasOutputTruncated || reqInfo.hadIncompleteArguments) &&
+            toolInstance.kind === Kind.Edit
+          ) {
+            const truncated = reqInfo.wasOutputTruncated === true;
+            const rejectionMessage = truncated
+              ? TRUNCATION_EDIT_REJECTION
+              : INCOMPLETE_ARGS_EDIT_REJECTION;
             const count = recordBatchRetryableToolError(
               reqInfo.name,
-              TRUNCATION_EDIT_REJECTION,
+              rejectionMessage,
             );
             const truncationError = new Error(
               count >= VALIDATION_RETRY_LOOP_THRESHOLD
-                ? `${TRUNCATION_EDIT_REJECTION}${TRUNCATION_RETRY_LOOP_DIRECTIVE}`
-                : TRUNCATION_EDIT_REJECTION,
+                ? `${rejectionMessage}${
+                    truncated
+                      ? TRUNCATION_RETRY_LOOP_DIRECTIVE
+                      : INCOMPLETE_ARGS_RETRY_LOOP_DIRECTIVE
+                  }`
+                : rejectionMessage,
             );
             newToolCalls.push({
               status: 'error',
@@ -3124,7 +3162,9 @@ export class CoreToolScheduler {
               response: createErrorResponse(
                 reqInfo,
                 truncationError,
-                ToolErrorType.OUTPUT_TRUNCATED,
+                truncated
+                  ? ToolErrorType.OUTPUT_TRUNCATED
+                  : ToolErrorType.INVALID_TOOL_PARAMS,
                 'not_started',
               ),
               durationMs: 0,
@@ -3177,10 +3217,13 @@ export class CoreToolScheduler {
           );
           if (recordPrevalidationCancellation()) continue;
           if (invocationOrError instanceof Error) {
-            const displayError = reqInfo.wasOutputTruncated
-              ? new Error(
-                  `${invocationOrError.message} ${TRUNCATION_PARAM_GUIDANCE}`,
-                )
+            const paramGuidance = reqInfo.wasOutputTruncated
+              ? TRUNCATION_PARAM_GUIDANCE
+              : reqInfo.hadIncompleteArguments
+                ? INCOMPLETE_ARGS_PARAM_GUIDANCE
+                : undefined;
+            const displayError = paramGuidance
+              ? new Error(`${invocationOrError.message} ${paramGuidance}`)
               : invocationOrError;
 
             // Track validation retry for loop detection. Counts accumulate per

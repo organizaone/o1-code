@@ -12731,6 +12731,139 @@ describe('useLlmStream', () => {
       });
     });
 
+    describe('reasoning that resumes after assistant output', () => {
+      const thoughtEvent = (description: string) => ({
+        type: ServerLlmEventType.Thought,
+        value: { description },
+      });
+      const contentEvent = (value: string) => ({
+        type: ServerLlmEventType.Content,
+        value,
+      });
+      const committedItems = () =>
+        mockAddItem.mock.calls
+          .map(([item]) => item as { type: string; text?: string })
+          .filter((item) => item.type.startsWith('gemini'))
+          .map((item) => `${item.type}:${item.text}`);
+
+      // Runs the interleaved response up to a hold, then `tail` after it.
+      const startInterleaved = async (
+        tail: () => AsyncGenerator<unknown>,
+      ): Promise<{
+        result: ReturnType<typeof renderTestHook>['result'];
+        release: () => Promise<void>;
+      }> => {
+        vi.useFakeTimers();
+        let releaseStream!: () => void;
+        const holdStream = new Promise<void>((resolve) => {
+          releaseStream = resolve;
+        });
+        mockSendMessageStream.mockReturnValue(
+          (async function* () {
+            yield thoughtEvent('R1');
+            yield contentEvent('M1');
+            yield thoughtEvent('R2');
+            yield contentEvent('M2');
+            await holdStream;
+            yield* tail();
+          })(),
+        );
+        const { result } = renderTestHook();
+        act(() => {
+          void result.current.submitQuery('test query');
+        });
+        await act(async () => {
+          await vi.advanceTimersByTimeAsync(60);
+        });
+        return {
+          result,
+          release: async () => {
+            await act(async () => {
+              releaseStream();
+              await vi.advanceTimersByTimeAsync(60);
+            });
+          },
+        };
+      };
+
+      it('keeps the live rows in the order the model produced them', async () => {
+        const { result, release } = await startInterleaved(async function* () {
+          yield {
+            type: ServerLlmEventType.Finished,
+            value: { reason: 'STOP', usageMetadata: undefined },
+          };
+        });
+
+        // R1 came first with nothing staged, so it went straight to history.
+        expect(committedItems()).toEqual(['gemini_thought:R1']);
+        expect(result.current.pendingHistoryItems).toEqual([
+          expect.objectContaining({ type: 'gemini', text: 'M1' }),
+          expect.objectContaining({
+            type: 'gemini_thought',
+            text: 'R2',
+            isStreaming: false,
+            thoughtGroupId: expect.any(Number),
+          }),
+          expect.objectContaining({ type: 'gemini_content', text: 'M2' }),
+        ]);
+        const staged = result.current.pendingHistoryItems[1] as {
+          thoughtGroupId: number;
+        };
+        expect(staged.thoughtGroupId).toBeLessThan(0);
+
+        await release();
+
+        expect(committedItems()).toEqual([
+          'gemini_thought:R1',
+          'gemini:M1',
+          'gemini_thought:R2',
+          'gemini_content:M2',
+        ]);
+        expect(result.current.pendingHistoryItems).toEqual([]);
+      });
+
+      it('discards the whole interleaved attempt on a fresh retry', async () => {
+        const { result, release } = await startInterleaved(async function* () {
+          yield thoughtEvent('R3');
+          yield { type: ServerLlmEventType.Retry };
+          yield contentEvent('Again');
+          yield {
+            type: ServerLlmEventType.Finished,
+            value: { reason: 'STOP', usageMetadata: undefined },
+          };
+        });
+
+        await release();
+
+        expect(committedItems()).toEqual(['gemini_thought:R1', 'gemini:Again']);
+        expect(result.current.pendingHistoryItems).toEqual([]);
+      });
+
+      it('commits the interleaved output above the cancellation notice', async () => {
+        const { result, release } = await startInterleaved(
+          async function* () {},
+        );
+
+        act(() => {
+          result.current.cancelOngoingRequest();
+        });
+
+        const types = mockAddItem.mock.calls.map(
+          ([item]) =>
+            `${(item as { type: string }).type}:${(item as { text?: string }).text}`,
+        );
+        expect(types.slice(types.indexOf('gemini_thought:R1'))).toEqual([
+          'gemini_thought:R1',
+          'gemini:M1',
+          'gemini_thought:R2',
+          'gemini_content:M2',
+          'info:Request cancelled.',
+        ]);
+
+        await release();
+      });
+    });
+
     it('flushes buffered content before cancellation', async () => {
       vi.useFakeTimers();
 
