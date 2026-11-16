@@ -485,6 +485,7 @@ Commands for obtaining information and performing system settings.
 | `/settings`      | Open settings editor                                                                                                           | `/settings`                                                                         |
 | `/config`        | Open the settings editor, or get and set a setting by dot-path key (writes to user settings)                                   | `/config` (editor), `/config --help`, `/config <key>`, `/config <key>=<value>`      |
 | `/auth`          | Change authentication method                                                                                                   | `/auth`, `/connect`, `/login`                                                       |
+| `/logout`        | Sign out of the connected provider, after a confirmation that names the account                                                | `/logout`, `/disconnect`                                                            |
 | `/doctor`        | Run installation and environment diagnostics                                                                                   | `/doctor`, `/doctor memory`                                                         |
 | → `memory`       | Show current process memory diagnostics                                                                                        | `/doctor memory [--json] [--sample] [--snapshot]`                                   |
 | → `cpu-profile`  | Record a CPU profile for Chrome DevTools analysis                                                                              | `/doctor cpu-profile [--duration <seconds>]`                                        |
@@ -521,6 +522,7 @@ Use `/auth` inside an O1-Code session to configure authentication. Use `/doctor`
 | Command   | Description                                                            |
 | --------- | ---------------------------------------------------------------------- |
 | `/auth`   | Configure authentication interactively (aliases: `/connect`, `/login`) |
+| `/logout` | Sign out of the connected provider (alias: `/disconnect`)              |
 | `/doctor` | Show authentication and environment checks                             |
 
 > [!note]

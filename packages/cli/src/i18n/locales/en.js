@@ -755,6 +755,25 @@ export default {
     'open full O1-Code documentation in your browser',
   'Configuration not available.': 'Configuration not available.',
   'Connect an LLM provider': 'Connect an LLM provider',
+  'Sign out of the connected provider': 'Sign out of the connected provider',
+  'No provider is connected. Use /auth to connect one.':
+    'No provider is connected. Use /auth to connect one.',
+  'This session reads its key from the environment variable {{envKey}}, set outside O1-Code. Unset it to sign out of {{provider}}.':
+    'This session reads its key from the environment variable {{envKey}}, set outside O1-Code. Unset it to sign out of {{provider}}.',
+  'O1-Code holds no saved key for {{provider}}, so there is nothing to sign out of.':
+    'O1-Code holds no saved key for {{provider}}, so there is nothing to sign out of.',
+  'Sign out': 'Sign out',
+  'Could not sign out: {{message}}': 'Could not sign out: {{message}}',
+  'Signed out of {{provider}}. The saved key was removed from this machine.':
+    'Signed out of {{provider}}. The saved key was removed from this machine.',
+  'Sign out of {{provider}}?': 'Sign out of {{provider}}?',
+  'Device: {{name}}': 'Device: {{name}}',
+  'Key: {{key}}': 'Key: {{key}}',
+  'Connection: {{name}}': 'Connection: {{name}}',
+  'The saved key is removed from this machine and this session is disconnected. The device stays on your account page until you remove it there.':
+    'The saved key is removed from this machine and this session is disconnected. The device stays on your account page until you remove it there.',
+  'The saved key is removed from this machine and this session is disconnected. The key itself stays valid until you revoke it at the provider.':
+    'The saved key is removed from this machine and this session is disconnected. The key itself stays valid until you revoke it at the provider.',
   'Copy to clipboard: reply, code (by lang), LaTeX, or Mermaid. N = Nth-latest message, index = block number':
     'Copy to clipboard: reply, code (by lang), LaTeX, or Mermaid. N = Nth-latest message, index = block number',
   'Show working-tree change stats versus HEAD':

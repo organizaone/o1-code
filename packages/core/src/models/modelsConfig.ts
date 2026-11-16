@@ -332,6 +332,15 @@ export class ModelsConfig {
    * Get a fully resolved provider model config for the given authType/modelId.
    * Returns undefined for raw runtime models that are not present in the registry.
    */
+  /**
+   * Forgets the key resolved for the active model (a sign-out). The next
+   * model resolution reads the environment and the credential store again.
+   */
+  clearResolvedApiKey(): void {
+    this._generationConfig.apiKey = undefined;
+    delete this.generationConfigSources['apiKey'];
+  }
+
   getResolvedModel(
     authType: AuthType,
     modelId: string,

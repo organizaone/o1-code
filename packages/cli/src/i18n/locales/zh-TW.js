@@ -457,6 +457,25 @@ export default {
     '在瀏覽器中打開完整的 O1-Code 文檔',
   'Configuration not available.': '配置不可用',
   'Connect an LLM provider': '連接 LLM 提供商',
+  'Sign out of the connected provider': '登出目前連接的提供商',
+  'No provider is connected. Use /auth to connect one.':
+    '尚未連接任何提供商。請使用 /auth 進行連接。',
+  'This session reads its key from the environment variable {{envKey}}, set outside O1-Code. Unset it to sign out of {{provider}}.':
+    '此工作階段從環境變數 {{envKey}} 讀取金鑰，該變數是在 O1-Code 之外設定的。取消設定該變數即可登出 {{provider}}。',
+  'O1-Code holds no saved key for {{provider}}, so there is nothing to sign out of.':
+    'O1-Code 沒有儲存 {{provider}} 的金鑰，因此無需登出。',
+  'Sign out': '登出',
+  'Could not sign out: {{message}}': '無法登出：{{message}}',
+  'Signed out of {{provider}}. The saved key was removed from this machine.':
+    '已登出 {{provider}}。已儲存的金鑰已從本機刪除。',
+  'Sign out of {{provider}}?': '要登出 {{provider}} 嗎？',
+  'Device: {{name}}': '裝置：{{name}}',
+  'Key: {{key}}': '金鑰：{{key}}',
+  'Connection: {{name}}': '連線：{{name}}',
+  'The saved key is removed from this machine and this session is disconnected. The device stays on your account page until you remove it there.':
+    '已儲存的金鑰將從本機刪除，此工作階段將中斷連線。該裝置會保留在您的帳戶頁面上，直到您在那裡將其移除。',
+  'The saved key is removed from this machine and this session is disconnected. The key itself stays valid until you revoke it at the provider.':
+    '已儲存的金鑰將從本機刪除，此工作階段將中斷連線。金鑰本身仍然有效，直到您在提供商處將其撤銷。',
   'Copy to clipboard: reply, code (by lang), LaTeX, or Mermaid. N = Nth-latest message, index = block number':
     '複製到剪貼簿：AI 回應、程式碼區塊（可依語言篩選）、LaTeX 或 Mermaid。N 為倒數第 N 則訊息，index 為程式碼區塊序號',
   'Show working-tree change stats versus HEAD':
