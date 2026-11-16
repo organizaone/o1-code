@@ -32,14 +32,35 @@ export function ensureReasoningContentOnAssistantMessage(
 // non-standard `reasoning_content` field on input with HTTP 400. Shared
 // conversation history must stay intact for providers that require the
 // replay; remove the field only at the outbound request boundary.
+//
+// Returns a list so it can be used with `flatMap`: an assistant message that
+// carried nothing but reasoning would be left empty, which the same endpoints
+// reject, so it is dropped instead.
 export function stripReasoningContent(
   message: OpenAI.Chat.ChatCompletionMessageParam,
-): OpenAI.Chat.ChatCompletionMessageParam {
+): OpenAI.Chat.ChatCompletionMessageParam[] {
   if (!('reasoning_content' in message)) {
-    return message;
+    return [message];
   }
 
   const next = { ...(message as unknown as Record<string, unknown>) };
+  const reasoning = next['reasoning_content'];
   delete next['reasoning_content'];
-  return next as unknown as OpenAI.Chat.ChatCompletionMessageParam;
+
+  const isEmpty = (value: unknown) =>
+    value === undefined ||
+    value === null ||
+    value === '' ||
+    (Array.isArray(value) && value.length === 0);
+  const onlyReasoning =
+    message.role === 'assistant' &&
+    typeof reasoning === 'string' &&
+    reasoning.length > 0 &&
+    Object.entries(next).every(
+      ([key, value]) => key === 'role' || key === 'name' || isEmpty(value),
+    );
+
+  return onlyReasoning
+    ? []
+    : [next as unknown as OpenAI.Chat.ChatCompletionMessageParam];
 }

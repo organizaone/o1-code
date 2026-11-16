@@ -6,6 +6,7 @@
 
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { OpenAIContentConverter } from './converter.js';
+import { toolCallArgumentsWereIncomplete } from '../incomplete-tool-call-args.js';
 import { StreamingToolCallParser } from './streamingToolCallParser.js';
 import { TaggedThinkingParser } from './taggedThinkingParser.js';
 import type { RequestContext } from './types.js';
@@ -7416,8 +7417,130 @@ describe('OpenAIContentConverter', () => {
     });
   });
 
-  describe('mergeConsecutiveAssistantMessages', () => {
-    it('should preserve reasoning_content from every merged assistant turn', () => {
+  describe('normalizeAssistantMessages', () => {
+    type ReplayedMessage = {
+      role: string;
+      content?: unknown;
+      reasoning_content?: string;
+      tool_calls?: Array<{ id: string }>;
+    };
+
+    it('replays interleaved reasoning and text of one turn as ordered segments', () => {
+      const request: GenerateContentParameters = {
+        model: 'models/test',
+        contents: [
+          {
+            role: 'model',
+            parts: [
+              { text: 'R1', thought: true },
+              { text: 'M1' },
+              { text: 'R2', thought: true },
+              { text: 'M2' },
+            ],
+          },
+        ],
+      };
+      const requestCopy = JSON.parse(JSON.stringify(request));
+
+      const messages = converter.convertLlmRequestToOpenAI(
+        request,
+        requestContext,
+      ) as ReplayedMessage[];
+
+      expect(messages).toEqual([
+        { role: 'assistant', content: 'M1', reasoning_content: 'R1' },
+        { role: 'assistant', content: 'M2', reasoning_content: 'R2' },
+      ]);
+      expect(request).toEqual(requestCopy);
+    });
+
+    it('keeps the tool batch on the last segment, directly before its results', () => {
+      const request: GenerateContentParameters = {
+        model: 'models/test',
+        contents: [
+          {
+            role: 'model',
+            parts: [
+              { text: 'R1', thought: true },
+              { text: 'M1' },
+              { functionCall: { id: 'call_1', name: 'tool_1', args: {} } },
+              { text: 'R2', thought: true },
+              { text: 'M2' },
+              { functionCall: { id: 'call_2', name: 'tool_2', args: {} } },
+            ],
+          },
+          {
+            role: 'user',
+            parts: [
+              {
+                functionResponse: {
+                  id: 'call_1',
+                  name: 'tool_1',
+                  response: { output: 'O1' },
+                },
+              },
+              {
+                functionResponse: {
+                  id: 'call_2',
+                  name: 'tool_2',
+                  response: { output: 'O2' },
+                },
+              },
+            ],
+          },
+        ],
+      };
+
+      const messages = converter.convertLlmRequestToOpenAI(
+        request,
+        requestContext,
+      ) as ReplayedMessage[];
+
+      expect(messages.map((message) => message.role)).toEqual([
+        'assistant',
+        'assistant',
+        'tool',
+        'tool',
+      ]);
+      expect(messages[0]).toEqual({
+        role: 'assistant',
+        content: 'M1',
+        reasoning_content: 'R1',
+      });
+      expect(messages[1].content).toBe('M2');
+      expect(messages[1].reasoning_content).toBe('R2');
+      expect(messages[1].tool_calls?.map((call) => call.id)).toEqual([
+        'call_1',
+        'call_2',
+      ]);
+    });
+
+    it('gives a reasoning-only segment an empty string as content', () => {
+      const request: GenerateContentParameters = {
+        model: 'models/test',
+        contents: [
+          {
+            role: 'model',
+            parts: [
+              { text: 'R1', thought: true },
+              { text: 'M1' },
+              { text: 'R2', thought: true },
+            ],
+          },
+        ],
+      };
+
+      const messages = converter.convertLlmRequestToOpenAI(
+        request,
+        requestContext,
+      ) as ReplayedMessage[];
+
+      expect(messages).toHaveLength(2);
+      expect(messages[1].reasoning_content).toBe('R2');
+      expect(messages[1].content).toBe('');
+    });
+
+    it('keeps each turn its own segment when both carry reasoning', () => {
       const request: GenerateContentParameters = {
         model: 'models/test',
         contents: [
@@ -7443,13 +7566,18 @@ describe('OpenAIContentConverter', () => {
         requestContext,
       );
 
-      expect(messages).toHaveLength(1);
-      expect(messages[0].role).toBe('assistant');
-      expect(messages[0].content).toBe('First answer.Second answer.');
-      // The reasoning of the merged-away turn must not be silently dropped.
-      expect(
-        (messages[0] as { reasoning_content?: string }).reasoning_content,
-      ).toBe('First reasoning.Second reasoning.');
+      expect(messages).toEqual([
+        {
+          role: 'assistant',
+          content: 'First answer.',
+          reasoning_content: 'First reasoning.',
+        },
+        {
+          role: 'assistant',
+          content: 'Second answer.',
+          reasoning_content: 'Second reasoning.',
+        },
+      ]);
     });
 
     it('should merge two consecutive assistant messages with string content', () => {
@@ -8001,9 +8129,18 @@ describe('Truncated tool call detection in streaming', () => {
       arguments: string;
     }>,
     finishReason: string,
+    options?: {
+      usage?: OpenAI.Chat.ChatCompletionChunk['usage'];
+      maxOutputTokens?: number;
+      captureContext?: (ctx: RequestContext) => void;
+    },
   ) {
     // One stream-local context covers every chunk of this simulated stream.
     const ctx = createStreamingRequestContext();
+    if (options?.maxOutputTokens !== undefined) {
+      ctx.maxOutputTokens = options.maxOutputTokens;
+    }
+    options?.captureContext?.(ctx);
 
     // Feed argument chunks (no finish_reason yet)
     for (const tc of toolCallChunks) {
@@ -8053,10 +8190,119 @@ describe('Truncated tool call detection in streaming', () => {
             logprobs: null,
           },
         ],
+        usage: options?.usage,
       } as unknown as OpenAI.Chat.ChatCompletionChunk,
       ctx,
     );
   }
+
+  const FUSED_READ_FILE_ARGS =
+    '{"file_path": "/tmp/ad01.yml", "limit": {"file_path": "/tmp/node01.yml", "limit": null}';
+  const fusedCall = [
+    {
+      index: 0,
+      id: 'call_1',
+      name: 'read_file',
+      arguments: FUSED_READ_FILE_ARGS,
+    },
+  ];
+  const cutWrite = [
+    {
+      index: 0,
+      id: 'call_1',
+      name: 'write_file',
+      arguments: '{"file_path": "/tmp/test.cpp"',
+    },
+  ];
+  const usageOf = (completionTokens: number | null) =>
+    ({
+      prompt_tokens: 100,
+      completion_tokens: completionTokens,
+      total_tokens: 100 + (completionTokens ?? 0),
+    }) as unknown as OpenAI.Chat.ChatCompletionChunk['usage'];
+
+  it('keeps the provider finish reason when usage disproves a token-limit cut', () => {
+    const result = feedToolCallChunks(converter, fusedCall, 'stop', {
+      usage: usageOf(185),
+      maxOutputTokens: 8192,
+    });
+
+    const call = result.candidates?.[0]?.content?.parts?.find(
+      (p: Part) => p.functionCall,
+    )?.functionCall;
+    expect(call?.args).toEqual({
+      file_path: '/tmp/ad01.yml',
+      limit: { file_path: '/tmp/node01.yml', limit: null },
+    });
+    expect(result.candidates?.[0]?.finishReason).toBe(FinishReason.STOP);
+    expect(toolCallArgumentsWereIncomplete(call!)).toBe(true);
+    expect(Object.keys(call!)).toEqual(['id', 'name', 'args']);
+  });
+
+  it.each([
+    ['usage at the budget', usageOf(8192), 8192, 'stop'],
+    ['usage at exactly half the budget', usageOf(4096), 8192, 'stop'],
+    ['an unknown output ceiling', usageOf(185), undefined, 'stop'],
+    ['zero-filled usage', usageOf(0), 8192, 'stop'],
+    ['a null completion count', usageOf(null), 8192, 'stop'],
+    ['a provider-reported length', usageOf(185), 8192, 'length'],
+  ])(
+    'still reports MAX_TOKENS for incomplete arguments with %s',
+    (_label, usage, maxOutputTokens, finishReason) => {
+      const result = feedToolCallChunks(converter, cutWrite, finishReason, {
+        usage,
+        maxOutputTokens,
+      });
+
+      expect(result.candidates?.[0]?.finishReason).toBe(
+        FinishReason.MAX_TOKENS,
+      );
+      const call = result.candidates?.[0]?.content?.parts?.find(
+        (p: Part) => p.functionCall,
+      )?.functionCall;
+      expect(toolCallArgumentsWereIncomplete(call!)).toBe(false);
+    },
+  );
+
+  it('clears the override just under half the budget', () => {
+    const result = feedToolCallChunks(converter, fusedCall, 'stop', {
+      usage: usageOf(4095),
+      maxOutputTokens: 8192,
+    });
+
+    expect(result.candidates?.[0]?.finishReason).toBe(FinishReason.STOP);
+  });
+
+  it('leaves the override for the pipeline to settle when the finish chunk has no usage', () => {
+    let ctx: RequestContext | undefined;
+    const result = feedToolCallChunks(converter, fusedCall, 'stop', {
+      maxOutputTokens: 8192,
+      captureContext: (c) => {
+        ctx = c;
+      },
+    });
+
+    expect(result.candidates?.[0]?.finishReason).toBe(FinishReason.MAX_TOKENS);
+    expect(ctx?.pendingTruncationOverride).toEqual({
+      finishReason: FinishReason.STOP,
+    });
+  });
+
+  it.each([
+    ['corroborated', 8192],
+    ['disproved', 185],
+  ])('leaves nothing pending once usage %s the cut', (_label, tokens) => {
+    let ctx: RequestContext | undefined;
+    feedToolCallChunks(converter, fusedCall, 'stop', {
+      usage: usageOf(tokens),
+      maxOutputTokens: 8192,
+      captureContext: (c) => {
+        ctx = c;
+      },
+    });
+
+    expect(ctx?.pendingTruncationOverride).toBeUndefined();
+  });
 
   it('emits tool preparation metadata before the complete function call', () => {
     const context = createStreamingRequestContext();

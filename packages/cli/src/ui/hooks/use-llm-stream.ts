@@ -988,11 +988,75 @@ export const useLlmStream = (
     return true;
   }, [pendingHistoryItemRef, setPendingAssistantItems, setPendingHistoryItem]);
   // Streamed model reasoning for the current turn. Rendered (height-limited)
-  // above the answer while thinking, then committed to history as a
-  // collapsible `gemini_thought` block when the answer/tool/turn begins.
+  // after the assistant output that preceded it, then stored as a collapsible
+  // `gemini_thought` block when the next answer/tool/turn begins.
   const [pendingThoughtItem, pendingThoughtItemRef, setPendingThoughtItem] =
     useStateAndRef<HistoryItemWithoutId | null>(null);
   const thoughtStartTimeRef = useRef<number | null>(null);
+  // Set only for reasoning that resumed after assistant output: those rows sit
+  // among the staged ones and need an identity that survives the commit.
+  const thoughtGroupIdRef = useRef<number | undefined>(undefined);
+  const lastThoughtGroupIdRef = useRef(0);
+  // Ends the streamed reasoning block. By default it goes to history, after
+  // everything staged before it. With `keepStaged`, a block that follows
+  // staged output joins that sequence instead, so a fresh retry or a model
+  // fallback can still discard the whole attempt in order.
+  const commitPendingThought = useCallback(
+    (userMessageTimestamp: number, keepStaged = false) => {
+      const pendingThought = pendingThoughtItemRef.current;
+      const isThought = (
+        item: HistoryItemWithoutId,
+      ): item is HistoryItemWithoutId & {
+        type: 'gemini_thought' | 'gemini_thought_content';
+      } =>
+        item.type === 'gemini_thought' ||
+        item.type === 'gemini_thought_content';
+      const groupId =
+        pendingThought && isThought(pendingThought)
+          ? pendingThought.thoughtGroupId
+          : undefined;
+      if (groupId !== undefined) {
+        // Earlier rows of the same long block were staged while it streamed.
+        setPendingAssistantItems((items) =>
+          items.map((item) =>
+            isThought(item) && item.thoughtGroupId === groupId
+              ? { ...item, isStreaming: false }
+              : item,
+          ),
+        );
+      }
+      const stageThought =
+        keepStaged && pendingAssistantItemsRef.current.length > 0;
+      if (!keepStaged) {
+        commitPendingAssistantItems(userMessageTimestamp);
+      }
+      if (pendingThought) {
+        const item = { ...pendingThought };
+        if (isThought(item) && item.thoughtGroupId !== undefined) {
+          item.isStreaming = false;
+        }
+        if (item.type === 'gemini_thought' && thoughtStartTimeRef.current) {
+          item.durationMs = Date.now() - thoughtStartTimeRef.current;
+        }
+        if (stageThought) {
+          setPendingAssistantItems((items) => [...items, item]);
+        } else {
+          addItem(item, userMessageTimestamp);
+        }
+      }
+      setPendingThoughtItem(null);
+      thoughtStartTimeRef.current = null;
+      thoughtGroupIdRef.current = undefined;
+    },
+    [
+      addItem,
+      commitPendingAssistantItems,
+      pendingAssistantItemsRef,
+      pendingThoughtItemRef,
+      setPendingAssistantItems,
+      setPendingThoughtItem,
+    ],
+  );
   const [
     pendingRetryErrorItem,
     pendingRetryErrorItemRef,
@@ -1452,6 +1516,8 @@ export const useLlmStream = (
     );
     logApiCancel(config, cancellationEvent);
 
+    // Output streamed before the cancellation stays above its notice.
+    commitPendingThought(Date.now());
     if (pendingHistoryItemRef.current) {
       commitItemInOrder(pendingHistoryItemRef.current, Date.now());
     }
@@ -1516,6 +1582,7 @@ export const useLlmStream = (
     streamingState,
     addItem,
     commitItemInOrder,
+    commitPendingThought,
     setPendingHistoryItem,
     onCancelSubmit,
     pendingHistoryItemRef,
@@ -2178,6 +2245,24 @@ export const useLlmStream = (
       if (startingNewThought) {
         thoughtStartTimeRef.current = Date.now();
         newThoughtBuffer = description;
+        thoughtGroupIdRef.current = undefined;
+        if (pendingAssistantItemsRef.current.length > 0) {
+          // Stay below every id already in history, including ones restored
+          // from a session, so two blocks never share a fold.
+          for (const item of historyRef.current) {
+            if (
+              (item.type === 'gemini_thought' ||
+                item.type === 'gemini_thought_content') &&
+              item.thoughtGroupId !== undefined
+            ) {
+              lastThoughtGroupIdRef.current = Math.min(
+                lastThoughtGroupIdRef.current,
+                item.thoughtGroupId,
+              );
+            }
+          }
+          thoughtGroupIdRef.current = --lastThoughtGroupIdRef.current;
+        }
       }
 
       // Keep the transient `thought` (subject) in sync for the window title.
@@ -2202,17 +2287,16 @@ export const useLlmStream = (
       const buildThoughtItem = (
         type: 'gemini_thought' | 'gemini_thought_content',
         text: string,
-      ): HistoryItemWithoutId =>
-        type === 'gemini_thought'
-          ? {
-              type,
-              text,
-              durationMs: getThoughtDurationMs(),
-            }
-          : {
-              type,
-              text,
-            };
+      ): HistoryItemWithoutId => ({
+        type,
+        text,
+        ...(type === 'gemini_thought'
+          ? { durationMs: getThoughtDurationMs() }
+          : {}),
+        ...(thoughtGroupIdRef.current !== undefined
+          ? { thoughtGroupId: thoughtGroupIdRef.current, isStreaming: true }
+          : {}),
+      });
 
       let splitPoint = findLastSafeSplitPoint(
         newThoughtBuffer,
@@ -2229,10 +2313,13 @@ export const useLlmStream = (
           newThoughtBuffer,
           safeSplitPoint,
         );
-        addItem(
-          buildThoughtItem(pendingThoughtType, beforeText),
-          userMessageTimestamp,
-        );
+        const splitItem = buildThoughtItem(pendingThoughtType, beforeText);
+        if (pendingAssistantItemsRef.current.length > 0) {
+          // History must not receive this before the output staged ahead of it.
+          setPendingAssistantItems((items) => [...items, splitItem]);
+        } else {
+          addItem(splitItem, userMessageTimestamp);
+        }
         pendingThoughtType = 'gemini_thought_content';
         newThoughtBuffer = afterText;
         splitPoint = findLastSafeSplitPoint(
@@ -2247,24 +2334,14 @@ export const useLlmStream = (
 
       return newThoughtBuffer;
     },
-    [addItem, mergeThought, pendingThoughtItemRef, setPendingThoughtItem],
-  );
-
-  // Commit the streamed reasoning to history as a collapsible block (or drop
-  // it). Called when the answer/tool/turn begins, or on cancel/error.
-  const commitPendingThought = useCallback(
-    (userMessageTimestamp: number) => {
-      if (pendingThoughtItemRef.current) {
-        const item = { ...pendingThoughtItemRef.current };
-        if (item.type === 'gemini_thought' && thoughtStartTimeRef.current) {
-          item.durationMs = Date.now() - thoughtStartTimeRef.current;
-        }
-        addItem(item, userMessageTimestamp);
-      }
-      setPendingThoughtItem(null);
-      thoughtStartTimeRef.current = null;
-    },
-    [addItem, pendingThoughtItemRef, setPendingThoughtItem],
+    [
+      addItem,
+      mergeThought,
+      pendingAssistantItemsRef,
+      pendingThoughtItemRef,
+      setPendingAssistantItems,
+      setPendingThoughtItem,
+    ],
   );
 
   const handleUserCancelledEvent = useCallback(
@@ -2792,15 +2869,33 @@ export const useLlmStream = (
             }
           }
 
+          const description = thoughtDescriptions.join('');
+          // Reasoning that resumes after assistant output closes that output:
+          // it is staged so the reasoning renders, and commits, after it.
+          if (
+            !turnCancelledRef.current &&
+            description.trim().length > 0 &&
+            stagePendingAssistantItem()
+          ) {
+            llmMessageBuffer = '';
+          }
           thoughtBuffer = handleThoughtEvent(
             {
               subject,
-              description: thoughtDescriptions.join(''),
+              description,
             },
             thoughtBuffer,
             userMessageTimestamp,
           );
         }
+      };
+
+      // A visible control message ends the reasoning before it, and everything
+      // staged, so they reach history ahead of that message.
+      const sealPendingThought = () => {
+        commitPendingThought(userMessageTimestamp);
+        thoughtBuffer = '';
+        setThought(null);
       };
 
       const scheduleBufferedStreamFlush = () => {
@@ -2850,7 +2945,7 @@ export const useLlmStream = (
                 bufferedEvents.some((e) => e.kind === 'thought')
               ) {
                 flushBufferedStreamEvents();
-                commitPendingThought(userMessageTimestamp);
+                commitPendingThought(userMessageTimestamp, true);
                 thoughtBuffer = '';
               }
               setThought((prev) => (prev ? null : prev));
@@ -2877,7 +2972,7 @@ export const useLlmStream = (
               // reasoning then commit it to history (collapsed) above the tool
               // output.
               flushBufferedStreamEvents();
-              commitPendingThought(userMessageTimestamp);
+              commitPendingThought(userMessageTimestamp, true);
               thoughtBuffer = '';
               setThought((prev) => (prev ? null : prev));
               if (event.value.goalContext && turnAdmission) {
@@ -2912,6 +3007,7 @@ export const useLlmStream = (
               break;
             case ServerLlmEventType.ChatCompressed:
               flushBufferedStreamEvents();
+              sealPendingThought();
               handleChatCompressionEvent(event.value, userMessageTimestamp);
               llmMessageBuffer = '';
               assistantOutputStarted = false;
@@ -2922,6 +3018,7 @@ export const useLlmStream = (
               break;
             case ServerLlmEventType.MaxSessionTurns:
               flushBufferedStreamEvents();
+              sealPendingThought();
               if (pendingHistoryItemRef.current) {
                 commitItemInOrder(
                   pendingHistoryItemRef.current,
@@ -2935,6 +3032,7 @@ export const useLlmStream = (
               break;
             case ServerLlmEventType.SessionTokenLimitExceeded:
               flushBufferedStreamEvents();
+              sealPendingThought();
               if (pendingHistoryItemRef.current) {
                 commitItemInOrder(
                   pendingHistoryItemRef.current,
@@ -2978,11 +3076,12 @@ export const useLlmStream = (
               break;
             case ServerLlmEventType.Citation:
               flushBufferedStreamEvents();
-              handleCitationEvent(event.value, userMessageTimestamp);
               if (showCitations(settings)) {
+                sealPendingThought();
                 llmMessageBuffer = '';
                 assistantOutputStarted = false;
               }
+              handleCitationEvent(event.value, userMessageTimestamp);
               break;
             case ServerLlmEventType.LoopDetected:
               flushBufferedStreamEvents();
@@ -3000,11 +3099,13 @@ export const useLlmStream = (
               // losing the partial text we meant to preserve.
               if (!event.isContinuation) {
                 discardBufferedStreamEvents();
+                // Before the staged rows are dropped: reasoning that followed
+                // them belongs to the failed attempt and goes with them.
+                commitPendingThought(userMessageTimestamp, true);
                 setPendingAssistantItems([]);
                 if (pendingHistoryItemRef.current) {
                   setPendingHistoryItem(null);
                 }
-                commitPendingThought(userMessageTimestamp);
                 thoughtBuffer = '';
                 setThought(null);
                 llmMessageBuffer = '';
@@ -3033,11 +3134,11 @@ export const useLlmStream = (
               // switching to the next fallback model. Discard partial content
               // from the failed attempt and show a notification.
               discardBufferedStreamEvents();
+              commitPendingThought(userMessageTimestamp, true);
               setPendingAssistantItems([]);
               if (pendingHistoryItemRef.current) {
                 setPendingHistoryItem(null);
               }
-              commitPendingThought(userMessageTimestamp);
               thoughtBuffer = '';
               setThought(null);
               llmMessageBuffer = '';
@@ -3059,6 +3160,7 @@ export const useLlmStream = (
             }
             case ServerLlmEventType.HookSystemMessage:
               flushBufferedStreamEvents();
+              sealPendingThought();
               // Display system message from Stop hooks with "Stop says:" prefix
               // First commit any pending AI response to ensure correct ordering
               if (pendingHistoryItemRef.current) {
@@ -3080,6 +3182,7 @@ export const useLlmStream = (
               break;
             case ServerLlmEventType.GoalSettlementFailed:
               flushBufferedStreamEvents();
+              sealPendingThought();
               if (pendingHistoryItemRef.current) {
                 commitItemInOrder(
                   pendingHistoryItemRef.current,
@@ -3096,6 +3199,7 @@ export const useLlmStream = (
               break;
             case ServerLlmEventType.UserPromptSubmitBlocked:
               flushBufferedStreamEvents();
+              sealPendingThought();
               userPromptBlocked = true;
               handleUserPromptSubmitBlockedEvent(
                 event.value,
@@ -3106,6 +3210,7 @@ export const useLlmStream = (
               break;
             case ServerLlmEventType.StopHookLoop:
               flushBufferedStreamEvents();
+              sealPendingThought();
               handleStopHookLoopEvent(event.value, userMessageTimestamp);
               llmMessageBuffer = '';
               assistantOutputStarted = false;
@@ -3113,6 +3218,7 @@ export const useLlmStream = (
             case ServerLlmEventType.GoalState:
               if (event.cause && shouldDisplayGoalStateCause(event.cause)) {
                 flushBufferedStreamEvents();
+                sealPendingThought();
                 if (pendingHistoryItemRef.current) {
                   commitItemInOrder(
                     pendingHistoryItemRef.current,
@@ -3141,11 +3247,15 @@ export const useLlmStream = (
         }
       } finally {
         flushBufferedStreamEvents();
-        commitPendingThought(userMessageTimestamp);
+        // A thrown stream must leave interleaved output discardable on retry.
+        commitPendingThought(userMessageTimestamp, true);
         discardBufferedStreamEvents();
         flushBufferedStreamEventsRef.current.delete(flushBufferedStreamEvents);
         dualOutput?.finalizeAssistantMessage();
       }
+      // The stream ended without throwing: what it staged goes to history
+      // before any tool group this response scheduled.
+      commitPendingAssistantItems(userMessageTimestamp);
       // When a loop was detected, halt without scheduling the calls collected
       // before the guard fired. The core splice/clear only touches
       // turn.pendingToolCalls, which the TUI does not execute from — without
@@ -3321,6 +3431,7 @@ export const useLlmStream = (
       clearRetryCountdown,
       setThought,
       commitPendingThought,
+      commitPendingAssistantItems,
       pendingHistoryItemRef,
       pendingAssistantItemsRef,
       pendingThoughtItemRef,
@@ -6198,9 +6309,10 @@ export const useLlmStream = (
   const pendingHistoryItems = useMemo(
     () =>
       [
-        // Reasoning renders above the streaming answer.
-        pendingThoughtItem,
+        // Reasoning renders below the output staged before it and above the
+        // answer still streaming.
         ...pendingAssistantItems,
+        pendingThoughtItem,
         pendingHistoryItem,
         pendingRetryErrorItem,
         pendingRetryCountdownItem,

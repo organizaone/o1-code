@@ -6,6 +6,7 @@
 
 import type OpenAI from 'openai';
 import {
+  FinishReason,
   type GenerateContentParameters,
   GenerateContentResponse,
 } from '@google/genai';
@@ -13,7 +14,11 @@ import type {
   ContentGeneratorConfig,
   PromptCacheSharingParameters,
 } from '../contentGenerator.js';
-import { OpenAIContentConverter } from './converter.js';
+import {
+  corroborateTruncationFromCompletionTokens,
+  OpenAIContentConverter,
+} from './converter.js';
+import { markToolCallArgumentsIncomplete } from '../incomplete-tool-call-args.js';
 import { DashScopeOpenAICompatibleProvider } from './provider/dashscope.js';
 import {
   applyOfficialOpenAIPromptCaching,
@@ -341,6 +346,51 @@ function hasNonThoughtCandidateParts(
 }
 
 /**
+ * Releases what the trailing-tag filter still withholds when a stream ends
+ * without a finish chunk, or fails. The hold is only whitespace and a tag
+ * fragment, never prose, so keeping it back loses no model output. It stays
+ * back when:
+ * - the request was cancelled;
+ * - the reasoning channel carried thinking tags (a cross-channel leak);
+ * - a finish reason was already seen, so text would land after it;
+ * - parts are parked as untrusted, or the tagged-thinking parser took the
+ *   stream over: that turn may still be rejected as a tag leak.
+ */
+function flushTrailingThinkingTag(
+  abortSignal: AbortSignal | undefined,
+  context: RequestContext,
+  finishSeen: boolean,
+  completed: boolean,
+): {
+  response?: GenerateContentResponse;
+  sanitizedTagName?: 'think' | 'thinking';
+} {
+  const filter = context.trailingThinkingTagFilter;
+  if (
+    !filter ||
+    abortSignal?.aborted === true ||
+    context.hasThinkingTagInReasoning ||
+    finishSeen ||
+    context.pendingUntrustedResponseParts !== undefined ||
+    context.taggedThinkingParser !== undefined
+  ) {
+    return {};
+  }
+  const trailingText = filter.parse('', true, completed);
+  const sanitizedTagName = filter.sanitizedTagName;
+  filter.sanitizedTagName = undefined;
+  if (!trailingText) return { sanitizedTagName };
+  const response = new GenerateContentResponse();
+  response.candidates = [
+    {
+      content: { parts: [{ text: trailingText }], role: 'model' },
+      index: 0,
+    },
+  ];
+  return { response, sanitizedTagName };
+}
+
+/**
  * Thrown when the HTTP 200 response to a streaming request has a content-type
  * incompatible with SSE (e.g. `text/html` from a gateway block page). Carries
  * bounded diagnostic metadata so the user/maintainer can distinguish "model
@@ -383,6 +433,26 @@ function hasProviderOutputBudgetKey(samplingParams: {
   return PROVIDER_OUTPUT_BUDGET_KEYS.some(
     (key) => samplingParams[key] !== undefined,
   );
+}
+
+/**
+ * Output-token ceiling carried by a wire request, under whichever key the
+ * budget travels. Undefined when the request caps output by neither.
+ */
+function getWireOutputBudget(
+  request: OpenAI.Chat.ChatCompletionCreateParams,
+): number | undefined {
+  if (typeof request.max_tokens === 'number' && request.max_tokens > 0) {
+    return request.max_tokens;
+  }
+  const wire = request as unknown as Record<string, unknown>;
+  for (const key of PROVIDER_OUTPUT_BUDGET_KEYS) {
+    const value = wire[key];
+    if (typeof value === 'number' && value > 0) {
+      return value;
+    }
+  }
+  return undefined;
 }
 
 /**
@@ -631,6 +701,8 @@ export class ContentGenerationPipeline {
     // function-call parts from the finish chunk).
     let pendingFinishResponse: GenerateContentResponse | null = null;
     let finishYielded = false;
+    // A finish reason was seen, whether or not its response was yielded yet.
+    let finishSeen = false;
     // Whether any user-visible content (a non-thought part) has been yielded
     // on this stream. The error-path flush below consults it before
     // withholding a parked tool-call finish: it must mirror LlmChat's
@@ -646,7 +718,7 @@ export class ContentGenerationPipeline {
       | NonNullable<RequestContext['protocolTagSanitized']>
       | undefined;
     const logPendingProtocolTagSanitized = (
-      response: GenerateContentResponse,
+      response: GenerateContentResponse | undefined,
       sanitization:
         | NonNullable<RequestContext['protocolTagSanitized']>
         | undefined,
@@ -655,7 +727,7 @@ export class ContentGenerationPipeline {
       const event = new ProtocolTagSanitizedEvent({
         model: context.model,
         promptId: userPromptId,
-        responseId: response.responseId,
+        responseId: response?.responseId,
         tagName: sanitization.tagName,
         toolCallCount: sanitization.toolCallCount,
       });
@@ -667,6 +739,19 @@ export class ContentGenerationPipeline {
         toolCallCount: event.tool_call_count,
       });
       logProtocolTagSanitized(this.config.cliConfig, event);
+    };
+    // The flush strips through the filter directly, so its removal is
+    // reported here; it has no provider response to take an id from.
+    const logFlushedTrailingTag = (
+      flushed: ReturnType<typeof flushTrailingThinkingTag>,
+    ): GenerateContentResponse | undefined => {
+      if (flushed.sanitizedTagName) {
+        logPendingProtocolTagSanitized(flushed.response, {
+          tagName: flushed.sanitizedTagName,
+          toolCallCount: 0,
+        });
+      }
+      return flushed.response;
     };
 
     try {
@@ -703,6 +788,10 @@ export class ContentGenerationPipeline {
           getToolCallPreparations(response).length === 0
         ) {
           continue;
+        }
+
+        if (response.candidates?.[0]?.finishReason) {
+          finishSeen = true;
         }
 
         if (
@@ -768,6 +857,7 @@ export class ContentGenerationPipeline {
             // into this generator at the yield below never runs the statement
             // that follows it, and the error-path flush re-tests this flag
             // before deciding whether the response still needs delivering.
+            this.settleParkedTruncationOverride(pendingFinishResponse, context);
             finishYielded = true;
             yield pendingFinishResponse;
             // Keep pendingFinishResponse alive so late-arriving usage
@@ -816,6 +906,22 @@ export class ContentGenerationPipeline {
         );
       }
 
+      // After the leak verdict above, so a rejected turn never has its tail
+      // handed over as prose. A stream that ends cleanly without a finish
+      // chunk counts as finished, so a complete trailing tag is still dropped.
+      const flushedTail = logFlushedTrailingTag(
+        flushTrailingThinkingTag(
+          request.config?.abortSignal,
+          context,
+          finishSeen,
+          true,
+        ),
+      );
+      if (flushedTail) {
+        contentYielded ||= hasNonThoughtCandidateParts(flushedTail);
+        yield flushedTail;
+      }
+
       // Stage 2d: If there's still a pending finish response at the end
       // (e.g. no usage chunk arrived after the finish chunk), yield it.
       if (pendingFinishResponse && !finishYielded) {
@@ -824,6 +930,7 @@ export class ContentGenerationPipeline {
           pendingFinishProtocolTagSanitized,
         );
         // Before the yield, for the reason given at the in-loop one above.
+        this.settleParkedTruncationOverride(pendingFinishResponse, context);
         finishYielded = true;
         yield pendingFinishResponse;
       }
@@ -839,6 +946,20 @@ export class ContentGenerationPipeline {
 
       if (error instanceof InvalidStreamError) {
         throw error;
+      }
+
+      // A failed stream is a cut answer: the held tail goes out unedited.
+      const flushedTail = logFlushedTrailingTag(
+        flushTrailingThinkingTag(
+          request.config?.abortSignal,
+          context,
+          finishSeen,
+          false,
+        ),
+      );
+      if (flushedTail) {
+        contentYielded ||= hasNonThoughtCandidateParts(flushedTail);
+        yield flushedTail;
       }
 
       // A finish chunk parked for the usage merge must not be lost when the
@@ -898,6 +1019,7 @@ export class ContentGenerationPipeline {
         if (parkedHasToolCall) {
           markFlushedToolCallPark(pendingFinishResponse);
         }
+        this.settleParkedTruncationOverride(pendingFinishResponse, context);
         yield pendingFinishResponse;
         finishYielded = true;
       }
@@ -1024,6 +1146,41 @@ export class ContentGenerationPipeline {
 
     // Normal chunk
     return true;
+  }
+
+  /**
+   * Decides a finish-reason rewrite the converter left open for want of usage,
+   * right before the parked finish response is delivered: by then the trailing
+   * usage chunk, if any, has been merged into it. It only ever restores the
+   * provider's own reason, and only on a candidate still reading MAX_TOKENS.
+   */
+  private settleParkedTruncationOverride(
+    response: GenerateContentResponse,
+    context: RequestContext,
+  ): void {
+    const parked = context.pendingTruncationOverride;
+    if (!parked) {
+      return;
+    }
+    context.pendingTruncationOverride = undefined;
+    const candidate = response.candidates?.[0];
+    if (!candidate || candidate.finishReason !== FinishReason.MAX_TOKENS) {
+      return;
+    }
+    const verdict = corroborateTruncationFromCompletionTokens(
+      response.usageMetadata?.candidatesTokenCount,
+      context.maxOutputTokens,
+    );
+    if (verdict === 'disproved') {
+      candidate.finishReason = parked.finishReason;
+      markToolCallArgumentsIncomplete(candidate.content?.parts);
+    }
+    debugLogger.debug('Settled a parked truncation override', {
+      candidatesTokenCount:
+        response.usageMetadata?.candidatesTokenCount ?? null,
+      maxOutputTokens: context.maxOutputTokens ?? null,
+      verdict,
+    });
   }
 
   private async buildRequest(
@@ -1607,6 +1764,7 @@ export class ContentGenerationPipeline {
         attemptContext,
         isStreaming,
       );
+      attemptContext.maxOutputTokens = getWireOutputBudget(openaiRequest);
 
       // Position is load-bearing: capture must run after buildRequest (post
       // provider enhancement, post disable-reasoning) and before the SDK call

@@ -21,6 +21,7 @@ import {
 import type {
   ResponsesApiFunctionCallItem,
   ResponsesApiFunctionCallOutputItem,
+  ResponsesApiInputItem,
   ResponsesApiMessageItem,
   ResponsesApiReasoningItem,
   ResponsesSSEEvent,
@@ -1879,6 +1880,85 @@ describe('cleanOrphanedFunctionCalls', () => {
       { type: 'message', role: 'user', content: 'hi' },
     ]);
     expect(items).toEqual([{ type: 'message', role: 'user', content: 'hi' }]);
+  });
+
+  const reasoning = (id: string): ResponsesApiInputItem => ({
+    type: 'reasoning',
+    id,
+    encrypted_content: 'enc',
+    summary: [],
+  });
+  const call = (callId: string): ResponsesApiInputItem => ({
+    type: 'function_call',
+    call_id: callId,
+    name: 'f',
+    arguments: '{}',
+  });
+  const output = (callId: string): ResponsesApiInputItem => ({
+    type: 'function_call_output',
+    call_id: callId,
+    output: 'ok',
+  });
+  const msgItem = (role: 'user', content: string): ResponsesApiInputItem => ({
+    type: 'message',
+    role,
+    content,
+  });
+
+  it('drops the reasoning item heading a fully orphaned call group', () => {
+    expect(cleanOrphanedFunctionCalls([reasoning('rs_1'), call('a')])).toEqual(
+      [],
+    );
+    expect(
+      cleanOrphanedFunctionCalls([reasoning('rs_1'), call('a'), call('b')]),
+    ).toEqual([]);
+  });
+
+  it('keeps the reasoning when a sibling call in its group survives', () => {
+    expect(
+      cleanOrphanedFunctionCalls([
+        reasoning('rs_1'),
+        call('a'),
+        call('b'),
+        output('b'),
+      ]),
+    ).toEqual([reasoning('rs_1'), call('b'), output('b')]);
+  });
+
+  it('drops the whole reasoning run heading a fully orphaned group', () => {
+    expect(
+      cleanOrphanedFunctionCalls([
+        reasoning('rs_1'),
+        reasoning('rs_2'),
+        call('a'),
+        call('b'),
+      ]),
+    ).toEqual([]);
+  });
+
+  it('keeps reasoning that is paired with a surviving call or with no call', () => {
+    const paired = [reasoning('rs_1'), call('b'), output('b')];
+    expect(cleanOrphanedFunctionCalls(paired)).toEqual(paired);
+    const unpaired = [reasoning('rs_1'), msgItem('user', 'hi')];
+    expect(cleanOrphanedFunctionCalls(unpaired)).toEqual(unpaired);
+  });
+
+  it('drops only the reasoning tied to the orphaned call', () => {
+    expect(
+      cleanOrphanedFunctionCalls([
+        msgItem('user', 'hi'),
+        reasoning('rs_old'),
+        call('a'),
+        reasoning('rs_new'),
+        call('b'),
+        output('b'),
+      ]),
+    ).toEqual([
+      msgItem('user', 'hi'),
+      reasoning('rs_new'),
+      call('b'),
+      output('b'),
+    ]);
   });
 });
 

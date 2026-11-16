@@ -257,11 +257,21 @@ export type HistoryItemLlmThought = HistoryItemBase & {
   type: 'gemini_thought';
   text: string;
   durationMs?: number;
+  /** False once the reasoning ended while its row is still in the live region. */
+  isStreaming?: boolean;
+  /**
+   * Fold identity of a reasoning block that started after assistant output in
+   * the same response. It is negative, so it never matches a history item id,
+   * and it stays the same from the live rows through the history commit.
+   */
+  thoughtGroupId?: number;
 };
 
 export type HistoryItemLlmThoughtContent = HistoryItemBase & {
   type: 'gemini_thought_content';
   text: string;
+  isStreaming?: boolean;
+  thoughtGroupId?: number;
 };
 
 export type HistoryItemInfo = HistoryItemBase & {

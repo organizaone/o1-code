@@ -28,6 +28,7 @@ import { reportError } from '../utils/errorReporting.js';
 import type { LlmChat } from './llm-chat.js';
 import { StreamEventType } from './llm-chat.js';
 import { normalizeModelToolCallIds } from './toolCallIdUtils.js';
+import { markToolCallArgumentsIncomplete } from './incomplete-tool-call-args.js';
 import { createOpenAIReasoningThoughtPart } from '../utils/thoughtUtils.js';
 
 const mockSendMessageStream = vi.fn();
@@ -1780,6 +1781,39 @@ describe('Turn', () => {
       // Verify that pending tool calls do NOT have wasOutputTruncated flag
       expect(turn.pendingToolCalls).toHaveLength(1);
       expect(turn.pendingToolCalls[0].wasOutputTruncated).toBeUndefined();
+    });
+
+    it('sets hadIncompleteArguments only on a call marked as incomplete', async () => {
+      const marked = { name: 'write_file', args: { file_path: '/a.txt' } };
+      markToolCallArgumentsIncomplete([{ functionCall: marked }]);
+      const mockResponseStream = (async function* () {
+        yield {
+          type: StreamEventType.CHUNK,
+          value: {
+            functionCalls: [
+              marked,
+              { name: 'read_file', args: { file_path: '/b.txt' } },
+            ],
+            candidates: [{ finishReason: 'STOP', content: { parts: [] } }],
+          } as unknown as GenerateContentResponse,
+        };
+      })();
+      mockSendMessageStream.mockResolvedValue(mockResponseStream);
+
+      for await (const _ of turn.run(
+        'test-model',
+        [{ text: 'Test prompt' }],
+        new AbortController().signal,
+      )) {
+        // consume stream
+      }
+
+      expect(turn.pendingToolCalls).toHaveLength(2);
+      expect(turn.pendingToolCalls[0].hadIncompleteArguments).toBe(true);
+      expect(turn.pendingToolCalls[0].wasOutputTruncated).toBeUndefined();
+      expect(turn.pendingToolCalls[1]).not.toHaveProperty(
+        'hadIncompleteArguments',
+      );
     });
 
     it('should handle multiple pending tool calls with MAX_TOKENS', async () => {
