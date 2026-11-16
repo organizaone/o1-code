@@ -933,6 +933,22 @@ export class ToolRegistry {
   }
 
   /**
+   * Reveals the named tools that are still hidden behind the bridge and
+   * reports whether any was, so a caller knows the declaration list changed
+   * and has to be refreshed.
+   */
+  revealHiddenDeferredTools(names: readonly string[]): boolean {
+    let changed = false;
+    for (const name of names) {
+      if (this.isDeferredAndHidden(name)) {
+        this.revealDeferredTool(name);
+        changed = true;
+      }
+    }
+    return changed;
+  }
+
+  /**
    * Marks a deferred tool's reveal as session-setup state that must survive
    * `/clear` resets: {@link clearRevealedDeferredTools} re-reveals pinned
    * tools (while still registered and deferred) so the fresh session's

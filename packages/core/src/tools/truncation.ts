@@ -78,6 +78,12 @@ export async function truncateAndSaveToFile(
   keep: 'head' | 'tail' | 'both' = 'both',
   previewChars = threshold,
   exclusive = false,
+  // When given, the spill is charged to the session's tool-result disk budget
+  // and skipped once that budget (or the per-file cap) would be exceeded.
+  persistenceConfig?: Pick<
+    Config,
+    'getToolResultBytesWritten' | 'trackToolResultBytes'
+  >,
 ): Promise<{ content: string; outputFile?: string }> {
   // Fast path: when no line cap applies (per-tool char budgets pass
   // truncateLines = Infinity) and content is within the char threshold, return
@@ -195,19 +201,73 @@ export async function truncateAndSaveToFile(
   // Sanitize fileName to prevent path traversal.
   const safeFileName = `${path.basename(fileName)}.output`;
   const outputFile = path.join(projectTempDir, safeFileName);
-  const wrappedMessage = `${TOOL_OUTPUT_TRUNCATED_PREFIX}.
-The full output has been saved to: ${outputFile}
-To read the complete output, use the ${ReadFileTool.Name} tool with the absolute file path above.
-The truncated output below shows the beginning and end of the content. The marker '... [CONTENT TRUNCATED] ...' indicates where content was removed.
+  // No separator is emitted below its own length, so the wording must not
+  // point at a marker that is not there.
+  const removalNote = sep
+    ? " The marker '... [CONTENT TRUNCATED] ...' indicates where content was removed."
+    : '';
+  const keptPart =
+    keep === 'head'
+      ? 'the beginning'
+      : keep === 'tail'
+        ? 'the end'
+        : 'the beginning and end';
+  const description = `The truncated output below shows ${keptPart} of the content.${removalNote}`;
+  // Loop detection fingerprints a bounded result by this digest (see
+  // FULL_OUTPUT_DIGEST_LABEL). A body whose spill was skipped or failed needs
+  // it just as much as a saved one.
+  const fullOutputDigest = crypto
+    .createHash('sha256')
+    .update(content)
+    .digest('hex');
+  // Every bounded body shares this shape and LEADS with the sentinel, because
+  // the idempotency guards test `startsWith(TOOL_OUTPUT_TRUNCATED_PREFIX)`.
+  // Only the header and the paging hint differ: a body that was not saved
+  // must not point at a file.
+  const envelope = (
+    header: string,
+    hint?: string,
+  ) => `${TOOL_OUTPUT_TRUNCATED_PREFIX}.
+${header}
+Total characters: ${content.length}; total lines: ${lines.length}.
+${FULL_OUTPUT_DIGEST_LABEL}${fullOutputDigest}
+${hint ? `${hint}\n` : ''}${description}
 
 Truncated part of the output:
 ${truncatedContent}`;
+  const wrappedMessage = envelope(
+    `The full output has been saved to: ${outputFile}`,
+    pagingHint(lines.length === 1),
+  );
 
   // Token-aware fallback: if the wrapped (truncated + instructions) output is
   // not actually smaller than the original, truncating wastes effort and
   // loses recoverability for no benefit — keep the original untouched.
   if (wrappedMessage.length >= content.length) {
     return { content };
+  }
+
+  const byteSize = Buffer.byteLength(content, 'utf-8');
+  if (persistenceConfig) {
+    // Reserve synchronously, before the async write, so parallel spills cannot
+    // all pass the check. The two skip reasons stay distinct: a body too large
+    // on its own is not a session that ran out of room.
+    const tooLarge = byteSize > MAX_FILE_SIZE_BYTES;
+    const sessionBytes = persistenceConfig.getToolResultBytesWritten?.() ?? 0;
+    if (tooLarge || sessionBytes + byteSize > MAX_SESSION_BYTES) {
+      const reason = tooLarge
+        ? `it exceeds the ${MAX_FILE_SIZE_BYTES} byte per-file limit`
+        : 'the session disk budget is exhausted';
+      debugLogger.warn(
+        `Skipping spill of ${byteSize} bytes to ${outputFile}: ${reason}`,
+      );
+      return {
+        content: envelope(
+          `[Note: The full output could not be saved: ${reason}]`,
+        ),
+      };
+    }
+    persistenceConfig.trackToolResultBytes?.(byteSize);
   }
 
   try {
@@ -227,15 +287,41 @@ ${truncatedContent}`;
       outputFile,
     };
   } catch (error) {
+    persistenceConfig?.trackToolResultBytes?.(-byteSize);
     debugLogger.warn(
       `Failed to save truncated output to ${outputFile}:`,
       error,
     );
+    // Sentinel-led like the other returns, or a later pass would not
+    // recognize this body as bounded and would truncate it again.
     return {
-      content:
-        truncatedContent + `\n[Note: Could not save full output to file]`,
+      content: envelope('[Note: Could not save full output to file]'),
     };
   }
+}
+
+/**
+ * How to page a saved output back in. A payload with no line break cannot be
+ * paged by line, so say what does reach its middle.
+ */
+function pagingHint(singleLine: boolean): string {
+  const base = `To read the complete output, use the ${ReadFileTool.Name} tool with the absolute file path above; page through it with offset (zero-based line) and limit (line count).`;
+  return singleLine
+    ? `${base} The saved output is a single line, so line offsets cannot reach its middle: read a byte range with a shell command, or parse the file.`
+    : base;
+}
+
+/** Counts lines without allocating one string per line. */
+function countLines(content: string): number {
+  let count = 1;
+  for (
+    let index = content.indexOf('\n');
+    index !== -1;
+    index = content.indexOf('\n', index + 1)
+  ) {
+    count++;
+  }
+  return count;
 }
 
 /**
@@ -292,6 +378,7 @@ export async function truncateToolOutput(
     keep,
     previewChars,
     outputDirectory !== undefined,
+    config,
   );
 
   if (result.outputFile) {
@@ -396,7 +483,9 @@ export async function truncateLlmContent(
 export function isAlreadyTruncated(content: string): boolean {
   return (
     content.includes('... [CONTENT TRUNCATED] ...') ||
-    content.startsWith('<persisted-output>')
+    content.startsWith('<persisted-output>') ||
+    // A small preview budget drops the marker, leaving only the sentinel.
+    content.startsWith(TOOL_OUTPUT_TRUNCATED_PREFIX)
   );
 }
 
@@ -551,8 +640,9 @@ function buildStub(
     return `<persisted-output>
 Output too large (${sizeKb} KB). Full output saved to: ${filePathOrNote}
 ${FULL_OUTPUT_DIGEST_LABEL}${fullDigest}
+Total characters: ${content.length}; total lines: ${countLines(content)}.
 Note: this file may be cleaned up after 24 hours.
-To read the complete output, use the ${ReadFileTool.Name} tool with the absolute file path above.
+${pagingHint(!content.includes('\n'))}
 
 Preview (up to ${PREVIEW_SIZE_CHARS} chars):
 ${preview}
@@ -561,6 +651,7 @@ ${preview}
 
   return `Output too large (${sizeKb} KB). ${filePathOrNote}
 ${FULL_OUTPUT_DIGEST_LABEL}${fullDigest}
+Total characters: ${content.length}; total lines: ${countLines(content)}.
 
 Preview (up to ${PREVIEW_SIZE_CHARS} chars):
 ${preview}`;

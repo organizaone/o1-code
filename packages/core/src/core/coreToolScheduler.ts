@@ -1115,24 +1115,34 @@ const createErrorResponse = (
   executionStatus: ToolExecutionStatus,
   artifacts?: ToolArtifact[],
   resultDisplay?: ToolResultDisplay,
-): CoreToolCallResponseInfo => ({
-  callId: request.callId,
-  error,
-  responseParts: [
-    {
-      functionResponse: {
-        id: request.callId,
-        name: getModelFacingToolName(request),
-        response: { error: error.message },
+): CoreToolCallResponseInfo => {
+  // A bridged call that never started is marked as such, so a reader of the
+  // result can tell it from a bridged tool that ran and then failed.
+  const errorMessage =
+    getModelFacingToolName(request) === ToolNames.TOOL_CALL &&
+    executionStatus === 'not_started' &&
+    !error.message.startsWith(DEFERRED_TOOL_CALL_REFUSAL_PREFIX)
+      ? `${DEFERRED_TOOL_CALL_REFUSAL_PREFIX}${error.message}`
+      : error.message;
+  return {
+    callId: request.callId,
+    error,
+    responseParts: [
+      {
+        functionResponse: {
+          id: request.callId,
+          name: getModelFacingToolName(request),
+          response: { error: errorMessage },
+        },
       },
-    },
-  ],
-  resultDisplay: resultDisplay ?? error.message,
-  errorType,
-  executionStatus,
-  contentLength: error.message.length,
-  ...(artifacts && artifacts.length > 0 ? { artifacts } : {}),
-});
+    ],
+    resultDisplay: resultDisplay ?? error.message,
+    errorType,
+    executionStatus,
+    contentLength: errorMessage.length,
+    ...(artifacts && artifacts.length > 0 ? { artifacts } : {}),
+  };
+};
 
 const createCancelledResponse = (
   request: ToolCallRequestInfo,
@@ -1145,7 +1155,8 @@ const createCancelledResponse = (
   visionBridgeNotice?: string,
 ): CoreToolCallResponseInfo => {
   const cancellationPrefix =
-    getModelFacingToolName(request) === ToolNames.TOOL_CALL
+    getModelFacingToolName(request) === ToolNames.TOOL_CALL &&
+    executionStatus === 'not_started'
       ? DEFERRED_TOOL_CALL_CANCELLATION_PREFIX
       : '';
   const errorMessage = `${cancellationPrefix}[Operation Cancelled] Reason: ${reason}`;
@@ -2073,7 +2084,6 @@ export class CoreToolScheduler {
 
           const preservedResultDisplay =
             this.compactResultDisplayForInteractiveHistory(resultDisplay);
-          const errorMessage = `[Operation Cancelled] Reason: ${auxiliaryData}`;
           const response: CoreToolCallResponseInfo = isToolCallResponseInfo(
             auxiliaryData,
           )
@@ -2087,23 +2097,12 @@ export class CoreToolScheduler {
                   auxiliaryData.resultDisplay ?? preservedResultDisplay,
               }
             : {
-                callId: currentCall.request.callId,
-                responseParts: [
-                  {
-                    functionResponse: {
-                      id: currentCall.request.callId,
-                      name: getModelFacingToolName(currentCall.request),
-                      response: {
-                        error: errorMessage,
-                      },
-                    },
-                  },
-                ],
+                ...createCancelledResponse(
+                  currentCall.request,
+                  String(auxiliaryData),
+                  executionStatus ?? 'not_started',
+                ),
                 resultDisplay: preservedResultDisplay,
-                error: undefined,
-                errorType: undefined,
-                executionStatus: executionStatus ?? 'not_started',
-                contentLength: errorMessage.length,
               };
           return {
             request: currentCall.request,
@@ -7195,7 +7194,15 @@ export class CoreToolScheduler {
     if (GATE_EXEMPT_TOOLS.has(canonicalToolName(toolName))) return { content };
 
     const text = extractTextFromPartListUnion(content);
-    if (!text || isAlreadyTruncated(text)) return { content };
+    // A web_fetch body can carry its own truncation marker in raw fetched
+    // text, which says nothing about whether the full text was persisted.
+    if (
+      !text ||
+      (canonicalToolName(toolName) !== ToolNames.WEB_FETCH &&
+        isAlreadyTruncated(text))
+    ) {
+      return { content };
+    }
 
     const gateThreshold =
       this.config.getTruncateToolOutputThreshold() + GATE_HEADROOM;

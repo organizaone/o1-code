@@ -257,6 +257,39 @@ describe('ToolSearchTool', () => {
     expect(String(available.llmContent)).toContain('"name":"propose_goal"');
   });
 
+  it('does not offer a deferred Goal proposal by keyword outside an armed ACP turn', async () => {
+    const acpConfig = new Config({
+      ...baseConfigParams,
+      experimentalZedIntegration: true,
+    });
+    acpConfig.setGoalProposalHostSupported(true);
+    const acpRegistry = new ToolRegistry(acpConfig);
+    vi.spyOn(acpConfig, 'getToolRegistry').mockReturnValue(acpRegistry);
+    acpRegistry.registerTool(new ToolSearchTool(acpConfig));
+    acpRegistry.registerTool(new MockTool({ name: ToolNames.TOOL_CALL }));
+    acpRegistry.registerTool(
+      new MockTool({
+        name: 'propose_goal',
+        description: 'propose a session goal',
+        shouldDefer: true,
+      }),
+    );
+    const tool = new ToolSearchTool(acpConfig);
+    const search = async () =>
+      String(
+        (
+          await tool
+            .build({ query: 'propose goal' })
+            .execute(new AbortController().signal)
+        ).llmContent,
+      );
+
+    expect(await search()).not.toContain('"name":"propose_goal"');
+
+    acpConfig.setGoalProposalTurnKey('user-turn');
+    expect(await search()).toContain('"name":"propose_goal"');
+  });
+
   it('escapes `<` in schema JSON so embedded </function> cannot close the wrapper', async () => {
     // MCP descriptions are remote-supplied untrusted text. A description
     // containing the literal substring `</function>` would prematurely

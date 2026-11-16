@@ -1630,6 +1630,100 @@ describe('CoreToolScheduler', () => {
     }
   });
 
+  it('executes a hidden deferred tool the model calls directly by name', async () => {
+    // A deferred tool is absent from the declarations, not from the session:
+    // a model that names it anyway (the system prompt names the Agent tool)
+    // must get the call executed, not refused for skipping the bridge.
+    const execute = vi.fn().mockResolvedValue({
+      llmContent: 'delegated',
+      returnDisplay: 'delegated',
+    });
+    const bridge = new MockTool({ name: ToolNames.TOOL_CALL });
+    const deferred = new MockTool({
+      name: ToolNames.AGENT,
+      shouldDefer: true,
+      execute,
+    });
+    const { scheduler, onAllToolCallsComplete } =
+      createSchedulerForLegacyToolTests({
+        toolsByName: new Map([
+          [bridge.name, bridge],
+          [deferred.name, deferred],
+        ]),
+        deferredHiddenNames: new Set([deferred.name]),
+      });
+
+    await scheduler.schedule(
+      {
+        callId: 'direct-deferred',
+        name: ToolNames.AGENT,
+        args: {},
+        isClientInitiated: false,
+        prompt_id: 'prompt-direct-deferred',
+      },
+      new AbortController().signal,
+    );
+
+    await vi.waitFor(() => expect(onAllToolCallsComplete).toHaveBeenCalled());
+    expect(execute).toHaveBeenCalledOnce();
+    const completed = onAllToolCallsComplete.mock.calls[0][0][0] as ToolCall;
+    expect(completed.status).toBe('success');
+    expect(
+      completed.status === 'success'
+        ? completed.response.responseParts[0]?.functionResponse?.name
+        : undefined,
+    ).toBe(ToolNames.AGENT);
+  });
+
+  it('marks a bridged call that failed validation as never started', async () => {
+    // The reader of a tool_call result tells a call that never ran from a
+    // bridged tool that ran and failed by this prefix alone.
+    const execute = vi.fn();
+    const bridge = new MockTool({ name: ToolNames.TOOL_CALL });
+    const deferred = new MockTool({
+      name: ToolNames.AGENT,
+      shouldDefer: true,
+      execute,
+    });
+    vi.spyOn(deferred, 'build').mockImplementation(() => {
+      throw new Error('params must have required property "prompt"');
+    });
+    const { scheduler, onAllToolCallsComplete } =
+      createSchedulerForLegacyToolTests({
+        toolsByName: new Map([
+          [bridge.name, bridge],
+          [deferred.name, deferred],
+        ]),
+        deferredHiddenNames: new Set([deferred.name]),
+      });
+
+    await scheduler.schedule(
+      {
+        callId: 'bridge-invalid',
+        name: ToolNames.TOOL_CALL,
+        args: { name: deferred.name, arguments: {} },
+        isClientInitiated: false,
+        prompt_id: 'prompt-bridge-invalid',
+      },
+      new AbortController().signal,
+    );
+
+    await vi.waitFor(() => expect(onAllToolCallsComplete).toHaveBeenCalled());
+    expect(execute).not.toHaveBeenCalled();
+    const completed = onAllToolCallsComplete.mock.calls[0][0][0] as ToolCall;
+    expect(completed.status).toBe('error');
+    if (completed.status === 'error') {
+      expect(completed.response.executionStatus).toBe('not_started');
+      expect(
+        completed.response.responseParts[0]?.functionResponse?.response?.[
+          'error'
+        ],
+      ).toBe(
+        `${DEFERRED_TOOL_CALL_REFUSAL_PREFIX}params must have required property "prompt"`,
+      );
+    }
+  });
+
   it('rejects a bridged target the owner execution allowlist does not permit', async () => {
     // The pre-schedule gates see the wrapper name (tool_call), which is
     // always allowed; the scheduler must re-check the resolved target

@@ -2800,6 +2800,7 @@ export class Config {
    * built. See {@link getPromptToolSnapshot}.
    */
   private promptToolSnapshot: ReadonlySet<string> | undefined;
+  private promptAgentReachable = false;
 
   /**
    * Volatile system-prompt layer: the managed auto-memory section
@@ -8094,6 +8095,19 @@ export class Config {
   }
 
   /**
+   * Whether the Agent tool could be called when the system prompt was built:
+   * declared, or deferred behind a complete bridge. Recorded with the snapshot
+   * above so the prompt keeps its delegation guidance for a deferred Agent.
+   */
+  getPromptAgentReachable(): boolean {
+    return this.promptAgentReachable;
+  }
+
+  setPromptAgentReachable(reachable: boolean): void {
+    this.promptAgentReachable = reachable;
+  }
+
+  /**
    * The managed auto-memory section of the system prompt (volatile layer).
    * Empty when managed memory is unavailable. Callers assembling a system
    * prompt must append this after all stable/context content.
@@ -10698,6 +10712,29 @@ export class Config {
     );
   }
 
+  /**
+   * Declares the deferred Goal worker tools as soon as a Goal is active, on
+   * every host: a Goal turn must never have to look them up first. Before the
+   * registry is warm this does nothing, and `startChat` reveals them from the
+   * same snapshot.
+   */
+  private revealGoalToolsWhileActive(
+    snapshot: ReturnType<GoalRuntime['getSnapshot']>,
+  ): void {
+    if (snapshot.goal?.status !== 'active') return;
+    if (
+      !this.toolRegistry?.revealHiddenDeferredTools([
+        ToolNames.GET_GOAL,
+        ToolNames.UPDATE_GOAL,
+      ])
+    ) {
+      return;
+    }
+    void this.llmClient?.setTools().catch((error) => {
+      this.debugLogger.warn('Failed to declare the Goal tools', error);
+    });
+  }
+
   private initializeGoalRuntime(
     records?: readonly GoalRecoveryRecord[],
     restoreRuntime?: SessionRuntimeResumeState,
@@ -10748,6 +10785,7 @@ export class Config {
     // resumed session's Goal is seen and skipped rather than missed and then
     // mistaken for the next live transition.
     runtime.subscribe((snapshot, cause, meta) => {
+      this.revealGoalToolsWhileActive(snapshot);
       if (meta?.replayed) return;
       const event = goalStateEventFromSnapshot(snapshot, cause);
       if (event) logGoalState(this, event);

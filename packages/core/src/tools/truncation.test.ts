@@ -11,8 +11,12 @@ import {
   truncateToolOutput,
   truncateLlmContent,
   TOOL_OUTPUT_TRUNCATED_PREFIX,
+  FULL_OUTPUT_DIGEST_LABEL,
+  MAX_SESSION_BYTES,
+  isAlreadyTruncated,
   persistAndTruncateToolResult,
 } from './truncation.js';
+import { createHash } from 'node:crypto';
 import * as fs from 'node:fs/promises';
 import * as path from 'node:path';
 import type { Config } from '../config/config.js';
@@ -469,6 +473,266 @@ describe('truncateAndSaveToFile', () => {
       expect(result.content.length).toBeLessThan(content.length);
       expect(mockWriteFile).toHaveBeenCalled();
     });
+  });
+});
+
+describe('truncateAndSaveToFile envelope', () => {
+  const mockWriteFile = vi.mocked(fs.writeFile);
+  const mockMkdir = vi.mocked(fs.mkdir);
+  const multiLine = Array.from({ length: 3000 }, (_, i) => `row ${i}`).join(
+    '\n',
+  );
+  const digestOf = (text: string) =>
+    createHash('sha256').update(text).digest('hex');
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockMkdir.mockResolvedValue(undefined);
+    mockWriteFile.mockResolvedValue(undefined);
+  });
+
+  it('leads with the sentinel and carries totals, the full-output digest and a paging hint', async () => {
+    const result = await truncateAndSaveToFile(
+      multiLine,
+      'env',
+      '/tmp',
+      1000,
+      Number.POSITIVE_INFINITY,
+    );
+
+    expect(result.content.startsWith(TOOL_OUTPUT_TRUNCATED_PREFIX)).toBe(true);
+    expect(result.content).toContain(
+      `Total characters: ${multiLine.length}; total lines: 3000.`,
+    );
+    expect(result.content).toContain(
+      `\n${FULL_OUTPUT_DIGEST_LABEL}${digestOf(multiLine)}\n`,
+    );
+    expect(result.content).toContain(
+      'offset (zero-based line) and limit (line count)',
+    );
+    expect(result.content).not.toContain('single line');
+  });
+
+  it('says a single-line payload cannot be paged by line', async () => {
+    const result = await truncateAndSaveToFile(
+      'a'.repeat(50_000),
+      'env',
+      '/tmp',
+      1000,
+      Number.POSITIVE_INFINITY,
+    );
+
+    expect(result.content).toContain('total lines: 1.');
+    expect(result.content).toContain('The saved output is a single line');
+  });
+
+  it.each([
+    ['head' as const, 'shows the beginning of the content.'],
+    ['tail' as const, 'shows the end of the content.'],
+    ['both' as const, 'shows the beginning and end of the content.'],
+  ])('describes which part keep=%s retained', async (keep, wording) => {
+    const result = await truncateAndSaveToFile(
+      multiLine,
+      'env',
+      '/tmp',
+      1000,
+      Number.POSITIVE_INFINITY,
+      keep,
+    );
+
+    expect(result.content).toContain(wording);
+    expect(result.content).toContain(
+      "The marker '... [CONTENT TRUNCATED] ...' indicates",
+    );
+  });
+
+  it('does not describe a marker the preview had no room for', async () => {
+    const result = await truncateAndSaveToFile(
+      multiLine,
+      'env',
+      '/tmp',
+      1000,
+      Number.POSITIVE_INFINITY,
+      'head',
+      20,
+    );
+
+    expect(result.content).not.toContain('[CONTENT TRUNCATED]');
+    expect(isAlreadyTruncated(result.content)).toBe(true);
+  });
+
+  it('keeps the sentinel and the digest when the spill write fails', async () => {
+    mockWriteFile.mockRejectedValue(new Error('ENOSPC'));
+
+    const result = await truncateAndSaveToFile(
+      multiLine,
+      'env',
+      '/tmp',
+      1000,
+      Number.POSITIVE_INFINITY,
+    );
+
+    expect(result.outputFile).toBeUndefined();
+    expect(result.content.startsWith(TOOL_OUTPUT_TRUNCATED_PREFIX)).toBe(true);
+    expect(result.content).toContain(
+      `${FULL_OUTPUT_DIGEST_LABEL}${digestOf(multiLine)}`,
+    );
+    expect(result.content).not.toContain('has been saved to');
+    expect(result.content).not.toContain('read_file');
+  });
+});
+
+describe('truncateAndSaveToFile session disk budget', () => {
+  const mockWriteFile = vi.mocked(fs.writeFile);
+  const mockMkdir = vi.mocked(fs.mkdir);
+  // Two-byte characters: the budget counts UTF-8 bytes, not string length.
+  const content = Array.from({ length: 2000 }, () => 'é'.repeat(10)).join('\n');
+  const byteSize = Buffer.byteLength(content, 'utf-8');
+
+  const budget = (initial = 0) => {
+    let used = initial;
+    return {
+      getToolResultBytesWritten: () => used,
+      trackToolResultBytes: vi.fn((bytes: number) => {
+        used += bytes;
+      }),
+      used: () => used,
+    };
+  };
+
+  const spill = (
+    config: ReturnType<typeof budget> | undefined,
+    name = 'budget',
+  ) =>
+    truncateAndSaveToFile(
+      content,
+      name,
+      '/tmp',
+      1000,
+      Number.POSITIVE_INFINITY,
+      'both',
+      1000,
+      false,
+      config,
+    );
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockMkdir.mockResolvedValue(undefined);
+    mockWriteFile.mockResolvedValue(undefined);
+  });
+
+  it('charges a saved spill to the session budget in bytes', async () => {
+    const config = budget();
+    expect(byteSize).toBeGreaterThan(content.length);
+
+    const result = await spill(config);
+
+    expect(result.outputFile).toBeDefined();
+    expect(config.used()).toBe(byteSize);
+  });
+
+  it('skips the spill without claiming a file once the budget is exhausted', async () => {
+    const config = budget(MAX_SESSION_BYTES - byteSize + 1);
+
+    const result = await spill(config);
+
+    expect(result.outputFile).toBeUndefined();
+    expect(mockWriteFile).not.toHaveBeenCalled();
+    expect(config.trackToolResultBytes).not.toHaveBeenCalled();
+    expect(result.content.startsWith(TOOL_OUTPUT_TRUNCATED_PREFIX)).toBe(true);
+    expect(result.content).toContain(
+      '[Note: The full output could not be saved: the session disk budget is exhausted]',
+    );
+    expect(result.content).not.toContain('has been saved to');
+    expect(result.content).not.toContain('read_file');
+    expect(result.content).toContain(FULL_OUTPUT_DIGEST_LABEL);
+  });
+
+  it('reserves before writing so parallel spills cannot overshoot', async () => {
+    // Room for exactly one of the two.
+    const config = budget(MAX_SESSION_BYTES - byteSize);
+
+    const results = await Promise.all([
+      spill(config, 'first'),
+      spill(config, 'second'),
+    ]);
+
+    expect(results.filter((r) => r.outputFile).length).toBe(1);
+    expect(mockWriteFile).toHaveBeenCalledTimes(1);
+    expect(config.used()).toBe(MAX_SESSION_BYTES);
+  });
+
+  it('returns the reservation when the write fails', async () => {
+    mockWriteFile.mockRejectedValue(new Error('ENOSPC'));
+    const config = budget();
+
+    const result = await spill(config);
+
+    expect(result.outputFile).toBeUndefined();
+    expect(config.used()).toBe(0);
+  });
+
+  it('leaves the budget alone when no config is passed', async () => {
+    const result = await spill(undefined);
+
+    expect(result.outputFile).toBeDefined();
+  });
+
+  it('charges the budget through truncateToolOutput', async () => {
+    const config = budget();
+    const result = await truncateToolOutput(
+      {
+        ...config,
+        getTruncateToolOutputThreshold: () => 1000,
+        getTruncateToolOutputLines: () => 1000,
+        storage: { getProjectTempDir: () => '/tmp' },
+      } as unknown as Config,
+      'shell',
+      content,
+    );
+
+    expect(result.outputFile).toBeDefined();
+    expect(config.used()).toBe(byteSize);
+  });
+});
+
+describe('persisted-output stub', () => {
+  const stubFor = async (content: string) => {
+    vi.mocked(atomicWriteFile).mockResolvedValue(undefined);
+    vi.mocked(fs.mkdir).mockResolvedValue(undefined);
+    const result = await persistAndTruncateToolResult(
+      'call-stub',
+      'glob',
+      content,
+      {
+        getToolResultBytesWritten: () => 0,
+        trackToolResultBytes: vi.fn(),
+        storage: { getToolResultsDir: () => path.resolve('/results') },
+      } as unknown as Config,
+    );
+    return result.content;
+  };
+
+  it('reports totals and how to page a multi-line output', async () => {
+    const content = Array.from({ length: 500 }, (_, i) => `row ${i}`).join(
+      '\n',
+    );
+    const stub = await stubFor(content);
+
+    expect(stub.startsWith('<persisted-output>')).toBe(true);
+    expect(stub).toContain(
+      `Total characters: ${content.length}; total lines: 500.`,
+    );
+    expect(stub).toContain('offset (zero-based line) and limit (line count)');
+    expect(stub).not.toContain('single line');
+  });
+
+  it('says a single-line output cannot be paged by line', async () => {
+    const stub = await stubFor('a'.repeat(10_000));
+
+    expect(stub).toContain('total lines: 1.');
+    expect(stub).toContain('The saved output is a single line');
   });
 });
 

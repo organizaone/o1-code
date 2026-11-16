@@ -280,6 +280,10 @@ class ToolSearchInvocation extends BaseToolInvocation<
     return registry.getAllTools().filter(
       (t) =>
         registry.isDeferredAndHidden(t.name) &&
+        // A tool this session does not declare (a Goal proposal with no
+        // approval-capable turn) is refused by tool_call, so it is not
+        // offered either.
+        registry.isToolDeclared?.(t.name) !== false &&
         // Context-gated: the leader's discovery stays unrestricted (the
         // predicate itself is ungated so prepareTools can fail closed).
         !(

@@ -85,6 +85,7 @@ describe('WebFetchTool', () => {
       trackToolResultBytes: vi.fn(),
       storage: {
         getToolResultsDir: () => toolResultsDir,
+        getProjectTempDir: () => path.join(toolResultsDir, 'temp'),
       },
     } as unknown as Config;
   });
@@ -384,11 +385,12 @@ describe('WebFetchTool', () => {
       expect(receivedContent).toContain('[the alpha guide](/docs/alpha-guide)');
     });
 
-    it('should convert the full HTML body before truncating, with an explicit marker', async () => {
-      // Needle sits beyond 100k chars of markup-light content; the marker
+    it('should convert the full HTML body before truncating, and keep the cut text recoverable', async () => {
+      // Needle sits beyond 100k chars of markup-light content; the notice
       // must appear and the needle must be gone from the truncated text,
       // proving truncation happened AFTER conversion (raw HTML truncation
-      // at 100k would also drop the early content ratio entirely).
+      // at 100k would also drop the early content ratio entirely). The cut
+      // part is not lost: the whole text is on disk and the result says where.
       const para = '<p>' + 'word '.repeat(40) + '</p>';
       const html =
         '<html><body>' +
@@ -408,12 +410,80 @@ describe('WebFetchTool', () => {
         url: 'https://example.com/large',
         prompt: 'summarize',
       });
-      await invocation.execute(new AbortController().signal);
+      const result = await invocation.execute(new AbortController().signal);
 
       expect(receivedContent).toContain(
-        '[Content truncated: showing first 100,000 of',
+        'Tool output was too large and has been truncated',
       );
+      expect(receivedContent).toContain('Total characters:');
+      expect(receivedContent).toContain('shows the beginning of the content.');
       expect(receivedContent).not.toContain('NEEDLE-AT-END');
+
+      const saved =
+        /^Full extracted text saved to: (.+?)\. Page through it with read_file/m.exec(
+          result.llmContent as string,
+        );
+      expect(saved).not.toBeNull();
+      expect(fs.readFileSync(saved![1], 'utf-8')).toContain('NEEDLE-AT-END');
+      expect(mockConfig.trackToolResultBytes).toHaveBeenCalledWith(
+        expect.any(Number),
+      );
+    });
+
+    it('should return the cut preview, not a bare slice, when processing fails', async () => {
+      vi.spyOn(fetchUtils, 'fetchWithPolicy').mockResolvedValue(
+        okResponse({
+          contentType: 'text/markdown',
+          body: Buffer.from('# Docs\n' + 'word '.repeat(30_000)),
+          finalUrl: 'https://example.com/big',
+        }),
+      );
+      mockGenerateContent.mockRejectedValue(new Error('API error'));
+
+      const tool = new WebFetchTool(mockConfig);
+      const result = await tool
+        .build({ url: 'https://example.com/big', prompt: 'summarize' })
+        .execute(new AbortController().signal);
+      const text = result.llmContent as string;
+
+      // The preview keeps almost the whole budget; it is not shrunk further.
+      expect(text.length).toBeGreaterThan(90_000);
+      expect(text.length).toBeLessThan(102_000);
+      expect(text).toContain('Full extracted text saved to: ');
+      expect(text).toContain('[CONTENT TRUNCATED]');
+    });
+
+    it('should not save the text again on a cache hit', async () => {
+      const fetchSpy = vi
+        .spyOn(fetchUtils, 'fetchWithPolicy')
+        .mockResolvedValue(
+          okResponse({
+            contentType: 'text/markdown',
+            body: Buffer.from('# Docs\n' + 'word '.repeat(30_000)),
+            finalUrl: 'https://example.com/big',
+          }),
+        );
+      mockGenerateContent.mockResolvedValue({ text: 'Summary' });
+      const savedPathOf = (llmContent: unknown) =>
+        /^Full extracted text saved to: (.+?)\. Page/m.exec(
+          llmContent as string,
+        )?.[1];
+
+      const tool = new WebFetchTool(mockConfig);
+      const first = await tool
+        .build({ url: 'https://example.com/big', prompt: 'summarize' })
+        .execute(new AbortController().signal);
+      const second = await tool
+        .build({ url: 'https://example.com/big', prompt: 'another question' })
+        .execute(new AbortController().signal);
+
+      expect(fetchSpy).toHaveBeenCalledTimes(1);
+      expect(savedPathOf(first.llmContent)).toBeDefined();
+      expect(savedPathOf(second.llmContent)).toBe(
+        savedPathOf(first.llmContent),
+      );
+      expect(fs.readdirSync(path.join(toolResultsDir, 'temp'))).toHaveLength(1);
+      expect(mockConfig.trackToolResultBytes).toHaveBeenCalledTimes(1);
     });
 
     it('should keep content past 100k of raw HTML when the text itself fits', async () => {
@@ -1241,6 +1311,66 @@ describe('WebFetchTool', () => {
 
       expect(mockGenerateContent).toHaveBeenCalled();
       expect(result.llmContent).toContain('Summary');
+    });
+
+    // A cut page lands just under the size cap, so the size check alone would
+    // pass it through as if it were the document, and the prompt would go
+    // unanswered.
+    it('should not pass through a preapproved page that had to be cut', async () => {
+      vi.spyOn(fetchUtils, 'fetchWithPolicy').mockResolvedValue(
+        okResponse({
+          contentType: 'text/markdown',
+          body: Buffer.from('# Docs\n' + 'word '.repeat(30_000)),
+          finalUrl: 'https://docs.python.org/3/library/json.md',
+        }),
+      );
+      mockGenerateContent.mockResolvedValue({ text: 'Summary' });
+
+      const tool = new WebFetchTool(mockConfig);
+      const result = await tool
+        .build({
+          url: 'https://docs.python.org/3/library/json.md',
+          prompt: 'summarize',
+        })
+        .execute(new AbortController().signal);
+
+      expect(mockGenerateContent).toHaveBeenCalled();
+      expect(result.llmContent).toContain('Summary');
+      expect(result.llmContent).toContain('Full extracted text saved to: ');
+    });
+
+    it('should not pass through a cut preapproved page whose save failed', async () => {
+      // No file was written, so there is no path to test: the entry has to
+      // remember the cut itself.
+      const blocker = path.join(toolResultsDir, 'blocker');
+      fs.writeFileSync(blocker, 'not a directory');
+      const brokenSpillConfig = {
+        ...mockConfig,
+        storage: {
+          getToolResultsDir: () => toolResultsDir,
+          getProjectTempDir: () => path.join(blocker, 'temp'),
+        },
+      } as unknown as Config;
+      vi.spyOn(fetchUtils, 'fetchWithPolicy').mockResolvedValue(
+        okResponse({
+          contentType: 'text/markdown',
+          body: Buffer.from('# Docs\n' + 'word '.repeat(30_000)),
+          finalUrl: 'https://docs.python.org/3/library/json.md',
+        }),
+      );
+      mockGenerateContent.mockResolvedValue({ text: 'Summary' });
+
+      const tool = new WebFetchTool(brokenSpillConfig);
+      const result = await tool
+        .build({
+          url: 'https://docs.python.org/3/library/json.md',
+          prompt: 'summarize',
+        })
+        .execute(new AbortController().signal);
+
+      expect(mockGenerateContent).toHaveBeenCalled();
+      expect(result.llmContent).toContain('Summary');
+      expect(result.llmContent).not.toContain('Full extracted text saved to');
     });
   });
 

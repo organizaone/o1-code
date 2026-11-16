@@ -66,6 +66,11 @@ describe('ListAgentsTool', () => {
     );
 
     expect(tool.name).toBe('list_agents');
+    // Deferred: the first description line is what the model selects it by.
+    expect(tool.shouldDefer).toBe(true);
+    const firstLine = tool.description.split('\n')[0]!;
+    expect(firstLine).toMatch(/^Use before send_message/);
+    expect(firstLine.length).toBeLessThanOrEqual(160);
     expect(result.llmContent).toBe(
       'No ordinary background subagents are available in this session. ' +
         'Named Agent Team teammates are not listed here; their results are ' +

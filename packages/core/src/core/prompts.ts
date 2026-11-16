@@ -271,6 +271,11 @@ export function getCustomSystemPrompt(
  */
 export interface PromptToolSurface {
   declaredTools?: ReadonlySet<string>;
+  /**
+   * The Agent tool is not declared but can be reached through the
+   * deferred-tool bridge. Only read when `declaredTools` is set.
+   */
+  agentReachable?: boolean;
   executionSandboxFilesystem?: 'read-only' | 'workspace-write';
 }
 
@@ -278,7 +283,9 @@ export interface PromptToolSurface {
  * Which tools each gated line of `## Using Your Tools` talks about. A line
  * survives only when every tool it names is declared: a line that named a
  * missing tool would send the model after something it cannot call, which is
- * the defect this gating exists to fix. Lines absent from this table are policy
+ * the defect this gating exists to fix. The Agent tool alone also counts when
+ * it is reachable through the bridge (see `gateToolGuidance`). Lines absent
+ * from this table are policy
  * that holds regardless of the tool surface (tool fallback, parallel calls,
  * questions, respecting denials) and are never dropped.
  */
@@ -313,6 +320,11 @@ const PREFER_DEDICATED_TOOLS_PREFIX = '- **Prefer Dedicated Tools:**';
 /**
  * Drops the tool-guidance lines whose tools this session did not declare.
  *
+ * A deferred Agent tool is the one exception: the delegation and
+ * codebase-search lines are what sends the model to look the tool up, so
+ * dropping them with the declaration would turn deferral into removal. Every
+ * other deferred tool is selected from its line in the deferred-tool list.
+ *
  * Implemented as a line filter rather than a rebuilt template on purpose: with
  * no snapshot the section returns unchanged, so the default prompt cannot drift
  * while gating is added.
@@ -328,7 +340,14 @@ function gateToolGuidance(
     const gate = TOOL_GUIDANCE_LINE_GATES.find((entry) =>
       line.startsWith(entry.prefix),
     );
-    return !gate || gate.tools.every((tool) => declared.has(tool));
+    return (
+      !gate ||
+      gate.tools.every(
+        (tool) =>
+          declared.has(tool) ||
+          (tool === ToolNames.AGENT && surface?.agentReachable === true),
+      )
+    );
   });
   // The "prefer dedicated tools" bullet only introduces its sub-bullets, so it
   // goes when every tool it was going to recommend is gone.
