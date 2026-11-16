@@ -7,6 +7,39 @@ follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.27.0] - 2026-11-16
+
+### Added
+
+- `--disable-mcp-server` turns off an MCP server for the session; it can be repeated.
+- When a long run of read-only tool calls reaches `model.maxToolCallsPerTurn`, the model gets one
+  reminder to move on.
+
+### Changed
+
+- In auto mode, the third destructive command blocked in a row asks you instead of being refused.
+  Only a person can answer that prompt.
+- `agents.maxParallelAgentsByModel` now also counts foreground subagents, which wait for a slot.
+- The Agent and Goal tools are sent to the model only when needed, which makes each request smaller.
+- A workflow that needs approval now opens the background tasks dialog by itself.
+- Large `web_fetch` results are saved in full, and truncated output says how to read the rest.
+
+### Fixed
+
+- An MCP allow rule written for one server no longer authorizes another server with a similar name.
+- File content inserted with `@{...}` in a custom command is no longer run as a command.
+- Deleting a scheduled task no longer closes a session that is still in use.
+- A tool result that arrives late is no longer lost.
+- Sessions with the same modification time are no longer skipped in the session list.
+- A malformed permission rule, or a `tools.disabled` entry that disables nothing, now shows a warning.
+- A tool interrupted by a cancel is no longer reported as completed.
+- Side requests no longer exceed the model's context window.
+- Broken tool-call arguments are no longer always reported as cut off by the output limit.
+- Tool calls written as XML are read correctly when they quote other calls.
+- A stray closing thinking tag no longer appears at the end of an answer.
+- Reasoning that continues after text is shown and replayed in the right order.
+- A rejected reasoning item on the Responses API no longer breaks the retry.
+
 ## [0.26.0] - 2026-11-15
 
 ### Changed
