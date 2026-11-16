@@ -245,6 +245,30 @@ describe('SlashCommandMenu', () => {
     );
   });
 
+  it('keeps the search one height however many commands match', () => {
+    const commands = Array.from({ length: 12 }, (_, index) =>
+      command(`sample${index}`, { description: `Stored item ${index}` }),
+    );
+    const heightFor = (query: string) => {
+      const { lastFrame } = renderWithProviders(
+        <SlashCommandMenu
+          commands={commands}
+          query={query}
+          availableTerminalHeight={30}
+          onSelect={vi.fn()}
+          onDismiss={vi.fn()}
+          onPanelChange={vi.fn()}
+        />,
+      );
+      return (lastFrame() ?? '').trimEnd().split('\n').length;
+    };
+
+    // The same eleven rows as the lists the search alternates with.
+    expect(heightFor('stored item')).toBe(11);
+    expect(heightFor('stored item 7')).toBe(11);
+    expect(heightFor('matches nothing')).toBe(11);
+  });
+
   it('returns from a searched parent to the search results and accepts a result with Tab', async () => {
     const parent = command('config', { subCommands: [command('get')] });
     const onSelect = vi.fn();
@@ -351,6 +375,34 @@ describe('SlashCommandMenu', () => {
     await vi.waitFor(() => expect(lastFrame()).toContain('2/2'));
     await pressKey(stdin, '\r');
     await vi.waitFor(() => expect(onSelect).toHaveBeenCalledWith(commands[1]));
+  });
+
+  it('opens every category at the height of the root menu plus its input', async () => {
+    const heights: number[] = [];
+    // An empty category, one with two commands, and one filtered to nothing.
+    const empty = renderMenu();
+    await pressKey(empty.stdin, '\r');
+    await vi.waitFor(() =>
+      expect(empty.lastFrame()).toContain('Commands › Recent commands'),
+    );
+    heights.push((empty.lastFrame() ?? '').trimEnd().split('\n').length);
+
+    const sessions = renderMenu();
+    await pressKey(sessions.stdin, '\x1b[B');
+    await vi.waitFor(() => expect(sessions.lastFrame()).toContain('2/8'));
+    await pressKey(sessions.stdin, '\r');
+    await vi.waitFor(() =>
+      expect(sessions.lastFrame()).toContain('Resume a session'),
+    );
+    heights.push((sessions.lastFrame() ?? '').trimEnd().split('\n').length);
+    await pressKey(sessions.stdin, 'no matches');
+    await vi.waitFor(() =>
+      expect(sessions.lastFrame()).toContain('No commands available'),
+    );
+    heights.push((sessions.lastFrame() ?? '').trimEnd().split('\n').length);
+
+    // Eleven rows of the root menu and the three of the input it replaces.
+    expect(heights).toEqual([14, 14, 14]);
   });
 
   it('returns to the same category cursor before dismissing the menu', async () => {

@@ -64,9 +64,12 @@ describe('SuggestionsDisplay', () => {
     // The description is cut off with an ellipsis and the full text is gone.
     expect(output).toContain('…');
     expect(output).not.toContain('entire terminal window');
-    // A single suggestion with a long description must not blow up vertically:
-    // the frame's two borders, the key hints and at most two rows.
-    expect(output.split('\n').length).toBeLessThanOrEqual(5);
+    // A single suggestion with a long description stays on its one row: the
+    // frame keeps the height of a full list and the rows below it are blank.
+    const lines = output.split('\n');
+    expect(lines).toHaveLength(11);
+    expect(lines[1]).toContain('review');
+    expect(lines[2]).toMatch(/^│ +│$/);
   });
 
   it('keeps the full MCP resource reference on one line and truncates its description (reverse mode)', () => {
@@ -167,10 +170,60 @@ describe('SuggestionsDisplay', () => {
     expect(lines[0]).toMatch(/^╭─/);
     expect(lines[1]).toMatch(/^│ {3}pr/);
     expect(lines[2]).toMatch(/^│ ❯ issue-to-pr/);
-    expect(lines[3]).toContain(
+    expect(lines[9]).toContain(
       '↑↓ navigate · tab complete · enter select · esc close',
     );
-    expect(lines[4]).toMatch(/^╰─/);
+    expect(lines[10]).toMatch(/^╰─/);
+  });
+
+  it('keeps one height in slash mode however many commands match', () => {
+    const commands = Array.from({ length: 19 }, (_, index) => ({
+      label: `command-${index}`,
+      value: `command-${index}`,
+      description: `Description ${index}`,
+    }));
+    const heightOf = (count: number, scrollOffset = 0) => {
+      const { lastFrame } = render(
+        <SuggestionsDisplay
+          suggestions={commands.slice(0, count)}
+          activeIndex={scrollOffset}
+          isLoading={false}
+          width={80}
+          scrollOffset={scrollOffset}
+          userInput="/c"
+          mode="slash"
+        />,
+      );
+      return (lastFrame() ?? '').split('\n').length;
+    };
+
+    // The frame's two borders, eight rows and the hint.
+    expect(heightOf(1)).toBe(11);
+    expect(heightOf(8)).toBe(11);
+    expect(heightOf(19)).toBe(11);
+    expect(heightOf(19, 5)).toBe(11);
+  });
+
+  it('shows the scroll marks and the position on the hint row', () => {
+    const { lastFrame } = render(
+      <SuggestionsDisplay
+        suggestions={Array.from({ length: 19 }, (_, index) => ({
+          label: `command-${index}`,
+          value: `command-${index}`,
+        }))}
+        activeIndex={5}
+        isLoading={false}
+        width={80}
+        scrollOffset={5}
+        userInput="/c"
+        mode="slash"
+      />,
+    );
+
+    const lines = (lastFrame() ?? '').split('\n');
+
+    expect(lines[9]).toContain('esc close');
+    expect(lines[9]).toContain('▲▼ 6/19');
   });
 
   it('keeps the slash name column to 28 columns when a hint is long', () => {

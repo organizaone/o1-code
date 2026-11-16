@@ -72,8 +72,13 @@ describe('SuggestionsDisplay with qualified extension labels', () => {
     );
 
     const frame = lastFrame() ?? '';
-    // Six rows, plus the frame's two borders and the key hints.
-    expect(frame.trim().split('\n')).toHaveLength(6 + 3);
+    // Six rows, each on its own line; the frame keeps the height of a full
+    // list, so the two rows left over are blank.
+    const lines = frame.trim().split('\n');
+    expect(lines).toHaveLength(8 + 3);
+    expect(lines[6]).toContain('refresh-plugins');
+    expect(lines[7]).toMatch(/^│ +│$/);
+    expect(lines[8]).toMatch(/^│ +│$/);
     expect(frame).toContain('rust:functions [Extension: rust]');
     // A wrapped badge leaves orphan fragments on their own lines.
     expect(frame).not.toMatch(/^\s*css\]$/m);

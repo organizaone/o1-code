@@ -18,7 +18,10 @@ import {
   getCommandDisplayName,
   getCommandSourceBadge,
 } from '../../services/commandMetadata.js';
-import { normalizeDescription } from '../utils/suggestions.js';
+import {
+  MAX_SUGGESTIONS_TO_SHOW,
+  normalizeDescription,
+} from '../utils/suggestions.js';
 import { extendedTheme, theme } from '../semantic-colors.js';
 import { glyphs } from '../glyphs.js';
 import { t } from '../../i18n/index.js';
@@ -212,6 +215,11 @@ const COMMAND_LABELS: Record<string, string> = {
   update: 'Update application',
   quit: 'Exit application',
 };
+
+/** Rows of a list shown under "/": its border, eight rows and the hint. */
+const SLASH_LIST_HEIGHT = MAX_SUGGESTIONS_TO_SHOW + 3;
+/** Rows of the one-line input, hidden while a category is open. */
+const INPUT_ROWS = 3;
 
 function isBuiltin(command: SlashCommand): boolean {
   return (
@@ -533,6 +541,12 @@ export function SlashCommandMenu({
           currentValue={undefined}
           textNavigation
           onHeightChange={onHeightChange}
+          // A search typed after "/" keeps the height of the lists it
+          // alternates with, and a category also takes the rows of the input
+          // it replaces, so the screen stays put from one to the other.
+          fixedHeight={
+            group ? SLASH_LIST_HEIGHT + INPUT_ROWS : SLASH_LIST_HEIGHT
+          }
           initialValue={
             entries.find((entry) => entry.path === highlighted) ?? entries[0]
           }
