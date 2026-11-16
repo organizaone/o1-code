@@ -1854,7 +1854,13 @@ export const ORPHAN_TOOL_USE_REPAIR_REASON =
  *         - DROP duplicate fr copies for the same id.
  *       Then `useLlmStream.handleCompletedTools` dedupes the
  *       scheduler's late real result against `chat.history` so the
- *       synthetic and the real result never collide on the wire.
+ *       synthetic and the real result never collide on the wire. When
+ *       the response already in history is a synthesized placeholder
+ *       (`isSynthesizedRepairPart`), the real result takes its slot
+ *       (`replaceSynthesizedToolResponse`): a tool that did finish must
+ *       not stay reported as "not recorded", or the model may run it
+ *       again. A real response already present makes the late one a
+ *       true duplicate, and that one is still dropped.
  *
  * --- Partial-push marker lifecycle ---------------------------------------
  *
@@ -1870,6 +1876,31 @@ export const ORPHAN_TOOL_USE_REPAIR_REASON =
  * is a bug.
  * ============================================================================
  */
+
+/**
+ * True for the stand-in `functionResponse` written for a dangling
+ * `functionCall` (`applyRepair` here, `buildSyntheticToolResponseParts` in
+ * turn-interruption.ts). Requires the default reason text as the ONLY key of
+ * `response`, so a real failure that merely quotes that text next to other
+ * fields is never taken for a placeholder. A repair run with a custom reason
+ * is not recognised, and its placeholder is never replaced.
+ */
+export function isSynthesizedRepairPart(part: Part): boolean {
+  const functionResponse = part.functionResponse;
+  if (!functionResponse?.id) return false;
+  const response: unknown = functionResponse.response;
+  if (
+    response === null ||
+    typeof response !== 'object' ||
+    Array.isArray(response)
+  ) {
+    return false;
+  }
+  return (
+    Object.keys(response).length === 1 &&
+    (response as { error?: unknown }).error === ORPHAN_TOOL_USE_REPAIR_REASON
+  );
+}
 
 /**
  * Walk `history` left-to-right and close every dangling
@@ -5450,6 +5481,44 @@ export class LlmChat {
       }
     }
     return ids;
+  }
+
+  /**
+   * Ids whose answer in history is a synthesized repair placeholder rather
+   * than a real tool result. Walk-only, no clone, for the same reason as
+   * {@link getHistoryFunctionResponseIds}.
+   */
+  getSynthesizedRepairCallIds(): Set<string> {
+    const ids = new Set<string>();
+    for (const entry of this.history) {
+      if (entry.role !== 'user') continue;
+      for (const part of entry.parts ?? []) {
+        const id = part.functionResponse?.id;
+        if (id && isSynthesizedRepairPart(part)) ids.add(id);
+      }
+    }
+    return ids;
+  }
+
+  /**
+   * Put the tool's real response parts where the synthesized placeholder for
+   * `callId` sits. The placeholder already occupies the position that keeps
+   * the call and its result paired, so the swap happens in that slot.
+   * Returns false and leaves history alone when `callId` has no answer, or
+   * its first answer is a real result (the late one is then a duplicate).
+   */
+  replaceSynthesizedToolResponse(callId: string, realParts: Part[]): boolean {
+    for (const entry of this.history) {
+      if (entry.role !== 'user' || !entry.parts) continue;
+      const index = entry.parts.findIndex(
+        (part) => part.functionResponse?.id === callId,
+      );
+      if (index === -1) continue;
+      if (!isSynthesizedRepairPart(entry.parts[index]!)) return false;
+      entry.parts.splice(index, 1, ...realParts);
+      return true;
+    }
+    return false;
   }
 
   /**

@@ -3602,6 +3602,10 @@ export class CoreToolScheduler {
           // fallback state — otherwise every trivially safe tool would
           // force manual approval until the user toggles modes.
           let autoModeFallback: AutoModeFallbackConfirmation | undefined;
+          // True when the destructive-command guard, not the classifier,
+          // escalated: the reason code is the same, but only a person may
+          // confirm this one.
+          let autoModeFallbackRequiresHuman = false;
           if (
             !requiresUserInteraction &&
             shouldRunAutoModeForCall(approvalMode, canonicalName)
@@ -3714,6 +3718,8 @@ export class CoreToolScheduler {
                 // pending dialog tells the user what's being asked;
                 // operators see recovery fallbacks in the debug log. A
                 // pmForcedAsk fallback isn't an audit-worthy event.
+                autoModeFallbackRequiresHuman =
+                  outcome.requiresHumanDecision === true;
                 if (
                   outcome.message &&
                   (isDenialFallbackReason(outcome.reason) ||
@@ -3899,7 +3905,11 @@ export class CoreToolScheduler {
             const isNonInteractiveDeny =
               !this.config.isInteractive() &&
               !this.config.getExperimentalZedIntegration() &&
-              this.config.getInputFormat() !== InputFormat.STREAM_JSON;
+              // A stream-json host can answer the permission request, but it
+              // is a program: it cannot give the human-only confirmation the
+              // destructive-command guard escalated to.
+              (this.config.getInputFormat() !== InputFormat.STREAM_JSON ||
+                autoModeFallbackRequiresHuman);
 
             if (isNonInteractiveDeny) {
               const errorMessage =
@@ -3960,9 +3970,13 @@ export class CoreToolScheduler {
                 continue;
               }
 
+              // A deny always applies. An allow never replaces a confirmation
+              // only the user may give: an interactive tool, or an escalation
+              // from the destructive-command guard.
               if (
                 hookResult.hasDecision &&
-                (!hookResult.shouldAllow || !requiresUserInteraction)
+                (!hookResult.shouldAllow ||
+                  (!requiresUserInteraction && !autoModeFallbackRequiresHuman))
               ) {
                 if (hookResult.shouldAllow) {
                   if (planShellDecision.classification !== 'not-applicable') {

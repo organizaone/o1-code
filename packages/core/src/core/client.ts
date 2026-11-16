@@ -1042,6 +1042,22 @@ export class LlmClient {
   }
 
   /**
+   * Ids answered in history by a synthesized repair placeholder. See
+   * `LlmChat.getSynthesizedRepairCallIds`.
+   */
+  getSynthesizedRepairCallIds(): Set<string> {
+    return this.getChat().getSynthesizedRepairCallIds();
+  }
+
+  /**
+   * Swap the synthesized repair placeholder for `callId` with the tool's real
+   * response parts. See `LlmChat.replaceSynthesizedToolResponse`.
+   */
+  replaceSynthesizedToolResponse(callId: string, realParts: Part[]): boolean {
+    return this.getChat().replaceSynthesizedToolResponse(callId, realParts);
+  }
+
+  /**
    * Walk-only accessor for the handled tool-call id → (name, args)
    * fingerprint map used by duplicate provider-id replay detection. Same
    * no-clone rationale as {@link getHistoryFunctionResponseIds}. See

@@ -13,7 +13,10 @@
  */
 
 import * as path from 'node:path';
-import type { PermissionCheckContext } from '../permissions/types.js';
+import type {
+  McpToolIdentity,
+  PermissionCheckContext,
+} from '../permissions/types.js';
 import type { PermissionManager } from '../permissions/permission-manager.js';
 import type {
   ToolCallConfirmationDetails,
@@ -37,6 +40,7 @@ export function buildPermissionCheckContext(
   toolParams: Record<string, unknown>,
   targetDir: string,
   toolAliases?: readonly string[],
+  mcpIdentity?: McpToolIdentity,
 ): PermissionCheckContext {
   const rawCommand =
     'command' in toolParams ? String(toolParams['command']) : undefined;
@@ -92,6 +96,7 @@ export function buildPermissionCheckContext(
   return {
     toolName,
     toolAliases,
+    ...(mcpIdentity ? { mcpIdentity } : {}),
     command,
     cwd,
     filePath,

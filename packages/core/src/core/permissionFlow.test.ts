@@ -246,6 +246,33 @@ describe('evaluatePermissionFlow', () => {
     );
   });
 
+  it('passes the invocation MCP identity to the permission manager', async () => {
+    const mcpIdentity = { serverName: 'foo__bar', serverToolName: 'deploy' };
+    const mockPm = {
+      hasRelevantRules: vi.fn().mockReturnValue(true),
+      evaluate: vi.fn().mockResolvedValue('allow'),
+      hasMatchingAskRule: vi.fn().mockReturnValue(false),
+    };
+    const invocation = mockInvocation({
+      getDefaultPermission: vi.fn().mockResolvedValue('ask'),
+      mcpIdentity,
+    });
+
+    const result = await evaluatePermissionFlow(
+      mockConfig({
+        getPermissionManager: vi.fn().mockReturnValue(mockPm),
+      }),
+      invocation,
+      'mcp__foo__bar__deploy',
+      {},
+    );
+
+    expect(mockPm.evaluate).toHaveBeenCalledWith(
+      expect.objectContaining({ mcpIdentity }),
+    );
+    expect(result.pmCtx.mcpIdentity).toEqual(mcpIdentity);
+  });
+
   // A rule pinned to a derived value (the Workflow tool's script digest) must
   // be checked against the value the invocation computed, never a same-named
   // parameter the model supplied.

@@ -31830,6 +31830,87 @@ describe('Session', () => {
       });
     });
 
+    it('asks the ACP user at the destructive-command cap even when a PermissionRequest hook allows', async () => {
+      const { execute, onConfirm } = configureAutoModeShellFallback({
+        callId: 'call-destructive-cap',
+        command: 'git reset --hard',
+        denialState: {
+          consecutiveBlock: 2,
+          consecutiveUnavailable: 0,
+          totalBlock: 2,
+          totalUnavailable: 0,
+        },
+      });
+      mockConfig.getDisableAllHooks = vi.fn().mockReturnValue(false);
+      mockConfig.getMessageBus = vi.fn().mockReturnValue({});
+      const hookSpy = vi
+        .spyOn(core, 'firePermissionRequestHook')
+        .mockResolvedValue({
+          hasDecision: true,
+          shouldAllow: true,
+          updatedInput: undefined,
+          denyMessage: undefined,
+        });
+
+      try {
+        await session.prompt({
+          sessionId: 'test-session-id',
+          prompt: [{ type: 'text', text: 'tidy the branch' }],
+        });
+        expect(hookSpy).toHaveBeenCalled();
+      } finally {
+        hookSpy.mockRestore();
+      }
+
+      expect(mockClient.requestPermission).toHaveBeenCalledWith(
+        expect.objectContaining({
+          toolCall: expect.objectContaining({
+            content: expect.arrayContaining([
+              expect.objectContaining({
+                content: expect.objectContaining({
+                  text: expect.stringContaining(
+                    'Blocked destructive git command',
+                  ),
+                }),
+              }),
+            ]),
+          }),
+        }),
+      );
+      // The only confirmation is the user's answer, not the hook's allow.
+      expect(onConfirm).toHaveBeenCalledOnce();
+      expect(onConfirm).toHaveBeenCalledWith(
+        core.ToolConfirmationOutcome.ProceedOnce,
+        { answers: undefined },
+      );
+      expect(execute).toHaveBeenCalledOnce();
+    });
+
+    it('refuses a destructive command below the cap without asking the ACP user', async () => {
+      const { execute, getDenialState } = configureAutoModeShellFallback({
+        callId: 'call-destructive-below-cap',
+        command: 'git reset --hard',
+        denialState: {
+          consecutiveBlock: 1,
+          consecutiveUnavailable: 0,
+          totalBlock: 1,
+          totalUnavailable: 0,
+        },
+      });
+
+      await session.prompt({
+        sessionId: 'test-session-id',
+        prompt: [{ type: 'text', text: 'tidy the branch' }],
+      });
+
+      expect(mockClient.requestPermission).not.toHaveBeenCalled();
+      expect(execute).not.toHaveBeenCalled();
+      expect(getDenialState()).toMatchObject({
+        consecutiveBlock: 2,
+        totalBlock: 2,
+      });
+    });
+
     it('routes the current ACP threshold block to manual approval', async () => {
       const command = 'python -c "print(1)"';
       const { execute, generateJson, getDenialState } =

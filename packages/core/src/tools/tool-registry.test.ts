@@ -213,6 +213,58 @@ describe('ToolRegistry', () => {
     expect(toolRegistry.isDeferredAndHidden(hidden.name)).toBe(true);
   });
 
+  it('reports MCP identities so an allow rule stays on the server it names', async () => {
+    const mcpTool = (serverName: string, serverToolName: string) =>
+      new DiscoveredMCPTool(
+        {} as CallableTool,
+        serverName,
+        serverToolName,
+        'description',
+        {},
+      );
+    const own = mcpTool('foo', 'deploy');
+    const nested = mcpTool('foo__bar', 'deploy');
+    const dotted = mcpTool('foo.bar', 'deploy');
+    toolRegistry.registerTool(new MockTool({ name: 'visible' }));
+    for (const tool of [own, nested, dotted]) toolRegistry.registerTool(tool);
+
+    expect(toolRegistry.getMcpToolIdentities()).toEqual([
+      { name: own.name, serverName: 'foo', serverToolName: 'deploy' },
+      { name: nested.name, serverName: 'foo__bar', serverToolName: 'deploy' },
+      { name: dotted.name, serverName: 'foo.bar', serverToolName: 'deploy' },
+    ]);
+
+    const decide = async (allow: string, tool: DiscoveredMCPTool) => {
+      const pm = new PermissionManager({
+        getPermissionsAllow: () => [allow],
+        getPermissionsAsk: () => undefined,
+        getPermissionsDeny: () => undefined,
+        getToolRegistry: () => toolRegistry,
+      });
+      pm.initialize();
+      const invocation = tool.build({});
+      return pm.evaluate({
+        toolName: tool.name,
+        toolAliases: invocation.permissionAliases,
+        mcpIdentity: invocation.mcpIdentity,
+      });
+    };
+
+    expect(await decide('mcp__foo__*', own)).toBe('allow');
+    expect(await decide('mcp__foo__*', nested)).toBe('default');
+    expect(await decide('mcp__foo', nested)).toBe('default');
+    expect(await decide('mcp__foo_bar', dotted)).toBe('allow');
+
+    // A second claimant of the sanitized spelling arrives: neither is granted.
+    const colon = mcpTool('foo:bar', 'deploy');
+    toolRegistry.registerTool(colon);
+    expect(await decide('mcp__foo_bar', dotted)).toBe('default');
+    expect(await decide('mcp__foo_bar', colon)).toBe('default');
+
+    toolRegistry.removeMcpToolsByServer('foo:bar');
+    expect(await decide('mcp__foo_bar', dotted)).toBe('allow');
+  });
+
   it('hides a loaded image tool while disabled and restores it when re-enabled', async () => {
     const enabled = vi
       .spyOn(config, 'isImageGenerationEnabled')

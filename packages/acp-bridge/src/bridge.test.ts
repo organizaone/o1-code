@@ -628,13 +628,178 @@ describe('createAcpSessionBridge', () => {
       expect(conditionalCloseCalls).toBe(0);
       expect(bridge.sessionCount).toBe(1);
 
-      // Direct close remains a force operation even when reporting is
-      // incomplete; only ordinary automatic cleanup is fail-closed.
+      // A caller-requested conditional close stops at the same guard.
+      await bridge.closeSession(session.sessionId, undefined, {
+        closeIfUnheld: true,
+      });
+      expect(conditionalCloseCalls).toBe(0);
+      expect(forcedCloseCalls).toBe(0);
+      expect(bridge.sessionCount).toBe(1);
+
+      // A plain direct close remains a force operation even when reporting
+      // is incomplete.
       await bridge.closeSession(session.sessionId);
       expect(forcedCloseCalls).toBe(1);
       expect(bridge.sessionCount).toBe(0);
 
       await bridge.shutdown();
+    });
+
+    it('keeps the session when a conditional close finds held work', async () => {
+      const handle = makeChannel({
+        initializeImpl: () => activeWorkInitializeResponse(),
+        extMethodImpl: async (method, params) => {
+          if (method !== SERVE_CONTROL_EXT_METHODS.sessionClose) return {};
+          if (params[ACTIVE_WORK_CLOSE_IF_UNHELD_PARAM] === true) {
+            return {
+              closed: false,
+              holds: [{ id: 'agent-1', category: 'agent' }],
+            };
+          }
+          return { closed: true };
+        },
+      });
+      const bridge = makeBridge({ channelFactory: async () => handle.channel });
+      const session = await bridge.spawnOrAttach({ workspaceCwd: WS_A });
+
+      await bridge.closeSession(session.sessionId, undefined, {
+        closeIfUnheld: true,
+        reason: 'scheduled_task_deleted',
+      });
+
+      expect(bridge.sessionCount).toBe(1);
+      expect(handle.agent.cancelCalls).toHaveLength(0);
+      const closeCalls = handle.agent.extMethodCalls.filter(
+        (call) => call.method === SERVE_CONTROL_EXT_METHODS.sessionClose,
+      );
+      expect(closeCalls).toEqual([
+        {
+          method: SERVE_CONTROL_EXT_METHODS.sessionClose,
+          params: {
+            sessionId: session.sessionId,
+            [ACTIVE_WORK_CLOSE_IF_UNHELD_PARAM]: true,
+            drainTimeoutMs: sessionCloseDrainBudgetMs(
+              ACTIVE_WORK_CLOSE_TIMEOUT_MS,
+            ),
+          },
+        },
+      ]);
+      // The retained session is still usable, and a plain close still forces.
+      expect(bridge.getSessionSummary(session.sessionId).activeWorkState).toBe(
+        'active',
+      );
+      await bridge.closeSession(session.sessionId);
+      expect(bridge.sessionCount).toBe(0);
+
+      await bridge.shutdown();
+    });
+
+    it('closes the session when a conditional close finds nothing held', async () => {
+      const handle = makeChannel({
+        initializeImpl: () => activeWorkInitializeResponse(),
+        extMethodImpl: async (method) =>
+          method === SERVE_CONTROL_EXT_METHODS.sessionClose
+            ? { closed: true, holds: [] }
+            : {},
+      });
+      const bridge = makeBridge({ channelFactory: async () => handle.channel });
+      const session = await bridge.spawnOrAttach({ workspaceCwd: WS_A });
+
+      await bridge.closeSession(session.sessionId, undefined, {
+        closeIfUnheld: true,
+        reason: 'scheduled_task_deleted',
+      });
+
+      expect(bridge.sessionCount).toBe(0);
+      await bridge.shutdown();
+    });
+
+    it('keeps the session on a conditional close while a prompt is running', async () => {
+      let conditionalCloseCalls = 0;
+      const prompt = deferred<PromptResponse>();
+      const handle = makeChannel({
+        initializeImpl: () => activeWorkInitializeResponse(),
+        promptImpl: () => prompt.promise,
+        extMethodImpl: async (method, params) => {
+          if (method !== SERVE_CONTROL_EXT_METHODS.sessionClose) return {};
+          if (params[ACTIVE_WORK_CLOSE_IF_UNHELD_PARAM] === true) {
+            conditionalCloseCalls++;
+          }
+          return { closed: true, holds: [] };
+        },
+      });
+      const bridge = makeBridge({ channelFactory: async () => handle.channel });
+      const session = await bridge.spawnOrAttach({ workspaceCwd: WS_A });
+      const running = bridge.sendPrompt(session.sessionId, {
+        sessionId: session.sessionId,
+        prompt: [{ type: 'text', text: 'scheduled work' }],
+      });
+
+      await bridge.closeSession(session.sessionId, undefined, {
+        closeIfUnheld: true,
+        reason: 'scheduled_task_deleted',
+      });
+
+      // Daemon-owned work retains without even asking the child.
+      expect(conditionalCloseCalls).toBe(0);
+      expect(bridge.sessionCount).toBe(1);
+      expect(handle.agent.cancelCalls).toHaveLength(0);
+
+      prompt.resolve({ stopReason: 'end_turn' });
+      await expect(running).resolves.toMatchObject({ stopReason: 'end_turn' });
+      await bridge.closeSession(session.sessionId);
+      await bridge.shutdown();
+    });
+
+    it('retains a caller-requested conditional close on a condemned channel', async () => {
+      vi.useFakeTimers();
+      const lateRestore = deferred<LoadSessionResponse>();
+      const handle = makeChannel({
+        initializeImpl: () => activeWorkInitializeResponse(),
+        loadSessionImpl: () => lateRestore.promise,
+        extMethodImpl: async (method) =>
+          method === SERVE_CONTROL_EXT_METHODS.sessionClose
+            ? { closed: true, holds: [] }
+            : {},
+      });
+      const bridge = makeBridge({
+        sessionScope: 'thread',
+        maxSessions: 5,
+        sessionRestoreTimeoutMs: 20,
+        channelIdleTimeoutMs: 60_000,
+        channelFactory: async () => handle.channel,
+      });
+      try {
+        const sibling = await bridge.spawnOrAttach({ workspaceCwd: WS_A });
+        const timedOut = bridge
+          .loadSession({
+            sessionId: 'condemn-for-conditional-close',
+            workspaceCwd: WS_A,
+          })
+          .catch((error: unknown) => error);
+        await advanceRestoreDeadline(20);
+        expect(await timedOut).toBeInstanceOf(SessionRestoreTimeoutError);
+        await vi.advanceTimersByTimeAsync(20);
+
+        await bridge.closeSession(sibling.sessionId, undefined, {
+          closeIfUnheld: true,
+          reason: 'scheduled_task_deleted',
+        });
+
+        expect(bridge.sessionCount).toBe(1);
+        expect(
+          handle.agent.extMethodCalls.filter(
+            (call) =>
+              call.method === SERVE_CONTROL_EXT_METHODS.sessionClose &&
+              call.params['sessionId'] === sibling.sessionId,
+          ),
+        ).toHaveLength(0);
+        expect(handle.killed).toBe(false);
+      } finally {
+        lateRestore.reject(new Error('test cleanup'));
+        await bridge.shutdown();
+        vi.useRealTimers();
+      }
     });
 
     it('honors a deferred spawn-owner kill for an incomplete child', async () => {
