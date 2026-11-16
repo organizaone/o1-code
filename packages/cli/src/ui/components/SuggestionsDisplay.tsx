@@ -227,100 +227,119 @@ export function SuggestionsDisplay({
           </Box>
         </Box>
       )}
-      {scrollOffset > 0 && <Text color={theme.text.primary}>▲</Text>}
+      {/* A command list keeps one height however many commands match: a frame
+          that grows and shrinks with every key moves the whole screen. */}
+      <Box
+        flexDirection="column"
+        flexShrink={0}
+        {...(mode === 'slash'
+          ? { height: MAX_SUGGESTIONS_TO_SHOW, overflow: 'hidden' as const }
+          : {})}
+      >
+        {visibleSuggestions.map((suggestion, index) => {
+          const originalIndex = startIndex + index;
+          const isActive = originalIndex === activeIndex;
+          const isExpanded = originalIndex === expandedIndex;
+          const textColor = isActive
+            ? theme.text.primary
+            : theme.text.secondary;
+          const displayLabel = suggestion.label ?? suggestion.value;
+          const isLong = displayLabel.length >= MAX_WIDTH;
+          const expansionIndicatorWidth = isActive && isLong ? 3 : 0;
+          const descriptionColumnWidth = Math.max(
+            contentWidth - labelColumnWidth - 2 - expansionIndicatorWidth,
+            1,
+          );
+          const labelElement = (
+            <PrepareLabel
+              label={displayLabel}
+              matchedIndex={suggestion.matchedIndex}
+              userInput={userInput}
+              textColor={textColor}
+              isExpanded={isExpanded}
+            />
+          );
 
-      {visibleSuggestions.map((suggestion, index) => {
-        const originalIndex = startIndex + index;
-        const isActive = originalIndex === activeIndex;
-        const isExpanded = originalIndex === expandedIndex;
-        const textColor = isActive ? theme.text.primary : theme.text.secondary;
-        const displayLabel = suggestion.label ?? suggestion.value;
-        const isLong = displayLabel.length >= MAX_WIDTH;
-        const expansionIndicatorWidth = isActive && isLong ? 3 : 0;
-        const descriptionColumnWidth = Math.max(
-          contentWidth - labelColumnWidth - 2 - expansionIndicatorWidth,
-          1,
-        );
-        const labelElement = (
-          <PrepareLabel
-            label={displayLabel}
-            matchedIndex={suggestion.matchedIndex}
-            userInput={userInput}
-            textColor={textColor}
-            isExpanded={isExpanded}
-          />
-        );
-
-        return (
-          <Box
-            key={`${suggestion.value}-${originalIndex}`}
-            flexDirection="row"
-            ref={(node) => {
-              itemRefs.current[index] = node;
-            }}
-          >
-            <Box width={ACTIVE_MARKER_WIDTH} flexShrink={0}>
-              <Text color={extendedTheme.ui.brand}>
-                {isActive ? `${glyphs().prompt} ` : '  '}
-              </Text>
-            </Box>
+          return (
             <Box
-              {...(mode === 'slash' || suggestion.description
-                ? { width: labelColumnWidth, flexShrink: 0 as const }
-                : { flexShrink: 1 as const })}
+              key={`${suggestion.value}-${originalIndex}`}
+              flexDirection="row"
+              ref={(node) => {
+                itemRefs.current[index] = node;
+              }}
             >
-              {/* The label keeps PrepareLabel's own wrapping: the Ctrl+R
+              <Box width={ACTIVE_MARKER_WIDTH} flexShrink={0}>
+                <Text color={extendedTheme.ui.brand}>
+                  {isActive ? `${glyphs().prompt} ` : '  '}
+                </Text>
+              </Box>
+              <Box
+                {...(mode === 'slash' || suggestion.description
+                  ? { width: labelColumnWidth, flexShrink: 0 as const }
+                  : { flexShrink: 1 as const })}
+              >
+                {/* The label keeps PrepareLabel's own wrapping: the Ctrl+R
                   expand/collapse snapshots render the long label across
                   lines, so the container must not truncate. Only hint and
                   badge truncate; left wrappable, an owner badge longer than
                   the half-width column's leftover wrapped one character per
                   line. */}
-              <Box>
-                <Box flexShrink={0}>{labelElement}</Box>
-                {suggestion.argumentHint && (
-                  <Text color={theme.text.secondary} wrap="truncate-end">
-                    {' '}
-                    {suggestion.argumentHint}
-                  </Text>
-                )}
-                {suggestion.sourceBadge && (
-                  <Text color={textColor} wrap="truncate-end">
-                    {' '}
-                    {suggestion.sourceBadge}
-                  </Text>
-                )}
+                <Box>
+                  <Box flexShrink={0}>{labelElement}</Box>
+                  {suggestion.argumentHint && (
+                    <Text color={theme.text.secondary} wrap="truncate-end">
+                      {' '}
+                      {suggestion.argumentHint}
+                    </Text>
+                  )}
+                  {suggestion.sourceBadge && (
+                    <Text color={textColor} wrap="truncate-end">
+                      {' '}
+                      {suggestion.sourceBadge}
+                    </Text>
+                  )}
+                </Box>
               </Box>
-            </Box>
 
-            {suggestion.description && (
-              <Box
-                width={descriptionColumnWidth}
-                flexGrow={1}
-                flexShrink={1}
-                paddingLeft={2}
-              >
-                <Text color={extendedTheme.text.muted} wrap="truncate-end">
-                  {normalizeDescription(suggestion.description)}
-                </Text>
-              </Box>
-            )}
-            {isActive && isLong && (
-              <Box>
-                <Text color={Colors.Gray}>{isExpanded ? ' ← ' : ' → '}</Text>
-              </Box>
-            )}
+              {suggestion.description && (
+                <Box
+                  width={descriptionColumnWidth}
+                  flexGrow={1}
+                  flexShrink={1}
+                  paddingLeft={2}
+                >
+                  <Text color={extendedTheme.text.muted} wrap="truncate-end">
+                    {normalizeDescription(suggestion.description)}
+                  </Text>
+                </Box>
+              )}
+              {isActive && isLong && (
+                <Box>
+                  <Text color={Colors.Gray}>{isExpanded ? ' ← ' : ' → '}</Text>
+                </Box>
+              )}
+            </Box>
+          );
+        })}
+      </Box>
+      {/* Scroll marks and position share the hint's row, so a list that
+          scrolls is no taller than one that does not. */}
+      <Box height={1} flexShrink={0}>
+        <Box flexGrow={1} minWidth={0}>
+          <Text color={extendedTheme.text.muted} wrap="truncate-end">
+            {t('↑↓ navigate · tab complete · enter select · esc close')}
+          </Text>
+        </Box>
+        {filteredSuggestions.length > MAX_SUGGESTIONS_TO_SHOW && (
+          <Box marginLeft={1} flexShrink={0}>
+            <Text color={extendedTheme.text.muted}>
+              {scrollOffset > 0 ? '▲' : ' '}
+              {endIndex < filteredSuggestions.length ? '▼' : ' '}{' '}
+              {activeIndex + 1}/{filteredSuggestions.length}
+            </Text>
           </Box>
-        );
-      })}
-      {endIndex < filteredSuggestions.length && <Text color="gray">▼</Text>}
-      {filteredSuggestions.length > MAX_SUGGESTIONS_TO_SHOW && (
-        <Text color="gray">
-          ({activeIndex + 1}/{filteredSuggestions.length})
-        </Text>
-      )}
-      <Text color={extendedTheme.text.muted} wrap="truncate-end">
-        {t('↑↓ navigate · tab complete · enter select · esc close')}
-      </Text>
+        )}
+      </Box>
     </Box>
   );
 }

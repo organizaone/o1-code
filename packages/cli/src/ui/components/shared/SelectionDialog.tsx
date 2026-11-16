@@ -37,6 +37,11 @@ interface SelectionDialogProps<T> {
   filter?: { value: string; onChange: (value: string) => void };
   textNavigation?: boolean;
   onHeightChange?: (height: number) => void;
+  /**
+   * Keeps the dialog this tall (or as tall as the terminal allows) however
+   * many items it lists, for a list that is filtered as the user types.
+   */
+  fixedHeight?: number;
 }
 
 export function SelectionDialog<T>({
@@ -56,11 +61,20 @@ export function SelectionDialog<T>({
   filter,
   textNavigation = false,
   onHeightChange,
+  fixedHeight,
 }: SelectionDialogProps<T>) {
   const { columns, rows } = useTerminalSize();
   const width = Math.max(1, Math.min(columns - 4, 140, availableWidth ?? 140));
   const contentWidth = Math.max(1, width - (embedded ? 0 : 4));
-  const budget = Math.max(1, Math.floor(availableTerminalHeight ?? rows - 2));
+  const budget = Math.max(
+    1,
+    Math.min(
+      Math.floor(availableTerminalHeight ?? rows - 2),
+      fixedHeight ?? Infinity,
+    ),
+  );
+  // With a fixed height the rows are laid out as for a full list.
+  const sizingItems = fixedHeight === undefined ? items.length : Infinity;
   const initialIndex = Math.max(
     0,
     items.findIndex((item) => item.value === initialValue),
@@ -99,12 +113,12 @@ export function SelectionDialog<T>({
   const descriptionRows = sideHelp
     ? 0
     : Math.min(
-        3,
-        Math.max(0, bodyBudget - Math.max(1, Math.min(2, items.length))),
+        fixedHeight === undefined ? 3 : 2,
+        Math.max(0, bodyBudget - Math.max(1, Math.min(2, sizingItems))),
       );
   const listRows = Math.max(
     1,
-    Math.min(9, items.length, bodyBudget - descriptionRows),
+    Math.min(9, sizingItems, bodyBudget - descriptionRows),
   );
   const bodyHeight = sideHelp
     ? Math.min(bodyBudget, Math.max(5, listRows))
