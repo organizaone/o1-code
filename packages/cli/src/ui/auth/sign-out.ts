@@ -20,6 +20,7 @@ import {
   reachesOrganizaOne,
 } from '@organizaone/o1-code-core/providers/presets/organizaone.js';
 import { logoutProvider, type LogoutSettings } from '../../commands/auth.js';
+import { SettingScope } from '../../config/settings.js';
 import { t } from '../../i18n/index.js';
 import { maskApiKey } from './useAuth.js';
 
@@ -29,6 +30,8 @@ export interface ActiveLogin {
   provider: string;
   /** Whether the model is reached through OrganizaOne. */
   organizaOne: boolean;
+  /** A server on this machine: its key is a placeholder, not an account's. */
+  local?: boolean;
   /** Saved keys the active model reads: files in the credential store. */
   credentialIds: string[];
   /** The model is reached through the pinned tunnel, set up from a code. */
@@ -37,7 +40,7 @@ export interface ActiveLogin {
   envKey?: string;
   /**
    * Set when that variable was set outside o1-code: the key is then not
-   * o1-code's to remove.
+   * o1-code's to remove, and the sign-out leaves the variable alone.
    */
   externalEnvKey?: string;
   /** The device's name on the account page, when the key came from a sign-in. */
@@ -106,6 +109,7 @@ export function describeActiveLogin(
         ? t(preset.label)
         : (hostOf(baseUrl) ?? authType),
     organizaOne,
+    ...(preset?.uiGroup === 'local' ? { local: true } : {}),
     credentialIds,
     tunnel,
     ...(envKey ? { envKey } : {}),
@@ -119,11 +123,35 @@ export function describeActiveLogin(
   };
 }
 
-/** Whether o1-code holds something of this login that a sign-out removes. */
-export function canSignOut(login: ActiveLogin): boolean {
-  return (
-    !login.externalEnvKey && (login.tunnel || login.credentialIds.length > 0)
-  );
+/** What a sign-out does on this machine, then what it leaves as it is. */
+function describeSignOutEffect(login: ActiveLogin): string {
+  const saved = login.credentialIds.length > 0;
+  const removed = login.local
+    ? t(
+        'The connection saved on this machine is removed and this session is disconnected.',
+      )
+    : saved
+      ? t(
+          'The saved key is removed from this machine and this session is disconnected.',
+        )
+      : login.tunnel
+        ? t(
+            'The connection saved on this machine is removed and this session is disconnected.',
+          )
+        : t('This session is disconnected.');
+  const kept = login.externalEnvKey
+    ? t(
+        'The environment variable {{envKey}} is set outside O1-Code and stays as it is.',
+        { envKey: login.externalEnvKey },
+      )
+    : login.organizaOne && (saved || login.tunnel)
+      ? t('The device stays on your account page until you remove it there.')
+      : login.local
+        ? t('The server on this machine is not changed.')
+        : saved
+          ? t('The key itself stays valid until you revoke it at the provider.')
+          : t('No key is saved for this provider.');
+  return `${removed} ${kept}`;
 }
 
 /** The confirmation's text (Markdown): which account, and what is removed. */
@@ -135,7 +163,15 @@ export function formatSignOutPrompt(login: ActiveLogin): string {
   if (login.deviceName) {
     lines.push(`- ${t('Device: {{name}}', { name: login.deviceName })}`);
   }
-  if (login.maskedKey) {
+  if (login.externalEnvKey) {
+    lines.push(
+      `- ${t('Key: {{key}}', {
+        key: t('environment variable {{envKey}}', {
+          envKey: login.externalEnvKey,
+        }),
+      })}`,
+    );
+  } else if (login.maskedKey && !login.local) {
     lines.push(`- ${t('Key: {{key}}', { key: login.maskedKey })}`);
   }
   if (login.tunnel) {
@@ -143,23 +179,19 @@ export function formatSignOutPrompt(login: ActiveLogin): string {
       `- ${t('Connection: {{name}}', { name: t('o1-gateway device code') })}`,
     );
   }
-  lines.push(
-    '',
-    login.organizaOne
-      ? t(
-          'The saved key is removed from this machine and this session is disconnected. The device stays on your account page until you remove it there.',
-        )
-      : t(
-          'The saved key is removed from this machine and this session is disconnected. The key itself stays valid until you revoke it at the provider.',
-        ),
-  );
+  lines.push('', describeSignOutEffect(login));
   return lines.join('\n');
 }
 
+const SELECTED_AUTH_TYPE = 'security.auth.selectedType';
+
 /**
- * Removes what o1-code saved for the login (the keys, their references in the
- * settings, the copy exported to this process, the tunnel's configuration)
- * and signs the session out. Nothing is revoked at the provider.
+ * Signs the session out, whatever it signed in with: removes what o1-code
+ * saved for the login (the keys, their references in the settings, the copy
+ * exported to this process, the tunnel's configuration) and the choice of
+ * provider, so the next start asks which one to connect instead of going back
+ * to this one. Nothing is revoked at the provider, and a key the environment
+ * holds is not o1-code's to remove.
  */
 export async function signOut(
   login: ActiveLogin,
@@ -175,8 +207,15 @@ export async function signOut(
 ): Promise<void> {
   for (const id of login.credentialIds) logoutProvider(id, settings);
   if (login.envKey) withdrawExportedCredential(login.envKey);
-  // Before anything else is awaited: removing the references changed the
-  // settings, and the reload that follows must not find a session to refresh.
+  for (const scope of [SettingScope.User, SettingScope.Workspace]) {
+    const selected =
+      settings.forScope(scope).originalSettings.security?.auth?.selectedType;
+    if (selected !== undefined) {
+      settings.setValue(scope, SELECTED_AUTH_TYPE, undefined);
+    }
+  }
+  // Before anything else is awaited: the lines above changed the settings,
+  // and the reload that follows must not find a session to refresh.
   await config.clearAuth();
   if (login.tunnel) await forgetTunnel();
 }

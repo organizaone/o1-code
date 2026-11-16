@@ -975,6 +975,10 @@ describe('<MainContent />', () => {
       ['/delete', { isDeleteDialogOpen: true }],
       ['/rewind', { isRewindSelectorOpen: true }],
       ['/diff', { isDiffDialogOpen: true }],
+      [
+        '/logout',
+        { confirmationRequest: { prompt: 'Sign out?', onConfirm: () => {} } },
+      ],
     ])(
       'hides the conversation frame while %s is open and restores it on close',
       async (command, dialogState) => {

@@ -284,14 +284,17 @@ platform honours modes; on Windows your user profile's permissions protect it, a
 When a model runs, O1-Code reads its key from the entry's `envKey` variable first, so a key exported
 in your shell or a `.env` file always wins, and then from the saved credential the entry names.
 
-To sign out of the provider the session is connected to, run `/logout` (or `/disconnect`). It shows
-which account is connected — the provider, the device name of a sign-in, and the saved key with its
-middle hidden — and asks before it removes anything. Confirming deletes the saved key and its
-`credential` reference, forgets an o1-gateway device code, disconnects the session and opens the
-`/auth` dialog. Nothing is revoked at the provider: a key stays valid until you revoke it there, and
-an OrganizaOne device stays on your account page until you remove it. A key that comes from an
-environment variable you set yourself is not O1-Code's to remove; `/logout` names the variable
-instead.
+To sign out of the provider the session is connected to, run `/logout` (or `/disconnect`). It works
+for every way of connecting: an OrganizaOne sign-in, an o1-gateway device code, an API key, a local
+provider and a provider given by URL. It shows which account is connected — the provider, the device
+name of a sign-in, and the saved key with its middle hidden — and asks before it removes anything.
+Confirming deletes the saved key and its `credential` reference, forgets an o1-gateway device code,
+clears `security.auth.selectedType`, disconnects the session and opens the `/auth` dialog; the next
+start asks which provider to connect. Nothing is revoked at the provider: a key stays valid until you
+revoke it there, and an OrganizaOne device stays on your account page until you remove it. A local server is not changed.
+A key that
+comes from an environment variable you set yourself is not O1-Code's to remove: `/logout` names the
+variable, disconnects the session and leaves the variable as it is.
 
 To forget the saved key of any provider from the shell, run:
 

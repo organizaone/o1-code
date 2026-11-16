@@ -21,7 +21,6 @@ import {
   type SettingsFile,
 } from '../../config/settings.js';
 import {
-  canSignOut,
   describeActiveLogin,
   formatSignOutPrompt,
   signOut,
@@ -133,7 +132,6 @@ describe('sign-out', () => {
         maskedKey: 'o1d...1234',
       });
       expect(login?.externalEnvKey).toBeUndefined();
-      expect(canSignOut(login!)).toBe(true);
     });
 
     it('finds the key saved under the preset id when the entry names none', () => {
@@ -149,8 +147,7 @@ describe('sign-out', () => {
       expect(login?.credentialIds).toEqual(['organizaone']);
     });
 
-    it('reports a key set outside the store as not removable', () => {
-      writeCredential('organizaone', { apiKey: DEVICE_KEY });
+    it('names the variable of a key set outside the store', () => {
       process.env[ENV_KEY] = 'set-by-the-shell';
 
       const login = describeActiveLogin(
@@ -158,7 +155,7 @@ describe('sign-out', () => {
       );
 
       expect(login?.externalEnvKey).toBe(ENV_KEY);
-      expect(canSignOut(login!)).toBe(false);
+      expect(login?.credentialIds).toEqual([]);
     });
 
     it('names a provider given by URL by its host', () => {
@@ -212,16 +209,50 @@ describe('sign-out', () => {
         credentialIds: [],
         deviceName: 'office laptop',
       });
-      expect(canSignOut(login!)).toBe(true);
     });
 
-    it('has nothing to sign out of when no key is saved', () => {
+    it('marks a server on this machine as local', () => {
+      writeCredential('ollama', { apiKey: 'ollama' });
+
       const login = describeActiveLogin(
-        fakeConfig(organizaOneGenerator, organizaOneEntry),
+        fakeConfig(
+          {
+            authType: AuthType.USE_OPENAI,
+            model: 'qwen3:8b',
+            baseUrl: 'http://127.0.0.1:11434/v1',
+            apiKeyEnvKey: 'OLLAMA_API_KEY',
+          },
+          {
+            id: 'qwen3:8b',
+            baseUrl: 'http://127.0.0.1:11434/v1',
+            envKey: 'OLLAMA_API_KEY',
+            credential: 'ollama',
+          },
+        ),
       );
 
-      expect(login?.credentialIds).toEqual([]);
-      expect(canSignOut(login!)).toBe(false);
+      expect(login).toMatchObject({
+        provider: 'Ollama',
+        local: true,
+        credentialIds: ['ollama'],
+      });
+    });
+
+    it('describes a provider that needs no key', () => {
+      const login = describeActiveLogin(
+        fakeConfig(
+          {
+            authType: AuthType.USE_OPENAI,
+            model: 'local-model',
+            baseUrl: 'http://localhost:11434/v1',
+          },
+          { id: 'local-model', baseUrl: 'http://localhost:11434/v1' },
+        ),
+      );
+
+      expect(login).toMatchObject({ credentialIds: [], tunnel: false });
+      expect(login?.externalEnvKey).toBeUndefined();
+      expect(login?.maskedKey).toBeUndefined();
     });
   });
 
@@ -256,6 +287,66 @@ describe('sign-out', () => {
       expect(prompt).toContain('Sign out of llm.example.com?');
       expect(prompt).not.toContain('Device:');
       expect(prompt).toContain('until you revoke it at the provider');
+    });
+
+    it('names the variable of a key the environment holds, and leaves it', () => {
+      const prompt = formatSignOutPrompt({
+        ...login,
+        credentialIds: [],
+        deviceName: undefined,
+        maskedKey: undefined,
+        envKey: ENV_KEY,
+        externalEnvKey: ENV_KEY,
+      });
+
+      expect(prompt).toContain(`Key: environment variable ${ENV_KEY}`);
+      expect(prompt).toContain('This session is disconnected.');
+      expect(prompt).toContain('stays as it is');
+      expect(prompt).not.toContain('The saved key is removed');
+    });
+
+    it('says the connection of a device code is removed', () => {
+      const prompt = formatSignOutPrompt({
+        ...login,
+        credentialIds: [],
+        maskedKey: undefined,
+        tunnel: true,
+      });
+
+      expect(prompt).toContain('Connection: o1-gateway device code');
+      expect(prompt).toContain('The connection saved on this machine');
+      expect(prompt).toContain('stays on your account page');
+    });
+
+    it('hides the placeholder key of a server on this machine', () => {
+      const prompt = formatSignOutPrompt({
+        provider: 'Ollama',
+        organizaOne: false,
+        local: true,
+        credentialIds: ['ollama'],
+        tunnel: false,
+        maskedKey: '***',
+      });
+
+      expect(prompt).toContain('Sign out of Ollama?');
+      expect(prompt).not.toContain('Key:');
+      expect(prompt).toContain('The connection saved on this machine');
+      expect(prompt).toContain('The server on this machine is not changed.');
+    });
+
+    it('says no key is saved for a provider that needs none', () => {
+      const prompt = formatSignOutPrompt({
+        provider: 'localhost:11434',
+        organizaOne: false,
+        credentialIds: [],
+        tunnel: false,
+      });
+
+      expect(prompt).toContain('Sign out of localhost:11434?');
+      expect(prompt).not.toContain('Key:');
+      expect(prompt).toContain(
+        'This session is disconnected. No key is saved for this provider.',
+      );
     });
   });
 
@@ -306,6 +397,45 @@ describe('sign-out', () => {
       );
 
       expect(forgetTunnel).toHaveBeenCalledTimes(1);
+      expect(config.clearAuth).toHaveBeenCalledTimes(1);
+    });
+
+    it('forgets the choice of provider, so the next start asks again', async () => {
+      const settings = fakeSettings({
+        security: { auth: { selectedType: AuthType.USE_OPENAI } },
+      } as Settings);
+      const config = { clearAuth: vi.fn().mockResolvedValue(undefined) };
+
+      await signOut(
+        {
+          provider: 'localhost:11434',
+          organizaOne: false,
+          credentialIds: [],
+          tunnel: false,
+        },
+        { config, settings },
+      );
+
+      expect(settings.setValue.mock.calls).toEqual([
+        [SettingScope.User, 'security.auth.selectedType', undefined],
+      ]);
+      expect(config.clearAuth).toHaveBeenCalledTimes(1);
+    });
+
+    it('signs out of a key the environment holds without touching it', async () => {
+      process.env[ENV_KEY] = 'set-by-the-shell';
+      const settings = fakeSettings({
+        modelProviders: { anthropic: [organizaOneEntry] },
+      } as Settings);
+      const config = { clearAuth: vi.fn().mockResolvedValue(undefined) };
+      const login = describeActiveLogin(
+        fakeConfig(organizaOneGenerator, organizaOneEntry),
+      )!;
+
+      await signOut(login, { config, settings });
+
+      expect(process.env[ENV_KEY]).toBe('set-by-the-shell');
+      expect(settings.setValue).not.toHaveBeenCalled();
       expect(config.clearAuth).toHaveBeenCalledTimes(1);
     });
 

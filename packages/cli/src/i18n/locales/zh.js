@@ -477,22 +477,27 @@ export default {
   'Sign out of the connected provider': '退出当前连接的提供商',
   'No provider is connected. Use /auth to connect one.':
     '尚未连接任何提供商。请使用 /auth 进行连接。',
-  'This session reads its key from the environment variable {{envKey}}, set outside O1-Code. Unset it to sign out of {{provider}}.':
-    '此会话从环境变量 {{envKey}} 读取密钥，该变量是在 O1-Code 之外设置的。取消设置该变量即可退出 {{provider}}。',
-  'O1-Code holds no saved key for {{provider}}, so there is nothing to sign out of.':
-    'O1-Code 没有保存 {{provider}} 的密钥，因此无需退出。',
   'Sign out': '退出登录',
   'Could not sign out: {{message}}': '无法退出登录：{{message}}',
-  'Signed out of {{provider}}. The saved key was removed from this machine.':
-    '已退出 {{provider}}。已保存的密钥已从本机删除。',
+  'Signed out of {{provider}}.': '已退出 {{provider}}。',
   'Sign out of {{provider}}?': '要退出 {{provider}} 吗？',
   'Device: {{name}}': '设备：{{name}}',
   'Key: {{key}}': '密钥：{{key}}',
+  'environment variable {{envKey}}': '环境变量 {{envKey}}',
   'Connection: {{name}}': '连接：{{name}}',
-  'The saved key is removed from this machine and this session is disconnected. The device stays on your account page until you remove it there.':
-    '已保存的密钥将从本机删除，此会话将断开连接。该设备会保留在您的账户页面上，直到您在那里将其移除。',
-  'The saved key is removed from this machine and this session is disconnected. The key itself stays valid until you revoke it at the provider.':
-    '已保存的密钥将从本机删除，此会话将断开连接。密钥本身仍然有效，直到您在提供商处将其撤销。',
+  'The saved key is removed from this machine and this session is disconnected.':
+    '已保存的密钥将从本机删除，此会话将断开连接。',
+  'The connection saved on this machine is removed and this session is disconnected.':
+    '本机保存的连接将被删除，此会话将断开连接。',
+  'This session is disconnected.': '此会话将断开连接。',
+  'The environment variable {{envKey}} is set outside O1-Code and stays as it is.':
+    '环境变量 {{envKey}} 是在 O1-Code 之外设置的，将保持不变。',
+  'The device stays on your account page until you remove it there.':
+    '该设备会保留在您的账户页面上，直到您在那里将其移除。',
+  'The key itself stays valid until you revoke it at the provider.':
+    '密钥本身仍然有效，直到您在提供商处将其撤销。',
+  'No key is saved for this provider.': '此提供商没有已保存的密钥。',
+  'The server on this machine is not changed.': '本机上的服务器不会被更改。',
   'Copy to clipboard: reply, code (by lang), LaTeX, or Mermaid. N = Nth-latest message, index = block number':
     '复制到剪贴板：AI 回复、代码块（可按语言筛选）、LaTeX 或 Mermaid。N 为倒数第 N 条消息，index 为代码块序号',
   'Show working-tree change stats versus HEAD':

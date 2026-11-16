@@ -796,22 +796,29 @@ export default {
   'Sign out of the connected provider': 'Sair do provedor conectado',
   'No provider is connected. Use /auth to connect one.':
     'Nenhum provedor está conectado. Use /auth para conectar um.',
-  'This session reads its key from the environment variable {{envKey}}, set outside O1-Code. Unset it to sign out of {{provider}}.':
-    'Esta sessão lê a chave da variável de ambiente {{envKey}}, definida fora do O1-Code. Remova a variável para sair de {{provider}}.',
-  'O1-Code holds no saved key for {{provider}}, so there is nothing to sign out of.':
-    'O O1-Code não guarda nenhuma chave de {{provider}}, então não há do que sair.',
   'Sign out': 'Sair',
   'Could not sign out: {{message}}': 'Não foi possível sair: {{message}}',
-  'Signed out of {{provider}}. The saved key was removed from this machine.':
-    'Você saiu de {{provider}}. A chave salva foi removida desta máquina.',
+  'Signed out of {{provider}}.': 'Você saiu de {{provider}}.',
   'Sign out of {{provider}}?': 'Sair de {{provider}}?',
   'Device: {{name}}': 'Dispositivo: {{name}}',
   'Key: {{key}}': 'Chave: {{key}}',
+  'environment variable {{envKey}}': 'variável de ambiente {{envKey}}',
   'Connection: {{name}}': 'Conexão: {{name}}',
-  'The saved key is removed from this machine and this session is disconnected. The device stays on your account page until you remove it there.':
-    'A chave salva é removida desta máquina e esta sessão é desconectada. O dispositivo continua na página da sua conta até você removê-lo por lá.',
-  'The saved key is removed from this machine and this session is disconnected. The key itself stays valid until you revoke it at the provider.':
-    'A chave salva é removida desta máquina e esta sessão é desconectada. A chave em si continua válida até você revogá-la no provedor.',
+  'The saved key is removed from this machine and this session is disconnected.':
+    'A chave salva é removida desta máquina e esta sessão é desconectada.',
+  'The connection saved on this machine is removed and this session is disconnected.':
+    'A conexão salva nesta máquina é removida e esta sessão é desconectada.',
+  'This session is disconnected.': 'Esta sessão é desconectada.',
+  'The environment variable {{envKey}} is set outside O1-Code and stays as it is.':
+    'A variável de ambiente {{envKey}} é definida fora do O1-Code e continua como está.',
+  'The device stays on your account page until you remove it there.':
+    'O dispositivo continua na página da sua conta até você removê-lo por lá.',
+  'The key itself stays valid until you revoke it at the provider.':
+    'A chave em si continua válida até você revogá-la no provedor.',
+  'No key is saved for this provider.':
+    'Não há chave salva para este provedor.',
+  'The server on this machine is not changed.':
+    'O servidor nesta máquina não é alterado.',
   'Copy the last AI response to clipboard (/copy N for Nth-latest)':
     'Copiar a última resposta da IA para a área de transferência (/copy N para a N-ésima)',
 

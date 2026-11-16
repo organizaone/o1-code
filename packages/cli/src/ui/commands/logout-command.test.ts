@@ -70,31 +70,27 @@ describe('logoutCommand', () => {
     expect(signOut).not.toHaveBeenCalled();
   });
 
-  it('points at the variable when the key was set outside the store', async () => {
-    vi.mocked(describeActiveLogin).mockReturnValue({
-      ...login,
-      externalEnvKey: 'ORGANIZAONE_API_KEY',
-    });
+  it.each<[string, Partial<ActiveLogin>]>([
+    [
+      'a key the environment holds',
+      { credentialIds: [], externalEnvKey: 'ORGANIZAONE_API_KEY' },
+    ],
+    ['a provider with no saved key', { credentialIds: [], envKey: undefined }],
+    ['a device code', { credentialIds: [], tunnel: true }],
+  ])('asks and signs out of %s', async (_name, overrides) => {
+    const active = { ...login, ...overrides };
+    vi.mocked(describeActiveLogin).mockReturnValue(active);
 
-    const result = await run({ overwriteConfirmed: true }).result;
-
-    expect(result).toMatchObject({ type: 'message', messageType: 'info' });
-    expect((result as { content: string }).content).toContain(
-      'ORGANIZAONE_API_KEY',
-    );
+    expect(await run().result).toMatchObject({ type: 'confirm_action' });
     expect(signOut).not.toHaveBeenCalled();
-  });
 
-  it('has nothing to do when no key is saved', async () => {
-    vi.mocked(describeActiveLogin).mockReturnValue({
-      ...login,
-      credentialIds: [],
+    const { context, result } = run({ overwriteConfirmed: true });
+
+    expect(await result).toEqual({ type: 'dialog', dialog: 'auth' });
+    expect(signOut).toHaveBeenCalledWith(active, {
+      config,
+      settings: context.services.settings,
     });
-
-    const result = await run({ overwriteConfirmed: true }).result;
-
-    expect(result).toMatchObject({ type: 'message', messageType: 'info' });
-    expect(signOut).not.toHaveBeenCalled();
   });
 
   it('asks first, naming the connected account', async () => {
@@ -128,7 +124,7 @@ describe('logoutCommand', () => {
     expect(context.ui.addItem).toHaveBeenCalledWith(
       expect.objectContaining({
         type: 'info',
-        text: 'Signed out of OrganizaOne. The saved key was removed from this machine.',
+        text: 'Signed out of OrganizaOne.',
       }),
       expect.any(Number),
     );

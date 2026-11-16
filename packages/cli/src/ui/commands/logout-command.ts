@@ -10,16 +10,15 @@ import { CommandKind } from './types.js';
 import { MessageType } from '../types.js';
 import { t } from '../../i18n/index.js';
 import {
-  canSignOut,
   describeActiveLogin,
   formatSignOutPrompt,
   signOut,
 } from '../auth/sign-out.js';
 
 /**
- * Signs out of the provider the session is connected to, after a
- * confirmation that names the account. The sign-in dialog takes over once
- * the saved key is gone, as it does on a first run.
+ * Signs out of the provider the session is connected to, however it signed
+ * in, after a confirmation that names the account. The sign-in dialog takes
+ * over once the session is disconnected, as it does on a first run.
  */
 export const logoutCommand: SlashCommand = {
   name: 'logout',
@@ -45,26 +44,6 @@ export const logoutCommand: SlashCommand = {
         type: 'message',
         messageType: 'info',
         content: t('No provider is connected. Use /auth to connect one.'),
-      };
-    }
-    if (login.externalEnvKey) {
-      return {
-        type: 'message',
-        messageType: 'info',
-        content: t(
-          'This session reads its key from the environment variable {{envKey}}, set outside O1-Code. Unset it to sign out of {{provider}}.',
-          { envKey: login.externalEnvKey, provider: login.provider },
-        ),
-      };
-    }
-    if (!canSignOut(login)) {
-      return {
-        type: 'message',
-        messageType: 'info',
-        content: t(
-          'O1-Code holds no saved key for {{provider}}, so there is nothing to sign out of.',
-          { provider: login.provider },
-        ),
       };
     }
 
@@ -93,10 +72,7 @@ export const logoutCommand: SlashCommand = {
     context.ui.addItem(
       {
         type: MessageType.INFO,
-        text: t(
-          'Signed out of {{provider}}. The saved key was removed from this machine.',
-          { provider: login.provider },
-        ),
+        text: t('Signed out of {{provider}}.', { provider: login.provider }),
       },
       Date.now(),
     );

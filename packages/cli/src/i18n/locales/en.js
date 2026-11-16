@@ -758,22 +758,28 @@ export default {
   'Sign out of the connected provider': 'Sign out of the connected provider',
   'No provider is connected. Use /auth to connect one.':
     'No provider is connected. Use /auth to connect one.',
-  'This session reads its key from the environment variable {{envKey}}, set outside O1-Code. Unset it to sign out of {{provider}}.':
-    'This session reads its key from the environment variable {{envKey}}, set outside O1-Code. Unset it to sign out of {{provider}}.',
-  'O1-Code holds no saved key for {{provider}}, so there is nothing to sign out of.':
-    'O1-Code holds no saved key for {{provider}}, so there is nothing to sign out of.',
   'Sign out': 'Sign out',
   'Could not sign out: {{message}}': 'Could not sign out: {{message}}',
-  'Signed out of {{provider}}. The saved key was removed from this machine.':
-    'Signed out of {{provider}}. The saved key was removed from this machine.',
+  'Signed out of {{provider}}.': 'Signed out of {{provider}}.',
   'Sign out of {{provider}}?': 'Sign out of {{provider}}?',
   'Device: {{name}}': 'Device: {{name}}',
   'Key: {{key}}': 'Key: {{key}}',
+  'environment variable {{envKey}}': 'environment variable {{envKey}}',
   'Connection: {{name}}': 'Connection: {{name}}',
-  'The saved key is removed from this machine and this session is disconnected. The device stays on your account page until you remove it there.':
-    'The saved key is removed from this machine and this session is disconnected. The device stays on your account page until you remove it there.',
-  'The saved key is removed from this machine and this session is disconnected. The key itself stays valid until you revoke it at the provider.':
-    'The saved key is removed from this machine and this session is disconnected. The key itself stays valid until you revoke it at the provider.',
+  'The saved key is removed from this machine and this session is disconnected.':
+    'The saved key is removed from this machine and this session is disconnected.',
+  'The connection saved on this machine is removed and this session is disconnected.':
+    'The connection saved on this machine is removed and this session is disconnected.',
+  'This session is disconnected.': 'This session is disconnected.',
+  'The environment variable {{envKey}} is set outside O1-Code and stays as it is.':
+    'The environment variable {{envKey}} is set outside O1-Code and stays as it is.',
+  'The device stays on your account page until you remove it there.':
+    'The device stays on your account page until you remove it there.',
+  'The key itself stays valid until you revoke it at the provider.':
+    'The key itself stays valid until you revoke it at the provider.',
+  'No key is saved for this provider.': 'No key is saved for this provider.',
+  'The server on this machine is not changed.':
+    'The server on this machine is not changed.',
   'Copy to clipboard: reply, code (by lang), LaTeX, or Mermaid. N = Nth-latest message, index = block number':
     'Copy to clipboard: reply, code (by lang), LaTeX, or Mermaid. N = Nth-latest message, index = block number',
   'Show working-tree change stats versus HEAD':
