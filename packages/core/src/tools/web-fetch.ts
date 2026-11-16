@@ -14,7 +14,7 @@ import {
   isPrivateHost,
 } from '../utils/fetch.js';
 import type { Storage } from '../config/storage.js';
-import { MAX_SESSION_BYTES } from './truncation.js';
+import { MAX_SESSION_BYTES, truncateToolOutput } from './truncation.js';
 import {
   formatByteSize,
   isBinaryContentType,
@@ -63,6 +63,8 @@ export function sideQueryTimeoutMs(): number {
 // Truncation applies to converted/decoded text, never to raw HTML — cutting
 // markup before conversion silently destroys content deep in large pages.
 const MAX_CONTENT_CHARS = 100_000;
+// Room left under the cap for the truncation notice that wraps the preview.
+const TRUNCATED_PREVIEW_CHARS = MAX_CONTENT_CHARS - 2000;
 const MAX_RESPONSE_BYTES = 10 * 1024 * 1024;
 const MAX_REDIRECTS = 10;
 
@@ -70,8 +72,8 @@ const CACHE_TTL_MS = 15 * 60 * 1000;
 const CACHE_CAPACITY = 32;
 // mnemonist's LRUCache has no byte-size accounting; refusing to cache huge
 // conversions bounds worst-case memory at CACHE_CAPACITY * this limit.
-// Belt-and-braces today: every cached content path pre-truncates to
-// ~MAX_CONTENT_CHARS, so this only bites if a future path caches
+// Belt-and-braces today: cached content is bounded to ~MAX_CONTENT_CHARS
+// before the entry is built, so this only bites if a future path caches
 // untruncated content.
 const MAX_CACHEABLE_CHARS = 2 * 1024 * 1024;
 
@@ -88,6 +90,16 @@ interface CacheEntry {
    * binary content.
    */
   content: string;
+  /**
+   * Where the complete text was saved when `content` had to be cut. Kept on
+   * the entry so a cache hit points at the same file instead of saving again.
+   */
+  persistedTextPath?: string;
+  /**
+   * Whether `content` was cut. Not derivable from `persistedTextPath`: a
+   * failed or skipped save still returns a cut preview, with no path.
+   */
+  reduced?: boolean;
   persistedPath?: string;
   persistedSize?: number;
   /** Sniffed mime for the persisted-file note (Content-Type may lie). */
@@ -191,16 +203,6 @@ function readHintForPath(persistedPath: string): string {
     return ` Use ${ToolNames.READ_FILE} to view it.`;
   }
   return '';
-}
-
-function truncateText(text: string): string {
-  if (text.length <= MAX_CONTENT_CHARS) {
-    return text;
-  }
-  return (
-    text.slice(0, MAX_CONTENT_CHARS) +
-    `\n\n[Content truncated: showing first ${MAX_CONTENT_CHARS.toLocaleString('en-US')} of ${text.length.toLocaleString('en-US')} characters]`
-  );
 }
 
 /**
@@ -482,7 +484,7 @@ Status: ${entry.status} ${entry.statusText || 'OK'} | Content-Type: ${entry.cont
       if (sniff.extension === 'pdf' && persistedPath) {
         const pdfText = await extractPDFText(persistedPath, { signal });
         if (pdfText.success && pdfText.text.trim()) {
-          content = truncateText(pdfText.text);
+          content = pdfText.text;
         } else if (!pdfText.success) {
           this.debugLogger.debug(
             `[WebFetchTool] PDF text extraction failed: ${pdfText.error}`,
@@ -494,21 +496,42 @@ Status: ${entry.status} ${entry.statusText || 'OK'} | Content-Type: ${entry.cont
       const decoded = response.body.toString('utf-8');
       try {
         const turndown = await getTurndownService();
-        content = truncateText(turndown.turndown(decoded));
+        content = turndown.turndown(decoded);
       } catch (error) {
         this.debugLogger.error(
           `[WebFetchTool] HTML conversion failed, using raw text`,
           error,
         );
-        content = truncateText(decoded);
+        content = decoded;
       }
     } else {
-      content = truncateText(response.body.toString('utf-8'));
+      content = response.body.toString('utf-8');
     }
 
     this.debugLogger.debug(
       `[WebFetchTool] network_ms=${networkMs} extract_ms=${Date.now() - extractStart}`,
     );
+
+    // Oversized text keeps its beginning inline and goes to disk whole, so the
+    // part that was cut can still be read back.
+    let persistedTextPath: string | undefined;
+    let reduced = false;
+    if (content.length > MAX_CONTENT_CHARS) {
+      const shortened = await truncateToolOutput(
+        this.config,
+        ToolNames.WEB_FETCH,
+        content,
+        {
+          threshold: MAX_CONTENT_CHARS,
+          lines: Number.POSITIVE_INFINITY,
+          previewChars: TRUNCATED_PREVIEW_CHARS,
+          keep: 'head',
+        },
+      );
+      reduced = shortened.content !== content;
+      content = shortened.content;
+      persistedTextPath = shortened.outputFile;
+    }
 
     const entry: CacheEntry = {
       fetchedAt: Date.now(),
@@ -518,6 +541,8 @@ Status: ${entry.status} ${entry.statusText || 'OK'} | Content-Type: ${entry.cont
       byteLength: response.body.length,
       finalUrl: response.finalUrl,
       content,
+      persistedTextPath,
+      reduced,
       persistedPath,
       persistedSize,
       persistedMime,
@@ -549,7 +574,13 @@ Status: ${entry.status} ${entry.statusText || 'OK'} | Content-Type: ${entry.cont
         };
       }
 
-      const header = this.buildMetadataHeader(entry);
+      // In the header, not the body: the answer below is usually a summary,
+      // and this line is the only route back to the text that was cut.
+      const header =
+        this.buildMetadataHeader(entry) +
+        (entry.persistedTextPath
+          ? `\nFull extracted text saved to: ${entry.persistedTextPath}. Page through it with ${ToolNames.READ_FILE} using file_path, offset and limit.`
+          : '');
       const binaryNote = entry.persistedPath
         ? `\n\n[Binary content (${entry.persistedMime || entry.contentType || 'unknown'}, ${formatByteSize(entry.persistedSize ?? entry.byteLength)}) saved to ${entry.persistedPath}.${readHintForPath(entry.persistedPath)}]`
         : '';
@@ -579,7 +610,10 @@ Status: ${entry.status} ${entry.statusText || 'OK'} | Content-Type: ${entry.cont
       if (
         preapproved &&
         entry.contentType.includes('text/markdown') &&
-        entry.content.length <= MAX_CONTENT_CHARS
+        entry.content.length <= MAX_CONTENT_CHARS &&
+        // A cut page also lands under the cap, but it is no longer the
+        // document verbatim: let the side query answer from it instead.
+        !entry.reduced
       ) {
         return {
           llmContent: `${header}\n\n${entry.content}${binaryNote}`,

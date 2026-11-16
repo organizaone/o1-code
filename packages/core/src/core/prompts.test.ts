@@ -1353,6 +1353,46 @@ describe('resident tool gating', () => {
     expect(prompt).toContain('- **Background Processes:**');
   });
 
+  it('keeps the delegation guidance for an Agent tool that is deferred but reachable', () => {
+    const withoutAgent = new Set<string>(
+      Object.values(ToolNames).filter((name) => name !== ToolNames.AGENT),
+    );
+    const reachable = getCoreSystemPrompt(
+      undefined,
+      'gpt-4',
+      undefined,
+      'interactive',
+      undefined,
+      false,
+      false,
+      { declaredTools: withoutAgent, agentReachable: true },
+    );
+
+    // Byte for byte the prompt of a session that declares Agent: deferring
+    // the tool must not cost the model the policy that sends it there.
+    expect(reachable).toBe(promptFor());
+    expect(promptFor(withoutAgent)).not.toContain('- **Subagent Delegation:**');
+    expect(promptFor(withoutAgent)).not.toContain('- **Codebase Search:**');
+  });
+
+  it('gives reachability to the Agent tool only', () => {
+    const prompt = getCoreSystemPrompt(
+      undefined,
+      'gpt-4',
+      undefined,
+      'interactive',
+      undefined,
+      false,
+      false,
+      { declaredTools: new Set([ToolNames.SHELL]), agentReachable: true },
+    );
+
+    expect(prompt).toContain('- **Subagent Delegation:**');
+    // Codebase Search also names the search tools, which are not declared.
+    expect(prompt).not.toContain('- **Codebase Search:**');
+    expect(prompt).not.toContain('- **Monitor Processes:**');
+  });
+
   it('drops the prefer-dedicated bullet when it would recommend nothing', () => {
     const prompt = promptFor(new Set([ToolNames.AGENT]));
 

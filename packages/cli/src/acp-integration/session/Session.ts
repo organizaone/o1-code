@@ -5017,6 +5017,9 @@ export class Session implements SessionContext {
         this.config.getGoalProposalHostSupported() &&
         this.config.setGoalProposalTurnKey(undefined)
       ) {
+        this.config
+          .getToolRegistry()
+          .unrevealDeferredTool(ToolNames.PROPOSE_GOAL);
         try {
           await this.config.getLlmClient().setTools();
         } catch (error) {
@@ -5454,6 +5457,14 @@ export class Session implements SessionContext {
             responseCapture.goalProposalTurn?.turnKey,
           )
         ) {
+          // The key is armed for this prompt alone, and the host armed it
+          // because the user can approve a proposal now: declare the deferred
+          // tool for the turn rather than leave it to be looked up.
+          if (responseCapture.goalProposalTurn) {
+            this.config
+              .getToolRegistry()
+              .revealDeferredTool(ToolNames.PROPOSE_GOAL);
+          }
           await this.config.getLlmClient().setTools();
         }
         const daemonPromptId = getInvocationContext()?.promptId;
@@ -8434,11 +8445,35 @@ export class Session implements SessionContext {
     // returned: real work advanced while the parent earned a
     // single tool turn, so the turn budget cannot come due on its own.
     // Force the reminder exactly where the progress information arrives.
-    const carriesAgentToolResult = toolRun.parts.some(
-      (part) =>
-        canonicalToolName(part.functionResponse?.name ?? '') ===
-        ToolNames.AGENT,
-    );
+    // A deferred Agent is called through the bridge and its result returns
+    // under the tool_call name, so a bridged call is recognized by the tool it
+    // resolved to, once it actually started.
+    const carriesAgentToolResult =
+      toolRun.parts.some(
+        (part) =>
+          canonicalToolName(part.functionResponse?.name ?? '') ===
+          ToolNames.AGENT,
+      ) ||
+      toolRun.repeatedToolFailureBatch?.observations.some(
+        (observation) =>
+          canonicalToolName(observation.policyToolName ?? '') ===
+            ToolNames.AGENT && observation.executionStatus !== 'not_started',
+      ) === true;
+    // From its first delegation on, the session keeps the delegation tools
+    // declared. Done once the batch has finished: a reveal in the middle of it
+    // would make the bridge refuse its remaining bridged Agent calls.
+    if (
+      carriesAgentToolResult &&
+      this.config
+        .getToolRegistry()
+        .revealHiddenDeferredTools([ToolNames.AGENT, ToolNames.LIST_AGENTS])
+    ) {
+      try {
+        await this.config.getLlmClient().setTools();
+      } catch (error) {
+        debugLogger.warn('Failed to declare the delegation tools', error);
+      }
+    }
     const activeTodoReminder = carriesAgentToolResult
       ? this.config.takeActiveTodoReminder(promptId, true)
       : this.config.takeActiveTodoReminder(promptId);

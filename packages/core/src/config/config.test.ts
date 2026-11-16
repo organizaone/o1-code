@@ -4712,6 +4712,42 @@ describe('Server Config (config.ts)', () => {
       );
     });
 
+    it('declares the deferred Goal tools as soon as a Goal becomes active', async () => {
+      // The Goal tools are deferred; a Goal turn on any host must find them
+      // declared instead of having to look them up through the bridge.
+      const config = new Config({ ...baseParams, chatRecording: true });
+      const revealHiddenDeferredTools = vi.fn().mockReturnValue(true);
+      const setTools = vi.fn().mockResolvedValue(undefined);
+      Object.assign(config, {
+        toolRegistry: { revealHiddenDeferredTools },
+        llmClient: { setTools },
+      });
+      const runtime = config.getGoalRuntime();
+
+      await runtime.dispatch({ action: 'create', objective: 'ship' });
+
+      expect(revealHiddenDeferredTools).toHaveBeenCalledWith([
+        ToolNames.GET_GOAL,
+        ToolNames.UPDATE_GOAL,
+      ]);
+      expect(setTools).toHaveBeenCalledTimes(1);
+
+      // Already declared: later broadcasts of the active Goal refresh nothing.
+      revealHiddenDeferredTools.mockReturnValue(false);
+      const goal = runtime.getSnapshot().goal!;
+      await runtime.dispatch({
+        action: 'pause',
+        expectedGoalId: goal.goalId,
+        expectedRevision: goal.revision,
+      });
+      await runtime.dispatch({
+        action: 'resume',
+        expectedGoalId: goal.goalId,
+        expectedRevision: runtime.getSnapshot().goal!.revision,
+      });
+      expect(setTools).toHaveBeenCalledTimes(1);
+    });
+
     it("does not report a resumed session's recovered Goal again", async () => {
       // The restore broadcast names the recovered record's cause. Reporting it
       // would count this paused Goal as paused a second time.

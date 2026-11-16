@@ -171,7 +171,10 @@ export class ListAgentsTool extends BaseDeclarativeTool<
     super(
       ListAgentsTool.Name,
       ToolDisplayNames.LIST_AGENTS,
-      'List addressable ordinary background subagents in the current ' +
+      // The first line is all the deferred-tool list shows, so it says when
+      // to pick the tool.
+      'Use before send_message to find the task_id of a background subagent, or the name of another O1-Code session on this machine, to continue or message it.\n\n' +
+        'Lists addressable ordinary background subagents in the current ' +
         'session, including agents restored from a prior session run, and — ' +
         'when cross-session messaging is enabled — the other O1-Code ' +
         "sessions running on this machine, plus this session's own name. " +
@@ -193,6 +196,9 @@ export class ListAgentsTool extends BaseDeclarativeTool<
         properties: {},
         additionalProperties: false,
       },
+      true, // isOutputMarkdown
+      false, // canUpdateOutput
+      true, // shouldDefer — revealed once the session has delegated
     );
   }
 

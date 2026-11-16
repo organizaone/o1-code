@@ -106,6 +106,19 @@ function surfaceLength(tool: AgentTool): number {
 }
 
 describe('AgentTool per-turn size budgets', () => {
+  // Deferred: until the tool is revealed the model sees only the first
+  // description line, cut at 160 characters, and selects the tool by it. The
+  // line must survive the rebuild that follows the subagent refresh.
+  it('is deferred and keeps a first line that works as a selection rule', async () => {
+    const tool = await buildTool();
+    expect(tool.shouldDefer).toBe(true);
+    expect(tool.alwaysLoad).toBe(false);
+    const firstLine = tool.description.split('\n')[0]!;
+    expect(firstLine).toMatch(/^Delegate complex, independent work/);
+    expect(firstLine).toContain('parallel');
+    expect(firstLine.length).toBeLessThanOrEqual(160);
+  });
+
   it('keeps the description within its budget in the default shape', async () => {
     // Two subagents, team off, todo on. The catalogue itself is covered by
     // the proportional-growth test below. Measured at ~9,730 characters.

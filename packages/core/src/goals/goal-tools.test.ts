@@ -110,11 +110,11 @@ describe('GetGoalTool', () => {
     expect(ToolDisplayNames.GET_GOAL).toBe('Goal');
     expect(tool.name).toBe(ToolNames.GET_GOAL);
     expect(tool.displayName).toBe(ToolDisplayNames.GET_GOAL);
-    expect(tool.shouldDefer).toBe(false);
+    expect(tool.shouldDefer).toBe(true);
     expect(tool.build({}).getDescription()).toBe('Read the current goal');
   });
 
-  it('keeps both Goal tools visible and out of deferred search', () => {
+  it('defers both Goal tools until they are revealed', () => {
     const config = {
       getMcpTransportPool: () => undefined,
       getDisabledTools: () => new Set<string>(),
@@ -126,14 +126,55 @@ describe('GetGoalTool', () => {
     const updateGoal = new UpdateGoalTool(config);
     registry.registerTool(getGoal);
     registry.registerTool(updateGoal);
+    const declared = () =>
+      registry.getFunctionDeclarations().map((declaration) => declaration.name);
 
-    expect(getGoal.shouldDefer).toBe(false);
-    expect(updateGoal.shouldDefer).toBe(false);
-    expect(registry.getDeferredToolSummary()).toEqual([]);
+    expect(getGoal.shouldDefer).toBe(true);
+    expect(updateGoal.shouldDefer).toBe(true);
+    expect(registry.getDeferredToolSummary().map(({ name }) => name)).toEqual([
+      ToolNames.GET_GOAL,
+      ToolNames.UPDATE_GOAL,
+    ]);
+    expect(declared()).toEqual([]);
+
     expect(
-      registry.getFunctionDeclarations().map((declaration) => declaration.name),
-    ).toEqual([ToolNames.GET_GOAL, ToolNames.UPDATE_GOAL]);
+      registry.revealHiddenDeferredTools([
+        ToolNames.GET_GOAL,
+        ToolNames.UPDATE_GOAL,
+      ]),
+    ).toBe(true);
+    expect(declared()).toEqual([ToolNames.GET_GOAL, ToolNames.UPDATE_GOAL]);
+    // Nothing left to reveal, so a caller has no declarations to refresh.
+    expect(
+      registry.revealHiddenDeferredTools([
+        ToolNames.GET_GOAL,
+        ToolNames.UPDATE_GOAL,
+      ]),
+    ).toBe(false);
   });
+
+  // The deferred-tool list shows the first description line only, cut at 160
+  // characters, so that line has to say when to pick the tool.
+  it.each([
+    ['get_goal', () => new GetGoalTool(makeConfig({})), /^Use in a Goal turn/],
+    [
+      'update_goal',
+      () => new UpdateGoalTool(makeConfig({})),
+      /^Use in a Goal turn/,
+    ],
+    [
+      'propose_goal',
+      () => new ProposeGoalTool(makeConfig({}) as never),
+      /^Use when the user asks/,
+    ],
+  ])(
+    'gives %s a first line that works as a selection rule',
+    (_name, build, rule) => {
+      const firstLine = build().description.split('\n')[0]!;
+      expect(firstLine).toMatch(rule);
+      expect(firstLine.length).toBeLessThanOrEqual(160);
+    },
+  );
 
   it('reports no active Goal outside a permitted Goal turn', async () => {
     const getGoalForWorker = vi.fn();
@@ -1229,11 +1270,11 @@ describe('ProposeGoalTool', () => {
     return { invocation, details };
   }
 
-  it('uses the canonical name, stays visible, and always goes through the dialog', async () => {
+  it('uses the canonical name, is deferred, and always goes through the dialog', async () => {
     const tool = new ProposeGoalTool(proposeConfig(idleRuntime().runtime));
     expect(tool.name).toBe(ToolNames.PROPOSE_GOAL);
     expect(tool.displayName).toBe(ToolDisplayNames.PROPOSE_GOAL);
-    expect(tool.shouldDefer).toBe(false);
+    expect(tool.shouldDefer).toBe(true);
 
     const invocation = tool.build({ objective });
     // Consent for an autonomous loop cannot come from a rule or an approval

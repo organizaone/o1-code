@@ -52,6 +52,8 @@ vi.mock('../utils/debugLogger.js', () => ({
 vi.mock('fs');
 vi.mock('os');
 vi.mock('crypto');
+const { createHash: realCreateHash } =
+  await vi.importActual<typeof import('node:crypto')>('node:crypto');
 vi.mock('../services/session-pr-service.js', async (importOriginal) => ({
   ...(await importOriginal<
     typeof import('../services/session-pr-service.js')
@@ -268,6 +270,9 @@ describe('ShellTool', () => {
     (vi.mocked(crypto.randomBytes) as Mock).mockReturnValue(
       Buffer.from('abcdef', 'hex'),
     );
+    // Truncating an oversized output hashes it, so hashing has to stay real
+    // under the module mock.
+    vi.mocked(crypto.createHash).mockImplementation(realCreateHash);
 
     shellTool = new ShellTool(mockConfig);
 

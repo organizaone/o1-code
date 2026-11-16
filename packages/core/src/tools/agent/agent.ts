@@ -759,6 +759,12 @@ export function stampBackgroundPromptPolicy(
   config.getShouldAvoidPermissionPrompts = () => !shouldBubble;
 }
 
+// Until the tool is revealed, the deferred-tool list shows only the first line
+// of the description, so this line is the rule the model selects it by. The
+// constructor and the rebuilt description share it so they cannot drift.
+const AGENT_DESCRIPTION_FIRST_LINE =
+  'Delegate complex, independent work to a subagent: use for explicit parallel requests or broad codebase research that clearly needs more than 3 searches.';
+
 /**
  * Agent tool that enables primary agents to delegate tasks to specialized agents.
  * The tool dynamically loads available agents and includes them in its description
@@ -870,11 +876,12 @@ export class AgentTool extends BaseDeclarativeTool<AgentParams, ToolResult> {
     super(
       AgentTool.Name,
       ToolDisplayNames.AGENT,
-      'Launch a new agent to handle complex, multi-step tasks autonomously.\n\nThe Agent tool launches specialized agents (subprocesses) that autonomously handle complex tasks. Each agent type has specific capabilities and tools available to it.\n\nAvailable agent types and the tools they have access to:\n',
+      `${AGENT_DESCRIPTION_FIRST_LINE}\n\nThe Agent tool launches specialized agents (subprocesses) that autonomously handle complex tasks. Each agent type has specific capabilities and tools available to it.\n\nAvailable agent types and the tools they have access to:\n`,
       Kind.Agent,
       initialSchema,
       true, // isOutputMarkdown
       true, // canUpdateOutput - Enable live output updates for real-time progress
+      true, // shouldDefer — revealed once the session has delegated
     );
 
     this.subagentManager = config.getSubagentManager();
@@ -942,7 +949,7 @@ export class AgentTool extends BaseDeclarativeTool<AgentParams, ToolResult> {
     const teammateWorktreeTail = teamEnabled
       ? '; named teammates may use one, but must be shut down before it is removed.'
       : '.';
-    const baseDescription = `Launch a new agent to handle complex, multi-step tasks autonomously.
+    const baseDescription = `${AGENT_DESCRIPTION_FIRST_LINE}
 The Agent tool launches specialized agents (subprocesses) that autonomously handle complex tasks. Each agent type has specific capabilities and tools available to it.
 
 Available agent types and the tools they have access to:

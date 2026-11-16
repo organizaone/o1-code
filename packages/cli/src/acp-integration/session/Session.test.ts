@@ -594,6 +594,8 @@ describe('Session', () => {
     registerTool: ReturnType<typeof vi.fn>;
     registerPermissionDeferredFactory: ReturnType<typeof vi.fn>;
     revealDeferredTool: ReturnType<typeof vi.fn>;
+    unrevealDeferredTool: ReturnType<typeof vi.fn>;
+    revealHiddenDeferredTools: ReturnType<typeof vi.fn>;
     pinDeferredToolReveal: ReturnType<typeof vi.fn>;
     warmAll: ReturnType<typeof vi.fn>;
     getFunctionDeclarationsFiltered: ReturnType<typeof vi.fn>;
@@ -936,6 +938,8 @@ describe('Session', () => {
       registerTool: vi.fn(),
       registerPermissionDeferredFactory: vi.fn(),
       revealDeferredTool: vi.fn(),
+      unrevealDeferredTool: vi.fn(),
+      revealHiddenDeferredTools: vi.fn().mockReturnValue(false),
       pinDeferredToolReveal: vi.fn(),
       warmAll: vi.fn().mockResolvedValue(undefined),
       getFunctionDeclarationsFiltered: vi.fn((names: string[]) =>
@@ -3173,6 +3177,7 @@ describe('Session', () => {
       });
       mockConfig.getApprovalMode = vi.fn().mockReturnValue(ApprovalMode.YOLO);
       mockConfig.getDisableAllHooks = vi.fn().mockReturnValue(true);
+      mockToolRegistry.revealHiddenDeferredTools.mockReturnValue(true);
       mockChat.sendMessageStream = vi
         .fn()
         .mockResolvedValueOnce(
@@ -3195,6 +3200,17 @@ describe('Session', () => {
       });
 
       expect(execute).toHaveBeenCalledTimes(1);
+      // The deferred delegation tools are declared before the request that
+      // returns the first Agent result.
+      expect(mockToolRegistry.revealHiddenDeferredTools).toHaveBeenCalledWith([
+        core.ToolNames.AGENT,
+        core.ToolNames.LIST_AGENTS,
+      ]);
+      expect(
+        mockLlmClient.setTools.mock.invocationCallOrder.at(-1),
+      ).toBeLessThan(
+        vi.mocked(mockChat.sendMessageStream).mock.invocationCallOrder.at(-1)!,
+      );
       expect(mockConfig.takeActiveTodoReminder).toHaveBeenCalledWith(
         'test-session-id########1',
         true,
@@ -34845,13 +34861,26 @@ describe('Session', () => {
         undefined,
       );
       expect(mockLlmClient.setTools).toHaveBeenCalledTimes(2);
+      // propose_goal is deferred: the armed turn declares it, and the end of
+      // the turn hides it again.
+      expect(mockToolRegistry.revealDeferredTool).toHaveBeenCalledWith(
+        core.ToolNames.PROPOSE_GOAL,
+      );
+      expect(mockToolRegistry.unrevealDeferredTool).toHaveBeenCalledWith(
+        core.ToolNames.PROPOSE_GOAL,
+      );
+      expect(
+        mockToolRegistry.revealDeferredTool.mock.invocationCallOrder[0],
+      ).toBeLessThan(mockLlmClient.setTools.mock.invocationCallOrder[0]);
 
       vi.mocked(mockConfig.setGoalProposalTurnKey).mockClear();
       mockLlmClient.setTools.mockClear();
+      mockToolRegistry.revealDeferredTool.mockClear();
       await session.prompt({
         sessionId: 'test-session-id',
         prompt: [{ type: 'text', text: 'An unarmed turn.' }],
       });
+      expect(mockToolRegistry.revealDeferredTool).not.toHaveBeenCalled();
       expect(mockConfig.setGoalProposalTurnKey).toHaveBeenCalledTimes(2);
       expect(mockConfig.setGoalProposalTurnKey).toHaveBeenNthCalledWith(
         1,

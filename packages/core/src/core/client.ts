@@ -205,6 +205,11 @@ import type { StopHookOutput } from '../hooks/types.js';
 import { approvalModeToPermissionMode } from '../hooks/permission-mode.js';
 
 const MAX_TURNS = 100;
+/** Deferred tools declared together once the session has delegated work. */
+const DELEGATION_TOOL_NAMES: readonly string[] = [
+  ToolNames.AGENT,
+  ToolNames.LIST_AGENTS,
+];
 const MAX_RECENT_TOOL_NAMES_FOR_MEMORY = 20;
 const INITIAL_MEMORY_RECALL_WAIT_MS = 100;
 
@@ -389,6 +394,7 @@ type MainSessionPromptConfig = Pick<
       Config,
       | 'isTrustedFolder'
       | 'getPromptToolSnapshot'
+      | 'getPromptAgentReachable'
       | 'getShellExecutionSandbox'
       | 'getDisplayMode'
     >
@@ -422,6 +428,7 @@ function getMainSessionPromptBody(config: MainSessionPromptConfig): string {
         config.getCodeModeOnly(),
         {
           declaredTools: config.getPromptToolSnapshot?.(),
+          agentReachable: config.getPromptAgentReachable?.(),
           executionSandboxFilesystem:
             config.getShellExecutionSandbox?.()?.filesystem,
         },
@@ -1242,6 +1249,7 @@ export class LlmClient {
         this.getHistoryShallow(),
       );
     }
+    this.revealCoordinationToolsInUse();
     const deferredTools = this.resolveDeferredToolsForReminder(deferredSummary);
     const toolDeclarations = toolRegistry.getFunctionDeclarations({
       includeDeferred: this.gatewayDeferredDeclarations(),
@@ -1924,7 +1932,7 @@ export class LlmClient {
     const revealedNames: string[] = [];
     for (const entry of history) {
       for (const part of entry.parts ?? []) {
-        const callName = part.functionCall?.name;
+        const callName = this.historyCallTargetToReveal(part);
         if (callName && deferredNames.delete(callName)) {
           toolRegistry.revealDeferredTool(callName);
           revealedNames.push(callName);
@@ -1939,6 +1947,121 @@ export class LlmClient {
         `[DEFERRED_TOOLS] revealed from history: ${revealedNames.join(', ')}`,
       );
     }
+  }
+
+  /**
+   * The tool a recorded call counts as for the history reveal. A direct call
+   * names it. A bridged call counts only for the delegation tools: once a
+   * session has delegated they stay declared, while any other bridged tool
+   * stays behind the bridge so the declaration list keeps its shape.
+   */
+  private historyCallTargetToReveal(part: Part): string | undefined {
+    const call = part.functionCall;
+    if (!call || call.name !== ToolNames.TOOL_CALL) {
+      return call?.name;
+    }
+    const target = this.bridgedCallTarget(call.args);
+    return target !== undefined && DELEGATION_TOOL_NAMES.includes(target)
+      ? target
+      : undefined;
+  }
+
+  /** The registered tool a `tool_call` envelope's arguments resolve to. */
+  private bridgedCallTarget(args: unknown): string | undefined {
+    const bridgedName = (args as Record<string, unknown> | undefined)?.['name'];
+    if (typeof bridgedName !== 'string') {
+      return undefined;
+    }
+    // The bridge matches names case-insensitively and accepts legacy aliases.
+    const lower = bridgedName.toLowerCase();
+    const registered = this.config
+      .getToolRegistry()
+      .getAllToolNames?.()
+      ?.find((name) => name.toLowerCase() === lower);
+    return registered ?? canonicalToolName(lower);
+  }
+
+  /**
+   * Whether a tool-result message returns from an Agent call that started.
+   *
+   * A deferred Agent is called through the bridge, and its result then comes
+   * back under the `tool_call` name, so those results are matched by call id
+   * to the call the model just made and unwrapped to its target. The bridge
+   * prefixes mark a call that never started; one that ran and then failed or
+   * was cancelled carries a plain error and still counts.
+   */
+  private carriesAgentToolResult(parts: ReadonlyArray<string | Part>): boolean {
+    const bridgedResponseIds = new Set<string>();
+    for (const part of parts) {
+      const response =
+        typeof part === 'object' && part !== null
+          ? part.functionResponse
+          : undefined;
+      if (!response) {
+        continue;
+      }
+      if (canonicalToolName(response.name ?? '') === ToolNames.AGENT) {
+        return true;
+      }
+      if (response.name !== ToolNames.TOOL_CALL || !response.id) {
+        continue;
+      }
+      const error = response.response?.['error'];
+      if (
+        typeof error === 'string' &&
+        (error.startsWith(DEFERRED_TOOL_CALL_REFUSAL_PREFIX) ||
+          error.startsWith(DEFERRED_TOOL_CALL_CANCELLATION_PREFIX))
+      ) {
+        continue;
+      }
+      bridgedResponseIds.add(response.id);
+    }
+    if (bridgedResponseIds.size === 0) {
+      return false;
+    }
+    // The matching calls are in the model message that just ran.
+    return this.getHistoryTailShallow(4).some((message) =>
+      (message.parts ?? []).some((historyPart) => {
+        const call = historyPart.functionCall;
+        return (
+          call !== undefined &&
+          call.name === ToolNames.TOOL_CALL &&
+          call.id !== undefined &&
+          bridgedResponseIds.has(call.id) &&
+          this.bridgedCallTarget(call.args) === ToolNames.AGENT
+        );
+      }),
+    );
+  }
+
+  /**
+   * Declares the deferred coordination tools the session is already using, so
+   * a model in the middle of that work never has to look them up: the Goal
+   * tools while a Goal is active, the delegation tools while the session has
+   * agents. Derived from session state rather than remembered, so it holds
+   * across `/clear`, which drops every other reveal.
+   *
+   * Returns whether a reveal changed the declaration list.
+   */
+  private revealCoordinationToolsInUse(): boolean {
+    const names: string[] = [];
+    try {
+      const goal = this.config.getGoalRuntime?.().getSnapshot().goal;
+      if (goal?.status === 'active') {
+        names.push(ToolNames.GET_GOAL, ToolNames.UPDATE_GOAL);
+      }
+    } catch {
+      // No Goal runtime in this session, so no Goal to serve.
+    }
+    const agentTasks = this.config.getBackgroundTaskRegistry?.()?.getAll?.();
+    if (agentTasks && agentTasks.length > 0) {
+      names.push(...DELEGATION_TOOL_NAMES);
+    }
+    // Optional call: partial registry stubs do not carry the method.
+    return (
+      names.length > 0 &&
+      this.config.getToolRegistry().revealHiddenDeferredTools?.(names) === true
+    );
   }
 
   /**
@@ -2448,13 +2571,27 @@ export class LlmClient {
       }
       // Budget-based deferred-tool preload runs BEFORE the deferred
       // reminder is resolved so preloaded tools are filtered out of the
-      // startup reminder and never enter the announced set.
+      // startup reminder and never enter the announced set. The coordination
+      // tools already in use are revealed with it for the same reason.
       profiler.timeSync('deferred_tool_preload', () => {
         this.preloadDeferredToolsWithinBudget();
+        this.revealCoordinationToolsInUse();
       });
-      // Snapshot what this session declares once the registry is warm and the
-      // preload has settled, so the prompt built below can gate its
-      // tool-specific text on it and `/context` can report the same set.
+      const deferredTools = profiler.timeSync('deferred_reminder_setup', () => {
+        const resolved = this.resolveDeferredToolsForReminder(deferredSummary);
+        this.rememberAnnouncedDeferredTools(resolved);
+        this.rememberAnnouncedMcpServerInstructions(
+          toolRegistry.getMcpServerInstructions(),
+        );
+        return resolved;
+      });
+      deferredReminderCount = deferredTools?.length ?? 0;
+      // Snapshot what this session declares once the registry is warm, the
+      // preload has settled and the reminder resolution has run: with an
+      // incomplete bridge that resolution reveals the ordinary deferred tools
+      // into the declarations, and the prompt must keep the guidance for tools
+      // the model can call. The prompt built below gates its tool-specific
+      // text on this set and `/context` reports the same set.
       // Mid-session reveals deliberately do not update this: they
       // change only the tools block, keeping the cached system prefix stable.
       //
@@ -2465,8 +2602,8 @@ export class LlmClient {
       // Optional call: partial Config stubs (tests, derived agent shims) do not
       // carry the setter, and a missing snapshot simply leaves the prompt
       // ungated rather than failing session startup.
-      this.config.setPromptToolSnapshot?.(
-        new Set(
+      if (this.config.setPromptToolSnapshot) {
+        const promptToolSnapshot = new Set(
           toolRegistry
             .getFunctionDeclarations({
               includeDeferred: this.gatewayDeferredDeclarations({
@@ -2475,17 +2612,18 @@ export class LlmClient {
             })
             .map((declaration) => declaration.name)
             .filter((name): name is string => Boolean(name)),
-        ),
-      );
-      const deferredTools = profiler.timeSync('deferred_reminder_setup', () => {
-        const resolved = this.resolveDeferredToolsForReminder(deferredSummary);
-        this.rememberAnnouncedDeferredTools(resolved);
-        this.rememberAnnouncedMcpServerInstructions(
-          toolRegistry.getMcpServerInstructions(),
         );
-        return resolved;
-      });
-      deferredReminderCount = deferredTools?.length ?? 0;
+        this.config.setPromptToolSnapshot(promptToolSnapshot);
+        // A deferred Agent is reachable only through a complete bridge, the
+        // same test the reminder resolution applies. Held back by
+        // `tools.eager` with the bridge incomplete, it is neither declared nor
+        // reachable.
+        this.config.setPromptAgentReachable?.(
+          promptToolSnapshot.has(ToolNames.AGENT) ||
+            (deferredTools !== undefined &&
+              deferredSummary.some(({ name }) => name === ToolNames.AGENT)),
+        );
+      }
       [history, snapshotEntries] = await profiler.time(
         'initial_chat_history',
         () =>
@@ -3670,6 +3808,15 @@ export class LlmClient {
       goalRuntime = await loadGoalRuntime(
         messageType === SendMessageType.Goal || Boolean(goalPermit),
       );
+      // The Goal-state listener in Config normally declares the Goal tools
+      // first; this settles it before the request when a Goal turn starts
+      // while that refresh is still pending.
+      if (
+        (messageType === SendMessageType.Goal || goalPermit) &&
+        this.revealCoordinationToolsInUse()
+      ) {
+        await this.setTools();
+      }
 
       if (messageType === SendMessageType.Goal) {
         if (!goalPermit) {
@@ -4375,13 +4522,20 @@ export class LlmClient {
         // returned: real work advanced while the parent earned a
         // single tool turn, so the turn budget cannot come due on its own.
         // Force the reminder exactly where the progress information arrives.
-        const carriesAgentToolResult = requestToSend.some(
-          (part) =>
-            typeof part === 'object' &&
-            part !== null &&
-            canonicalToolName(part.functionResponse?.name ?? '') ===
-              ToolNames.AGENT,
-        );
+        const carriesAgentToolResult =
+          this.carriesAgentToolResult(requestToSend);
+        // From its first delegation on, the session keeps the delegation
+        // tools declared. Done here rather than while the Agent call runs: a
+        // reveal in the middle of a batch would make the bridge refuse the
+        // batch's remaining bridged Agent calls as already visible.
+        if (
+          carriesAgentToolResult &&
+          this.config
+            .getToolRegistry()
+            .revealHiddenDeferredTools?.(DELEGATION_TOOL_NAMES)
+        ) {
+          await this.setTools();
+        }
         const activeTodoReminder = carriesAgentToolResult
           ? this.config.takeActiveTodoReminder(prompt_id, true)
           : this.config.takeActiveTodoReminder(prompt_id);

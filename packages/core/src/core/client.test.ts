@@ -1904,6 +1904,178 @@ describe('Gemini Client (client.ts)', () => {
       expect(reg.revealDeferredTool).not.toHaveBeenCalledWith('write_file');
     });
 
+    describe('coordination tools', () => {
+      const bridge = (name: string) =>
+        name === ToolNames.TOOL_SEARCH || name === ToolNames.TOOL_CALL
+          ? ({} as never)
+          : null;
+
+      function stubPromptSurface() {
+        const snapshot = vi.fn();
+        const agentReachable = vi.fn();
+        Object.assign(mockConfig, {
+          setPromptToolSnapshot: snapshot,
+          setPromptAgentReachable: agentReachable,
+        });
+        return { snapshot, agentReachable };
+      }
+
+      it('keeps a deferred Agent reachable for the prompt behind a complete bridge', async () => {
+        const reg = getRegistryMock();
+        reg.getDeferredToolSummary.mockReturnValue([
+          { name: ToolNames.AGENT, description: 'delegate' },
+        ]);
+        reg.getTool.mockImplementation(bridge);
+        const { snapshot, agentReachable } = stubPromptSurface();
+
+        await client.startChat();
+
+        expect(snapshot).toHaveBeenCalledWith(new Set());
+        expect(agentReachable).toHaveBeenCalledWith(true);
+      });
+
+      it('records Agent unreachable when the session has no Agent at all', async () => {
+        const reg = getRegistryMock();
+        reg.getDeferredToolSummary.mockReturnValue([
+          { name: 'cron_create', description: 'schedule' },
+        ]);
+        reg.getTool.mockImplementation(bridge);
+        const { agentReachable } = stubPromptSurface();
+
+        await client.startChat();
+
+        expect(agentReachable).toHaveBeenCalledWith(false);
+      });
+
+      it('snapshots an Agent the incomplete bridge revealed', async () => {
+        // Without the bridge the deferred Agent is declared up front; the
+        // prompt snapshot is taken after that reveal, so it includes it.
+        const reg = getRegistryMock();
+        const revealed = new Set<string>();
+        reg.getDeferredToolSummary.mockReturnValue([
+          { name: ToolNames.AGENT, description: 'delegate' },
+        ]);
+        reg.getTool.mockReturnValue(null);
+        reg.revealDeferredTool.mockImplementation((name: string) => {
+          revealed.add(name);
+        });
+        vi.mocked(
+          mockConfig.getToolRegistry().getFunctionDeclarations,
+        ).mockImplementation(() => [...revealed].map((name) => ({ name })));
+        const { snapshot, agentReachable } = stubPromptSurface();
+
+        await client.startChat();
+
+        expect(snapshot).toHaveBeenCalledWith(new Set([ToolNames.AGENT]));
+        expect(agentReachable).toHaveBeenCalledWith(true);
+      });
+
+      it('records Agent unreachable when an incomplete bridge withholds it', async () => {
+        const reg = getRegistryMock();
+        reg.getDeferredToolSummary.mockReturnValue([
+          { name: ToolNames.AGENT, description: 'delegate' },
+        ]);
+        reg.getTool.mockReturnValue(null);
+        reg.isPermissionDeferred.mockReturnValue(true);
+        vi.spyOn(console, 'warn').mockImplementation(() => {});
+        const { agentReachable } = stubPromptSurface();
+
+        await client.startChat();
+
+        expect(agentReachable).toHaveBeenCalledWith(false);
+      });
+
+      it('declares the Goal tools when the session starts with an active Goal', async () => {
+        const reg = getRegistryMock();
+        reg.getTool.mockImplementation(bridge);
+        const reveal = vi.fn().mockReturnValue(true);
+        Object.assign(reg, { revealHiddenDeferredTools: reveal });
+        Object.assign(mockConfig, {
+          getGoalRuntime: () => ({
+            getSnapshot: () => ({ goal: { status: 'active' } }),
+          }),
+        });
+
+        await client.startChat();
+
+        expect(reveal).toHaveBeenCalledWith([
+          ToolNames.GET_GOAL,
+          ToolNames.UPDATE_GOAL,
+        ]);
+      });
+
+      it('declares the delegation tools while the session has agents', async () => {
+        const reg = getRegistryMock();
+        reg.getTool.mockImplementation(bridge);
+        const reveal = vi.fn().mockReturnValue(true);
+        Object.assign(reg, { revealHiddenDeferredTools: reveal });
+        Object.assign(mockConfig, {
+          getBackgroundTaskRegistry: () => ({ getAll: () => [{}] }),
+        });
+
+        await client.startChat();
+
+        expect(reveal).toHaveBeenCalledWith([
+          ToolNames.AGENT,
+          ToolNames.LIST_AGENTS,
+        ]);
+      });
+
+      it('reveals nothing for an idle session', async () => {
+        const reg = getRegistryMock();
+        reg.getTool.mockImplementation(bridge);
+        const reveal = vi.fn().mockReturnValue(false);
+        Object.assign(reg, { revealHiddenDeferredTools: reveal });
+        Object.assign(mockConfig, {
+          getGoalRuntime: () => ({
+            getSnapshot: () => ({ goal: { status: 'paused' } }),
+          }),
+          getBackgroundTaskRegistry: () => ({ getAll: () => [] }),
+        });
+
+        await client.startChat();
+
+        expect(reveal).not.toHaveBeenCalled();
+      });
+
+      it('re-reveals a delegation tool a resumed session called through the bridge', async () => {
+        const reg = getRegistryMock();
+        reg.getDeferredToolSummary.mockReturnValue([
+          { name: ToolNames.AGENT, description: 'delegate' },
+          { name: 'cron_create', description: 'schedule' },
+        ]);
+        reg.getTool.mockImplementation(bridge);
+        Object.assign(reg, {
+          getAllToolNames: () => [ToolNames.AGENT, 'cron_create'],
+        });
+        reg.revealDeferredTool.mockClear();
+
+        await client.startChat([
+          {
+            role: 'model',
+            parts: [
+              {
+                functionCall: {
+                  name: ToolNames.TOOL_CALL,
+                  args: { name: 'Agent', arguments: {} },
+                },
+              } as never,
+              {
+                functionCall: {
+                  name: ToolNames.TOOL_CALL,
+                  args: { name: 'cron_create', arguments: {} },
+                },
+              } as never,
+            ],
+          },
+        ]);
+
+        expect(reg.revealDeferredTool).toHaveBeenCalledWith(ToolNames.AGENT);
+        // Any other bridged tool stays behind the bridge.
+        expect(reg.revealDeferredTool).not.toHaveBeenCalledWith('cron_create');
+      });
+    });
+
     it('does NOT eagerly reveal when both bridge tools are available', async () => {
       // With both bridge tools registered, deferred schemas stay hidden while
       // remaining invocable through tool_search + tool_call.
@@ -2954,6 +3126,126 @@ describe('Gemini Client (client.ts)', () => {
       expect(mockConfig.takeActiveTodoReminder).toHaveBeenCalledWith(
         'prompt-plain-result',
       );
+    });
+
+    describe('with the Agent tool deferred', () => {
+      const delegationTools = [ToolNames.AGENT, ToolNames.LIST_AGENTS];
+
+      // A deferred Agent is called through the bridge, so its result comes
+      // back named tool_call and is matched to the recorded call by id.
+      async function returnBridgedResult(
+        target: string,
+        response: Record<string, unknown> = { ok: true },
+      ): Promise<ReturnType<typeof vi.fn>> {
+        const reveal = vi.fn().mockReturnValue(true);
+        Object.assign(mockConfig.getToolRegistry(), {
+          revealHiddenDeferredTools: reveal,
+          getAllToolNames: () => ['agent', 'list_agents', 'cron_create'],
+        });
+        vi.spyOn(client, 'setTools').mockResolvedValue(undefined);
+        vi.spyOn(
+          client as unknown as { getHistoryTailShallow: () => Content[] },
+          'getHistoryTailShallow',
+        ).mockReturnValue([
+          {
+            role: 'model',
+            parts: [
+              {
+                functionCall: {
+                  id: 'call-1',
+                  name: ToolNames.TOOL_CALL,
+                  args: { name: target, arguments: {} },
+                },
+              },
+            ],
+          },
+        ]);
+        mockTurnRunFn.mockReturnValue(
+          (async function* () {
+            yield { type: LlmEventType.Content, value: 'response' };
+          })(),
+        );
+
+        const stream = client.sendMessageStream(
+          [
+            {
+              functionResponse: {
+                id: 'call-1',
+                name: ToolNames.TOOL_CALL,
+                response,
+              },
+            },
+          ],
+          new AbortController().signal,
+          'prompt-bridged',
+          { type: SendMessageType.ToolResult },
+        );
+        for await (const _ of stream) {
+          // drain
+        }
+        return reveal;
+      }
+
+      it.each(['agent', 'AGENT', 'task'])(
+        'declares the delegation tools and forces the reminder after a bridged %s result',
+        async (target) => {
+          const reveal = await returnBridgedResult(target);
+
+          expect(reveal).toHaveBeenCalledWith(delegationTools);
+          expect(client.setTools).toHaveBeenCalledTimes(1);
+          expect(mockConfig.takeActiveTodoReminder).toHaveBeenCalledWith(
+            'prompt-bridged',
+            true,
+          );
+        },
+      );
+
+      it('declares them after a direct Agent result too', async () => {
+        const reveal = vi.fn().mockReturnValue(true);
+        Object.assign(mockConfig.getToolRegistry(), {
+          revealHiddenDeferredTools: reveal,
+        });
+        vi.spyOn(client, 'setTools').mockResolvedValue(undefined);
+        mockTurnRunFn.mockReturnValue(
+          (async function* () {
+            yield { type: LlmEventType.Content, value: 'response' };
+          })(),
+        );
+
+        const stream = client.sendMessageStream(
+          [{ functionResponse: { name: 'agent', response: { ok: true } } }],
+          new AbortController().signal,
+          'prompt-direct',
+          { type: SendMessageType.ToolResult },
+        );
+        for await (const _ of stream) {
+          // drain
+        }
+
+        expect(reveal).toHaveBeenCalledWith(delegationTools);
+        expect(client.setTools).toHaveBeenCalledTimes(1);
+      });
+
+      it('leaves another bridged tool behind the bridge', async () => {
+        const reveal = await returnBridgedResult('cron_create');
+
+        expect(reveal).not.toHaveBeenCalled();
+        expect(client.setTools).not.toHaveBeenCalled();
+        expect(mockConfig.takeActiveTodoReminder).toHaveBeenCalledWith(
+          'prompt-bridged',
+        );
+      });
+
+      it('does not count a bridged Agent call that never started', async () => {
+        const reveal = await returnBridgedResult('agent', {
+          error: '[tool_call bridge refused] denied',
+        });
+
+        expect(reveal).not.toHaveBeenCalled();
+        expect(mockConfig.takeActiveTodoReminder).toHaveBeenCalledWith(
+          'prompt-bridged',
+        );
+      });
     });
 
     it('continues the todo work chain on a user turn while a reminder is registered', async () => {
