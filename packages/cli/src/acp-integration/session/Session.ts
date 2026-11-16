@@ -432,6 +432,10 @@ import {
   type RepeatedToolFailureGuardDecision,
   type RepeatedToolFailureGuardState,
 } from './repeated-tool-failure-guard.js';
+import {
+  classifyToolForExploration,
+  ToolExplorationBudget,
+} from '@organizaone/o1-code-core/services/tool-exploration-budget.js';
 
 const debugLogger = createDebugLogger('SESSION');
 const MAX_RETAINED_SESSION_ROUTE_COUNTS = 8;
@@ -761,6 +765,7 @@ export type DaemonToolLoopState = {
   loopType?: LoopType;
   repeatedToolFailureMode: RepeatedToolFailureGuardMode;
   repeatedToolFailureState: RepeatedToolFailureGuardState;
+  explorationBudget?: ToolExplorationBudget;
 };
 
 const DAEMON_INVALID_TOOL_PARAMS_THRESHOLD = 3;
@@ -827,6 +832,7 @@ function createDaemonToolLoopState(
     loopDetected: false,
     repeatedToolFailureMode,
     repeatedToolFailureState: createRepeatedToolFailureGuardState(),
+    explorationBudget: new ToolExplorationBudget(),
   };
 }
 
@@ -1035,6 +1041,16 @@ function recordDaemonToolCalls(
       `Stopping ACP turn after the same tool call repeated ${loopState.maxToolCallKeyRepeat} times.`,
       loopState,
     );
+  }
+  // After both halt checks: a halted batch is skipped whole and never runs,
+  // so its calls must not count as exploration.
+  if (loopState.explorationBudget) {
+    const registry = config.getToolRegistry();
+    for (const call of calls) {
+      loopState.explorationBudget.record(
+        classifyToolForExploration(registry, call.name ?? '', call.args ?? {}),
+      );
+    }
   }
   return false;
 }
@@ -8468,9 +8484,13 @@ export class Session implements SessionContext {
         `[repeated-tool-failure-guard] mode=${toolLoopState.repeatedToolFailureMode} decision=${repeatedToolFailureDecision.kind} phase=${state.phase} candidate=${state.candidateOrdinal} failures=${state.failureCount} batches=${state.batchCount}`,
       );
     }
+    const explorationReminder = toolLoopState.explorationBudget?.takeReminder(
+      this.config.getMaxToolCallsPerTurn(),
+    );
     const parts = [
       ...toolRun.parts,
       ...(activeTodoReminder ? [{ text: activeTodoReminder }] : []),
+      ...(explorationReminder ? [{ text: explorationReminder }] : []),
       ...(repeatedToolFailureDecision.kind === 'warn'
         ? [{ text: REPEATED_TOOL_FAILURE_REMINDER }]
         : []),
@@ -14596,12 +14616,14 @@ export class Session implements SessionContext {
             !(isExecutionTimeout && parentAbortedAtExecutionSettle)
           ) {
             status = 'cancelled';
-            // A shell command killed mid-flight did not complete: saying it
-            // had makes the model skip work that never happened. Its partial
-            // output goes along, as in the terminal scheduler.
+            // A tool stopped mid-flight did not complete: saying it had makes
+            // the model skip work that never happened. The shell is recognised
+            // by its display, any other tool says so on the result. Its
+            // partial output goes along, as in the terminal scheduler.
             const interruptedShell =
-              isShellResultDisplay(toolResult.returnDisplay) &&
-              toolResult.returnDisplay.outcome === 'cancelled';
+              (isShellResultDisplay(toolResult.returnDisplay) &&
+                toolResult.returnDisplay.outcome === 'cancelled') ||
+              toolResult.interruptedBeforeCompletion === true;
             cancelledMessage = interruptedShell
               ? TOOL_CANCELLED_BEFORE_COMPLETION_MESSAGE
               : TOOL_POST_EXECUTION_CANCELLED_MESSAGE;

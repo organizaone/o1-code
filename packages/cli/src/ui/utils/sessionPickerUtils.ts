@@ -17,7 +17,8 @@ const graphemeSegmenter = new Intl.Segmenter(undefined, {
 export interface SessionState {
   sessions: SessionListItem[];
   hasMore: boolean;
-  nextCursor?: number;
+  /** Opaque: handed back to SessionService.listSessions unchanged. */
+  nextCursor?: number | string;
 }
 
 /**

@@ -15300,6 +15300,57 @@ describe('CoreToolScheduler telemetry spans', () => {
     );
   });
 
+  // A tool other than the shell can also report its own interruption by
+  // returning. Its marker decides the notice, and its text — how far the work
+  // got — goes along with it.
+  it('reports a returned interruption as cancelled and keeps its account', async () => {
+    const abortController = new AbortController();
+    const { completedCalls } = await runSingleTool({
+      abortController,
+      execute: vi.fn().mockImplementation(async () => {
+        abortController.abort();
+        return {
+          llmContent:
+            'create_sub_session was cancelled. A sub-session may already have been created.',
+          returnDisplay: 'Cancelled',
+          interruptedBeforeCompletion: true,
+        };
+      }),
+    });
+
+    expect(completedCalls).toHaveLength(1);
+    const completedCall = completedCalls[0] as CompletedToolCall;
+    expect(completedCall.status).toBe('cancelled');
+    expect(completedCall.response.executionStatus).toBe('cancelled');
+    // One result for the call, whatever the tool returned.
+    expect(completedCall.response.responseParts).toHaveLength(1);
+    expect(completedCall.response.responseParts[0]?.functionResponse?.id).toBe(
+      completedCall.request.callId,
+    );
+    const responseText = JSON.stringify(completedCall.response.responseParts);
+    expect(responseText).toContain(
+      'User intentionally cancelled this tool call.',
+    );
+    expect(responseText).toContain('A sub-session may already have been');
+    expect(responseText).not.toContain('had already completed');
+  });
+
+  it('ignores the interruption marker on a call that was not cancelled', async () => {
+    const { completedCalls } = await runSingleTool({
+      execute: vi.fn().mockResolvedValue({
+        llmContent: 'done',
+        returnDisplay: 'done',
+        interruptedBeforeCompletion: true,
+      }),
+    });
+
+    const completedCall = completedCalls[0] as CompletedToolCall;
+    expect(completedCall.status).toBe('success');
+    expect(JSON.stringify(completedCall.response.responseParts)).toContain(
+      'done',
+    );
+  });
+
   // A post-execution cancellation drops the model-visible output, but the
   // references to files the tool already spilled to disk must survive —
   // otherwise nothing points at them and they are orphaned.

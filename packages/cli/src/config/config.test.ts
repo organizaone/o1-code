@@ -34,7 +34,12 @@ import {
   type CliArgs,
   resetOutputStyleWarningsForTesting,
 } from './config.js';
-import type { Settings } from './settings.js';
+import type { LoadedSettings, Settings } from './settings.js';
+import type {
+  SettingsChangeListener,
+  SettingsWatcher,
+} from './settingsWatcher.js';
+import { registerMcpHotReload } from './hot-reload.js';
 import * as ServerConfig from '@organizaone/o1-code-core';
 import { isWorkspaceTrusted } from './trustedFolders.js';
 import { resetMcpApprovalsForTesting } from './mcpApprovals.js';
@@ -4439,6 +4444,149 @@ describe('loadCliConfig with allowed-mcp-server-names', () => {
     expect(config.isMcpServerDisabled('server1')).toBe(true);
     expect(config.isMcpServerDisabled('server2')).toBe(true);
     expect(config.isMcpServerDisabled('server3')).toBe(false);
+  });
+
+  it('should exclude exactly the named server via --disable-mcp-server', async () => {
+    process.argv = ['node', 'script.js', '--disable-mcp-server', 'server1'];
+    const argv = await parseArguments();
+    const config = await loadCliConfig(baseSettings, argv, undefined, []);
+    // Same contract as settings mcp.excluded: the server stays in the map
+    // and reports as disabled.
+    expect(config.getMcpServers()).toEqual(baseSettings.mcpServers);
+    expect(config.isMcpServerDisabled('server1')).toBe(true);
+    expect(config.isMcpServerDisabled('server2')).toBe(false);
+    expect(config.isMcpServerDisabled('server3')).toBe(false);
+    expect(config.getCliDisabledMcpServerNames()).toEqual(['server1']);
+  });
+
+  it('should accept repeated and comma-separated --disable-mcp-server values', async () => {
+    process.argv = [
+      'node',
+      'script.js',
+      '--disable-mcp-server',
+      'server1',
+      '--disable-mcp-server',
+      'server2, server3',
+    ];
+    const argv = await parseArguments();
+    const config = await loadCliConfig(baseSettings, argv, undefined, []);
+    expect(config.isMcpServerDisabled('server1')).toBe(true);
+    expect(config.isMcpServerDisabled('server2')).toBe(true);
+    expect(config.isMcpServerDisabled('server3')).toBe(true);
+  });
+
+  it('should union --disable-mcp-server with settings mcp.excluded', async () => {
+    process.argv = ['node', 'script.js', '--disable-mcp-server', 'server2'];
+    const argv = await parseArguments();
+    const settings: Settings = {
+      ...baseSettings,
+      mcp: { excluded: ['server1'] },
+    };
+    const config = await loadCliConfig(settings, argv, undefined, []);
+    expect(config.isMcpServerDisabled('server1')).toBe(true);
+    expect(config.isMcpServerDisabled('server2')).toBe(true);
+    expect(config.isMcpServerDisabled('server3')).toBe(false);
+    // The boot bound is the flag alone, not the settings-derived list.
+    expect(config.getCliDisabledMcpServerNames()).toEqual(['server2']);
+  });
+
+  it('should disable nothing when --disable-mcp-server is absent', async () => {
+    process.argv = ['node', 'script.js'];
+    const argv = await parseArguments();
+    const config = await loadCliConfig(baseSettings, argv, undefined, []);
+    expect(config.isMcpServerDisabled('server1')).toBe(false);
+    expect(config.isMcpServerDisabled('server2')).toBe(false);
+    expect(config.isMcpServerDisabled('server3')).toBe(false);
+    expect(config.getCliDisabledMcpServerNames()).toBeUndefined();
+  });
+
+  it('should apply --disable-mcp-server on top of an allow-list', async () => {
+    process.argv = [
+      'node',
+      'script.js',
+      '--allowed-mcp-server-names',
+      'server1,server2',
+      '--disable-mcp-server',
+      'server1',
+    ];
+    const argv = await parseArguments();
+    const config = await loadCliConfig(baseSettings, argv, undefined, []);
+    expect(config.getMcpServers()).toEqual({
+      server1: { url: 'http://localhost:8080' },
+      server2: { url: 'http://localhost:8081' },
+    });
+    expect(config.isMcpServerDisabled('server1')).toBe(true);
+    expect(config.isMcpServerDisabled('server2')).toBe(false);
+  });
+
+  it('should still apply --disable-mcp-server under --safe-mode', async () => {
+    // Safe mode drops settings.mcpServers, so the servers come from
+    // --mcp-config; otherwise there would be nothing left to disable.
+    process.argv = [
+      'node',
+      'script.js',
+      '--safe-mode',
+      '--disable-mcp-server',
+      'cli-server-1',
+      '--mcp-config',
+      JSON.stringify({
+        mcpServers: {
+          'cli-server-1': { command: 'cmd-1' },
+          'cli-server-2': { command: 'cmd-2' },
+        },
+      }),
+    ];
+    const argv = await parseArguments();
+    const config = await loadCliConfig(baseSettings, argv, undefined, []);
+    expect(config.getMcpServers()).toEqual({
+      'cli-server-1': { command: 'cmd-1' },
+      'cli-server-2': { command: 'cmd-2' },
+    });
+    expect(config.isMcpServerDisabled('cli-server-1')).toBe(true);
+    expect(config.isMcpServerDisabled('cli-server-2')).toBe(false);
+  });
+
+  it('should keep a --disable-mcp-server exclusion across settings hot reloads', async () => {
+    process.argv = ['node', 'script.js', '--disable-mcp-server', 'server1'];
+    const argv = await parseArguments();
+    const merged: Settings = {
+      ...baseSettings,
+      mcp: { excluded: ['server2'] },
+    };
+    const config = await loadCliConfig(merged, argv, undefined, []);
+    const reinitialize = vi
+      .spyOn(config, 'reinitializeMcpServers')
+      .mockResolvedValue(undefined);
+
+    let reload: SettingsChangeListener | undefined;
+    const watcher = {
+      addChangeListener: (listener: SettingsChangeListener) => {
+        reload = listener;
+        return () => {};
+      },
+    } as unknown as SettingsWatcher;
+    const loaded = { merged } as LoadedSettings;
+    registerMcpHotReload(watcher, loaded, config, undefined);
+
+    // Reload 1: the settings exclude list is removed altogether. The
+    // settings-sourced server comes back; the launch-flag one does not.
+    loaded.merged.mcp = {};
+    await reload!([]);
+    expect(reinitialize).toHaveBeenCalledTimes(1);
+    expect(config.isMcpServerDisabled('server1')).toBe(true);
+    expect(config.isMcpServerDisabled('server2')).toBe(false);
+
+    // Reload 2: settings name a different server. Still cannot widen.
+    loaded.merged.mcp = { excluded: ['server3'] };
+    await reload!([]);
+    expect(reinitialize).toHaveBeenCalledTimes(2);
+    expect(config.isMcpServerDisabled('server1')).toBe(true);
+    expect(config.isMcpServerDisabled('server3')).toBe(true);
+
+    // Reload 3: an explicit allow-list naming the server does not help either.
+    loaded.merged.mcp = { allowed: ['server1'] };
+    await reload!([]);
+    expect(config.isMcpServerDisabled('server1')).toBe(true);
   });
 
   it('should apply allowedMcpServers filter but excluded servers are still returned', async () => {

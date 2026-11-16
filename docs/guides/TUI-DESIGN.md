@@ -264,6 +264,12 @@ of the status rows right above the input.
   `enter open · ↑ history · esc back`; Enter opens the dialog, ↓ or Esc goes back to the input,
   and ↑ goes on into history. `/tasks` opens the same dialog. ↓ no longer reaches them: they sit
   above the input.
+- **A workflow approval opens the dialog by itself**, once per request, on the list with the
+  waiting run selected — never on the request, whose options would take a key meant for the
+  composer. Until the user presses ↑ or ↓ every other key is ignored, Esc and Ctrl+C included,
+  and the footer shows `A workflow needs approval · press ↑ or ↓ to continue` in amber in place
+  of the key hints. That arrow only acknowledges; Enter then opens the request. Closing the
+  dialog leaves the request parked behind the pill's `needs approval` marker.
 - Right, each only when present: background tasks pill, `plan 2/4` (count bold primary), active
   skill (`● name`, brand soft bold, no "skill" label), goal, scheduled tasks, skills pending review,
   active workflow. A blocked Goal stays until the user acts, so its pill ends with a muted

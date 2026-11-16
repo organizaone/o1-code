@@ -114,6 +114,8 @@ interface FakeConfigState {
   gating: { excluded?: string[]; allowed?: string[]; pending?: string[] };
   /** Startup `--allowed-mcp-server-names` upper bound (K); default undefined. */
   bootAllowed?: string[];
+  /** Startup `--disable-mcp-server` floor; default undefined. */
+  bootExcluded?: string[];
   approvalMode?: ApprovalMode;
   bareMode?: boolean;
   safeMode?: boolean;
@@ -144,6 +146,7 @@ function makeFakeConfig(cwd: string, state: FakeConfigState) {
     // Default: no startup --allowed-mcp-server-names flag (settings fully win).
     // Individual tests override via state.bootAllowed.
     getCliAllowedMcpServerNames: () => state.bootAllowed,
+    getCliDisabledMcpServerNames: () => state.bootExcluded,
     setExcludedMcpServers,
     setAllowedMcpServers,
     setPendingMcpServers,
@@ -404,6 +407,95 @@ describe('registerMcpHotReload', () => {
     await listener([]);
 
     expect(fc.setAllowedMcpServers).toHaveBeenCalledWith(['x']);
+  });
+
+  // ── startup --disable-mcp-server as a floor under the exclude list ────
+  it('boot exclusion: an unrelated settings edit neither drops it nor reconciles', async () => {
+    // Pre-image mimics `--disable-mcp-server a`: boot put `a` in the exclude
+    // list while settings carry no `mcp.excluded` at all.
+    const fc = makeFakeConfig(cwd, {
+      settingsMcp: { a: { command: 'a' } },
+      gating: { excluded: ['a'] },
+      bootExcluded: ['a'],
+    });
+    registerMcpHotReload(watcher, settings, fc.config, undefined);
+
+    merged.mcpServers = { a: { command: 'a' } };
+    await listener([]);
+
+    expect(fc.setExcludedMcpServers).not.toHaveBeenCalled();
+    expect(fc.reinitializeMcpServers).not.toHaveBeenCalled();
+  });
+
+  it('boot exclusion: a settings edit can exclude more servers on top of it', async () => {
+    const fc = makeFakeConfig(cwd, {
+      settingsMcp: { a: { command: 'a' }, b: { command: 'b' } },
+      gating: { excluded: ['a'] },
+      bootExcluded: ['a'],
+    });
+    registerMcpHotReload(watcher, settings, fc.config, undefined);
+
+    merged.mcpServers = { a: { command: 'a' }, b: { command: 'b' } };
+    merged.mcp = { excluded: ['b'] };
+    await listener([]);
+
+    expect(fc.setExcludedMcpServers).toHaveBeenCalledOnce();
+    expect([...fc.setExcludedMcpServers.mock.calls[0]![0]].sort()).toEqual([
+      'a',
+      'b',
+    ]);
+  });
+
+  it('boot exclusion: removing mcp.excluded from settings does not re-admit the server', async () => {
+    const fc = makeFakeConfig(cwd, {
+      settingsMcp: { a: { command: 'a' }, b: { command: 'b' } },
+      gating: { excluded: ['a', 'b'] },
+      bootExcluded: ['a'],
+    });
+    registerMcpHotReload(watcher, settings, fc.config, undefined);
+
+    // The settings-sourced `b` goes away; the launch-flag `a` must stay.
+    merged.mcpServers = { a: { command: 'a' }, b: { command: 'b' } };
+    merged.mcp = {};
+    await listener([]);
+
+    expect(fc.setExcludedMcpServers).toHaveBeenCalledWith(['a']);
+    expect(fc.reinitializeMcpServers).toHaveBeenCalledOnce();
+  });
+
+  it('boot exclusion: a server listed by both the flag and settings is excluded once', async () => {
+    const fc = makeFakeConfig(cwd, {
+      settingsMcp: { a: { command: 'a' } },
+      gating: {},
+      bootExcluded: ['a'],
+    });
+    registerMcpHotReload(watcher, settings, fc.config, undefined);
+
+    merged.mcpServers = { a: { command: 'a' } };
+    merged.mcp = { excluded: ['a'] };
+    await listener([]);
+
+    expect(fc.setExcludedMcpServers).toHaveBeenCalledWith(['a']);
+  });
+
+  it('boot exclusion: safe mode keeps it while ignoring the settings exclude list', async () => {
+    const fc = makeFakeConfig(cwd, {
+      settingsMcp: {},
+      gating: { excluded: ['cliSrv'] },
+      bootExcluded: ['cliSrv'],
+      safeMode: true,
+    });
+    const topTier = {
+      cliSrv: { command: 'cli' },
+      other: { command: 'other' },
+    };
+    registerMcpHotReload(watcher, settings, fc.config, topTier);
+
+    merged.mcp = { excluded: ['other'] };
+    await listener([]);
+
+    expect(fc.reinitializeMcpServers).toHaveBeenCalledOnce();
+    expect(fc.setExcludedMcpServers).toHaveBeenCalledWith(['cliSrv']);
   });
 
   it('does NOT reconcile when neither servers nor admission lists changed', async () => {

@@ -17,7 +17,10 @@ import type {
   AcpSessionBridge,
   BridgeSessionSummary,
 } from '../acp-session-bridge.js';
-import { listWorkspaceSessionsForResponse } from './session-list.js';
+import {
+  isPersistedSessionCursor,
+  listWorkspaceSessionsForResponse,
+} from './session-list.js';
 
 describe('merged session catalog pagination', () => {
   let directory: string;
@@ -420,5 +423,66 @@ describe('merged session catalog pagination', () => {
       [2, 1, 0].map((index) => summary(index).sessionId),
     );
     expect(result.nextCursor).toBeUndefined();
+  });
+
+  describe('persisted cursor', () => {
+    const readOptions = () => ({ runtimeBaseDir, mergeLive: false });
+
+    it('pages through sessions that share an mtime without skipping any', async () => {
+      const sessions = [0, 1, 2].map((index) => ({
+        ...summary(index),
+        createdAt: summary(0).createdAt,
+      }));
+      await Promise.all(sessions.map(persist));
+      const { bridge } = bridgeFor([]);
+
+      const seen: string[] = [];
+      let cursor: string | undefined;
+      for (let page = 0; page < 5; page++) {
+        const result = await listWorkspaceSessionsForResponse(
+          bridge,
+          workspaceCwd,
+          { size: 1, ...(cursor !== undefined ? { cursor } : {}) },
+          readOptions(),
+        );
+        seen.push(...result.sessions.map((session) => session.sessionId));
+        cursor = result.nextCursor;
+        if (cursor === undefined) break;
+        expect(isPersistedSessionCursor(cursor)).toBe(true);
+      }
+
+      expect(seen).toEqual(sessions.map((session) => session.sessionId));
+    });
+
+    it('still accepts a bare mtime cursor', async () => {
+      await Promise.all([0, 1, 2].map((index) => persist(summary(index))));
+      const { bridge } = bridgeFor([]);
+
+      const result = await listWorkspaceSessionsForResponse(
+        bridge,
+        workspaceCwd,
+        { cursor: String(Date.parse(summary(1).createdAt)) },
+        readOptions(),
+      );
+
+      expect(result.sessions.map((session) => session.sessionId)).toEqual([
+        summary(0).sessionId,
+      ]);
+    });
+
+    it('rejects a malformed cursor', async () => {
+      const { bridge } = bridgeFor([]);
+      for (const cursor of ['abc', '|a.jsonl', '1|', '1|a|b', '-1|a.jsonl']) {
+        expect(isPersistedSessionCursor(cursor)).toBe(false);
+        await expect(
+          listWorkspaceSessionsForResponse(
+            bridge,
+            workspaceCwd,
+            { cursor },
+            readOptions(),
+          ),
+        ).rejects.toThrow('not a valid persisted cursor');
+      }
+    });
   });
 });

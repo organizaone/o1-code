@@ -10022,6 +10022,199 @@ hello
       expect(returnedTurn?.pendingToolCalls).toHaveLength(0);
     });
 
+    describe('exploration budget', () => {
+      const explorationReminders = (request: unknown[]) =>
+        request.filter(
+          (part) =>
+            typeof part === 'object' &&
+            part !== null &&
+            'text' in part &&
+            typeof part.text === 'string' &&
+            part.text.includes('read-only exploration phase'),
+        );
+      const read = (callId: string) => ({
+        type: LlmEventType.ToolCallRequest,
+        value: { callId, name: 'read_file', args: { path: callId } },
+      });
+      const edit = (callId: string) => ({
+        type: LlmEventType.ToolCallRequest,
+        value: { callId, name: 'edit', args: { path: callId } },
+      });
+      const finished = () => ({
+        type: LlmEventType.Finished,
+        value: { reason: 'STOP' },
+      });
+      const streamOf = (...events: unknown[]) =>
+        mockTurnRunFn.mockReturnValueOnce(
+          (async function* () {
+            for (const event of events) yield event;
+          })(),
+        );
+      const send = (
+        request: unknown[],
+        promptId: string,
+        options?: Record<string, unknown>,
+      ) =>
+        fromAsync(
+          client.sendMessageStream(
+            request as never,
+            new AbortController().signal,
+            promptId,
+            options as never,
+          ),
+        );
+      const toolResult = (promptId: string) =>
+        send(
+          [{ functionResponse: { name: 'read_file', response: { ok: true } } }],
+          promptId,
+          { type: SendMessageType.ToolResult },
+        );
+      const lastRequest = () => mockTurnRunFn.mock.lastCall?.[1] as unknown[];
+      const budgetCalls = () =>
+        (client['toolExplorationBudget'] as unknown as { calls: number }).calls;
+
+      beforeEach(() => {
+        // The default registry mock knows no tool names, which would make
+        // every call end the phase.
+        (
+          mockConfig.getToolRegistry() as unknown as {
+            getAllToolNames: () => string[];
+          }
+        ).getAllToolNames = () => ['read_file', 'edit'];
+        // An unset cap is a soft allowance; the suite's explicit hard cap
+        // would halt the continuations before the reminder is sent.
+        vi.mocked(mockConfig.isMaxToolCallsPerTurnExplicit).mockReturnValue(
+          false,
+        );
+        client['chat'] = {
+          addHistory: vi.fn(),
+          getHistory: vi.fn().mockReturnValue([]),
+        } as unknown as LlmChat;
+      });
+
+      it('sends one reminder per read-only phase, after the tool results', async () => {
+        const promptId = 'prompt-exploration';
+        vi.mocked(mockConfig.getMaxToolCallsPerTurn).mockReturnValue(2);
+
+        streamOf(read('a1'), read('a2'), finished());
+        await send([{ text: 'explore' }], promptId);
+        expect(explorationReminders(lastRequest())).toHaveLength(0);
+
+        streamOf(read('b1'), finished());
+        const firstContinuation = await toolResult(promptId);
+        const request = lastRequest();
+        expect(explorationReminders(request)).toHaveLength(1);
+        expect(
+          request.indexOf(explorationReminders(request)[0]),
+        ).toBeGreaterThan(
+          request.findIndex(
+            (part) =>
+              typeof part === 'object' &&
+              part !== null &&
+              'functionResponse' in part,
+          ),
+        );
+        expect(
+          firstContinuation.filter(
+            (event) => event.type === LlmEventType.LoopDetected,
+          ),
+        ).toHaveLength(0);
+
+        // Same phase, already reminded.
+        streamOf(read('c1'), finished());
+        await toolResult(promptId);
+        expect(explorationReminders(lastRequest())).toHaveLength(0);
+
+        // A new interaction starts the count over.
+        streamOf(read('d1'), finished());
+        await send([{ text: 'new question' }], promptId);
+        expect(budgetCalls()).toBe(1);
+        streamOf(finished());
+        await toolResult(promptId);
+        expect(explorationReminders(lastRequest())).toHaveLength(0);
+      });
+
+      it('ends the phase on a call that is not read-only', async () => {
+        const promptId = 'prompt-exploration-progress';
+        vi.mocked(mockConfig.getMaxToolCallsPerTurn).mockReturnValue(2);
+
+        streamOf(read('a1'), edit('a2'), read('a3'), finished());
+        await send([{ text: 'fix it' }], promptId);
+        expect(budgetCalls()).toBe(1);
+
+        streamOf(finished());
+        await toolResult(promptId);
+        expect(explorationReminders(lastRequest())).toHaveLength(0);
+      });
+
+      it('sends no reminder once loop detection is disabled for the session', async () => {
+        const promptId = 'prompt-exploration-disabled';
+        vi.mocked(mockConfig.getMaxToolCallsPerTurn).mockReturnValue(1);
+        client['loopDetector'].disableForSession();
+
+        streamOf(read('a1'), finished());
+        await send([{ text: 'explore' }], promptId);
+        streamOf(finished());
+        await toolResult(promptId);
+
+        expect(explorationReminders(lastRequest())).toHaveLength(0);
+      });
+
+      it('sends no reminder when the cap is disabled', async () => {
+        const promptId = 'prompt-exploration-uncapped';
+        vi.mocked(mockConfig.getMaxToolCallsPerTurn).mockReturnValue(
+          Number.POSITIVE_INFINITY,
+        );
+
+        streamOf(read('a1'), read('a2'), finished());
+        await send([{ text: 'explore' }], promptId);
+        streamOf(finished());
+        await toolResult(promptId);
+
+        expect(explorationReminders(lastRequest())).toHaveLength(0);
+      });
+
+      it('does not count a discarded attempt or a repeated call id twice', async () => {
+        const promptId = 'prompt-exploration-retry';
+        vi.mocked(mockConfig.getMaxToolCallsPerTurn).mockReturnValue(4);
+
+        streamOf(
+          read('a1'),
+          finished(),
+          read('f1'),
+          read('f2'),
+          { type: LlmEventType.Retry, isContinuation: false },
+          read('b1'),
+          read('b1'),
+          read('b2'),
+          finished(),
+        );
+        await send([{ text: 'explore' }], promptId);
+
+        expect(budgetCalls()).toBe(3);
+      });
+
+      it('leaves the running phase alone for a concurrent side question', async () => {
+        const promptId = 'prompt-exploration-main';
+        vi.mocked(mockConfig.getMaxToolCallsPerTurn).mockReturnValue(10);
+
+        streamOf(read('a1'), read('a2'), finished());
+        await send([{ text: 'explore' }], promptId);
+
+        streamOf(read('s1'), edit('s2'), finished());
+        await send([{ text: 'side question' }], 'prompt-exploration-side', {
+          type: SendMessageType.UserQuery,
+          isConcurrentSideQuery: true,
+        });
+        expect(budgetCalls()).toBe(2);
+
+        // Its tool-result continuation arrives without the side flag.
+        streamOf(read('s3'), finished());
+        await toolResult('prompt-exploration-side');
+        expect(budgetCalls()).toBe(2);
+      });
+    });
+
     it('should PRESERVE the pending prefetch when next-speaker continueTurn returns', async () => {
       // Self-inflicted-regression guard for the round-4 finding:
       // the bottom-of-try `normalCompletion = true` doesn't cover the

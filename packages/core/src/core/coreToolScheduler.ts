@@ -5874,7 +5874,12 @@ export class CoreToolScheduler {
           canonicalName === ToolNames.SHELL &&
           isShellResultDisplay(toolResult.returnDisplay) &&
           toolResult.returnDisplay.outcome === 'cancelled';
-        let cancelMessage = interruptedShell
+        // A result came back, which alone does not mean the work finished: a
+        // tool may report its own interruption by returning. The shell is
+        // recognised by its display; any other tool says so on the result.
+        const interrupted =
+          interruptedShell || toolResult.interruptedBeforeCompletion === true;
+        let cancelMessage = interrupted
           ? TOOL_CANCELLED_BEFORE_COMPLETION_MESSAGE
           : TOOL_CANCELLED_AFTER_COMPLETION_MESSAGE;
         let failureHookArtifacts: ToolArtifact[] | undefined;
@@ -5907,7 +5912,13 @@ export class CoreToolScheduler {
           }
           failureHookArtifacts = failureHookResult.artifacts;
         }
-        if (interruptedShell && typeof toolResult.llmContent === 'string') {
+        // The notice says the call did not finish; the tool's own text says
+        // how far it got, which the model needs to decide what remains.
+        if (
+          interrupted &&
+          typeof toolResult.llmContent === 'string' &&
+          toolResult.llmContent.trim()
+        ) {
           cancelMessage += `\n\n${toolResult.llmContent}`;
         }
         const cancelledResponse = createCancelledResponse(

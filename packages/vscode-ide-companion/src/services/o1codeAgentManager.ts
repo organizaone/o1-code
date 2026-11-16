@@ -543,11 +543,11 @@ export class O1CodeAgentManager {
    * Falls back to file system scan with equivalent pagination semantics.
    */
   async getSessionListPaged(params?: {
-    cursor?: number;
+    cursor?: number | string;
     size?: number;
   }): Promise<{
     sessions: Array<Record<string, unknown>>;
-    nextCursor?: number;
+    nextCursor?: number | string;
     hasMore: boolean;
   }> {
     const size = params?.size ?? 20;
@@ -574,22 +574,21 @@ export class O1CodeAgentManager {
         cwd: item.cwd,
       }));
 
-      // SDK returns nextCursor as string; convert to numeric cursor for paging
-      let nextCursorNum: number | undefined;
+      // The agent's cursor is opaque ("<mtime>|<file name>") and goes back to
+      // it unchanged: Number() would turn it into NaN and end the paging.
+      let nextCursor: number | string | undefined;
       if (typeof res === 'object' && res !== null && 'nextCursor' in res) {
         const raw = (res as { nextCursor?: unknown }).nextCursor;
-        if (typeof raw === 'number') {
-          nextCursorNum = raw;
-        } else if (typeof raw === 'string') {
-          const parsed = Number(raw);
-          if (!Number.isNaN(parsed)) {
-            nextCursorNum = parsed;
-          }
+        if (
+          typeof raw === 'number' ||
+          (typeof raw === 'string' && raw !== '')
+        ) {
+          nextCursor = raw;
         }
       }
-      const hasMore = nextCursorNum !== undefined;
+      const hasMore = nextCursor !== undefined;
 
-      return { sessions: mapped, nextCursor: nextCursorNum, hasMore };
+      return { sessions: mapped, nextCursor, hasMore };
     } catch (error) {
       logger.warn('[O1CodeAgentManager] Paged ACP session list failed:', error);
       // fall through to file system
@@ -606,9 +605,13 @@ export class O1CodeAgentManager {
         raw: s,
         mtime: new Date(s.lastUpdated).getTime(),
       }));
+      // This listing pages by mtime alone, so of a cursor the agent issued
+      // only the mtime before the separator applies.
+      const cursorMtime =
+        typeof cursor === 'string' ? Number(cursor.split('|')[0]) : cursor;
       const filtered =
-        cursor !== undefined
-          ? allWithMtime.filter((x) => x.mtime < cursor)
+        cursorMtime !== undefined && Number.isFinite(cursorMtime)
+          ? allWithMtime.filter((x) => x.mtime < cursorMtime)
           : allWithMtime;
       const page = filtered.slice(0, size);
       const sessions = page.map((x) => ({

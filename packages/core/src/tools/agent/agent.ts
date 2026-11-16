@@ -145,6 +145,7 @@ import type {
   BackgroundSlotReservation,
   ResidentBackgroundAgent,
 } from '../../agents/background-tasks.js';
+import { FOREGROUND_MODEL_SLOT_WAIT_CANCELLED } from '../../agents/background-tasks.js';
 import { buildModelIdContext, resolveModelId } from '../../utils/modelId.js';
 import type { AuthOverrides } from '../../models/content-generator-config.js';
 import {
@@ -2827,6 +2828,8 @@ class AgentToolInvocation extends BaseToolInvocation<AgentParams, ToolResult> {
     // Concrete model ID the sub-agent will run with, resolved from its model
     // selector once subagentConfig is loaded. Used to enforce per-model
     // background-agent concurrency caps (agents.maxParallelAgentsByModel).
+    // A foreground run resolves its own copy where it reserves its slot, so
+    // this stays unset there and nothing downstream treats it as background.
     let subagentModelId: string | undefined;
     let subagentRuntimeAuthOverrides: AuthOverrides | undefined;
     const releaseBackgroundSlotReservation = () => {
@@ -3074,6 +3077,76 @@ class AgentToolInvocation extends BaseToolInvocation<AgentParams, ToolResult> {
           },
           updateOutput,
         );
+      } else if (
+        !isFork &&
+        isTopLevelSession() &&
+        subagentConfig.executor === undefined
+      ) {
+        // A foreground run on a capped model takes one of that model's slots
+        // too; otherwise several agent calls in one message fan out past the
+        // cap. Three launches are left out on purpose:
+        // - nested ones, which would wait on a slot their own ancestor holds
+        //   until it returns, and it returns only after they do;
+        // - interactive forks, whose detached body outlives this call and
+        //   has no point at which the slot would be given back;
+        // - external executors, which do not run on a model of ours.
+        // The slot is released by the foreground `finally`, by the worktree
+        // provisioning failure path and by the outer `catch`.
+        const foregroundModelId =
+          resolveModelId(subagentConfig.model, buildModelIdContext(this.config))
+            ?.modelId ?? this.config.getModel();
+        const registry = this.config.getBackgroundTaskRegistry();
+        const perModelCap = registry.resolvePerModelCap(foregroundModelId);
+        if (perModelCap !== undefined) {
+          backgroundSlotReservation =
+            registry.tryReserveForegroundModelSlot(foregroundModelId);
+          if (!backgroundSlotReservation) {
+            const queuedCount = registry.getForegroundQueuedCount();
+            const queueText =
+              queuedCount === 0
+                ? 'no agents ahead'
+                : queuedCount === 1
+                  ? '1 already queued'
+                  : `${queuedCount} already queued`;
+            const claimed =
+              registry.getClaimedModelSlotCount(foregroundModelId);
+            this.updateDisplay(
+              {
+                status: 'running',
+                terminateReason: `Waiting for a model slot (${claimed}/${perModelCap} in use, ${queueText}).`,
+              },
+              updateOutput,
+            );
+            try {
+              backgroundSlotReservation =
+                await registry.waitForForegroundModelSlot(
+                  signal,
+                  foregroundModelId,
+                );
+            } catch (waitError) {
+              if (
+                !(waitError instanceof Error) ||
+                waitError.message !== FOREGROUND_MODEL_SLOT_WAIT_CANCELLED
+              ) {
+                throw waitError;
+              }
+              // Cancelled while queued: the agent never started, so report a
+              // cancellation rather than a launch failure.
+              this.updateDisplay(
+                { status: 'cancelled', terminateReason: undefined },
+                updateOutput,
+              );
+              return {
+                llmContent: FOREGROUND_MODEL_SLOT_WAIT_CANCELLED,
+                returnDisplay: this.currentDisplay!,
+              };
+            }
+            this.updateDisplay(
+              { status: 'running', terminateReason: undefined },
+              updateOutput,
+            );
+          }
+        }
       }
 
       // ── Optional worktree isolation (Phase 1: provision) ──────────

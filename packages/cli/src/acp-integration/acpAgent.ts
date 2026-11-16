@@ -238,7 +238,7 @@ import {
 } from '../config/session-id.js';
 import { loadMcpApprovals } from '../config/mcpApprovals.js';
 import { assembleMcpServers } from '../config/mcpServers.js';
-import { recomputeMcpGating } from '../config/hot-reload.js';
+import { recomputeMcpGating, type McpGating } from '../config/hot-reload.js';
 import {
   REDACTED_MCP_SECRET,
   redactMcpServerSecrets,
@@ -3519,9 +3519,19 @@ function normalizeAcpSessionListSize(value: unknown): number | undefined {
 
 function parseAcpSessionListCursor(
   value: string | null | undefined,
-): number | undefined {
+): number | string | undefined {
   if (value == null || value === '') return undefined;
   const trimmed = value.trim();
+  // listSessions issues "<mtime>|<file name>"; it goes back to it unchanged.
+  // A bare number is the form issued before and is still accepted.
+  const separator = trimmed.indexOf('|');
+  if (separator > 0 && separator < trimmed.length - 1) {
+    const mtimeText = trimmed.slice(0, separator);
+    const mtime = Number(mtimeText);
+    if (mtimeText.trim() !== '' && Number.isFinite(mtime) && mtime >= 0) {
+      return trimmed;
+    }
+  }
   const parsedCursor = Number(trimmed);
   if (
     trimmed === '' ||
@@ -3531,7 +3541,7 @@ function parseAcpSessionListCursor(
   ) {
     throw RequestError.invalidParams(
       undefined,
-      `Invalid cursor: "${value}" is not a valid numeric cursor`,
+      `Invalid cursor: "${value}" is not a valid cursor`,
     );
   }
   return parsedCursor;
@@ -4304,14 +4314,22 @@ class O1CodeAgent implements Agent {
                 config.getTopTierMcpServers(),
               );
           const bootAllowed = config.getCliAllowedMcpServerNames();
-          const gating = isBareOrSafe
-            ? { allowed: bootAllowed ? [...bootAllowed] : undefined }
+          const bootExcluded = config.getCliDisabledMcpServerNames();
+          const gating: McpGating = isBareOrSafe
+            ? {
+                allowed: bootAllowed ? [...bootAllowed] : undefined,
+                excluded:
+                  bootExcluded && bootExcluded.length > 0
+                    ? [...bootExcluded]
+                    : undefined,
+              }
             : recomputeMcpGating(
                 settings,
                 mcpServers,
                 cwd,
                 bootAllowed,
                 config.getApprovalMode() === ApprovalMode.YOLO,
+                bootExcluded,
               );
           config.setExcludedMcpServers(gating.excluded ?? []);
           config.setAllowedMcpServers(gating.allowed);
@@ -6395,7 +6413,7 @@ class O1CodeAgent implements Agent {
     params: ListSessionsRequest,
   ): Promise<ListSessionsResponse> {
     const cwd = params.cwd || process.cwd();
-    const numericCursor = parseAcpSessionListCursor(params.cursor);
+    const listCursor = parseAcpSessionListCursor(params.cursor);
 
     // The ACP spec's ListSessionsRequest doesn't include a page-size field,
     // so the SDK's zod validator strips any top-level `size` the client sends
@@ -6410,7 +6428,7 @@ class O1CodeAgent implements Agent {
     const result = await this.runWithPinnedRuntimeBaseDirForRequest(cwd, () => {
       const sessionService = new SessionService(cwd);
       return sessionService.listSessions({
-        cursor: numericCursor,
+        cursor: listCursor,
         size,
       });
     });

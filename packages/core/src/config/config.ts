@@ -928,9 +928,12 @@ export interface AgentsCollabSettings {
    */
   maxParallelAgents?: number;
   /**
-   * Per-model maximum number of background sub-agents running concurrently,
-   * keyed by concrete model ID. Overrides the global `maxParallelAgents` for
-   * the matched model; models not listed here fall back to the global limit.
+   * Per-model maximum number of top-level sub-agents running concurrently,
+   * keyed by concrete model ID; background and foreground launches share the
+   * count. Background launches are also bound by the global
+   * `maxParallelAgents`; models not listed here fall back to that limit in
+   * the background and are unbounded in the foreground. Nested sub-agents,
+   * interactive forks and external executors are not counted.
    * Useful when a model has a lower concurrency capacity than the rest.
    */
   maxParallelAgentsByModel?: Record<string, number>;
@@ -1332,6 +1335,13 @@ export interface ConfigParameters {
    * settings fully drive admission).
    */
   cliAllowedMcpServerNames?: string[];
+  /**
+   * The startup `--disable-mcp-server` CLI flag value, if passed (the flag
+   * only — NOT the settings-derived exclude list). It is a fixed floor under
+   * the exclude list: a hot-reload may exclude more servers but never
+   * re-admit one the launch flag disabled.
+   */
+  cliDisabledMcpServerNames?: string[];
   excludedMcpServers?: string[];
   /**
    * Idle timeout in milliseconds for MCP tool calls. If the MCP server does
@@ -2753,6 +2763,8 @@ export class Config {
   private allowedMcpServers?: string[];
   /** Immutable upper bound from `--allowed-mcp-server-names`; see ConfigParameters. */
   private readonly cliAllowedMcpServerNames?: string[];
+  /** Immutable floor from `--disable-mcp-server`; see ConfigParameters. */
+  private readonly cliDisabledMcpServerNames?: string[];
   private excludedMcpServers?: string[];
   private pendingMcpServers?: string[];
   private readonly mcpToolIdleTimeoutMs: number;
@@ -3229,6 +3241,7 @@ export class Config {
     this.lspClient = params.lspClient;
     this.allowedMcpServers = params.allowedMcpServers;
     this.cliAllowedMcpServerNames = params.cliAllowedMcpServerNames;
+    this.cliDisabledMcpServerNames = params.cliDisabledMcpServerNames;
     this.excludedMcpServers = params.excludedMcpServers;
     this.pendingMcpServers = params.pendingMcpServers;
     const envTimeout = process.env['O1CODE_MCP_TOOL_IDLE_TIMEOUT_MS'];
@@ -7694,6 +7707,16 @@ export class Config {
    */
   getCliAllowedMcpServerNames(): string[] | undefined {
     return this.cliAllowedMcpServerNames;
+  }
+
+  /**
+   * The startup `--disable-mcp-server` names (the CLI flag only), or undefined
+   * if the flag was not passed. The hot-reload recompute adds these back to
+   * the settings-derived exclude list, so a runtime settings edit can exclude
+   * more servers but never re-admit one the launch flag disabled.
+   */
+  getCliDisabledMcpServerNames(): string[] | undefined {
+    return this.cliDisabledMcpServerNames;
   }
 
   /**

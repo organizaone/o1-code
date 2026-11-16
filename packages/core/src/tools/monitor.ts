@@ -323,6 +323,7 @@ class MonitorToolInvocation extends BaseToolInvocation<
       return {
         llmContent: 'Monitor was cancelled before it could start.',
         returnDisplay: 'Monitor cancelled.',
+        interruptedBeforeCompletion: true,
       };
     }
 

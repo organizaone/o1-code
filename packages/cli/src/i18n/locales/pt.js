@@ -2429,6 +2429,8 @@ export default {
     'Agente em segundo plano precisa de aprovação',
   'from nested agent': 'do agent aninhado',
   'Approve or deny the request above': 'Aprove ou negue a solicitação acima',
+  'A workflow needs approval · press ↑ or ↓ to continue':
+    'Um workflow precisa de aprovação · pressione ↑ ou ↓ para continuar',
   Running: 'Em execução',
   Pausing: 'Pausando',
   Paused: 'Pausado',

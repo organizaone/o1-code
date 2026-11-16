@@ -955,7 +955,79 @@ describe('SessionService', () => {
       expect(result.items[0].sessionId).toBe(sessionIdC); // newest
       expect(result.items[1].sessionId).toBe(sessionIdB);
       expect(result.hasMore).toBe(true);
-      expect(result.nextCursor).toBeDefined();
+      expect(result.nextCursor).toBe(`${now - 1000}|${sessionIdB}.jsonl`);
+    });
+
+    it('returns every session once when all files share an mtime', async () => {
+      const ids = Array.from({ length: 25 }, (_, index) =>
+        (index + 1).toString(16).padStart(32, '0'),
+      );
+      // Directory order is not name order, so the files arrive reversed.
+      readdirSyncSpy.mockReturnValue(
+        ids
+          .slice()
+          .reverse()
+          .map((id) => `${id}.jsonl`) as unknown as Array<fs.Dirent<Buffer>>,
+      );
+      statSyncSpy.mockReturnValue({
+        mtimeMs: 1_700_000_000_000.25,
+        isFile: () => true,
+      } as fs.Stats);
+      vi.mocked(jsonl.readLines).mockImplementation(
+        async (filePath: string) => [
+          {
+            ...recordA1,
+            sessionId: /([0-9a-f]{32})\.jsonl$/.exec(filePath)![1]!,
+          },
+        ],
+      );
+
+      const seen: string[] = [];
+      let cursor: number | string | undefined;
+      for (let page = 0; page < 10; page++) {
+        const result = await sessionService.listSessions({ cursor, size: 5 });
+        seen.push(...result.items.map((item) => item.sessionId));
+        if (!result.hasMore) break;
+        cursor = result.nextCursor;
+        expect(cursor).toBeDefined();
+      }
+
+      expect(seen).toEqual(ids);
+    });
+
+    it('resumes after a cursor inside a group of equal mtimes', async () => {
+      const now = Date.now();
+      readdirSyncSpy.mockReturnValue([
+        `${sessionIdC}.jsonl`,
+        `${sessionIdA}.jsonl`,
+        `${sessionIdB}.jsonl`,
+      ] as unknown as Array<fs.Dirent<Buffer>>);
+      statSyncSpy.mockImplementation(
+        (filePath: fs.PathLike) =>
+          ({
+            mtimeMs: filePath.toString().includes(sessionIdC) ? now - 1 : now,
+            isFile: () => true,
+          }) as fs.Stats,
+      );
+      vi.mocked(jsonl.readLines).mockImplementation(
+        async (filePath: string) => [
+          {
+            ...recordA1,
+            sessionId: [sessionIdA, sessionIdB, sessionIdC].find((id) =>
+              filePath.includes(id),
+            )!,
+          },
+        ],
+      );
+
+      const result = await sessionService.listSessions({
+        cursor: `${now}|${sessionIdA}.jsonl`,
+      });
+
+      expect(result.items.map((item) => item.sessionId)).toEqual([
+        sessionIdB,
+        sessionIdC,
+      ]);
     });
 
     it('should paginate with cursor parameter', async () => {

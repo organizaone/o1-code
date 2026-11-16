@@ -3721,7 +3721,7 @@ const SETTINGS_SCHEMA = {
         default: undefined as number | undefined,
         minimum: 1,
         description:
-          'Global maximum number of background sub-agents that can run concurrently. Additional background agents wait in a queue until a slot is available. Use maxParallelAgentsByModel to cap a specific model below this global limit.',
+          'Global maximum number of background sub-agents that can run concurrently. Additional background agents wait in a queue until a slot is available. Foreground sub-agents do not count toward this limit. Use maxParallelAgentsByModel to cap a specific model below this global limit.',
         showInDialog: false,
         jsonSchemaOverride: {
           type: 'integer',
@@ -3735,7 +3735,7 @@ const SETTINGS_SCHEMA = {
         requiresRestart: true,
         default: undefined as Record<string, number> | undefined,
         description:
-          'Per-model maximum number of background sub-agents that can run concurrently, keyed by model ID (e.g. { "qwen3-max": 2 }). Useful when a model has a lower concurrency capacity. Takes precedence over the global maxParallelAgents for the matched model; models not listed here fall back to the global limit.',
+          'Per-model maximum number of sub-agents that can run concurrently, keyed by model ID (e.g. { "qwen3-max": 2 }). Useful when a model has a lower concurrency capacity. Background and foreground sub-agents launched from the main session count together: a foreground launch on a model at its cap waits for a slot. Sub-agents launched by another sub-agent, interactive forks and sub-agents run by an external executor are not counted. Background launches are also bound by the global maxParallelAgents; models not listed here fall back to that global limit in the background and are not limited in the foreground.',
         showInDialog: false,
         mergeStrategy: MergeStrategy.SHALLOW_MERGE,
         jsonSchemaOverride: {
