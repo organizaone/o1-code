@@ -73,6 +73,9 @@ test('picks a media type by extension', () => {
   );
   assert.equal(contentTypeOf('x.zip'), 'application/zip');
   assert.equal(contentTypeOf('x.bin'), 'application/octet-stream');
+  for (const file of ['install.sh', 'install.ps1', 'out/SHA256SUMS']) {
+    assert.equal(contentTypeOf(file), 'text/plain');
+  }
 });
 
 test('creates the release and uploads the asset', async () => {

@@ -578,20 +578,37 @@ describe('standalone-update', () => {
       ]);
     });
 
-    // No standalone binaries are published, so there is no default release
-    // source to fall back to. With nothing configured the update must refuse, and it must not reach the network to find that out.
     it.each([undefined, '', '  '])(
-      'refuses to update, and fetches nothing, when no source is configured (%s)',
+      'reads the GitHub release of the tag when no source is configured (%s)',
       async (value) => {
         vi.stubEnv('O1CODE_UPDATE_BASE_URL', value);
+        await serveArchive();
+        const releases =
+          'https://github.com/organizaone/o1-code/releases/download';
 
         await expect(
           performStandaloneUpdate(standaloneDir, '1.2.3'),
-        ).rejects.toThrow('no standalone release source is configured');
-        expect(mockFetch).not.toHaveBeenCalled();
+        ).rejects.toThrow('Smoke test failed: node binary not found');
+        expect(mockFetch.mock.calls.map(([url]) => url)).toEqual([
+          `${releases}/v1.2.3/${filename}`,
+          `${releases}/v1.2.3/SHA256SUMS`,
+          `${releases}/v1.2.3/SHA256SUMS.sig`,
+        ]);
         expectInstallationPreserved();
       },
     );
+
+    it('reports a failed download from the default source', async () => {
+      vi.stubEnv('O1CODE_UPDATE_BASE_URL', undefined);
+      mockFetch.mockImplementation(
+        async () => new Response('', { status: 404 }),
+      );
+
+      await expect(
+        performStandaloneUpdate(standaloneDir, '1.2.3'),
+      ).rejects.toThrow(`Failed to download ${filename} for v1.2.3: HTTP 404`);
+      expectInstallationPreserved();
+    });
 
     it('reports a custom-source failure without trying default sources', async () => {
       vi.stubEnv('O1CODE_UPDATE_BASE_URL', baseUrl);

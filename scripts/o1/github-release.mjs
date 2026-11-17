@@ -59,7 +59,9 @@ export function contentTypeOf(file) {
   if (/\.tgz$|\.tar\.gz$/i.test(file)) return 'application/gzip';
   if (/\.zip$/i.test(file)) return 'application/zip';
   if (/\.json$/i.test(file)) return 'application/json';
-  if (/\.md$|\.txt$/i.test(file)) return 'text/plain';
+  if (/\.md$|\.txt$|\.sh$|\.ps1$|(^|[\\/])SHA256SUMS$/i.test(file)) {
+    return 'text/plain';
+  }
   return 'application/octet-stream';
 }
 

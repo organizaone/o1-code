@@ -18,6 +18,9 @@ npm install -g @organizaone/o1-code@latest
 Requires Node.js 22 or later, on Windows, macOS or Linux. No administrator rights and no compiler.
 To try it without installing, run `npx @organizaone/o1-code@latest`.
 
+Without Node.js, use the installer, which brings its own runtime: see
+[Installation](https://github.com/organizaone/o1-code/blob/main/docs/users/installation.md).
+
 ## First run
 
 ```bash

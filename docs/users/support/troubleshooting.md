@@ -229,7 +229,8 @@ system sleep are separate behaviors. Maintainers use the
 - **Error: Command not found (when attempting to run O1-Code with `o1-code`).**
   - **Cause:** The CLI is not correctly installed or it is not in your system's `PATH`.
   - **Solution:**
-    - Check that npm's global binary directory (`npm prefix -g`, plus `/bin` on macOS and Linux) is in your `PATH`, and restart your terminal.
+    - Installed with the installer: open a new terminal, and check that the launcher's directory is in your `PATH` (`~/.local/bin` on macOS and Linux, `%LOCALAPPDATA%\o1-code\bin` on Windows). Running the installer again repairs it; see [Installation](../installation.md).
+    - Installed with npm: check that npm's global binary directory (`npm prefix -g`, plus `/bin` on macOS and Linux) is in your `PATH`, and restart your terminal.
     - Reinstall with `npm install -g @organizaone/o1-code@latest`, or run it without installing: `npx @organizaone/o1-code@latest`.
     - From a clone of the repository, run `npm link` after `npm run bundle`, or run the bundle directly with `node dist/cli.js`. See [Build from source](../../developers/build-from-source.md).
 

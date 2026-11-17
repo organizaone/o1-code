@@ -229,10 +229,27 @@ function readNodePtyPackageSpecs() {
   });
 }
 
+// The win-x64 archive carries the koffi loader and its x64 binding at the
+// version core pins exactly; copyWindowsPowerBinding rejects any other.
+function readWindowsPowerPackageSpecs() {
+  const version = JSON.parse(
+    fs.readFileSync(
+      path.join(rootDir, 'packages', 'core', 'package.json'),
+      'utf8',
+    ),
+  ).optionalDependencies?.koffi;
+  if (!version || !/^\d+\.\d+\.\d+$/.test(version)) {
+    fail('koffi is not pinned to an exact version in packages/core');
+  }
+  return [`koffi@${version}`, `@koromix/koffi-win32-x64@${version}`];
+}
+
 function stageNativeModules(runtimeDir) {
   const installDir = path.join(runtimeDir, 'clipboard-modules');
   fs.mkdirSync(installDir, { recursive: true });
-  console.log('Staging standalone native packages (clipboard, node-pty)');
+  console.log(
+    'Staging standalone native packages (clipboard, node-pty, koffi)',
+  );
   const npmExecPath = process.env.npm_execpath;
   if (!npmExecPath) {
     fail('npm_execpath is unavailable; run package:standalone:release via npm');
@@ -252,6 +269,7 @@ function stageNativeModules(runtimeDir) {
       '--no-fund',
       ...readClipboardPackageSpecs(),
       ...readNodePtyPackageSpecs(),
+      ...readWindowsPowerPackageSpecs(),
     ],
     {
       cwd: rootDir,

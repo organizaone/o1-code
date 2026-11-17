@@ -24,12 +24,29 @@ running on your machine, or any OpenAI-compatible or Anthropic endpoint by its b
 
 ## Install
 
+macOS and Linux:
+
+```bash
+curl -fsSL https://github.com/organizaone/o1-code/releases/latest/download/install.sh | bash
+```
+
+Windows (PowerShell):
+
+```powershell
+irm https://github.com/organizaone/o1-code/releases/latest/download/install.ps1 | iex
+```
+
+The installer brings its own Node.js runtime and installs for your user only: nothing to install
+first, no administrator rights and no compiler. Update with `o1-code update`.
+
+With [Node.js](https://nodejs.org/) 22 or later you can install from npm instead:
+
 ```bash
 npm install -g @organizaone/o1-code@latest
 ```
 
-Requires [Node.js](https://nodejs.org/) 22 or later, on Windows, macOS or Linux. No administrator
-rights and no compiler. To try it without installing, run `npx @organizaone/o1-code@latest`. To run an
+To try it without installing, run `npx @organizaone/o1-code@latest`. The options, the supported
+systems and how to uninstall are in [Installation](./docs/users/installation.md). To run an
 unreleased change, see [Build from source](./docs/developers/build-from-source.md).
 
 ## Get started

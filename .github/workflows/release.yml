@@ -1,12 +1,13 @@
 # Copyright 2026 o1-code contributors
 # SPDX-License-Identifier: Apache-2.0
 #
-# o1-code npm and IDE companion release. A pushed vX.Y.Z tag (or a manual run naming an existing
+# o1-code npm, standalone and IDE companion release. A pushed vX.Y.Z tag (or a manual run naming an existing
 # tag) restores the bundle that the CI workflow built and published for the
 # tagged commit — rebuilding it only as a fallback when the artifact is gone —
 # re-prepares the package, checks the bundle, installs the packed tarball in a
-# clean prefix, publishes it to npm and creates the GitHub release from the
-# changelog. No path filter: a tag on an already-pushed commit carries no
+# clean prefix, packages the standalone archives and tries the install script,
+# publishes to npm and creates the GitHub release from the changelog, with the
+# archives, their checksums and the install scripts attached. No path filter: a tag on an already-pushed commit carries no
 # changed files, and a filtered workflow would silently skip the release.
 # Native companion jobs reuse validated build inputs and attach VSIX files
 # with checksums. Actual editor validation is performed locally.
@@ -202,6 +203,40 @@ jobs:
           fi
           "$installed_dir/vendor/ripgrep/$(node -p 'process.arch + "-" + process.platform')/rg" --version
 
+      # Archives with their own Node.js runtime, one per target, cross-packaged
+      # from this host. The install scripts and the in-product updater read
+      # them from the GitHub release, so they are built and tried before
+      # anything is published: a release never goes out without them.
+      - name: 'Package the standalone archives'
+        run: |
+          npm run package:standalone:release -- --version "$VERSION" --out-dir "$RUNNER_TEMP/standalone"
+          cp scripts/install/install.sh scripts/install/install.ps1 "$RUNNER_TEMP/standalone/"
+
+      # The install script itself, against the archive just built, in a
+      # throwaway home: install, run the installed command, uninstall.
+      - name: 'Try the installer'
+        run: |
+          python3 -m http.server 8765 --bind 127.0.0.1 --directory "$RUNNER_TEMP/standalone" > /dev/null 2>&1 &
+          server=$!
+          trap 'kill "$server"' EXIT
+          sleep 2
+          home="$RUNNER_TEMP/installer-home"
+          mkdir -p "$home"
+          try() { env -i HOME="$home" SHELL=/bin/bash PATH=/usr/bin:/bin O1CODE_INSTALL_BASE_URL=http://127.0.0.1:8765 "$@"; }
+          try bash -c "curl -fsSL http://127.0.0.1:8765/install.sh | bash"
+          installed_version="$(try "$home/.local/bin/o1-code" --version)"
+          echo "installed o1-code --version: $installed_version"
+          if [ "$installed_version" != "$VERSION" ]; then
+            echo "::error::The installer produced o1-code $installed_version, expected $VERSION"
+            exit 1
+          fi
+          grep -q 'O1-Code PATH block begin' "$home/.bashrc"
+          try bash "$RUNNER_TEMP/standalone/install.sh" --uninstall
+          if [ -e "$home/.local/lib/o1-code" ] || [ -e "$home/.local/bin/o1-code" ]; then
+            echo '::error::The uninstall left the installation behind'
+            exit 1
+          fi
+
       - name: 'Record the companion build source'
         run: 'git rev-parse HEAD > companion-source-sha.txt'
 
@@ -237,10 +272,14 @@ jobs:
         env:
           GH_TOKEN: '${{ github.token }}'
         run: |
+          assets=(--asset "$TARBALL")
+          for file in "$RUNNER_TEMP"/standalone/*; do
+            assets+=(--asset "$file")
+          done
           node scripts/o1/github-release.mjs "$TAG" \
             --title "o1-code $VERSION" \
             --notes-file "$RUNNER_TEMP/release-notes.md" \
-            --asset "$TARBALL"
+            "${assets[@]}"
 
   companion:
     name: 'Companion (${{ matrix.target }})'
