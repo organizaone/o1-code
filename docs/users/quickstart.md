@@ -13,20 +13,44 @@ Make sure you have:
 
 ## Step 1: Install O1-Code
 
-You need Node.js 22 or later ([nodejs.org](https://nodejs.org/en/download)). Then install the
-package globally:
+Run the installer for your system. It installs O1-Code for your user only, with its own Node.js
+runtime: nothing else has to be installed first, and no administrator rights are needed.
+
+macOS and Linux:
+
+```bash
+curl -fsSL https://github.com/organizaone/o1-code/releases/latest/download/install.sh | bash
+```
+
+Windows (PowerShell):
+
+```powershell
+irm https://github.com/organizaone/o1-code/releases/latest/download/install.ps1 | iex
+```
+
+Open a new terminal and check the installation with `o1-code --version`. To update later, run
+`o1-code update`.
+
+The installer covers macOS and Linux on x64 and arm64, and 64-bit Intel/AMD Windows. See
+[Installation](./installation.md) for its options, how to uninstall, and what to do on other
+systems.
+
+### Install with npm
+
+If you already have Node.js 22 or later ([nodejs.org](https://nodejs.org/en/download)), you can
+install the npm package instead:
 
 ```bash
 npm install -g @organizaone/o1-code@latest
 ```
 
-Check the installation with `o1-code --version`. To update later, run the same command again.
+To update later, run the same command again.
 
 > [!note]
 >
-> If `o1-code` is not found, make sure npm's global binary directory (`npm prefix -g`) is in your
-> `PATH`, then restart your terminal. To run an unreleased change instead, see
-> [Build from source](../developers/build-from-source.md).
+> If `o1-code` is not found after an npm install, make sure npm's global binary directory
+> (`npm prefix -g`) is in your `PATH`, then restart your terminal. To run an unreleased change
+> instead, see [Build from source](../developers/build-from-source.md).
 
 ## Step 2: Connect a model provider
 

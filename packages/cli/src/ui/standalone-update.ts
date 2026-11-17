@@ -22,8 +22,11 @@ import { loadUndici } from '../utils/load-undici.js';
 import { verifySignature } from '../utils/standalone-update-verify.js';
 import { updateEventEmitter } from '../utils/updateEventEmitter.js';
 import { t } from '../i18n/index.js';
+import { BRAND } from '../generated/brand.js';
 
 const debugLogger = createDebugLogger('STANDALONE_UPDATE');
+
+const DEFAULT_RELEASE_BASE_URL = `${BRAND.repoUrl}/releases/download`;
 
 const FETCH_TIMEOUT_MS = 30_000;
 const ARCHIVE_TIMEOUT_MS = 300_000; // 5 min — archives are 50–150 MB
@@ -123,12 +126,15 @@ async function downloadWithFallback(
     );
   }
 
-  // No standalone binaries are published, so there is no default release
-  // source. Without a configured base there is nowhere legitimate to fetch
-  // from, and saying so is the correct outcome.
+  // The release workflow attaches the archives and SHA256SUMS to the GitHub
+  // release of each tag, which is where the installer scripts read them too.
+  const result = await tryFetch(
+    `${DEFAULT_RELEASE_BASE_URL}/${versionPath}/${filename}`,
+    timeoutMs,
+  );
+  if (result.response) return result.response;
   throw new Error(
-    `Cannot download ${filename}: no standalone release source is configured. ` +
-      `Set O1CODE_UPDATE_BASE_URL to an absolute HTTPS URL serving this build's releases.`,
+    `Failed to download ${filename} for ${versionPath}: ${result.error.message}`,
   );
 }
 

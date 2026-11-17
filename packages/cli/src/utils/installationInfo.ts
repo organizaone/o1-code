@@ -384,8 +384,7 @@ function getStandaloneInstallInfo(
     return null;
   }
 
-  // No standalone installer is published yet, so this names no update command
-  // rather than a `curl … | bash` of a script that would replace this build.
+  // No updateCommand: the standalone update runs in-process, not in a shell.
   return {
     packageManager: PackageManager.STANDALONE,
     isGlobal: true,
@@ -393,7 +392,7 @@ function getStandaloneInstallInfo(
     standaloneDir: installDir,
     updateMessage: isAutoUpdateEnabled
       ? 'Standalone install detected. Attempting to automatically update now...'
-      : 'Standalone install detected. No standalone installer is configured for this build; reinstall it from wherever you obtained it.',
+      : 'Standalone install detected. Run o1-code update to update.',
   };
 }
 

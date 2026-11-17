@@ -5,15 +5,27 @@ commands and works through multi-step tasks, with the model provider you choose.
 
 ## Get started
 
-Install O1-Code from npm (Node.js 22 or later), then start it in a project:
+Install O1-Code, then start it in a project. On macOS and Linux:
 
 ```bash
-npm install -g @organizaone/o1-code@latest
+curl -fsSL https://github.com/organizaone/o1-code/releases/latest/download/install.sh | bash
+```
+
+On Windows, in PowerShell:
+
+```powershell
+irm https://github.com/organizaone/o1-code/releases/latest/download/install.ps1 | iex
+```
+
+Then, in a new terminal:
+
+```bash
 cd your-project
 o1-code
 ```
 
-The [Quickstart](./quickstart.md) walks through the first session.
+The [Quickstart](./quickstart.md) walks through the first session, and
+[Installation](./installation.md) covers the npm package and the installer's options.
 
 On first launch you are asked to connect a model provider: a built-in provider with an API key, or a
 **Custom** provider given by its base URL (any OpenAI-compatible or Anthropic endpoint, including a
