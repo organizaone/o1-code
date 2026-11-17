@@ -7,6 +7,8 @@ follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.29.0] - 2026-11-17
+
 ### Added
 
 - One-line installer for macOS, Linux and Windows. It brings its own Node.js runtime, so nothing
