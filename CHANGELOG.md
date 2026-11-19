@@ -7,6 +7,8 @@ follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.30.2] - 2026-11-19
+
 ### Fixed
 
 - Usage and error reports now go straight to the intake. In a session on the o1-connect tunnel
