@@ -38,6 +38,7 @@ import {
   useModelQuotaFooter,
 } from '../hooks/use-model-quota-footer.js';
 import type { Config } from '@organizaone/o1-code-core/config/config.js';
+import { reachesOrganizaOne } from '@organizaone/o1-code-core/providers/presets/organizaone.js';
 import {
   getProviderConnectionBaseUrl,
   useProviderConnectionStatus,
@@ -127,6 +128,7 @@ export const Footer: React.FC<FooterProps> = ({ containerRef }) => {
   const providerConnection = useProviderConnectionStatus(
     providerBaseUrl,
     onProviderFailure,
+    reachesOrganizaOne(generationConfig),
   );
   const contextWindowSize = generationConfig?.contextWindowSize;
   const contextPercent =

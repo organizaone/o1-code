@@ -5,11 +5,13 @@
  */
 // @vitest-environment jsdom
 
-import { act, renderHook } from '@testing-library/react';
+import { createServer, type IncomingHttpHeaders, type Server } from 'node:http';
+import { act, renderHook, waitFor } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { AuthType } from '@organizaone/o1-code-core/utils/auth-type.js';
 import {
   getProviderConnectionBaseUrl,
+  getProviderConnectionCheckUrl,
   useProviderConnectionStatus,
 } from './use-provider-connection-status.js';
 
@@ -187,6 +189,308 @@ describe('useProviderConnectionStatus', () => {
     expect(fetchMock).toHaveBeenCalledOnce();
     expect(nextWarning).not.toHaveBeenCalled();
     unmount();
+  });
+
+  it.each([
+    ['https://api.organizaone.com', 'https://api.organizaone.com/health'],
+    ['https://api.organizaone.com/', 'https://api.organizaone.com/health'],
+    ['https://api.organizaone.com/v1', 'https://api.organizaone.com/health'],
+    ['https://api.organizaone.com/v1/', 'https://api.organizaone.com/health'],
+    ['http://127.0.0.1:4242/v1', 'http://127.0.0.1:4242/health'],
+    [
+      'https://gateway.example:8443/proxy/v1',
+      'https://gateway.example:8443/health',
+    ],
+  ])('checks a gateway at %s through its health route', (baseUrl, expected) => {
+    expect(getProviderConnectionCheckUrl(baseUrl, true)).toBe(expected);
+  });
+
+  it.each([
+    ['https://provider.example/v1', 'https://provider.example/v1/models'],
+    ['https://provider.example/v1/', 'https://provider.example/v1/models'],
+    ['https://api.organizaone.com', 'https://api.organizaone.com/models'],
+  ])(
+    'checks any other provider at %s through its models route',
+    (baseUrl, expected) => {
+      expect(getProviderConnectionCheckUrl(baseUrl, false)).toBe(expected);
+    },
+  );
+
+  it('sends a gateway only a credential-free HEAD to its health route', async () => {
+    const fetchMock = vi.fn(
+      async (_url: string, _options: RequestInit) =>
+        new Response(null, { status: 200 }),
+    );
+    vi.stubGlobal('fetch', fetchMock);
+    const onFailure = vi.fn();
+    const { result, unmount } = renderHook(() =>
+      useProviderConnectionStatus(
+        'https://api.organizaone.com/v1',
+        onFailure,
+        true,
+      ),
+    );
+
+    await act(async () => {});
+    expect(result.current).toBe('online');
+    expect(onFailure).not.toHaveBeenCalled();
+    expect(fetchMock.mock.calls.map(([url]) => url)).toEqual([
+      'https://api.organizaone.com/health',
+    ]);
+    const options = fetchMock.mock.calls[0]![1];
+    expect(options.method).toBe('HEAD');
+    expect(options.headers).toBeUndefined();
+    expect(options.body).toBeUndefined();
+    unmount();
+  });
+
+  it('holds the first 503 of a gateway and reports the second', async () => {
+    vi.useFakeTimers();
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(new Response(null, { status: 200 }))
+      .mockResolvedValueOnce(new Response(null, { status: 503 }))
+      .mockResolvedValueOnce(new Response(null, { status: 503 }))
+      .mockResolvedValueOnce(new Response(null, { status: 503 }));
+    vi.stubGlobal('fetch', fetchMock);
+    const onFailure = vi.fn();
+    const { result, unmount } = renderHook(() =>
+      useProviderConnectionStatus(
+        'https://api.organizaone.com',
+        onFailure,
+        true,
+      ),
+    );
+
+    await act(async () => {});
+    expect(result.current).toBe('online');
+
+    await act(async () => vi.advanceTimersByTimeAsync(30_000));
+    expect(result.current).toBe('online');
+    expect(onFailure).not.toHaveBeenCalled();
+
+    await act(async () => vi.advanceTimersByTimeAsync(30_000));
+    expect(result.current).toBe('failed');
+    expect(onFailure).toHaveBeenCalledExactlyOnceWith(
+      'provider returned HTTP 503',
+    );
+
+    await act(async () => vi.advanceTimersByTimeAsync(30_000));
+    expect(result.current).toBe('failed');
+    expect(onFailure).toHaveBeenCalledOnce();
+    unmount();
+  });
+
+  it('stays online when a gateway answers again after one 503', async () => {
+    vi.useFakeTimers();
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(new Response(null, { status: 200 }))
+      .mockResolvedValueOnce(new Response(null, { status: 503 }))
+      .mockResolvedValueOnce(new Response(null, { status: 200 }))
+      .mockResolvedValueOnce(new Response(null, { status: 503 }));
+    vi.stubGlobal('fetch', fetchMock);
+    const onFailure = vi.fn();
+    const { result, unmount } = renderHook(() =>
+      useProviderConnectionStatus(
+        'https://api.organizaone.com',
+        onFailure,
+        true,
+      ),
+    );
+
+    await act(async () => {});
+    // A restart, the recovery, and then the first 503 of another restart.
+    for (let check = 0; check < 3; check++) {
+      await act(async () => vi.advanceTimersByTimeAsync(30_000));
+      expect(result.current).toBe('online');
+    }
+    expect(fetchMock).toHaveBeenCalledTimes(4);
+    expect(onFailure).not.toHaveBeenCalled();
+    unmount();
+  });
+
+  it('reports at once what is not a restart: a gateway that cannot be reached', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockRejectedValue(
+        new TypeError('fetch failed', {
+          cause: Object.assign(new Error('refused'), { code: 'ECONNREFUSED' }),
+        }),
+      ),
+    );
+    const onFailure = vi.fn();
+    const { result, unmount } = renderHook(() =>
+      useProviderConnectionStatus(
+        'https://api.organizaone.com',
+        onFailure,
+        true,
+      ),
+    );
+
+    await act(async () => {});
+    expect(result.current).toBe('failed');
+    expect(onFailure).toHaveBeenCalledExactlyOnceWith('connection refused');
+    unmount();
+  });
+
+  it('reports the first 503 of a provider that is not a gateway', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue(new Response(null, { status: 503 })),
+    );
+    const onFailure = vi.fn();
+    const { result, unmount } = renderHook(() =>
+      useProviderConnectionStatus('https://provider.example/v1', onFailure),
+    );
+
+    await act(async () => {});
+    expect(result.current).toBe('failed');
+    expect(onFailure).toHaveBeenCalledExactlyOnceWith(
+      'provider returned HTTP 503',
+    );
+    unmount();
+  });
+
+  it('reports a 502 from a gateway at once', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue(new Response(null, { status: 502 })),
+    );
+    const onFailure = vi.fn();
+    const { result, unmount } = renderHook(() =>
+      useProviderConnectionStatus(
+        'https://api.organizaone.com',
+        onFailure,
+        true,
+      ),
+    );
+
+    await act(async () => {});
+    expect(result.current).toBe('failed');
+    expect(onFailure).toHaveBeenCalledExactlyOnceWith(
+      'provider returned HTTP 502',
+    );
+    unmount();
+  });
+
+  describe('through the tunnel local endpoint', () => {
+    let server: Server | undefined;
+    const requests: Array<{
+      method: string | undefined;
+      url: string | undefined;
+      headers: IncomingHttpHeaders;
+      body: string;
+    }> = [];
+
+    async function listen(status: number): Promise<string> {
+      requests.length = 0;
+      server = createServer((request, response) => {
+        let body = '';
+        request.on('data', (chunk) => (body += String(chunk)));
+        request.on('end', () => {
+          requests.push({
+            method: request.method,
+            url: request.url,
+            headers: request.headers,
+            body,
+          });
+          response.writeHead(status).end();
+        });
+      });
+      await new Promise<void>((resolve) =>
+        server!.listen(0, '127.0.0.1', resolve),
+      );
+      const address = server.address();
+      if (!address || typeof address === 'string') {
+        throw new Error('Missing local endpoint address');
+      }
+      return `http://127.0.0.1:${address.port}`;
+    }
+
+    afterEach(async () => {
+      const closing = server;
+      server = undefined;
+      if (closing) {
+        closing.closeAllConnections();
+        await new Promise<void>((resolve) => closing.close(() => resolve()));
+      }
+    });
+
+    it.each(['', '/v1'])(
+      'sends base URL path "%s" a bare HEAD to the health route',
+      async (basePath) => {
+        const origin = await listen(200);
+        const onFailure = vi.fn();
+        const { result, unmount } = renderHook(() =>
+          useProviderConnectionStatus(`${origin}${basePath}`, onFailure, true),
+        );
+
+        await waitFor(() => expect(result.current).toBe('online'));
+        expect(onFailure).not.toHaveBeenCalled();
+        expect(requests).toHaveLength(1);
+        const [request] = requests;
+        expect(request!.method).toBe('HEAD');
+        expect(request!.url).toBe('/health');
+        expect(request!.body).toBe('');
+        // The local endpoint refuses what only a browser sends, and no key
+        // or token may leave with a check.
+        expect(
+          Object.keys(request!.headers).filter(
+            (name) =>
+              name === 'sec-fetch-site' ||
+              name === 'sec-fetch-dest' ||
+              name === 'origin' ||
+              name === 'authorization' ||
+              name === 'x-api-key',
+          ),
+        ).toEqual([]);
+        unmount();
+      },
+    );
+
+    it('reports a blocked tunnel at once', async () => {
+      const origin = await listen(502);
+      const onFailure = vi.fn();
+      const { result, unmount } = renderHook(() =>
+        useProviderConnectionStatus(origin, onFailure, true),
+      );
+
+      await waitFor(() => expect(result.current).toBe('failed'));
+      expect(onFailure).toHaveBeenCalledExactlyOnceWith(
+        'provider returned HTTP 502',
+      );
+      unmount();
+    });
+
+    it('holds the first 503 of a reconnecting tunnel', async () => {
+      const origin = await listen(503);
+      const onFailure = vi.fn();
+      const { result, unmount } = renderHook(() =>
+        useProviderConnectionStatus(origin, onFailure, true),
+      );
+
+      await waitFor(() => expect(requests).toHaveLength(1));
+      await act(async () => {});
+      expect(result.current).toBe('checking');
+      expect(onFailure).not.toHaveBeenCalled();
+      unmount();
+    });
+
+    it('reports a local endpoint that is not listening', async () => {
+      const origin = await listen(200);
+      const closing = server!;
+      server = undefined;
+      await new Promise<void>((resolve) => closing.close(() => resolve()));
+      const onFailure = vi.fn();
+      const { result, unmount } = renderHook(() =>
+        useProviderConnectionStatus(origin, onFailure, true),
+      );
+
+      await waitFor(() => expect(result.current).toBe('failed'));
+      expect(onFailure).toHaveBeenCalledExactlyOnceWith('connection refused');
+      unmount();
+    });
   });
 
   it('cancels the credential-free provider check when the footer closes', () => {

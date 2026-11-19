@@ -1,4 +1,4 @@
-// o1-connect-lib 9.9.0 - https://github.com/organizaone/o1-gateway (MIT)
+// o1-connect-lib 12.18.3 - Copyright (c) 2026 Silvio Chagas. All rights reserved. Proprietary: see LICENSE
 
 // src/shared/tunnel-protocol.ts
 import { createHash } from "node:crypto";
@@ -962,6 +962,27 @@ var TunnelAgent = class extends http4.Agent {
 };
 
 // src/client/local-server.ts
+var HEALTH_STATUS = { ok: 200, restarting: 503, unavailable: 503, reconnecting: 503, blocked: 502, failed: 502 };
+var HEALTH_FRESH_MS = 2e4;
+var HEALTH_CACHE_MS = 25e3;
+var HEALTH_TIMEOUT_MS = 2500;
+var RETRY_AFTER = { restarting: "30", unavailable: "30", reconnecting: "5" };
+function blockedBy(err) {
+  return err instanceof BackoffError || err instanceof IdentityMismatchError || err instanceof TunnelBlockedError && (err.status === 401 || err.status === 403 || err.status === 429);
+}
+function stateOf(status, body) {
+  if (status >= 200 && status < 300) return "ok";
+  if (status === 401 || status === 402 || status === 403 || status === 429) return "blocked";
+  if (status === 503) {
+    let word;
+    try {
+      word = JSON.parse(body).status;
+    } catch {
+    }
+    return word === "draining" ? "restarting" : "unavailable";
+  }
+  return "failed";
+}
 function newLocalKey() {
   return `o1gwl_${randomBytes3(32).toString("base64url")}`;
 }
@@ -998,19 +1019,82 @@ function describeError(err) {
   return "tunnel unavailable";
 }
 function startLocalServer(o) {
+  const now = o.now ?? Date.now;
+  let lastAnswer = Number.NEGATIVE_INFINITY;
+  let known = null;
+  let probing = null;
+  const remember = (state) => {
+    known = { state, at: now() };
+    if (state === "ok") lastAnswer = known.at;
+    return state;
+  };
+  const probe = () => probing ??= new Promise((resolve) => {
+    let done = false;
+    const finish = (state) => {
+      if (!done) {
+        done = true;
+        resolve(state);
+      }
+    };
+    const req = http5.request({
+      agent: o.agent,
+      method: "GET",
+      path: "/health",
+      setHost: false,
+      headers: { host: o.target.host, authorization: `Bearer ${o.deviceToken}`, accept: "application/json" }
+    }, (up) => {
+      let body = "";
+      up.setEncoding("utf8");
+      up.on("data", (c) => {
+        if (body.length < 4096) body += c;
+      });
+      up.on("end", () => finish(stateOf(up.statusCode ?? 0, body)));
+      up.on("error", () => finish("reconnecting"));
+    });
+    req.setTimeout(o.healthTimeoutMs ?? HEALTH_TIMEOUT_MS, () => req.destroy(new Error("health check timeout")));
+    req.on("error", (err) => finish(blockedBy(err) ? "blocked" : "reconnecting"));
+    req.end();
+  }).then((state) => {
+    probing = null;
+    return remember(state);
+  });
+  const health = async () => {
+    const t = now();
+    if (t - lastAnswer < HEALTH_FRESH_MS) return "ok";
+    if (known && t - known.at < HEALTH_CACHE_MS) return known.state;
+    return probe();
+  };
+  const answerHealth = (req, res) => {
+    if (req.method !== "GET" && req.method !== "HEAD") {
+      res.setHeader("allow", "GET, HEAD");
+      return send(res, 405, "method not allowed");
+    }
+    req.resume();
+    void health().then((state) => {
+      const body = JSON.stringify({ status: state });
+      const retry = RETRY_AFTER[state];
+      res.writeHead(HEALTH_STATUS[state], { "content-type": "application/json", "content-length": Buffer.byteLength(body), "cache-control": "no-store", ...retry ? { "retry-after": retry } : {} });
+      res.end(req.method === "HEAD" ? void 0 : body);
+    }, () => send(res, 502, "health check failed"));
+  };
   const server = http5.createServer((req, res) => {
     const started = Date.now();
     const route = (req.url ?? "/").split("?")[0].slice(0, 200);
     const hostname = String(req.headers.host ?? "").toLowerCase().replace(/:\d+$/, "");
     if (!LOOPBACK2.has(hostname)) return send(res, 403, "this endpoint answers on 127.0.0.1 only");
     if (req.headers.origin !== void 0) return send(res, 403, "browser requests are not accepted");
+    if (route === "/health") {
+      if (req.headers["sec-fetch-site"] !== void 0 || req.headers["sec-fetch-dest"] !== void 0) return send(res, 403, "browser requests are not accepted");
+      return answerHealth(req, res);
+    }
     const key = keyOf(req);
     if (!key || !sameHash(hashLocalKey(key), o.localKeyHash)) return send(res, 401, "invalid or missing local key");
     const headers = {};
     for (const [name, value] of Object.entries(req.headers)) if (!HOP.has(name) && value !== void 0) headers[name] = value;
     headers.host = o.target.host;
     headers.authorization = `Bearer ${o.deviceToken}`;
-    let kept = [];
+    const once = req.headers["x-o1gw-conversation-id"] !== void 0 || req.headers["x-o1gw-conversation-transfer"] !== void 0;
+    let kept = once ? null : [];
     let keptBytes = 0;
     req.on("data", (c) => {
       if (!kept) return;
@@ -1024,6 +1108,7 @@ function startLocalServer(o) {
       const current = http5.request({ ...via, method: req.method, path: req.url, headers, setHost: false }, (up) => {
         const out = {};
         for (const [name, value] of Object.entries(up.headers)) if (!HOP.has(name) && value !== void 0) out[name] = value;
+        if ((up.statusCode ?? 502) < 500) lastAnswer = now();
         res.writeHead(up.statusCode ?? 502, out);
         up.pipe(res);
         up.on("error", () => res.destroy());
@@ -1031,7 +1116,7 @@ function startLocalServer(o) {
       });
       upstream = current;
       current.on("error", (err) => {
-        if (!replay && !headers["x-o1gw-conversation-id"] && !res.headersSent && kept && deadTunnel(err, current.reusedSocket)) {
+        if (!replay && !res.headersSent && kept && deadTunnel(err, current.reusedSocket)) {
           o.log?.(`${req.method} ${route} retry: the tunnel was gone`);
           const again = () => {
             if (kept && !res.destroyed) forward(true);
@@ -1044,10 +1129,14 @@ function startLocalServer(o) {
           }
           return;
         }
-        o.log?.(`${req.method} ${route} failed: ${describeError(err)}`);
+        const unsent = once && !replay && !res.headersSent && deadTunnel(err, current.reusedSocket);
+        const reason = unsent ? "tunnel connection lost - not sent again, the gateway may have received this conversation request" : describeError(err);
+        o.log?.(`${req.method} ${route} failed: ${reason}`);
+        lastAnswer = Number.NEGATIVE_INFINITY;
+        remember(blockedBy(err) ? "blocked" : "reconnecting");
         if (res.headersSent) res.destroy();
         else if (err instanceof TunnelBlockedError && err.status === 429) send(res, 429, "Too many attempts");
-        else send(res, 502, describeError(err));
+        else send(res, 502, reason);
       });
       if (replay) current.end(Buffer.concat(kept ?? []));
       else req.pipe(current);
@@ -1098,9 +1187,14 @@ var LIMITS = {
   /** A peer silent this long is gone. */
   deadMs: 9e4,
   /** An agent gone this long ends the session (`idle`). */
-  reconnectMs: 12e4,
+  reconnectMs: 6e5,
   /** An ended session stays listed, and its `remote_id` re-opens for the same `session_id`, this long. */
-  listedMs: 4 * 36e5
+  listedMs: 4 * 36e5,
+  /** What a snapshot's `history` tail may hold: bytes of event text, and events, whichever runs out first. */
+  snapshotHistoryBytes: 64 * 1024,
+  snapshotEvents: 200,
+  /** The events one page of the transcript API serves. */
+  historyPage: 100
 };
 
 // src/client/remote.ts
@@ -1782,7 +1876,7 @@ async function startTunnelSession(o) {
 }
 
 // src/client/version.ts
-var VERSION = true ? "9.9.0" : "dev";
+var VERSION = true ? "12.18.3" : "dev";
 
 // src/client/lib.ts
 var version = VERSION;

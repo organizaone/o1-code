@@ -7,6 +7,16 @@ follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Changed
+
+- Updated the bundled o1-connect library to 12.18.3.
+
+### Fixed
+
+- The footer's connection check now asks an o1-gateway for its health route, directly or through
+  the o1-connect tunnel, and waits for a second failed check before reporting a gateway that is
+  restarting.
+
 ## [0.29.0] - 2026-11-17
 
 ### Added
