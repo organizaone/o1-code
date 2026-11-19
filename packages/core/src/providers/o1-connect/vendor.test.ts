@@ -5,9 +5,8 @@
  */
 
 // The vendored o1-connect library protects the session on a network that
-// intercepts TLS, so a copy that differs from the one recorded in
-// vendor/o1-connect/VENDOR.json (including its documented local patch)
-// must not ship. The original upstream bytes remain independently verifiable.
+// intercepts TLS, so a copy that differs from the gateway's own bytes, recorded
+// in vendor/o1-connect/VENDOR.json, must not ship.
 
 import { createHash } from 'node:crypto';
 import { readFileSync } from 'node:fs';
@@ -57,19 +56,7 @@ describe('vendored o1-connect library', () => {
   ) as {
     version: string;
     files: Record<string, string>;
-    upstreamFiles: Record<string, string>;
   };
-
-  it('preserves the upstream bytes except the documented no-replay condition', () => {
-    const source = readFileSync(path.join(vendorDir, 'lib.mjs'), 'utf8');
-    const original = source.replace(
-      '!replay && !headers["x-o1gw-conversation-id"] && !res.headersSent',
-      '!replay && !res.headersSent',
-    );
-    expect(createHash('sha256').update(original).digest('hex')).toBe(
-      manifest.upstreamFiles['lib.mjs'],
-    );
-  });
 
   it.each(['main', 'operation', 'transfer'])(
     'forwards %s headers without replaying a consumed request after a tunnel reset',
@@ -147,8 +134,9 @@ describe('vendored o1-connect library', () => {
             messages: [],
           }),
         });
-        await response.text();
+        const answer = await response.text();
         expect(response.status).toBe(502);
+        expect(answer).toContain('not sent again');
         expect(posts).toBe(1);
         for (const name of Object.keys(headers).filter((name) =>
           name.startsWith('x-o1gw-'),

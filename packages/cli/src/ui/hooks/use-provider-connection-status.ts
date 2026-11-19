@@ -60,34 +60,72 @@ function connectionErrorReason(error: unknown): string {
   return t('connection failed');
 }
 
+/**
+ * Where the check goes. A gateway has a public health route at its origin,
+ * whatever path the base URL carries; `/models` is not a route there, so
+ * probing it would log one unauthenticated request per check.
+ */
+export function getProviderConnectionCheckUrl(
+  baseUrl: string,
+  gateway: boolean,
+): string {
+  if (gateway) {
+    try {
+      return `${new URL(baseUrl).origin}/health`;
+    } catch {
+      // Not a URL: the request below fails and reports it.
+    }
+  }
+  return `${baseUrl.replace(/\/+$/, '')}/models`;
+}
+
+interface CheckOutcome {
+  reason?: string;
+  /** A gateway answers 503 while it restarts or its tunnel reconnects. */
+  mayBeRestarting?: boolean;
+}
+
 async function checkProvider(
   baseUrl: string,
+  gateway: boolean,
   signal: AbortSignal,
-): Promise<string | undefined> {
-  const url = `${baseUrl.replace(/\/+$/, '')}/models`;
+): Promise<CheckOutcome> {
   try {
-    const response = await fetch(url, {
-      method: 'HEAD',
-      redirect: 'manual',
-      signal: AbortSignal.any([signal, AbortSignal.timeout(CHECK_TIMEOUT_MS)]),
-    });
+    const response = await fetch(
+      getProviderConnectionCheckUrl(baseUrl, gateway),
+      {
+        method: 'HEAD',
+        redirect: 'manual',
+        signal: AbortSignal.any([
+          signal,
+          AbortSignal.timeout(CHECK_TIMEOUT_MS),
+        ]),
+      },
+    );
     await response.body?.cancel();
-    return (response.status >= 300 && response.status < 400) ||
-      response.status === 407 ||
-      response.status >= 500
-      ? t('provider returned HTTP {{status}}', {
-          status: String(response.status),
-        })
-      : undefined;
+    const { status } = response;
+    return (status >= 300 && status < 400) || status === 407 || status >= 500
+      ? {
+          reason: t('provider returned HTTP {{status}}', {
+            status: String(status),
+          }),
+          mayBeRestarting: gateway && status === 503,
+        }
+      : {};
   } catch (error) {
-    return connectionErrorReason(error);
+    return { reason: connectionErrorReason(error) };
   }
 }
 
-/** Polls the selected provider without sending credentials or request content. */
+/**
+ * Polls the selected provider without sending credentials or request content.
+ * `gateway` says the provider is an o1-gateway, which is probed at its health
+ * route and whose first 503 is held until the next check confirms it.
+ */
 export function useProviderConnectionStatus(
   baseUrl: string | undefined,
   onFailure: (reason: string) => void,
+  gateway = false,
 ): ProviderConnectionStatus {
   const onFailureRef = useRef(onFailure);
   onFailureRef.current = onFailure;
@@ -101,15 +139,28 @@ export function useProviderConnectionStatus(
     const controller = new AbortController();
     let timer: ReturnType<typeof setTimeout> | undefined;
     let previous: ProviderConnectionStatus = 'checking';
+    let heldRestart = false;
 
     const check = async () => {
-      const reason = await checkProvider(baseUrl, controller.signal);
+      const { reason, mayBeRestarting } = await checkProvider(
+        baseUrl,
+        gateway,
+        controller.signal,
+      );
       if (controller.signal.aborted) return;
+      timer = setTimeout(() => void check(), CHECK_INTERVAL_MS);
+      // One 503 from a gateway is most likely a deploy or a tunnel that is
+      // reconnecting: the status stays as it was, and the failure is reported
+      // only if the next check fails too.
+      if (mayBeRestarting && !heldRestart && previous !== 'failed') {
+        heldRestart = true;
+        return;
+      }
+      heldRestart = false;
       const next: ProviderConnectionStatus = reason ? 'failed' : 'online';
       setResult({ baseUrl, status: next });
       if (reason && previous !== 'failed') onFailureRef.current(reason);
       previous = next;
-      timer = setTimeout(() => void check(), CHECK_INTERVAL_MS);
     };
 
     void check();
@@ -117,7 +168,7 @@ export function useProviderConnectionStatus(
       controller.abort();
       if (timer) clearTimeout(timer);
     };
-  }, [baseUrl]);
+  }, [baseUrl, gateway]);
 
   if (!baseUrl) return 'failed';
   return result.baseUrl === baseUrl ? result.status : 'checking';

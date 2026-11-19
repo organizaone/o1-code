@@ -5,7 +5,9 @@ provider: the pinned tunnel of `o1-connect run` started inside o1-code, with a l
 that speaks the proxy's API and swaps the device token in.
 
 - `lib.mjs`: the library, one dependency-free ES module (`node:` modules only). Since 9.9.0 it
-  also exports `openRemote`, the terminal's side of a remote session (contract §5).
+  also exports `openRemote`, the terminal's side of a remote session (contract §5). Since
+  12.18.0 its loopback endpoint answers `HEAD` and `GET /health` without the local key, with
+  whether the gateway answers through the tunnel.
 - `lib.d.mts`: its types.
 
 Both are copied, never loaded at run time: the library is what protects the session on a network
@@ -13,25 +15,23 @@ that intercepts TLS, so it must not come over one. Update them on purpose, like 
 dependency, and update `VENDOR.json` with the new version and hashes; the test
 `packages/core/src/providers/o1-connect/vendor.test.ts` refuses a copy that does not match.
 
-Prettier excludes the pinned runtime. The vendor test verifies its byte identity
-and loads the relay for execution.
-The local patch disables buffered HTTP replay when `x-o1gw-conversation-id` is present:
+Prettier excludes the pinned runtime. The files are the gateway's own bytes, with no
+local change: a fix the library needs is made in the gateway and vendored from there.
+The vendor test verifies their byte identity and loads the relay for execution. It
+also exercises the real loopback relay against a connection reset after the request
+body is read: a request carrying `x-o1gw-conversation-id` or
+`x-o1gw-conversation-transfer` is sent once and answered `502`, never replayed, because
 a reused tunnel socket can fail after a native request has already been consumed.
-Other requests retain the upstream behavior. The upstream banner and MIT notice are
-unchanged; `VENDOR.json` records both the original hash and the patched hash. The
-vendor test reverses that single condition to verify the upstream bytes, and exercises
-the real loopback relay against a connection reset after the request body is read.
 
 |                             |                                                                                        |
 | --------------------------- | -------------------------------------------------------------------------------------- |
-| Version                     | 9.9.0 (`// o1-connect-lib 9.9.0`)                                                      |
-| Source                      | `github.com/organizaone/o1-gateway`, commit `a7234d36eca4d9bc6b73c68d26494e21a44b6cae` |
-| Patched `lib.mjs` SHA-256   | `40dd11dc8bb6135cd8b398310129f8497127479848533b6d9267d3c9bb6d7768`                     |
-| Upstream `lib.mjs` SHA-256  | `3f1784b067660cfd2866a023885948f1a246c029ee9a3dc73f1a126072c7d0fb`                     |
-| `lib.d.mts` SHA-256         | `242576aa4d42aa82665f7bd570b5b0f432e2df497e7ed0586ceb850b3fe250e4`                     |
-| Checked against the gateway | 2026-10-11, `https://api.organizaone.com/client/lib.mjs.sha256` compared with `shasum` |
+| Version                     | 12.18.3 (`// o1-connect-lib 12.18.3`)                                                  |
+| Source                      | `github.com/organizaone/o1-gateway`, commit `afc2264d3f594243a122bd0bd00d9c2a74f03852` |
+| `lib.mjs` SHA-256           | `79a9606f3ae6d4b890e9aeda2cee6d70885dd2ed0437edbc92c785709170e4c5`                     |
+| `lib.d.mts` SHA-256         | `3d37e549a906bfd695f518bfd701249d4d19d379b788931022894e5f4a6dfd7b`                     |
+| Checked against the gateway | 2026-11-18, against the `lib.mjs.sha256` the gateway serves beside the file            |
 
-License: MIT (the banner of each file).
+License: the one named in the banner of each file.
 
 The library omits its identifying User-Agent in outer tunnel requests by default.
 o1-code keeps that default: it does not set `identify: true` when opening a

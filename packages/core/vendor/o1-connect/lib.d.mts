@@ -1,4 +1,4 @@
-// o1-connect-lib 9.9.0 - https://github.com/organizaone/o1-gateway (MIT)
+// o1-connect-lib 12.18.3 - Copyright (c) 2026 Silvio Chagas. All rights reserved. Proprietary: see LICENSE
 /**
  * o1-connect as a library (docs/O1-CODE-LOGIN.md §3): the pinned tunnel
  * of `o1-connect run`, started inside the host app instead of as a
