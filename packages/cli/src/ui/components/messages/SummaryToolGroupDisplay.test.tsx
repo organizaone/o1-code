@@ -71,6 +71,52 @@ describe('<SummaryToolGroupDisplay />', () => {
     expect(output).not.toContain('secret');
   });
 
+  it('shows the description a command carries, with its program beside it', () => {
+    const output = frame([
+      call({
+        name: 'Shell',
+        args: {
+          command: 'cd /repo/frontend/server && npm test -- --run secret',
+          description: 'Check the server tests',
+        },
+      }),
+    ]);
+    expect(output).toContain('Check the server tests · npm test');
+    expect(output).not.toContain('Running');
+    expect(output).not.toContain('secret');
+  });
+
+  it('prefers the intent to the description and keeps the program', () => {
+    const output = frame([
+      call({
+        name: 'Shell',
+        intent: 'Verify the hub health',
+        args: { command: 'curl -s http://127.0.0.1/x', description: 'Probe' },
+      }),
+    ]);
+    expect(output).toContain('Verify the hub health · curl');
+    expect(output).not.toContain('Probe');
+  });
+
+  it('does not repeat what the label already names', () => {
+    const output = frame([
+      call({ name: 'Edit', args: { file_path: '/repo/src/login.ts' } }),
+    ]);
+    expect(output).toContain('Changing login.ts');
+    expect(output).not.toContain('login.ts · login.ts');
+  });
+
+  it('shows the description of an agent call', () => {
+    const output = frame([
+      call({
+        name: 'Agent',
+        args: { description: 'Research the options', prompt: 'long prompt' },
+      }),
+    ]);
+    expect(output).toContain('Research the options');
+    expect(output).not.toContain('long prompt');
+  });
+
   it('hides shell output', () => {
     const output = frame([
       call({

@@ -226,11 +226,16 @@ settings (`ui.customAsciiArt`, `ui.hideBanner`, …) are gone and ignored if pre
 Detailed view, so the transcript is the same in both modes (`hooks/use-display-mode.ts`).
 
 - **Step rows** (`messages/SummaryToolGroupDisplay.tsx`): the category marker and label of a tool row,
-  then one sentence on the step's purpose: the `intent` the model gave with the call, sanitized to one
-  line, or a fallback from `utils/summary-label.ts` (`Changing login.ts`, `Running npm test` — the
-  program and its subcommand, never the other arguments). A muted file name and `+N −M` follow when
-  the step changed a file. Consecutive reads and searches share one row with `· N files`. No diff,
-  file body, shell output or arguments. An error adds its first line in red.
+  then one sentence on the step's purpose, the first of: the `intent` the model gave with the call;
+  the `description` a shell command or an agent call already carries; a fallback label from
+  `utils/summary-label.ts`. All are sanitized to one line. The fallback names what the step works on
+  and never the other arguments: `Changing login.ts`, `Fetching example.com`,
+  `Using the debugging skill`, `Running npm test in frontend/server`. For a command it is the program
+  that does the work, with its subcommand: preparation (`cd`, `echo`, an environment assignment) is
+  skipped and `wsl`, `bash -c` and `powershell -Command` are looked into. A muted `· detail` follows a
+  sentence that does not name its target (the file, program, host or skill), and `+N −M` when the
+  step changed a file. Consecutive reads and searches share one row with `· N files`. No diff, file
+  body, shell output or arguments. An error adds its first line in red.
 - **Kept as in Detailed:** approvals, the user's own `!` commands, a focused shell, the parallel-agent
   roster, and results that already summarize (todo list, plan, findings, subagents, question answers).
 - **Approvals** keep the amber frame and every option and outcome. An edit shows `Change file`, the
