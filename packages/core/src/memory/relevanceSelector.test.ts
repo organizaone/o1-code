@@ -204,6 +204,32 @@ describe('selectRelevantAutoMemoryDocumentsByModel', () => {
     ).toBe(false);
   });
 
+  it('asks for a gateway side call on the small model the gateway lists', async () => {
+    const gatewayConfig = {
+      getFastModel: vi.fn().mockReturnValue(undefined),
+      getAuxiliaryModel: vi.fn().mockReturnValue('claude-haiku-4-5'),
+    } as unknown as Config;
+    vi.mocked(runSideQuery).mockResolvedValue({
+      selected_memories: ['/tmp/reference.md'],
+    });
+
+    await selectRelevantAutoMemoryDocumentsByModel(
+      gatewayConfig,
+      'check the latency dashboard',
+      docs,
+      2,
+    );
+
+    const options = vi.mocked(runSideQuery).mock.calls[0]![1] as {
+      model?: string;
+      gatewaySideCall?: boolean;
+      contents: unknown[];
+    };
+    expect(options.model).toBe('claude-haiku-4-5');
+    expect(options.gatewaySideCall).toBe(true);
+    expect(options.contents).toHaveLength(1);
+  });
+
   it('throws when selector returns unknown file paths', async () => {
     vi.mocked(runSideQuery).mockImplementation(async (_config, options) => {
       const error = options.validate?.({

@@ -42,6 +42,7 @@ import {
   type O1ConnectSession,
 } from '../providers/o1-connect/session.js';
 import { reachesOrganizaOne } from '../providers/presets/organizaone.js';
+import { pickGatewaySmallModel } from '../providers/gateway-small-model.js';
 import type { RemoteViaTunnel } from '../providers/o1-connect/remote.js';
 import {
   setGeneratorReasoningEffort,
@@ -6164,6 +6165,41 @@ export class Config {
     return rawSelector?.authType
       ? `${rawSelector.authType}:${selector.modelId}`
       : selector.modelId;
+  }
+
+  /**
+   * The model for the short calls made around a turn: the configured fast
+   * model, else, on a gateway, the small model of the session model's family
+   * among the models the gateway lists beside it. Undefined when there is
+   * neither, and the caller stays on the session model.
+   */
+  getAuxiliaryModel(): string | undefined {
+    const fast = this.getFastModel();
+    if (fast) return fast;
+    const generation = this.getContentGeneratorConfig();
+    const authType = generation?.authType;
+    if (!authType || !reachesOrganizaOne(generation)) return undefined;
+    const session = this.getModel();
+    const current = this.modelsConfig.getResolvedModel(authType, session);
+    if (!current) return undefined;
+    return pickGatewaySmallModel(
+      session,
+      this.getAllConfiguredModels([authType])
+        .filter(
+          (model) =>
+            model.baseUrl === current.baseUrl &&
+            !model.isRuntimeModel &&
+            !model.voiceOnly &&
+            !model.imageOnly &&
+            !model.visionOnly &&
+            this.modelsConfig.getResolvedModel(
+              authType,
+              model.id,
+              model.baseUrl,
+            )?.connection === current.connection,
+        )
+        .map((model) => model.id),
+    );
   }
 
   /**

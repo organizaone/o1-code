@@ -7,6 +7,12 @@ follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Fixed
+
+- On an o1-gateway, the next-step suggestion and the memory selection now run as short background
+  calls on a small model the gateway lists, instead of opening a full conversation each. The
+  suggestion's request no longer grows with the session.
+
 ## [0.30.0] - 2026-11-19
 
 ### Changed

@@ -1076,6 +1076,51 @@ describe.each([AuthType.USE_OPENAI, AuthType.USE_ANTHROPIC])(
       );
     });
 
+    it('sends a structured side call as one message without tools or streaming', async () => {
+      const current = await client(authType);
+      const utility = new BaseLlmClient(current.generator, current.config);
+      await utility.generateJson({
+        model: current.model,
+        gatewaySideCall: true,
+        schema: {
+          type: 'object',
+          properties: { selected_memories: { type: 'array' } },
+        },
+        systemInstruction: 'selector-system-marker',
+        contents: [{ role: 'user', parts: [{ text: 'query-marker' }] }],
+        abortSignal: new AbortController().signal,
+        maxAttempts: 1,
+      });
+      const body = requests.at(-1)?.body ?? {};
+      const messages = (body['messages'] as Array<{ role: string }>).filter(
+        (message) => message.role !== 'system',
+      );
+      expect(messages).toHaveLength(1);
+      expect(messages[0].role).toBe('user');
+      expect(body['tools'] ?? []).toEqual([]);
+      expect(body['tool_choice']).toBeUndefined();
+      expect(body['stream']).not.toBe(true);
+      const sent = JSON.stringify(body);
+      expect(sent).toContain('query-marker');
+      expect(sent).toContain('selected_memories');
+      expect(sent).not.toContain('respond_in_schema');
+    });
+
+    it('keeps the schema tool for a structured call that did not opt in', async () => {
+      const current = await client(authType);
+      const utility = new BaseLlmClient(current.generator, current.config);
+      await utility.generateJson({
+        model: current.model,
+        schema: { type: 'object', properties: {} },
+        contents: [{ role: 'user', parts: [{ text: 'query-marker' }] }],
+        abortSignal: new AbortController().signal,
+        maxAttempts: 1,
+      });
+      expect(JSON.stringify(requests.at(-1)?.body)).toContain(
+        'respond_in_schema',
+      );
+    });
+
     it.each(['ask', 'forbid', 'generic-429'])(
       'handles group %s without treating a generic limit as transfer consent',
       async (policy) => {

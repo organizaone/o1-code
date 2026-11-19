@@ -136,6 +136,36 @@ export function gatewayIndependentInput(contents: Content[]): Content[] {
   ];
 }
 
+/**
+ * The whole input of a short auxiliary call as one user message, ending in
+ * its instruction. Sent without tools and without streaming, a one-message
+ * request is what the gateway runs outside its conversation slots.
+ */
+export function gatewaySideCallInput(
+  contents: Content[],
+  instruction: string,
+): Content[] {
+  const only = contents.length === 1 ? contents[0] : undefined;
+  const plain =
+    only?.role === 'user' &&
+    only.parts?.every((part) => typeof part.text === 'string' && !part.thought);
+  return [
+    {
+      role: 'user',
+      parts: [
+        ...(plain
+          ? (only.parts ?? [])
+          : [
+              {
+                text: `Source material for this independent task (JSON):\n${JSON.stringify(contents)}`,
+              },
+            ]),
+        { text: instruction },
+      ],
+    },
+  ];
+}
+
 export function withGatewayRequestHeaders(
   fetcher: typeof globalThis.fetch,
 ): typeof globalThis.fetch {

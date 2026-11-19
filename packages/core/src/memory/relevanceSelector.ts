@@ -117,6 +117,7 @@ export async function selectRelevantAutoMemoryDocumentsByModel(
   const validFilePaths = new Set(includedDocs.map((doc) => doc.filePath));
   const byFilePath = new Map(includedDocs.map((doc) => [doc.filePath, doc]));
 
+  const auxiliaryModel = config.getAuxiliaryModel?.();
   const response = await runSideQuery<RecallSelectorResponse>(config, {
     purpose: 'auto-memory-recall',
     contents,
@@ -134,8 +135,11 @@ export async function selectRelevantAutoMemoryDocumentsByModel(
       ? AbortSignal.any([AbortSignal.timeout(30_000), callerAbortSignal])
       : AbortSignal.timeout(30_000),
 
-    // Uses runSideQuery's default side-query model policy: fast model first,
-    // then main session model when no fast model is configured.
+    // The fast model first; on a gateway, the small model it lists beside the
+    // session model; else runSideQuery's default, the main session model.
+    ...(auxiliaryModel && { model: auxiliaryModel }),
+    // One small message in, one small object out: no schema tool on a gateway.
+    gatewaySideCall: true,
     systemInstruction: SELECT_MEMORIES_SYSTEM_PROMPT,
     config: {
       temperature: 0,

@@ -40,6 +40,7 @@ vi.mock('../agents/forkedAgent.js', async (importOriginal) => {
 });
 
 import {
+  buildSuggestionTranscript,
   generatePromptSuggestion,
   getFilterReason,
   shouldFilterSuggestion,
@@ -216,6 +217,84 @@ describe('generatePromptSuggestion', () => {
     expect(result.suggestion).toBe('from base llm');
   });
 
+  it('sends a gateway one bounded message on the small model it lists', async () => {
+    mockRunSideQuery.mockResolvedValue({ text: 'run the tests', usage: {} });
+    const getFastModel = vi.fn(() => undefined);
+    const config = {
+      getFastModel,
+      getAuxiliaryModel: vi.fn(() => 'claude-haiku-4-5'),
+      getModel: vi.fn(() => 'claude-opus-5-5'),
+      getSessionId: vi.fn(() => 'test-session'),
+      getContentGeneratorConfig: vi.fn(() => ({ connection: 'o1-connect' })),
+    } as unknown as Config;
+    const long: Content[] = Array.from({ length: 40 }, (_, index) => ({
+      role: index % 2 === 0 ? 'user' : 'model',
+      parts: [
+        { text: `${'x'.repeat(50_000)} entry-${index}` },
+        { functionResponse: { name: 'read', response: { output: 'y' } } },
+      ],
+    }));
+
+    const result = await generatePromptSuggestion(
+      config,
+      long,
+      new AbortController().signal,
+      { enableCacheSharing: true },
+    );
+
+    expect(result.suggestion).toBe('run the tests');
+    expect(mockRunForkedAgent).not.toHaveBeenCalled();
+    const options = mockRunSideQuery.mock.calls[0][1];
+    expect(options.model).toBe('claude-haiku-4-5');
+    expect(options.skipOutputLanguagePreference).toBe(true);
+    expect(options.contents).toHaveLength(1);
+    expect(options.contents[0].role).toBe('user');
+    const text: string = options.contents[0].parts[0].text;
+    expect(options.contents[0].parts).toHaveLength(1);
+    expect(text.length).toBeLessThan(20_000);
+    expect(text).toContain('entry-39');
+    expect(text).toContain('[SUGGESTION MODE');
+    expect(text).not.toContain('functionResponse');
+  });
+
+  it('stays on the session model when the gateway lists no small one', async () => {
+    mockRunSideQuery.mockResolvedValue({ text: 'run the tests', usage: {} });
+    const config = {
+      getFastModel: vi.fn(() => undefined),
+      getAuxiliaryModel: vi.fn(() => undefined),
+      getModel: vi.fn(() => 'claude-opus-5-5'),
+      getSessionId: vi.fn(() => 'test-session'),
+      getContentGeneratorConfig: vi.fn(() => ({ connection: 'o1-connect' })),
+    } as unknown as Config;
+
+    await generatePromptSuggestion(
+      config,
+      conversationHistory,
+      new AbortController().signal,
+    );
+
+    expect(mockRunSideQuery.mock.calls[0][1].model).toBe('claude-opus-5-5');
+  });
+
+  it('reports a failed request as no suggestion', async () => {
+    mockRunSideQuery.mockRejectedValue(new Error('400 prompt is too long'));
+    const config = {
+      getFastModel: vi.fn(() => undefined),
+      getAuxiliaryModel: vi.fn(() => undefined),
+      getModel: vi.fn(() => 'claude-opus-5-5'),
+      getSessionId: vi.fn(() => 'test-session'),
+      getContentGeneratorConfig: vi.fn(() => ({ connection: 'o1-connect' })),
+    } as unknown as Config;
+
+    await expect(
+      generatePromptSuggestion(
+        config,
+        conversationHistory,
+        new AbortController().signal,
+      ),
+    ).resolves.toEqual({ suggestion: null, filterReason: 'error' });
+  });
+
   it('passes preserveTools: false when fast model differs from cache-safe model', async () => {
     mockGetCacheSafeParams.mockReturnValue({
       generationConfig: {},
@@ -245,6 +324,58 @@ describe('generatePromptSuggestion', () => {
     expect(mockRunForkedAgent).toHaveBeenCalledWith(
       expect.objectContaining({ preserveTools: false }),
     );
+  });
+});
+
+describe('buildSuggestionTranscript', () => {
+  it('keeps text and tool names, never tool output, reasoning or reminders', () => {
+    const transcript = buildSuggestionTranscript([
+      {
+        role: 'user',
+        parts: [
+          { text: '<system-reminder>\nhidden-reminder\n</system-reminder>' },
+          { text: 'fix the login' },
+        ],
+      },
+      {
+        role: 'model',
+        parts: [
+          { text: 'hidden-thought', thought: true },
+          { text: 'Reading the code.' },
+          { functionCall: { name: 'read_file', args: { path: 'secret.ts' } } },
+        ],
+      },
+      {
+        role: 'user',
+        parts: [
+          {
+            functionResponse: {
+              name: 'read_file',
+              response: { output: 'hidden-output' },
+            },
+          },
+        ],
+      },
+      { role: 'model', parts: [{ text: 'Fixed. Tip: type run tests' }] },
+    ]);
+    expect(transcript).toBe(
+      'User: fix the login\n\n' +
+        'Assistant: Reading the code.\n[tool call: read_file]\n\n' +
+        'Assistant: Fixed. Tip: type run tests',
+    );
+  });
+
+  it('keeps the end of the last reply and stays under its size bound', () => {
+    const transcript = buildSuggestionTranscript([
+      ...Array.from({ length: 200 }, (_, index) => ({
+        role: index % 2 === 0 ? 'user' : 'model',
+        parts: [{ text: `old-${index} ${'a'.repeat(3_000)}` }],
+      })),
+      { role: 'model', parts: [{ text: `${'b'.repeat(9_000)} final-hint` }] },
+    ]);
+    expect(transcript.length).toBeLessThanOrEqual(12_000 + 2 * 20);
+    expect(transcript.endsWith('final-hint')).toBe(true);
+    expect(transcript).not.toContain('old-0 ');
   });
 });
 
