@@ -7,6 +7,11 @@ follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Fixed
+
+- Usage and error reports now go straight to the intake. In a session on the o1-connect tunnel
+  they no longer open a tunnel that carries no request.
+
 ## [0.30.1] - 2026-11-19
 
 ### Fixed
