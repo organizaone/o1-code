@@ -393,42 +393,13 @@ async function delivery(
 }
 
 /**
- * Through the session's o1-connect tunnel, when the model rides one: it
- * already reaches OrganizaOne on this network. Not used when the intake URL
- * is overridden, since the tunnel only leads to OrganizaOne.
+ * Always straight to the intake, never through the session's o1-connect
+ * tunnel: the gateway serves no telemetry route inside a tunnel, so a request
+ * sent there only opened a tunnel that carried no device request.
  */
-async function postThroughTunnel(
-  endpoint: string,
-  json: string,
-): Promise<Delivery> {
-  const tunnel = state?.config.getO1ConnectSession?.();
-  if (!tunnel || process.env['O1CODE_TELEMETRY_URL']) return 'unreached';
-  const intakePath = new URL(DEFAULT_PRODUCT_TELEMETRY_URL).pathname;
-  try {
-    const response = await fetch(
-      `${tunnel.baseUrl.replace(/\/+$/, '')}${intakePath}/${endpoint}`,
-      {
-        method: 'POST',
-        headers: {
-          'content-type': 'application/json',
-          'x-api-key': tunnel.apiKey,
-        },
-        body: json,
-        signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
-      },
-    );
-    return await delivery(endpoint, response);
-  } catch (error) {
-    debugLogger.debug(`Sending ${endpoint} through the tunnel failed:`, error);
-    return 'unreached';
-  }
-}
-
 async function post(endpoint: string, body: unknown): Promise<boolean> {
   const url = `${telemetryUrl()}/${endpoint}`;
   const json = JSON.stringify(body);
-  const viaTunnel = await postThroughTunnel(endpoint, json);
-  if (viaTunnel !== 'unreached') return viaTunnel === 'accepted';
   try {
     let response: Response;
     try {

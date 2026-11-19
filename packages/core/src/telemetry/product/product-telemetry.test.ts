@@ -169,28 +169,28 @@ describe('product telemetry', () => {
     );
   });
 
-  describe('through the o1-connect tunnel', () => {
-    function tunnelConfig(): Config {
+  describe('in a session that rides the o1-connect tunnel', () => {
+    const tunnelUrl = 'http://127.0.0.1:4100';
+    const session = vi.fn(() => ({ baseUrl: tunnelUrl, apiKey: 'local-key' }));
+
+    function tunnelConfig(options?: Parameters<typeof fakeConfig>[0]): Config {
       return {
-        ...fakeConfig({ errors: false }),
-        getO1ConnectSession: () => ({
-          baseUrl: 'http://127.0.0.1:4100',
-          apiKey: 'local-key',
-        }),
+        ...fakeConfig(options),
+        getO1ConnectSession: session,
       } as unknown as Config;
     }
 
     beforeEach(() => {
+      session.mockClear();
       vi.stubEnv('O1CODE_TELEMETRY_URL', '');
     });
 
-    async function sendWith(...responses: Response[]) {
+    async function sendWith(config: Config, ...responses: Response[]) {
       for (const response of responses) {
         fetchMock.mockResolvedValueOnce(response);
       }
-      const config = tunnelConfig();
       startProductTelemetry(config, { manual: true });
-      productUsage(config)!.prompt(config);
+      productUsage(config)?.prompt(config);
       await sendProductTelemetry();
       return fetchMock.mock.calls.map(([url, init]) => ({
         url: String(url),
@@ -198,30 +198,35 @@ describe('product telemetry', () => {
       }));
     }
 
-    it('sends through the tunnel first, with its local key', async () => {
-      const calls = await sendWith(new Response(null, { status: 204 }));
-      expect(calls).toEqual([
-        {
-          url: 'http://127.0.0.1:4100/telemetry/v1/usage',
-          headers: expect.objectContaining({ 'x-api-key': 'local-key' }),
-        },
-      ]);
-    });
-
-    it('falls back to the intake when the tunnel does not take it', async () => {
+    it('sends usage straight to the intake and never to the tunnel', async () => {
       const calls = await sendWith(
-        new Response('not found', { status: 404 }),
+        tunnelConfig({ errors: false }),
         new Response(null, { status: 204 }),
       );
       expect(calls.map((call) => call.url)).toEqual([
-        'http://127.0.0.1:4100/telemetry/v1/usage',
         'https://api.organizaone.com/telemetry/v1/usage',
       ]);
+      expect(calls[0]!.headers).not.toHaveProperty('x-api-key');
+      // Nothing reads the tunnel, so no request can open one.
+      expect(session).not.toHaveBeenCalled();
     });
 
-    it('does not resend a body the intake refused', async () => {
-      const calls = await sendWith(new Response('bad', { status: 400 }));
-      expect(calls).toHaveLength(1);
+    it('sends error reports straight to the intake as well', async () => {
+      const config = tunnelConfig({ usage: false });
+      startProductTelemetry(config, { manual: true });
+      recordErrorReport(new Error('synthetic failure'), 'uncaughtException');
+      const calls = await sendWith(config, new Response(null, { status: 204 }));
+      expect(calls.map((call) => call.url)).toEqual([
+        'https://api.organizaone.com/telemetry/v1/errors',
+      ]);
+      expect(session).not.toHaveBeenCalled();
+    });
+
+    it('does not turn to the tunnel when the intake cannot be reached', async () => {
+      fetchMock.mockRejectedValueOnce(new TypeError('fetch failed'));
+      const calls = await sendWith(tunnelConfig({ errors: false }));
+      expect(calls.every((call) => !call.url.startsWith(tunnelUrl))).toBe(true);
+      expect(session).not.toHaveBeenCalled();
     });
   });
 
