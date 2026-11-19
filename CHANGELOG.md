@@ -7,6 +7,8 @@ follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.30.0] - 2026-11-19
+
 ### Changed
 
 - Summary mode now says what each step does: a command shows the description it was given and the
