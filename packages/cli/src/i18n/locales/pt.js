@@ -3865,6 +3865,14 @@ export default {
   'Running {{program}}': 'Rodando {{program}}',
   'Running a command': 'Rodando um comando',
   'Delegating to an agent': 'Delegando a um agente',
+  'Searching "{{query}}" in {{directory}}':
+    'Buscando "{{query}}" em {{directory}}',
+  'Running {{program}} in {{directory}}':
+    'Rodando {{program}} em {{directory}}',
+  'Fetching {{host}}': 'Consultando {{host}}',
+  'Searching the web for "{{query}}"': 'Pesquisando na web por "{{query}}"',
+  'Using the {{skill}} skill': 'Usando a skill {{skill}}',
+  'Looking for a tool: {{query}}': 'Procurando uma ferramenta: {{query}}',
   '{{count}} files': '{{count}} arquivos',
   '{{count}} steps': '{{count}} passos',
   'Change file': 'Alterar arquivo',

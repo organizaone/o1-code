@@ -7,6 +7,12 @@ follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Changed
+
+- Summary mode now says what each step does: a command shows the description it was given and the
+  program it runs, instead of only the first word of the command line. Web fetches, skills and
+  searches name what they work on.
+
 ## [0.29.1] - 2026-11-18
 
 ### Changed

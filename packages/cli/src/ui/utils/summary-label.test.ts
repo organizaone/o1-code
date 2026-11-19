@@ -7,7 +7,12 @@
 import { afterEach, describe, expect, it } from 'vitest';
 import { setLanguageAsync } from '../../i18n/index.js';
 import { ToolCallStatus, type IndividualToolCallDisplay } from '../types.js';
-import { commandProgram, summaryLabel } from './summary-label.js';
+import {
+  commandProgram,
+  summaryDescription,
+  summaryDetail,
+  summaryLabel,
+} from './summary-label.js';
 
 const tool = (
   name: string,
@@ -51,6 +56,96 @@ describe('summaryLabel', () => {
     );
   });
 
+  it.each([
+    [
+      'cd /c/repo/frontend/server && npm test 2>&1 | tail -6',
+      'Running npm test in frontend/server',
+    ],
+    [
+      "echo '=== status; now ==='; curl -s -m 10 http://127.0.0.1:8787/api",
+      'Running curl',
+    ],
+    [
+      'MSYS_NO_PATHCONV=1 wsl -d Ubuntu-26.04 -- bash -lc "cd /opt/hub && systemctl status hub"',
+      'Running systemctl in opt/hub',
+    ],
+    [
+      'powershell.exe -NoProfile -Command "Get-ScheduledTask -TaskName Hub"',
+      'Running Get-ScheduledTask',
+    ],
+    ['pwsh -NoProfile -File scripts\\gates.ps1', 'Running gates.ps1'],
+    ['& "C:\\Program Files\\Git\\bin\\git.exe" status', 'Running git status'],
+    ['sudo env CI=1 npm run build -- --cli-only', 'Running npm run build'],
+    ['sleep 5; git diff --stat', 'Running git diff'],
+    ['L=$(ls -t ~/logs/*.log | head -1); grep -c error "$L"', 'Running grep'],
+    ['wsl --status 2>&1', 'Running wsl'],
+    [
+      "bash -lc 'sudo -n true 2>&1 && systemctl restart hub'",
+      'Running systemctl',
+    ],
+    [
+      'pwsh -NoProfile -Command "(Get-ItemProperty \'HKCU:\\Environment\').Path"',
+      'Running Get-ItemProperty',
+    ],
+    [
+      'powershell -Command "\'== STARTUP ==\'; Get-CimInstance Win32_Process"',
+      'Running Get-CimInstance',
+    ],
+    ['TS="/c/Program Files/x.exe"; "$TS" status', 'Running a command'],
+    ['for d in */; do [ -d "$d" ] && git -C "$d" fetch; done', 'Running git'],
+    ['cd /tmp', 'Running cd'],
+    ["echo 'done'", 'Running echo'],
+  ])('names the step of the command %s', (command, expected) => {
+    expect(summaryLabel(tool('Shell', { command }))).toBe(expected);
+  });
+
+  it('places a command in the directory the call names', () => {
+    expect(
+      summaryLabel(
+        tool('Shell', { command: 'npm test', directory: 'C:\\repo\\web' }),
+      ),
+    ).toBe('Running npm test in repo/web');
+  });
+
+  it('names what the other tools work on', () => {
+    expect(
+      summaryLabel(
+        tool('WebFetch', {
+          url: 'https://www.example.com/docs/a?b=1',
+          prompt: 'Summarize the secret plan',
+        }),
+      ),
+    ).toBe('Fetching example.com');
+    expect(summaryLabel(tool('WebSearch', { query: 'ink flexbox' }))).toBe(
+      'Searching the web for "ink flexbox"',
+    );
+    expect(summaryLabel(tool('Skill', { skill: 'debugging' }))).toBe(
+      'Using the debugging skill',
+    );
+    expect(summaryLabel(tool('ToolSearch', { query: 'web fetch' }))).toBe(
+      'Looking for a tool: web fetch',
+    );
+    expect(
+      summaryLabel(tool('Grep', { pattern: 'TODO', path: '/repo/src/ui' })),
+    ).toBe('Searching "TODO" in src/ui');
+  });
+
+  it('labels a ToolCall step as the call it runs', () => {
+    expect(
+      summaryLabel(
+        tool('ToolCall', {
+          name: 'web_fetch',
+          arguments: { url: 'https://learn.example.org/x', prompt: 'p' },
+        }),
+      ),
+    ).toBe('Fetching learn.example.org');
+    expect(
+      summaryLabel(
+        tool('ToolCall', { name: 'mcp__github__create_issue', arguments: {} }),
+      ),
+    ).toBe('Using github/create_issue');
+  });
+
   it('quotes a search pattern', () => {
     expect(summaryLabel(tool('Grep', { pattern: 'normalizeEmail' }))).toBe(
       'Searching "normalizeEmail"',
@@ -81,6 +176,54 @@ describe('summaryLabel', () => {
     expect(summaryLabel(tool('Shell', { command: 'npm test' }))).toBe(
       'Rodando npm test',
     );
+  });
+});
+
+describe('summaryDescription', () => {
+  it('takes the description a shell command or an agent call carries', () => {
+    expect(
+      summaryDescription(
+        tool('Shell', {
+          command: 'cd /repo && npm test',
+          description: 'Check the server\u001b[2J tests\nagain',
+        }),
+      ),
+    ).toBe('Check the server tests again');
+    expect(
+      summaryDescription(
+        tool('Agent', { description: 'Research the options', prompt: 'x' }),
+      ),
+    ).toBe('Research the options');
+  });
+
+  it('caps a long description and ignores other tools', () => {
+    expect(
+      summaryDescription(
+        tool('Shell', { command: 'ls', description: 'a'.repeat(300) }),
+      ),
+    ).toHaveLength(120);
+    expect(
+      summaryDescription(tool('WebFetch', { description: 'not a step' })),
+    ).toBeUndefined();
+    expect(
+      summaryDescription(tool('Shell', { command: 'ls' })),
+    ).toBeUndefined();
+  });
+});
+
+describe('summaryDetail', () => {
+  it('names the file, program, host or skill of a step', () => {
+    expect(summaryDetail(tool('Edit', { file_path: '/repo/a/login.ts' }))).toBe(
+      'login.ts',
+    );
+    expect(
+      summaryDetail(tool('Shell', { command: 'cd /repo && npm test -- x' })),
+    ).toBe('npm test');
+    expect(
+      summaryDetail(tool('WebFetch', { url: 'https://example.com/a' })),
+    ).toBe('example.com');
+    expect(summaryDetail(tool('Skill', { skill: 'finish' }))).toBe('finish');
+    expect(summaryDetail(tool('Grep', { pattern: 'x' }))).toBeUndefined();
   });
 });
 

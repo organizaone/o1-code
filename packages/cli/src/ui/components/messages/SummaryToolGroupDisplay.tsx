@@ -22,8 +22,9 @@ import {
 import { ToolElapsedTime } from '../shared/ToolElapsedTime.js';
 import {
   oneLine,
+  summaryDescription,
+  summaryDetail,
   summaryLabel,
-  summaryTarget,
 } from '../../utils/summary-label.js';
 
 // Result displays that are themselves a progress summary or need the user's
@@ -50,10 +51,25 @@ export function keepsDetailedRendering(
   );
 }
 
-/** The sentence a Summary row shows: the model's intent, else a label. */
+/**
+ * The sentence a Summary row shows: the model's intent, else the description
+ * it wrote for the step, else a label.
+ */
 export function summarySentence(tool: IndividualToolCallDisplay): string {
   const intent = tool.intent ? oneLine(tool.intent) : '';
-  return intent || summaryLabel(tool);
+  return intent || summaryDescription(tool) || summaryLabel(tool);
+}
+
+/** What the step works on, when the sentence does not already name it. */
+function detailBeside(
+  tool: IndividualToolCallDisplay,
+  sentence: string,
+): string | undefined {
+  const detail = summaryDetail(tool);
+  if (!detail) return undefined;
+  return sentence.toLowerCase().includes(detail.toLowerCase())
+    ? undefined
+    : detail;
 }
 
 function diffStatOf(tool: IndividualToolCallDisplay): DiffStat | undefined {
@@ -111,6 +127,7 @@ const SummaryRow: React.FC<{
     tools[tools.length - 1];
   const showLabel = showsToolLabel(contentWidth);
   const error = errorLine(first);
+  const sentence = summarySentence(first);
 
   let suffix: React.ReactNode = null;
   if (tools.length > 1) {
@@ -127,16 +144,13 @@ const SummaryRow: React.FC<{
       </Text>
     );
   } else {
-    const target = summaryTarget(first);
     const stat = diffStatOf(first);
-    const category = getToolCategory(first.name);
-    const namesFile =
-      target && (category === 'edit' || category === 'write' || stat);
-    if (namesFile || stat) {
+    const detail = detailBeside(first, sentence);
+    if (detail || stat) {
       suffix = (
         <Text>
-          {namesFile && (
-            <Text color={extendedTheme.text.muted}>{` · ${target}`}</Text>
+          {detail && (
+            <Text color={extendedTheme.text.muted}>{` · ${detail}`}</Text>
           )}
           {stat && (
             <>
@@ -164,7 +178,7 @@ const SummaryRow: React.FC<{
         />
         <Box flexGrow={1}>
           <Text wrap="truncate-end">
-            {summarySentence(first)}
+            {sentence}
             {suffix}
           </Text>
         </Box>

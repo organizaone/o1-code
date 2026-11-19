@@ -3548,6 +3548,14 @@ export default {
   'Running {{program}}': 'Running {{program}}',
   'Running a command': 'Running a command',
   'Delegating to an agent': 'Delegating to an agent',
+  'Searching "{{query}}" in {{directory}}':
+    'Searching "{{query}}" in {{directory}}',
+  'Running {{program}} in {{directory}}':
+    'Running {{program}} in {{directory}}',
+  'Fetching {{host}}': 'Fetching {{host}}',
+  'Searching the web for "{{query}}"': 'Searching the web for "{{query}}"',
+  'Using the {{skill}} skill': 'Using the {{skill}} skill',
+  'Looking for a tool: {{query}}': 'Looking for a tool: {{query}}',
   '{{count}} files': '{{count}} files',
   '{{count}} steps': '{{count}} steps',
   'Change file': 'Change file',
