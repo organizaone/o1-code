@@ -19,6 +19,7 @@ import {
 } from '../agents/forkedAgent.js';
 import { runSideQuery } from '../utils/sideQuery.js';
 import { reachesOrganizaOne } from '../providers/presets/organizaone.js';
+import { isSystemReminderContent } from '../core/environmentContext.js';
 import { createDebugLogger } from '../utils/debugLogger.js';
 
 const debugLogger = createDebugLogger('FOLLOWUP');
@@ -79,6 +80,57 @@ const SUGGESTION_SCHEMA: Record<string, unknown> = {
   },
   required: ['suggestion'],
 };
+
+const TRANSCRIPT_MAX_CHARS = 12_000;
+const TRANSCRIPT_ENTRY_MAX_CHARS = 1_500;
+const TRANSCRIPT_LAST_REPLY_MAX_CHARS = 4_000;
+
+/**
+ * The end of the conversation as plain text, newest entries kept, for a
+ * suggestion request whose size must not follow the session's. Tool output,
+ * reasoning and attachments are left out; a tool call is only named. An
+ * assistant entry keeps its end, where the next-step hints are, and a user
+ * entry keeps its start.
+ */
+export function buildSuggestionTranscript(history: Content[]): string {
+  const entries: string[] = [];
+  let size = 0;
+  let lastReplySeen = false;
+  for (let index = history.length - 1; index >= 0; index--) {
+    const content = history[index];
+    const assistant = content.role === 'model';
+    const text = (content.parts ?? [])
+      .map((part) =>
+        part.thought || isSystemReminderContent({ parts: [part] })
+          ? ''
+          : typeof part.text === 'string'
+            ? part.text
+            : part.functionCall
+              ? `[tool call: ${part.functionCall.name ?? 'unknown'}]`
+              : '',
+      )
+      .filter((piece) => piece.trim().length > 0)
+      .join('\n')
+      .trim();
+    if (!text) continue;
+    const limit =
+      assistant && !lastReplySeen
+        ? TRANSCRIPT_LAST_REPLY_MAX_CHARS
+        : TRANSCRIPT_ENTRY_MAX_CHARS;
+    lastReplySeen ||= assistant;
+    const clipped =
+      text.length <= limit
+        ? text
+        : assistant
+          ? `…${text.slice(-limit)}`
+          : `${text.slice(0, limit)}…`;
+    const entry = `${assistant ? 'Assistant' : 'User'}: ${clipped}`;
+    if (size + entry.length > TRANSCRIPT_MAX_CHARS) break;
+    entries.unshift(entry);
+    size += entry.length;
+  }
+  return entries.join('\n\n');
+}
 
 /** Minimum assistant turns before generating suggestions */
 const MIN_ASSISTANT_TURNS = 2;
@@ -214,11 +266,29 @@ async function generateViaBaseLlm(
   abortSignal: AbortSignal,
   modelOverride?: string,
 ): Promise<string | null> {
-  const model = modelOverride ?? config.getFastModel() ?? config.getModel();
-  const contents: Content[] = [
-    ...conversationHistory,
-    { role: 'user', parts: [{ text: SUGGESTION_PROMPT }] },
-  ];
+  // A gateway opens a conversation for anything but a one-message request,
+  // and replayed history is not a continuation there. It gets a bounded text
+  // transcript and the instruction in a single message, on a small model.
+  const gateway = reachesOrganizaOne(config.getContentGeneratorConfig?.());
+  const model =
+    modelOverride ??
+    (gateway ? config.getAuxiliaryModel() : config.getFastModel()) ??
+    config.getModel();
+  const contents: Content[] = gateway
+    ? [
+        {
+          role: 'user',
+          parts: [
+            {
+              text: `Recent conversation, oldest first:\n\n${buildSuggestionTranscript(conversationHistory)}\n\n${SUGGESTION_PROMPT}`,
+            },
+          ],
+        },
+      ]
+    : [
+        ...conversationHistory,
+        { role: 'user', parts: [{ text: SUGGESTION_PROMPT }] },
+      ];
 
   const result = await runSideQuery(config, {
     purpose: 'prompt-suggestion',
@@ -228,6 +298,9 @@ async function generateViaBaseLlm(
     // Suggestions are best-effort UI hints; if the model is unavailable,
     // the user shouldn't pay 7× the latency for a hint they may ignore.
     maxAttempts: 1,
+    // An appended language rule would travel as a system prompt; the prompt
+    // already asks for the user's own style.
+    ...(gateway && { skipOutputLanguagePreference: true }),
   });
 
   const text = result.text;

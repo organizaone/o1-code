@@ -77,6 +77,11 @@ export interface SideQueryJsonOptions<TResponse> {
    * new user-visible side queries honor the preference automatically.
    */
   skipOutputLanguagePreference?: boolean;
+  /**
+   * On a gateway, send the request as one message without the schema tool,
+   * so it runs as a short side call instead of opening a conversation.
+   */
+  gatewaySideCall?: boolean;
   validate?: (response: TResponse) => string | null;
 }
 
@@ -266,6 +271,7 @@ export async function runSideQuery<TResponse>(
       ...(options.maxAttempts !== undefined && {
         maxAttempts: options.maxAttempts,
       }),
+      ...(options.gatewaySideCall && { gatewaySideCall: true }),
     })) as TResponse;
 
     const schemaError = SchemaValidator.validate(options.schema, response);

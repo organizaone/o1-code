@@ -58,6 +58,7 @@ import { reachesOrganizaOne } from '../providers/presets/organizaone.js';
 import {
   createGatewayIndependentRequest,
   gatewayIndependentInput,
+  gatewaySideCallInput,
   type GatewayOperationPurpose,
 } from '../providers/gateway-request.js';
 
@@ -382,6 +383,12 @@ export interface GenerateJsonOptions {
    * The maximum number of attempts for the request.
    */
   maxAttempts?: number;
+  /**
+   * On a gateway, send the request as one message without the schema tool,
+   * so it runs as a short side call instead of opening a conversation. For
+   * calls whose input is small and whose answer is a small JSON object.
+   */
+  gatewaySideCall?: boolean;
 }
 
 /**
@@ -451,8 +458,19 @@ export class BaseLlmClient {
     const independent = isGateway
       ? createGatewayIndependentRequest(options.gatewayPurpose)
       : undefined;
+    // A tool declaration makes the gateway open a full conversation for the
+    // call. A caller that opts in gets the schema as text in a one-message
+    // request instead, and the JSON is read from the reply.
+    const asSideCall = isGateway && options.gatewaySideCall === true;
     const requestContents = slimCompactionInput(
-      isGateway ? gatewayIndependentInput(contents) : contents,
+      asSideCall
+        ? gatewaySideCallInput(
+            contents,
+            `Reply with only a raw JSON object matching this JSON schema, with no Markdown fences or prose:\n${JSON.stringify(schema)}`,
+          )
+        : isGateway
+          ? gatewayIndependentInput(contents)
+          : contents,
       contentGeneratorConfig.modalities,
     ).slimmedHistory;
     const budgetedConfig = budgetOutputTokensForWindow(
@@ -463,7 +481,7 @@ export class BaseLlmClient {
       resolvedContextWindowSize,
       resolveSlimmingConfig(this.config.getChatCompression?.())
         .imageTokenEstimate,
-      tools,
+      asSideCall ? undefined : tools,
     );
 
     try {
@@ -472,19 +490,23 @@ export class BaseLlmClient {
           {
             model: requestModel,
             ...(independent ? { gatewayIndependentRequest: independent } : {}),
-            config: {
-              ...budgetedConfig,
-              tools,
-              // Force the model to call the respond_in_schema tool rather
-              // than free-texting. Without this, Anthropic-native and
-              // some OpenAI-compat providers default to tool_choice=auto
-              // and may skip the tool call entirely — especially
-              // adaptive-thinking models that consume the tiny output
-              // budget on thinking before producing any tool_use.
-              toolConfig: {
-                functionCallingConfig: { mode: FunctionCallingConfigMode.ANY },
-              },
-            },
+            config: asSideCall
+              ? budgetedConfig
+              : {
+                  ...budgetedConfig,
+                  tools,
+                  // Force the model to call the respond_in_schema tool rather
+                  // than free-texting. Without this, Anthropic-native and
+                  // some OpenAI-compat providers default to tool_choice=auto
+                  // and may skip the tool call entirely — especially
+                  // adaptive-thinking models that consume the tiny output
+                  // budget on thinking before producing any tool_use.
+                  toolConfig: {
+                    functionCallingConfig: {
+                      mode: FunctionCallingConfigMode.ANY,
+                    },
+                  },
+                },
             contents: requestContents,
           },
           promptId ?? '',

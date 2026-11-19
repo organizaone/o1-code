@@ -9067,6 +9067,81 @@ describe('Server Config (config.ts)', () => {
       expect(config.getFastModel()).toBe('fast-model');
     });
 
+    describe('getAuxiliaryModel', () => {
+      const gatewayModels = (ids: string[]) => ({
+        [AuthType.USE_ANTHROPIC]: ids.map((id) => ({
+          id,
+          name: id,
+          baseUrl: 'https://api.organizaone.com',
+          envKey: 'ORGANIZAONE_API_KEY',
+        })),
+      });
+      const onGateway = (config: Config, model: string) =>
+        vi.spyOn(config, 'getContentGeneratorConfig').mockReturnValue({
+          model,
+          authType: AuthType.USE_ANTHROPIC,
+          baseUrl: 'https://api.organizaone.com',
+        });
+
+      it('picks the small model the gateway lists beside the session model', () => {
+        const config = new Config({
+          ...baseParams,
+          authType: AuthType.USE_ANTHROPIC,
+          model: 'claude-opus-5-5',
+          modelProvidersConfig: gatewayModels([
+            'claude-opus-5-5',
+            'claude-sonnet-5',
+            'claude-haiku-4-5',
+          ]),
+        });
+        onGateway(config, 'claude-opus-5-5');
+
+        expect(config.getFastModel()).toBeUndefined();
+        expect(config.getAuxiliaryModel()).toBe('claude-haiku-4-5');
+      });
+
+      it('is undefined when the gateway lists no small model', () => {
+        const config = new Config({
+          ...baseParams,
+          authType: AuthType.USE_ANTHROPIC,
+          model: 'claude-opus-5-5',
+          modelProvidersConfig: gatewayModels([
+            'claude-opus-5-5',
+            'claude-sonnet-5',
+          ]),
+        });
+        onGateway(config, 'claude-opus-5-5');
+
+        expect(config.getAuxiliaryModel()).toBeUndefined();
+      });
+
+      it('does not pick a model for a provider that is not a gateway', () => {
+        const config = new Config({
+          ...baseParams,
+          authType: AuthType.USE_ANTHROPIC,
+          model: 'claude-opus-5-5',
+          modelProvidersConfig: {
+            [AuthType.USE_ANTHROPIC]: [
+              'claude-opus-5-5',
+              'claude-haiku-4-5',
+            ].map((id) => ({
+              id,
+              name: id,
+              baseUrl: 'https://api.example.com',
+              envKey: 'EXAMPLE_API_KEY',
+            })),
+          },
+        });
+        vi.spyOn(config, 'getContentGeneratorConfig').mockReturnValue({
+          model: 'claude-opus-5-5',
+          authType: AuthType.USE_ANTHROPIC,
+          baseUrl: 'https://api.example.com',
+        });
+
+        expect(config.getAuxiliaryModel()).toBeUndefined();
+      });
+    });
+
     it('keeps authType-qualified selectors when the auth type matches the current auth type', () => {
       const config = new Config({
         ...baseParams,
