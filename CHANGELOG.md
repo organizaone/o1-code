@@ -7,6 +7,8 @@ follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.30.1] - 2026-11-19
+
 ### Fixed
 
 - On an o1-gateway, the next-step suggestion and the memory selection now run as short background
