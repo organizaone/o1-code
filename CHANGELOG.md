@@ -7,6 +7,14 @@ follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Changed
+
+- The o1-gateway device code now follows o1-gateway 13.0.0. A connection code works once, within
+  30 minutes of being made, and the device's key is made on this machine and never leaves it. A
+  code or a saved connection from an earlier version no longer works: make a new code. When the
+  device is disconnected or set up on another machine, O1-Code forgets the connection and asks
+  for a new code.
+
 ## [0.30.2] - 2026-11-19
 
 ### Fixed

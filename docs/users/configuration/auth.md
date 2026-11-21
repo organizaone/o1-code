@@ -11,12 +11,24 @@ four entries:
   expires you renew it on your account page (My devices → Renew) or sign in again. If the device is
   removed or its key replaced, O1-Code forgets the credential and offers to sign in again.
   **o1-gateway device code** is for a network that intercepts TLS: paste the connection code the
-  OrganizaOne console gives for your device (or the path to a kit's `o1-connect.code`), compare
-  every fingerprint O1-Code shows with the console's list read on a device off that network, and
-  type `yes`. O1-Code saves the connection in the OS keychain (or an encrypted file in its home
-  directory) and, at the start of each session, opens the proxy's pinned tunnel in-process and
-  talks to it; nothing is sent if the network presents a key that is not pinned. If the proxy stops
-  accepting the device, O1-Code forgets the connection and asks for a new code.
+  OrganizaOne console or your account page gives for your device (or the path to a kit's
+  `o1-connect.code`), compare every fingerprint O1-Code shows with the console's list read on a
+  device off that network, and type `yes`. A code works **once**, within **30 minutes** of being
+  made. O1-Code then makes the device's key on this machine and registers it with the gateway
+  through the pinned tunnel, which needs the network and takes a few seconds; the key never leaves
+  the machine. The connection is saved in the OS keychain (or an encrypted file in O1-Code's home
+  directory) and, at the start of each session, O1-Code opens the pinned tunnel in-process and
+  talks to it; nothing is sent if the network presents a key that is not pinned. A device set up
+  this way works only through the tunnel.
+  - Making a new code does not cut the machine that is connected: it keeps working until the new
+    code is used. **Disconnect** on the account page cuts it at once.
+  - If the gateway stops accepting the device (it was disconnected, removed, or set up on another
+    machine), O1-Code forgets the connection and asks for a new code, at the start of a session or
+    in the middle of one.
+  - A code that was already used is refused. If you did not use it, someone else did: check the
+    device on your account page and use **Disconnect** if the connected machine is not yours.
+  - A code or a saved connection from before one-use codes (the code starts with `o1gw1.`) no
+    longer works: make a new code.
 - **API key**: one alphabetical list of the built-in providers you connect with a key —
   Alibaba Cloud, Anthropic, DeepSeek, Google Gemini, Kimi (Moonshot), MiniMax, ModelScope, OpenAI,
   xAI and Z.AI. **Alibaba Cloud** opens a second list with its three plans: **Coding Plan** (for individual
@@ -291,7 +303,9 @@ name of a sign-in, and the saved key with its middle hidden — and asks before 
 Confirming deletes the saved key and its `credential` reference, forgets an o1-gateway device code,
 clears `security.auth.selectedType`, disconnects the session and opens the `/auth` dialog; the next
 start asks which provider to connect. Nothing is revoked at the provider: a key stays valid until you
-revoke it there, and an OrganizaOne device stays on your account page until you remove it. A local server is not changed.
+revoke it there, and an OrganizaOne device stays on your account page until you remove it. Forgetting
+an o1-gateway device code deletes the device's key from this machine, so coming back takes a new
+code. A local server is not changed.
 A key that
 comes from an environment variable you set yourself is not O1-Code's to remove: `/logout` names the
 variable, disconnects the session and leaves the variable as it is.

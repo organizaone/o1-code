@@ -19,6 +19,7 @@ import {
 } from './retryErrorClassification.js';
 import { retryContext } from './retryContext.js';
 import { ResponsesHttpError } from './responses-http-error.js';
+import { isO1ConnectDeviceRefused } from './o1-connect-device-refused.js';
 
 const debugLogger = createDebugLogger('RETRY');
 
@@ -116,6 +117,9 @@ function defaultShouldRetry(
   if (error instanceof ResponsesHttpError) {
     return error.shouldRetry(extraRetryErrorCodes);
   }
+  // A tunnel whose device key the gateway refuses answers 502 until the
+  // device is set up again: no attempt can succeed.
+  if (isO1ConnectDeviceRefused(error)) return false;
   const status = getErrorStatus(error);
   if (status !== undefined && status >= 500 && status < 600) {
     return true;

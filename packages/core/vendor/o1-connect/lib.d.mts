@@ -1,4 +1,4 @@
-// o1-connect-lib 12.18.3 - Copyright (c) 2026 Silvio Chagas. All rights reserved. Proprietary: see LICENSE
+// o1-connect-lib 13.0.0 - Copyright (c) 2026 Silvio Chagas. All rights reserved. Proprietary: see LICENSE
 /**
  * o1-connect as a library (docs/O1-CODE-LOGIN.md §3): the pinned tunnel
  * of `o1-connect run`, started inside the host app instead of as a
@@ -6,19 +6,21 @@
  * dist/client/lib.mjs (dependency-free, node: modules only) with its types
  * in lib.d.ts / lib.d.mts, and served by the proxy under /client/.
  *
- * - setup(code, { store, onFingerprint }) reads an `o1gw1.` connection code,
+ * - setup(code, { store, onFingerprint }) reads an `o1gw2.` connection code,
  *   shows every proxy key's fingerprint to the app (which asks its user to
  *   compare them with the console, off this network), and only on a yes
- *   saves the configuration through the app's store.
+ *   makes this device's key, enrols it with the code (one use, through the
+ *   pinned tunnel) and saves the configuration through the app's store.
  * - open({ store }) starts the tunnel and a loopback endpoint that speaks the
- *   proxy's API with the device token swapped in, and returns its base URL, a
- *   per-session key for it, and close().
+ *   proxy's API as this device (each tunnel is proven with the device's key;
+ *   no token goes on a request), and returns its base URL, a per-session key
+ *   for it, and close().
  * - forget({ store }) deletes the saved configuration.
  * - openRemote({ connection | baseUrl + apiKey, session, history }) puts a
  *   terminal session in remote mode (remote.ts, §5): the gateway mirrors what
  *   the app sends to the owner's browser and hands back its input and answers.
  *
- * Secrets (the device token) live only in the app's SecretStore and in this
+ * Secrets (the device's private key) live only in the app's SecretStore and in this
  * process's memory: the library writes no file, sets no environment
  * variable and logs nothing of its own. It reads HTTPS_PROXY / NO_PROXY for
  * the tunnel's outer connection, as the CLI does. Every public type is
@@ -28,7 +30,7 @@
 export declare const version: string;
 /**
  * Where the library keeps its configuration (the proxy's URL, the device's
- * name, the pinned keys and the device token), implemented by the host app:
+ * name, the pinned keys and the device's private key), implemented by the host app:
  * the OS keychain, DPAPI, a passphrase-sealed file of its own. One entry, a
  * JSON string, under `name` (default "aipp-connect"). The library calls
  * nothing else to keep a secret.
@@ -43,8 +45,14 @@ export interface SecretStore {
 /** How the tunnel is reached: `auto` tries the WebSocket, then POST. */
 export type Transport = "auto" | "websocket" | "post";
 export type O1ConnectErrorCode = 
-/** The connection code is not an `o1gw1.` code, or is damaged. */
+/** The connection code is not an `o1gw2.` code, is damaged, or the proxy does not know it (a newer one replaced it). */
 "invalid_code"
+/** The connection code was already used (a code works once): make a new one. If the user did not use it, someone else did. */
+ | "code_used"
+/** The connection code lapsed (30 minutes): make a new one. */
+ | "code_expired"
+/** The proxy no longer accepts this device's key (disconnected, set up elsewhere, removed): run setup with a new code. */
+ | "device_refused"
 /** onFingerprint answered no: nothing was saved. */
  | "fingerprint_rejected"
 /** The store holds no configuration under this name: run setup. */
@@ -95,6 +103,8 @@ export interface SetupOptions {
     transport?: Transport;
     /** The store entry's name; default "aipp-connect". */
     name?: string;
+    /** Whether the enrolment's outer requests name this library (`o1-connect-lib/<version>`); default false. */
+    identify?: boolean;
 }
 export interface SetupResult extends SetupInfo {
     fingerprints: string[];
@@ -131,7 +141,7 @@ export interface Connection {
     /**
      * The key the endpoint asks for (Authorization: Bearer, or x-api-key),
      * made for this session and never saved: other local processes cannot use
-     * the endpoint without it. Not the device token.
+     * the endpoint without it. Not the device's key.
      */
     apiKey: string;
     port: number;
@@ -253,14 +263,15 @@ export interface RemoteAgent {
  */
 export declare function openRemote(opts: RemoteOpenOptions): Promise<RemoteAgent>;
 /**
- * Reads the code, has the app confirm every key's fingerprint, then saves the
- * configuration under `name` in the store (replacing any there). Nothing is
- * saved unless onFingerprint answers true. No network access.
+ * Reads the code, has the app confirm every key's fingerprint, then makes this
+ * device's key, enrols it with the code through the pinned tunnel (the code's
+ * one use) and saves the configuration under `name` in the store (replacing
+ * any there). Nothing is sent or saved unless onFingerprint answers true.
  */
 export declare function setup(code: string, opts: SetupOptions): Promise<SetupResult>;
 /** Starts the tunnel and the loopback endpoint from the configuration in the store. */
 export declare function open(opts: OpenOptions): Promise<Connection>;
-/** Deletes the configuration from the store. The device's token still works until it is removed or replaced in the console. */
+/** Deletes the configuration from the store, and the device's key with it: the device needs a new connection code to come back. */
 export declare function forget(opts: {
     store: SecretStore;
     name?: string;

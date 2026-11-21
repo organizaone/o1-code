@@ -2424,6 +2424,52 @@ export default {
     'The old file stays beside it as a .bak. Type replace to set it aside and save the connection:',
   'Nothing was moved: the secret store was left as it was.':
     'Nothing was moved: the secret store was left as it was.',
+  'A code works once, within 30 minutes of being made. This device’s key is made on this machine and never leaves it.':
+    'A code works once, within 30 minutes of being made. This device’s key is made on this machine and never leaves it.',
+  'Checking the secret store…': 'Checking the secret store…',
+  'Making this device’s key and enrolling it through the tunnel…':
+    'Making this device’s key and enrolling it through the tunnel…',
+  'enter paste another code · esc back': 'enter paste another code · esc back',
+  'The code was used by this attempt and nothing was saved: make a new one.':
+    'The code was used by this attempt and nothing was saved: make a new one.',
+  'This connection code is from an older version (it starts with o1gw1.) and no longer works. Make a new one on the account page or in the console and paste it.':
+    'This connection code is from an older version (it starts with o1gw1.) and no longer works. Make a new one on the account page or in the console and paste it.',
+  'That is not a connection code the gateway accepts: it does not start with o1gw2., it is damaged, or a newer code replaced it. Make a new one and paste it.':
+    'That is not a connection code the gateway accepts: it does not start with o1gw2., it is damaged, or a newer code replaced it. Make a new one and paste it.',
+  'This connection code was already used: a code works once. Make a new one and paste it. If you did not use it, someone else did: check the device on your account page and use Disconnect if the connected machine is not yours.':
+    'This connection code was already used: a code works once. Make a new one and paste it. If you did not use it, someone else did: check the device on your account page and use Disconnect if the connected machine is not yours.',
+  'This connection code expired: a code works for 30 minutes after it is made. Make a new one and paste it.':
+    'This connection code expired: a code works for 30 minutes after it is made. Make a new one and paste it.',
+  'This device was disconnected or set up on another machine: the gateway no longer accepts its key. The connection saved here was removed. Paste a new connection code with /auth.':
+    'This device was disconnected or set up on another machine: the gateway no longer accepts its key. The connection saved here was removed. Paste a new connection code with /auth.',
+  'No o1-gateway connection is saved on this machine. Paste a connection code with /auth to set one up.':
+    'No o1-gateway connection is saved on this machine. Paste a connection code with /auth to set one up.',
+  'This o1-gateway setup is from an older version and cannot be used. The connection saved here was removed. Paste a new connection code with /auth.':
+    'This o1-gateway setup is from an older version and cannot be used. The connection saved here was removed. Paste a new connection code with /auth.',
+  'The secret store cannot be read: {{reason}}. Setting up the connection code again offers to keep it as a .bak and start a new one.':
+    'The secret store cannot be read: {{reason}}. Setting up the connection code again offers to keep it as a .bak and start a new one.',
+  'The secret store refused the connection ({{reason}}).':
+    'The secret store refused the connection ({{reason}}).',
+  'The secret store refused the connection (locked or unavailable).':
+    'The secret store refused the connection (locked or unavailable).',
+  "The proxy's key is not the one you pinned: this network may be intercepting the connection. Nothing was sent. Do not use a direct connection on this network.":
+    "The proxy's key is not the one you pinned: this network may be intercepting the connection. Nothing was sent. Do not use a direct connection on this network.",
+  'The tunnel to o1-gateway could not be opened (network, proxy, or a device that may not tunnel). Nothing was saved, and the code was not used: it still works inside its 30 minutes.':
+    'The tunnel to o1-gateway could not be opened (network, proxy, or a device that may not tunnel). Nothing was saved, and the code was not used: it still works inside its 30 minutes.',
+  'The tunnel to o1-gateway could not be opened (network, proxy, or a device that may not tunnel). Try again later; if it persists, paste a new connection code.':
+    'The tunnel to o1-gateway could not be opened (network, proxy, or a device that may not tunnel). Try again later; if it persists, paste a new connection code.',
+  'No loopback port could be opened for the tunnel: {{reason}}':
+    'No loopback port could be opened for the tunnel: {{reason}}',
+  'The gateway would not open the remote session: {{reason}}':
+    'The gateway would not open the remote session: {{reason}}',
+  'The address answered, but not as a remote session gateway. Check the connection and try again.':
+    'The address answered, but not as a remote session gateway. Check the connection and try again.',
+  'The question was answered elsewhere before a viewer could.':
+    'The question was answered elsewhere before a viewer could.',
+  'OrganizaOne no longer accepts this device: it was disconnected, removed, or set up on another machine. Paste a new connection code with /auth.':
+    'OrganizaOne no longer accepts this device: it was disconnected, removed, or set up on another machine. Paste a new connection code with /auth.',
+  'OrganizaOne no longer accepts this device: it was removed or its key was replaced. Sign in again with /auth.':
+    'OrganizaOne no longer accepts this device: it was removed or its key was replaced. Sign in again with /auth.',
   '{{used}}/{{limit}} requests per minute':
     '{{used}}/{{limit}} requests per minute',
   '{{used}}/{{limit}} tokens per minute':

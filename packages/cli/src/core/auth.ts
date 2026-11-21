@@ -11,6 +11,8 @@ import {
   logAuth,
   AuthEvent,
 } from '@organizaone/o1-code-core';
+import { isO1ConnectError } from '@organizaone/o1-code-core/providers/o1-connect/session.js';
+import { localizeO1ConnectError } from '../ui/auth/o1-connect-message.js';
 
 /**
  * Handles the initial authentication flow.
@@ -35,7 +37,11 @@ export async function performInitialAuth(
     const authEvent = new AuthEvent(authType, 'auto', 'success');
     logAuth(config, authEvent);
   } catch (e) {
-    const errorMessage = `Failed to login. Message: ${getErrorMessage(e)}`;
+    // An o1-connect error already says what happened and what to do, in the
+    // interface's language.
+    const errorMessage = isO1ConnectError(e)
+      ? localizeO1ConnectError(e, { stage: 'open' })
+      : `Failed to login. Message: ${getErrorMessage(e)}`;
 
     // Log authentication failure
     const authEvent = new AuthEvent(authType, 'auto', 'error', errorMessage);

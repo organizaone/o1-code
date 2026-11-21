@@ -752,6 +752,44 @@ describe('Turn', () => {
       });
     });
 
+    it('reads the tunnel’s 502 that names the device’s key as a refused device, mid-session', async () => {
+      const text =
+        "the proxy does not accept this device's key - run setup again with a new connection code";
+      const error = Object.assign(new Error(`502 ${text}`), {
+        status: 502,
+        headers: new Headers(),
+        error: {
+          type: 'error',
+          error: { type: 'tunnel_error', message: text },
+        },
+      });
+      mockSendMessageStream.mockRejectedValue(error);
+      const chat = mockChatInstance as unknown as {
+        getActiveBaseUrl: () => string;
+        isO1ConnectSession: () => boolean;
+      };
+      chat.getActiveBaseUrl = () => 'http://127.0.0.1:4242';
+      chat.isO1ConnectSession = () => true;
+      mockGetHistoryLength.mockReturnValue(0);
+      mockGetHistoryTailShallow.mockReturnValue([]);
+      mockMaybeIncludeSchemaDepthContext.mockResolvedValue(undefined);
+      const events = [];
+      for await (const event of turn.run(
+        'test-model',
+        [{ text: 'hello' }],
+        new AbortController().signal,
+      )) {
+        events.push(event);
+      }
+      const errorEvent = events[0] as ServerLlmErrorEvent;
+      expect(errorEvent.value.error.status).toBe(502);
+      expect(errorEvent.value.error.organizaone).toMatchObject({
+        kind: 'revoked',
+        via: 'o1-connect',
+      });
+      expect(errorEvent.value.error.message).toContain('new connection code');
+    });
+
     it('should yield Error event and report if sendMessageStream throws', async () => {
       const error = new Error('API Error');
       mockSendMessageStream.mockRejectedValue(error);

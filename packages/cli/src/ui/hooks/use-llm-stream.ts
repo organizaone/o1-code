@@ -2417,9 +2417,10 @@ export const useLlmStream = (
       const isShowingAutoRetry = retryCountdownTimerRef.current !== null;
       clearRetryCountdown();
 
-      // A 401 from the OrganizaOne proxy says why the device token stopped
-      // working: a removed device is forgotten and the sign-in offered again,
-      // an expired key offers the two ways out; a suspended one is just shown.
+      // The OrganizaOne proxy says why the device's key stopped working (a
+      // 401, or through the tunnel the 502 that names the key): a refused
+      // device is forgotten and the sign-in offered again, an expired key
+      // offers the two ways out; a suspended one is just shown.
       if (
         reactToOrganizaOneUnauthorized(eventValue.error.organizaone, {
           forget: forgetOrganizaOneCredential,

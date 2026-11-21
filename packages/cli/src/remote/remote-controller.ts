@@ -6,10 +6,8 @@
 
 import { hostname } from 'node:os';
 import type { Config } from '@organizaone/o1-code-core/config/config.js';
-import {
-  describeO1ConnectError,
-  isO1ConnectError,
-} from '@organizaone/o1-code-core/providers/o1-connect/session.js';
+import { isO1ConnectError } from '@organizaone/o1-code-core/providers/o1-connect/session.js';
+import { localizeO1ConnectError } from '../ui/auth/o1-connect-message.js';
 import type {
   RemoteAgentEvents,
   RemoteDecision,
@@ -262,7 +260,7 @@ export class RemoteController {
       }
       return {
         status: 'failed',
-        message: describeO1ConnectError(error).message,
+        message: localizeO1ConnectError(error),
       };
     }
     this.attach(session, sessionName);
