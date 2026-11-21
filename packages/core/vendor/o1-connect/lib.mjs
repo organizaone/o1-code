@@ -1,14 +1,17 @@
-// o1-connect-lib 12.18.3 - Copyright (c) 2026 Silvio Chagas. All rights reserved. Proprietary: see LICENSE
+// o1-connect-lib 13.0.0 - Copyright (c) 2026 Silvio Chagas. All rights reserved. Proprietary: see LICENSE
 
 // src/shared/tunnel-protocol.ts
-import { createHash } from "node:crypto";
+import { createHash, createPublicKey, sign, verify } from "node:crypto";
 var TUNNEL_PATH = "/tunnel";
 var TUNNEL_PINS_PATH = "/tunnel/pins";
-var TUNNEL_PROTOCOL = "o1gw-tunnel.v1";
+var TUNNEL_PROTOCOL = "o1gw-tunnel.v2";
+var TUNNEL_ENROLL_PATH = "/tunnel/enroll";
+var TUNNEL_HELLO_PATH = "/tunnel/hello";
 var TUNNEL_SERVERNAME = "o1gw-tunnel";
-var CODE_PREFIX = "o1gw1.";
+var CODE_PREFIX = "o1gw2.";
+var OLD_CODE_PREFIX = "o1gw1.";
 var PIN = /^sha256\/[A-Za-z0-9+/]{43}=$/;
-var TOKEN = /^[0-9a-f]{64}$/;
+var SECRET = /^[0-9a-f]{64}$/;
 var DEVICE = /^[a-z0-9][a-z0-9_-]{0,31}$/i;
 var MAX_PINS = 4;
 var MAX_HOSTS = 4;
@@ -47,7 +50,7 @@ function originOf(value, what) {
   }
   return url.origin;
 }
-function validateCode(c) {
+function validateTarget(c) {
   if (!c || typeof c !== "object") throw new ConnectionCodeError("the code does not hold a connection");
   const o = c;
   const url = originOf(String(o.url), "URL");
@@ -55,7 +58,6 @@ function validateCode(c) {
   if (!Array.isArray(o.pins) || o.pins.length === 0 || o.pins.length > MAX_PINS || !o.pins.every((p) => typeof p === "string" && isPin(p))) {
     throw new ConnectionCodeError("the pin list is not valid");
   }
-  if (typeof o.token !== "string" || !TOKEN.test(o.token)) throw new ConnectionCodeError("the device token is not valid");
   let urls;
   if (o.urls !== void 0) {
     if (!Array.isArray(o.urls) || o.urls.length === 0 || o.urls.some((u) => typeof u !== "string")) throw new ConnectionCodeError("the failover host list is not valid");
@@ -64,11 +66,19 @@ function validateCode(c) {
     if (new Set(all).size !== all.length) throw new ConnectionCodeError("the failover host list repeats a host");
     if (all.length > MAX_HOSTS) throw new ConnectionCodeError(`the code names more than ${MAX_HOSTS} hosts`);
   }
-  return { url, ...urls === void 0 ? {} : { urls }, device: o.device, pins: [...o.pins], token: o.token };
+  return { url, ...urls === void 0 ? {} : { urls }, device: o.device, pins: [...o.pins] };
+}
+function validateCode(c) {
+  const target = validateTarget(c);
+  const o = c;
+  if (typeof o.enroll !== "string" || !SECRET.test(o.enroll)) throw new ConnectionCodeError("the enrolment secret is not valid");
+  if (typeof o.expires !== "string" || o.expires.length > 40 || !Number.isFinite(Date.parse(o.expires))) throw new ConnectionCodeError("the code's expiry is not valid");
+  return { ...target, enroll: o.enroll, expires: new Date(Date.parse(o.expires)).toISOString() };
 }
 function decodeConnectionCode(s) {
   const text = s.trim();
-  if (!text.startsWith(CODE_PREFIX)) throw new ConnectionCodeError("this is not an o1-connect code (it starts with o1gw1.)");
+  if (text.startsWith(OLD_CODE_PREFIX)) throw new ConnectionCodeError("this code is from before one-use codes (it starts with o1gw1.): make a new one in the console");
+  if (!text.startsWith(CODE_PREFIX)) throw new ConnectionCodeError("this is not an o1-connect code (it starts with o1gw2.)");
   let parsed;
   try {
     parsed = JSON.parse(Buffer.from(text.slice(CODE_PREFIX.length), "base64url").toString("utf8"));
@@ -76,6 +86,108 @@ function decodeConnectionCode(s) {
     throw new ConnectionCodeError("the code is damaged: copy it again from the console");
   }
   return validateCode(parsed);
+}
+var EXPORTER_LABEL = "EXPORTER-o1gw-tunnel-device";
+function proofBytes(socket, purpose) {
+  return Buffer.concat([Buffer.from(`${TUNNEL_PROTOCOL} ${purpose}
+`, "utf8"), socket.exportKeyingMaterial(32, EXPORTER_LABEL, Buffer.alloc(0))]);
+}
+function signProof(privateKey, bytes) {
+  return sign("sha256", bytes, privateKey).toString("base64");
+}
+
+// src/client/device-key.ts
+import { createPrivateKey, createPublicKey as createPublicKey2, generateKeyPairSync } from "node:crypto";
+var SAVED_KEY = /^[A-Za-z0-9+/]{100,400}={0,2}$/;
+function isSavedKey(s) {
+  return typeof s === "string" && SAVED_KEY.test(s);
+}
+function keyOf(privateKey) {
+  const der = createPublicKey2(privateKey).export({ type: "spki", format: "der" });
+  return { privateKey, spki: der.toString("base64"), pin: pinOfSpki(der) };
+}
+function newDeviceKey() {
+  const { privateKey } = generateKeyPairSync("ec", { namedCurve: "P-256" });
+  return { key: keyOf(privateKey), saved: privateKey.export({ type: "pkcs8", format: "der" }).toString("base64") };
+}
+function loadDeviceKey(saved) {
+  if (!isSavedKey(saved)) throw new Error("the device key is not valid");
+  const privateKey = createPrivateKey({ key: Buffer.from(saved, "base64"), format: "der", type: "pkcs8" });
+  if (privateKey.asymmetricKeyType !== "ec" || privateKey.asymmetricKeyDetails?.namedCurve !== "prime256v1") throw new Error("the device key is not valid");
+  return keyOf(privateKey);
+}
+var DeviceRefusedError = class extends Error {
+  constructor(code, status, message) {
+    super(message);
+    this.code = code;
+    this.status = status;
+  }
+  code;
+  status;
+};
+var MAX_ANSWER = 16 * 1024;
+function exchange(socket, host, path, body, timeoutMs = 15e3) {
+  return new Promise((resolve, reject) => {
+    let buf = Buffer.alloc(0);
+    let settled = false;
+    const finish = (err, value) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
+      socket.off("data", onData);
+      socket.off("error", onError);
+      socket.off("close", onClose);
+      if (err) reject(err);
+      else resolve(value);
+    };
+    const onError = (err) => finish(err);
+    const onClose = () => finish(new Error("tunnel closed before the proxy answered"));
+    const onData = (chunk) => {
+      buf = Buffer.concat([buf, chunk]);
+      if (buf.length > MAX_ANSWER) return finish(new Error("the proxy's answer is too large"));
+      const end = buf.indexOf("\r\n\r\n");
+      if (end < 0) return;
+      const head = buf.subarray(0, end).toString("latin1");
+      const status = /^HTTP\/1\.[01] (\d{3})/.exec(head);
+      const length = /\r\ncontent-length:\s*(\d+)/i.exec(head);
+      if (!status || !length) return finish(new Error("the proxy's answer is not one this client reads"));
+      const size = Number(length[1]);
+      if (buf.length < end + 4 + size) return;
+      let parsed = null;
+      try {
+        parsed = JSON.parse(buf.subarray(end + 4, end + 4 + size).toString("utf8"));
+      } catch {
+      }
+      finish(null, { status: Number(status[1]), body: parsed });
+    };
+    const timer = setTimeout(() => finish(new Error("the proxy did not answer in time")), timeoutMs);
+    timer.unref();
+    socket.on("data", onData);
+    socket.on("error", onError);
+    socket.on("close", onClose);
+    const payload = Buffer.from(JSON.stringify(body), "utf8");
+    socket.write(Buffer.concat([
+      Buffer.from(`POST ${path} HTTP/1.1\r
+Host: ${host}\r
+Content-Type: application/json\r
+Content-Length: ${payload.length}\r
+\r
+`, "latin1"),
+      payload
+    ]));
+  });
+}
+function refusal(answer, fallback) {
+  const e = answer.body?.error;
+  return new DeviceRefusedError(typeof e?.code === "string" ? e.code : fallback, answer.status, typeof e?.message === "string" ? e.message : `the proxy answered ${answer.status}`);
+}
+async function proveDevice(socket, host, key) {
+  const answer = await exchange(socket, host, TUNNEL_HELLO_PATH, { key: key.pin, proof: signProof(key.privateKey, proofBytes(socket, "hello")) });
+  if (answer.status !== 200) throw refusal(answer, "device_key");
+}
+async function enrollDevice(socket, host, key, secret) {
+  const answer = await exchange(socket, host, TUNNEL_ENROLL_PATH, { secret, key: key.spki, proof: signProof(key.privateKey, proofBytes(socket, "enroll")) });
+  if (answer.status !== 200) throw refusal(answer, "code_invalid");
 }
 
 // src/client/inner.ts
@@ -461,7 +573,7 @@ var SessionGoneError = class extends Error {
   }
 };
 var EMPTY = Buffer.alloc(0);
-var MAX_ANSWER = RESPONSE_HEAD + MAX_DOWN;
+var MAX_ANSWER2 = RESPONSE_HEAD + MAX_DOWN;
 var FATAL_STATUS = /* @__PURE__ */ new Set([400, 403, 429]);
 var delay = (ms) => new Promise((r) => setTimeout(r, ms));
 function isBusy(r) {
@@ -529,7 +641,7 @@ function makeExchanger(base, o) {
       let size = 0;
       res.on("data", (c) => {
         size += c.length;
-        if (size > MAX_ANSWER) {
+        if (size > MAX_ANSWER2) {
           req.destroy(new Error("tunnel answer too large"));
           return;
         }
@@ -788,6 +900,63 @@ async function connectInner(base, pins, opts = {}) {
   return socket;
 }
 
+// src/client/enroll.ts
+var EnrollError = class extends Error {
+  constructor(code, message, options) {
+    super(message, options);
+    this.code = code;
+  }
+  code;
+};
+var REFUSALS = /* @__PURE__ */ new Set(["code_used", "code_expired", "code_invalid", "tunnel_not_allowed"]);
+var ENROLL_ADVICE = {
+  code_used: "this connection code was already used. If it was not you, someone else has enrolled with it: make a new code in the console (that cuts them off) and tell an administrator.",
+  code_expired: "this connection code lapsed (a code works for 30 minutes): make a new one in the console.",
+  code_invalid: "the proxy does not know this connection code (a newer one replaced it, or the device was removed): make a new one in the console.",
+  tunnel_not_allowed: "this device is not allowed to use the tunnel: switch its tunnel on in the console, then make a new code.",
+  identity_mismatch: "the proxy presented a key that is not in the code: possible interception. Nothing was sent.",
+  unavailable: "the proxy could not be reached through the tunnel."
+};
+async function enrollWithCode(code, opts) {
+  const { key, saved } = newDeviceKey();
+  await enrollKey(code, key, opts);
+  return saved;
+}
+async function enrollKey(code, key, opts) {
+  const connect = opts.connect ?? connectInner;
+  const hosts = [code.url, ...code.urls ?? []].map((u) => new URL(u));
+  const transports = opts.transport === "auto" ? ["ws", "post"] : [opts.transport === "post" ? "post" : "ws"];
+  let first = null;
+  for (const transport of transports) {
+    for (const host of hosts) {
+      let socket;
+      try {
+        socket = await connect(host, code.pins, { ca: opts.ca, userAgent: opts.userAgent, env: opts.env, transport });
+      } catch (err) {
+        if (err instanceof IdentityMismatchError) throw new EnrollError("identity_mismatch", ENROLL_ADVICE.identity_mismatch);
+        if (err instanceof TunnelBlockedError && (err.status === 429 || err.status === 503)) {
+          throw new EnrollError("unavailable", `the proxy refused the tunnel (HTTP ${err.status}): try again in a few minutes`, { cause: err });
+        }
+        first ??= err instanceof Error ? err : new Error(String(err));
+        continue;
+      }
+      try {
+        await enrollDevice(socket, host.host, key, code.enroll);
+        return;
+      } catch (err) {
+        if (err instanceof DeviceRefusedError) {
+          if (REFUSALS.has(err.code)) throw new EnrollError(err.code, ENROLL_ADVICE[err.code]);
+          throw new EnrollError("unavailable", `the proxy refused the enrolment (HTTP ${err.status} ${err.code}): ${err.message}`);
+        }
+        first ??= err instanceof Error ? err : new Error(String(err));
+      } finally {
+        socket.destroy();
+      }
+    }
+  }
+  throw new EnrollError("unavailable", `${ENROLL_ADVICE.unavailable} ${first ? first.message : ""}`.trim(), { cause: first ?? void 0 });
+}
+
 // src/client/local-server.ts
 import { createHash as createHash3, randomBytes as randomBytes3, timingSafeEqual } from "node:crypto";
 import http5 from "node:http";
@@ -796,7 +965,7 @@ import http5 from "node:http";
 import http4 from "node:http";
 var TUNNEL_AGENT_MAX_SOCKETS = 4;
 function canSwitch(err) {
-  if (err instanceof IdentityMismatchError || err instanceof BackoffError) return false;
+  if (err instanceof IdentityMismatchError || err instanceof BackoffError || err instanceof DeviceRefusedError) return false;
   if (err instanceof TunnelBlockedError && (err.status === 429 || err.status === 503)) return false;
   return true;
 }
@@ -910,7 +1079,17 @@ var TunnelAgent = class extends http4.Agent {
       return void 0;
     }
     this.opening += 1;
-    const dial2 = (host, transport) => this.connect(this.targets[host], this.pins, { ca: this.target.ca, userAgent: this.target.userAgent, env: this.target.env, transport, onOuter: (i) => this.events.onOuter?.(i) });
+    const dial2 = async (host, transport) => {
+      const socket = await this.connect(this.targets[host], this.pins, { ca: this.target.ca, userAgent: this.target.userAgent, env: this.target.env, transport, onOuter: (i) => this.events.onOuter?.(i) });
+      if (!this.target.device) return socket;
+      try {
+        await proveDevice(socket, this.targets[host].host, this.target.device);
+      } catch (err) {
+        socket.destroy();
+        throw err;
+      }
+      return socket;
+    };
     const hosts = this.targets.map((_, i) => (this.preferred + i) % this.targets.length);
     const transports = this.mode === "auto" ? this.using === "ws" ? ["ws", "post"] : ["post"] : [this.using === "post" ? "post" : "ws"];
     const chain = transports.flatMap((transport) => hosts.map((host) => ({ host, transport })));
@@ -930,7 +1109,7 @@ var TunnelAgent = class extends http4.Agent {
           if (!(err instanceof Error)) throw err;
           if (firstErr === null) firstErr = err;
           if (i + 1 < chain.length && canSwitch(err)) return run(i + 1);
-          throw err instanceof IdentityMismatchError ? err : firstErr;
+          throw err instanceof IdentityMismatchError || err instanceof DeviceRefusedError ? err : firstErr;
         }
       );
     };
@@ -953,6 +1132,7 @@ var TunnelAgent = class extends http4.Agent {
           this.backoff.failure();
           this.events.onMismatch?.(err.received);
         }
+        if (err instanceof DeviceRefusedError) this.events.onRefused?.(err.code, err.message);
         done(err, void 0);
         this.drain();
       }
@@ -968,7 +1148,7 @@ var HEALTH_CACHE_MS = 25e3;
 var HEALTH_TIMEOUT_MS = 2500;
 var RETRY_AFTER = { restarting: "30", unavailable: "30", reconnecting: "5" };
 function blockedBy(err) {
-  return err instanceof BackoffError || err instanceof IdentityMismatchError || err instanceof TunnelBlockedError && (err.status === 401 || err.status === 403 || err.status === 429);
+  return err instanceof BackoffError || err instanceof IdentityMismatchError || err instanceof DeviceRefusedError || err instanceof TunnelBlockedError && (err.status === 401 || err.status === 403 || err.status === 429);
 }
 function stateOf(status, body) {
   if (status >= 200 && status < 300) return "ok";
@@ -995,7 +1175,7 @@ function send(res, status, message) {
   const body = JSON.stringify({ type: "error", error: { type: "tunnel_error", message } });
   res.writeHead(status, { "content-type": "application/json", "content-length": Buffer.byteLength(body) }).end(body);
 }
-function keyOf(req) {
+function keyOf2(req) {
   const bearer = /^Bearer\s+(.+)$/i.exec(String(req.headers.authorization ?? "").trim());
   if (bearer) return bearer[1].trim();
   const k = req.headers["x-api-key"];
@@ -1016,6 +1196,7 @@ function describeError(err) {
   if (err instanceof BackoffError) return `tunnel identity mismatch - waiting before retry (${Math.ceil(err.waitMs / 6e4)} min)`;
   if (err instanceof IdentityMismatchError) return "tunnel identity mismatch";
   if (err instanceof TunnelBlockedError) return err.message;
+  if (err instanceof DeviceRefusedError) return "the proxy does not accept this device's key - run setup again with a new connection code";
   return "tunnel unavailable";
 }
 function startLocalServer(o) {
@@ -1041,7 +1222,7 @@ function startLocalServer(o) {
       method: "GET",
       path: "/health",
       setHost: false,
-      headers: { host: o.target.host, authorization: `Bearer ${o.deviceToken}`, accept: "application/json" }
+      headers: { host: o.target.host, accept: "application/json" }
     }, (up) => {
       let body = "";
       up.setEncoding("utf8");
@@ -1087,12 +1268,11 @@ function startLocalServer(o) {
       if (req.headers["sec-fetch-site"] !== void 0 || req.headers["sec-fetch-dest"] !== void 0) return send(res, 403, "browser requests are not accepted");
       return answerHealth(req, res);
     }
-    const key = keyOf(req);
+    const key = keyOf2(req);
     if (!key || !sameHash(hashLocalKey(key), o.localKeyHash)) return send(res, 401, "invalid or missing local key");
     const headers = {};
     for (const [name, value] of Object.entries(req.headers)) if (!HOP.has(name) && value !== void 0) headers[name] = value;
     headers.host = o.target.host;
-    headers.authorization = `Bearer ${o.deviceToken}`;
     const once = req.headers["x-o1gw-conversation-id"] !== void 0 || req.headers["x-o1gw-conversation-transfer"] !== void 0;
     let kept = once ? null : [];
     let keptBytes = 0;
@@ -1221,7 +1401,8 @@ function dial(via, apiKey) {
     "Sec-WebSocket-Version": "13",
     "Sec-WebSocket-Key": key,
     "Sec-WebSocket-Protocol": REMOTE_PROTOCOL,
-    Authorization: `Bearer ${apiKey}`
+    // Through the tunnel the device is the one whose key the tunnel proved: no token goes on.
+    ...apiKey === null ? {} : { Authorization: `Bearer ${apiKey}` }
   };
   return new Promise((resolve, reject) => {
     let done = false;
@@ -1654,7 +1835,7 @@ async function openRemoteImpl(opts) {
     const t = tunnels.get(opts.connection);
     if (!t) throw new TypeError("connection must be one this library opened (open())");
     via = { url: t.target, agent: t.agent };
-    apiKey = t.token;
+    apiKey = null;
   } else {
     if (typeof opts.baseUrl !== "string") throw new TypeError("baseUrl (or connection) is required");
     let url;
@@ -1802,7 +1983,7 @@ var PinSync = class {
         path: TUNNEL_PINS_PATH,
         agent: this.o.agent,
         setHost: false,
-        headers: { host: target.host, authorization: `Bearer ${this.o.deviceToken}`, accept: "application/json" }
+        headers: { host: target.host, accept: "application/json" }
       }, (res) => {
         const via = pinOfSocket(res.socket);
         const chunks = [];
@@ -1834,7 +2015,7 @@ async function startTunnelSession(o) {
   const target = new URL(o.url);
   const failover = (o.urls ?? []).map((u) => new URL(u));
   const backoff = o.backoff ?? new IdentityBackoff();
-  const agent = new TunnelAgent({ url: target, urls: failover, pins: o.pins, userAgent: o.userAgent, transport: o.transport }, backoff, {
+  const agent = new TunnelAgent({ url: target, urls: failover, pins: o.pins, device: o.device, userAgent: o.userAgent, transport: o.transport }, backoff, {
     onOuter: o.onOuter,
     onConnected: () => {
       setImmediate(() => {
@@ -1843,12 +2024,12 @@ async function startTunnelSession(o) {
       o.onConnected?.();
     },
     onMismatch: o.onMismatch,
-    onTransport: o.onTransport
+    onTransport: o.onTransport,
+    onRefused: o.onRefused
   });
   const pinSync = new PinSync({
     agent,
     target,
-    deviceToken: o.deviceToken,
     pins: o.pins,
     log: o.log,
     onChange: (pins) => agent.setPins(pins),
@@ -1857,7 +2038,7 @@ async function startTunnelSession(o) {
   });
   let server;
   try {
-    server = await startLocalServer({ port: o.port, localKeyHash: o.localKeyHash, deviceToken: o.deviceToken, target, agent, log: o.log });
+    server = await startLocalServer({ port: o.port, localKeyHash: o.localKeyHash, target, agent, log: o.log });
   } catch (err) {
     agent.destroy();
     throw err;
@@ -1876,7 +2057,7 @@ async function startTunnelSession(o) {
 }
 
 // src/client/version.ts
-var VERSION = true ? "12.18.3" : "dev";
+var VERSION = true ? "13.0.0" : "dev";
 
 // src/client/lib.ts
 var version = VERSION;
@@ -1935,16 +2116,18 @@ function parseSaved(raw) {
   } catch {
     throw new O1ConnectError("invalid_config", "the saved configuration is not JSON: run setup again");
   }
-  if (!o || typeof o !== "object" || o.v !== 1) throw new O1ConnectError("invalid_config", "the saved configuration is not one this library knows: run setup again");
+  if (!o || typeof o !== "object" || o.v !== 2) throw new O1ConnectError("invalid_config", "the saved configuration is not one this library knows: run setup again with a new connection code");
   let code;
   try {
-    code = validateCode(o);
+    code = validateTarget(o);
+    if (!isSavedKey(o.key)) throw new Error("the device key is not valid");
+    loadDeviceKey(o.key);
   } catch (err) {
     throw new O1ConnectError("invalid_config", `the saved configuration is not valid (${err instanceof Error ? err.message : String(err)}): run setup again`);
   }
   const transport = o.transport ?? "auto";
   if (!TRANSPORTS.includes(transport)) throw new O1ConnectError("invalid_config", "the saved transport is not auto, websocket or post: run setup again");
-  return { v: 1, ...code, transport };
+  return { v: 2, ...code, key: o.key, transport };
 }
 async function setup(code, opts) {
   const store = checkStore(opts?.store);
@@ -1963,7 +2146,15 @@ async function setup(code, opts) {
   if (await opts.onFingerprint([...fingerprints], { ...info }) !== true) {
     throw new O1ConnectError("fingerprint_rejected", "the proxy keys were not confirmed: nothing was saved");
   }
-  const saved = { v: 1, ...decoded, transport };
+  let key;
+  try {
+    key = await enrollWithCode(decoded, { transport, userAgent: opts.identify === true ? `o1-connect-lib/${VERSION}` : void 0 });
+  } catch (err) {
+    if (!(err instanceof EnrollError)) throw err;
+    const code2 = err.code === "code_used" || err.code === "code_expired" || err.code === "identity_mismatch" ? err.code : err.code === "code_invalid" ? "invalid_code" : "tunnel_unavailable";
+    throw new O1ConnectError(code2, err.message, { cause: err.cause });
+  }
+  const saved = { v: 2, url: decoded.url, ...decoded.urls ? { urls: decoded.urls } : {}, device: decoded.device, pins: decoded.pins, key, transport };
   await withEntry(store, name, () => viaStore("save the configuration", () => store.set(name, JSON.stringify(saved))));
   return { ...info, fingerprints };
 }
@@ -1988,7 +2179,7 @@ async function open(opts) {
       url: cfg.url,
       urls: cfg.urls,
       pins: cfg.pins,
-      deviceToken: cfg.token,
+      device: loadDeviceKey(cfg.key),
       transport: cfg.transport,
       port,
       localKeyHash: hashLocalKey(apiKey),
@@ -2004,7 +2195,7 @@ async function open(opts) {
       },
       onTransport: (t, reason) => log?.(`${reason ?? "transport"}, using ${t}`),
       // Pins learned during a key rotation: saved only while the store still holds this
-      // configuration (same proxy, device and token), under the entry's lock; false (never
+      // configuration (same proxy, device and device key), under the entry's lock; false (never
       // tried again by this connection) once setup replaced it or forget deleted it.
       savePinsStoppedLine: "the store now holds another configuration, or none (setup or forget ran since): the proxy keys learned by this connection are no longer saved",
       savePins: (pins) => withEntry(store, name, async () => {
@@ -2016,7 +2207,7 @@ async function open(opts) {
         } catch {
           return false;
         }
-        if (current.url !== cfg.url || current.device !== cfg.device || current.token !== cfg.token) return false;
+        if (current.url !== cfg.url || current.device !== cfg.device || current.key !== cfg.key) return false;
         await viaStore("save the configuration", () => store.set(name, JSON.stringify({ ...current, pins })));
         return true;
       })
@@ -2035,13 +2226,16 @@ async function open(opts) {
       if (err instanceof IdentityMismatchError || err instanceof BackoffError) {
         throw new O1ConnectError("identity_mismatch", "the proxy presented a key that is not pinned: possible interception (nothing was sent)");
       }
+      if (err instanceof DeviceRefusedError) {
+        throw new O1ConnectError("device_refused", `the proxy does not accept this device's key (${err.code}): run setup again with a new connection code`);
+      }
       throw new O1ConnectError("tunnel_unavailable", `the tunnel did not answer: ${err instanceof Error ? err.message : String(err)}`);
     }
   }
   const baseUrl = `http://127.0.0.1:${session.port}`;
   log?.(`o1-connect library ${VERSION} for ${cfg.device} listening on ${baseUrl} (transport ${cfg.transport})`);
   const connection = { baseUrl, openaiBaseUrl: `${baseUrl}/v1`, apiKey, port: session.port, device: cfg.device, close: session.close };
-  bindTunnel(connection, { agent: session.agent, target: session.target, token: cfg.token });
+  bindTunnel(connection, { agent: session.agent, target: session.target });
   return connection;
 }
 async function forget(opts) {

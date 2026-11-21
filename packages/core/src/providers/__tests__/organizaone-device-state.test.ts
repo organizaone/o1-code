@@ -91,6 +91,57 @@ describe('describeOrganizaOneUnauthorized', () => {
     expect(expired?.message).toContain('https://api.organizaone.com/account');
   });
 
+  describe('the tunnel endpoint’s 502 that names the device’s key', () => {
+    const refused = {
+      status: 502,
+      headers: new Headers(),
+      error: {
+        type: 'error',
+        error: {
+          type: 'tunnel_error',
+          message:
+            "the proxy does not accept this device's key - run setup again with a new connection code",
+        },
+      },
+      message: '502 status code (no body)',
+    };
+
+    it('is read as a device the gateway no longer accepts', () => {
+      const result = describeOrganizaOneUnauthorized(
+        refused,
+        'http://127.0.0.1:4242',
+        { tunnel: true },
+      );
+      expect(result).toMatchObject({ kind: 'revoked', via: 'o1-connect' });
+      expect(result?.message).toContain('set up on another machine');
+      expect(result?.message).toContain('new connection code');
+    });
+
+    it('is read from the message when the SDK kept no body', () => {
+      expect(
+        describeOrganizaOneUnauthorized(
+          {
+            status: 502,
+            message: `502 {"type":"error","error":{"type":"tunnel_error","message":"the proxy does not accept this device's key - run setup again with a new connection code"}}`,
+          },
+          'http://127.0.0.1:4242',
+          { tunnel: true },
+        )?.kind,
+      ).toBe('revoked');
+    });
+
+    it('leaves any other 502, and the same text outside a tunnel, alone', () => {
+      expect(
+        describeOrganizaOneUnauthorized(
+          { status: 502, message: 'tunnel unavailable' },
+          'http://127.0.0.1:4242',
+          { tunnel: true },
+        ),
+      ).toBeNull();
+      expect(describeOrganizaOneUnauthorized(refused, BASE)).toBeNull();
+    });
+  });
+
   it('treats a plain 401 as a removed device', () => {
     const result = describeOrganizaOneUnauthorized(unauthorized({}), BASE);
     expect(result?.kind).toBe('revoked');

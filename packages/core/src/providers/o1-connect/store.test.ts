@@ -29,10 +29,8 @@ describe('createO1ConnectStore', () => {
     const storage = fakeStorage();
     const store = createO1ConnectStore(storage);
     expect(await store.get('aipp-connect')).toBeNull();
-    const entry = JSON.stringify({
-      url: 'https://api.organizaone.com',
-      token: 'x',
-    });
+    // Opaque to o1-code: whatever the library set comes back untouched.
+    const entry = 'an entry only the library reads';
     await store.set('aipp-connect', entry);
     expect(await store.get('aipp-connect')).toBe(entry);
     expect(storage.secrets.get('aipp-connect')).toBe(entry);

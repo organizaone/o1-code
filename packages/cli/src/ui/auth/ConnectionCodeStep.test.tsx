@@ -23,6 +23,7 @@ const openMock = vi.hoisted(() => vi.fn());
 const forgetMock = vi.hoisted(() => vi.fn());
 const setAsideMock = vi.hoisted(() => vi.fn());
 const checkMock = vi.hoisted(() => vi.fn());
+const checkStoreMock = vi.hoisted(() => vi.fn());
 
 vi.mock(
   '@organizaone/o1-code-core/providers/o1-connect/session.js',
@@ -30,6 +31,7 @@ vi.mock(
     ...(await importOriginal<
       typeof import('@organizaone/o1-code-core/providers/o1-connect/session.js')
     >()),
+    checkO1ConnectStore: checkStoreMock,
     setupO1Connect: setupMock,
     openO1Connect: openMock,
     forgetO1Connect: forgetMock,
@@ -104,6 +106,8 @@ describe('ConnectionCodeStep', () => {
     setAsideMock.mockReset();
     setAsideMock.mockResolvedValue('/home/u/.o1-code/secrets.json.bak');
     checkMock.mockReset();
+    checkStoreMock.mockReset();
+    checkStoreMock.mockResolvedValue(undefined);
     session.close.mockClear();
     vi.mocked(useKeypress).mockImplementation((handler, options) => {
       if (options?.isActive) handlers.push(handler);
@@ -144,13 +148,17 @@ describe('ConnectionCodeStep', () => {
     );
     await settle();
     expect(lastFrame()).toContain('connection code');
+    expect(lastFrame()).toContain('works once');
+    expect(lastFrame()).toContain('30 minutes');
+    expect(lastFrame()).toContain('never leaves it');
 
     act(() => {
-      type('o1gw1.abc');
+      type('o1gw2.abc');
       press('return', '\r');
     });
     await settle();
-    expect(setupMock).toHaveBeenCalledWith('o1gw1.abc', expect.anything());
+    expect(checkStoreMock).toHaveBeenCalledTimes(1);
+    expect(setupMock).toHaveBeenCalledWith('o1gw2.abc', expect.anything());
     expect(lastFrame()).toContain('my-laptop');
     expect(lastFrame()).toContain('3F9A-12C7-0000-1111');
     expect(lastFrame()).toContain('AB12-CD34-5678-90EF');
@@ -186,7 +194,7 @@ describe('ConnectionCodeStep', () => {
     );
     await settle();
     act(() => {
-      type('o1gw1.abc');
+      type('o1gw2.abc');
       press('return', '\r');
     });
     await settle();
@@ -203,7 +211,7 @@ describe('ConnectionCodeStep', () => {
 
   it('reads a kit’s o1-connect.code from its path and deletes the file once saved', async () => {
     const kit = path.join(tempDir, 'o1-connect.code');
-    writeFileSync(kit, 'o1gw1.fromkit\n');
+    writeFileSync(kit, 'o1gw2.fromkit\n');
     const flow = makeFlow();
     const { unmount } = renderWithProviders(
       <ConnectionCodeStep config={organizaoneO1gwProvider} flow={flow} />,
@@ -214,7 +222,7 @@ describe('ConnectionCodeStep', () => {
       press('return', '\r');
     });
     await settle();
-    expect(setupMock).toHaveBeenCalledWith('o1gw1.fromkit', expect.anything());
+    expect(setupMock).toHaveBeenCalledWith('o1gw2.fromkit', expect.anything());
     act(() => {
       type('yes');
       press('return', '\r');
@@ -228,19 +236,13 @@ describe('ConnectionCodeStep', () => {
 
   describe('when the secret store cannot be decrypted on this machine', () => {
     const filePath = '/home/u/.o1-code/secrets.json';
-    const failOnceAfterConfirm = () =>
-      setupMock.mockImplementationOnce(
-        async (
-          _code: string,
-          options: {
-            onFingerprint: (fps: string[], i: typeof info) => unknown;
-          },
-        ) => {
-          await options.onFingerprint(fingerprints, info);
-          throw new O1ConnectError('store_failed', 'store', {
-            cause: new UnreadableSecretFileError(filePath),
-          });
-        },
+    // Found before the code is used: a code works once, so the store is
+    // read first and set aside while the code is still good.
+    const failTheStoreCheckOnce = () =>
+      checkStoreMock.mockRejectedValueOnce(
+        new O1ConnectError('store_failed', 'store', {
+          cause: new UnreadableSecretFileError(filePath),
+        }),
       );
 
     async function reachUnreadable(flow: ProviderSetupFlow) {
@@ -249,25 +251,21 @@ describe('ConnectionCodeStep', () => {
       );
       await settle();
       act(() => {
-        type('o1gw1.abc');
-        press('return', '\r');
-      });
-      await settle();
-      act(() => {
-        type('yes');
+        type('o1gw2.abc');
         press('return', '\r');
       });
       await settle();
       return rendered;
     }
 
-    it('names the file and, on replace, sets it aside and saves without asking for the fingerprints again', async () => {
-      failOnceAfterConfirm();
+    it('names the file before the code is used and, on replace, sets it aside and goes on with the same code', async () => {
+      failTheStoreCheckOnce();
       const flow = makeFlow();
       const { lastFrame, unmount } = await reachUnreadable(flow);
       expect(lastFrame()).toContain('secrets.json');
       expect(lastFrame()).toContain('Type replace');
       expect(setAsideMock).not.toHaveBeenCalled();
+      expect(setupMock).not.toHaveBeenCalled();
 
       act(() => {
         type('replace');
@@ -275,17 +273,23 @@ describe('ConnectionCodeStep', () => {
       });
       await settle();
       await settle();
-      await settle();
-
       expect(setAsideMock).toHaveBeenCalledWith(filePath);
-      expect(setupMock).toHaveBeenCalledTimes(2);
-      expect(lastFrame()).not.toContain('Type yes');
+      expect(setupMock).toHaveBeenCalledTimes(1);
+      expect(setupMock).toHaveBeenCalledWith('o1gw2.abc', expect.anything());
+      expect(lastFrame()).toContain('Type yes');
+
+      act(() => {
+        type('yes');
+        press('return', '\r');
+      });
+      await settle();
+      await settle();
       expect(flow.submitConnection).toHaveBeenCalled();
       unmount();
     });
 
     it('moves nothing unless the answer is replace', async () => {
-      failOnceAfterConfirm();
+      failTheStoreCheckOnce();
       const flow = makeFlow();
       const { lastFrame, unmount } = await reachUnreadable(flow);
       act(() => {
@@ -295,12 +299,191 @@ describe('ConnectionCodeStep', () => {
       await settle();
       expect(lastFrame()).toContain('Nothing was moved');
       expect(setAsideMock).not.toHaveBeenCalled();
-      expect(setupMock).toHaveBeenCalledTimes(1);
+      expect(setupMock).not.toHaveBeenCalled();
       unmount();
     });
   });
 
-  it('explains a library error and lets the user paste the code again', async () => {
+  /** Confirms the fingerprints, then fails the enrolment with `code`. */
+  const failEnrolmentOnce = (code: string) =>
+    setupMock.mockImplementationOnce(
+      async (
+        _code: string,
+        options: { onFingerprint: (fps: string[], i: typeof info) => unknown },
+      ) => {
+        await options.onFingerprint(fingerprints, info);
+        throw new O1ConnectError(code as never, `lib: ${code}`);
+      },
+    );
+
+  async function submitAndConfirm(text: string, flow = makeFlow()) {
+    const rendered = renderWithProviders(
+      <ConnectionCodeStep config={organizaoneO1gwProvider} flow={flow} />,
+    );
+    await settle();
+    act(() => {
+      type(text);
+      press('return', '\r');
+    });
+    await settle();
+    act(() => {
+      type('yes');
+      press('return', '\r');
+    });
+    await settle();
+    await settle();
+    return { ...rendered, flow };
+  }
+
+  it('shows that it is enrolling while the setup is on the network', async () => {
+    let finish: () => void = () => undefined;
+    setupMock.mockImplementationOnce(
+      async (
+        _code: string,
+        options: { onFingerprint: (fps: string[], i: typeof info) => unknown },
+      ) => {
+        await options.onFingerprint(fingerprints, info);
+        await new Promise<void>((resolve) => {
+          finish = resolve;
+        });
+        return { ...info, fingerprints };
+      },
+    );
+    const { lastFrame, flow, unmount } = await submitAndConfirm('o1gw2.abc');
+    expect(lastFrame()).toContain('enrolling it through the tunnel');
+    expect(openMock).not.toHaveBeenCalled();
+
+    await act(async () => finish());
+    await settle();
+    expect(flow.submitConnection).toHaveBeenCalled();
+    unmount();
+  });
+
+  it('says a used code works once and what to do if someone else used it', async () => {
+    const kit = path.join(tempDir, 'o1-connect.code');
+    writeFileSync(kit, 'o1gw2.fromkit\n');
+    failEnrolmentOnce('code_used');
+    const { lastFrame, flow, unmount } = await submitAndConfirm(kit);
+    const frame = lastFrame()!.replace(/\s+/g, ' ');
+    expect(frame).toContain('already used');
+    expect(frame).toContain('someone else did');
+    expect(frame).toContain('Disconnect');
+    expect(frame).toContain('enter paste another code');
+    // The kit's code is dead: its file goes.
+    expect(existsSync(kit)).toBe(false);
+    expect(openMock).not.toHaveBeenCalled();
+    expect(flow.submitConnection).not.toHaveBeenCalled();
+
+    act(() => {
+      press('return', '\r');
+    });
+    await settle();
+    expect(lastFrame()).toContain('connection code');
+    expect(setupMock).toHaveBeenCalledTimes(1);
+    unmount();
+  });
+
+  it('says a lapsed code expired and deletes the kit file that held it', async () => {
+    const kit = path.join(tempDir, 'o1-connect.code');
+    writeFileSync(kit, 'o1gw2.fromkit\n');
+    failEnrolmentOnce('code_expired');
+    const { lastFrame, unmount } = await submitAndConfirm(kit);
+    const frame = lastFrame()!.replace(/\s+/g, ' ');
+    expect(frame).toContain('expired');
+    expect(frame).toContain('30 minutes');
+    expect(existsSync(kit)).toBe(false);
+    unmount();
+  });
+
+  it('says a code from before one-use codes is from an older version', async () => {
+    setupMock.mockRejectedValueOnce(new O1ConnectError('invalid_code', 'old'));
+    const flow = makeFlow();
+    const { lastFrame, unmount } = renderWithProviders(
+      <ConnectionCodeStep config={organizaoneO1gwProvider} flow={flow} />,
+    );
+    await settle();
+    act(() => {
+      type('o1gw1.abc');
+      press('return', '\r');
+    });
+    await settle();
+    expect(setupMock).toHaveBeenCalledWith('o1gw1.abc', expect.anything());
+    expect(lastFrame()!.replace(/\s+/g, ' ')).toContain('older version');
+    unmount();
+  });
+
+  it('keeps the kit file and offers the same code again when the tunnel could not be opened', async () => {
+    const kit = path.join(tempDir, 'o1-connect.code');
+    writeFileSync(kit, 'o1gw2.fromkit\n');
+    failEnrolmentOnce('tunnel_unavailable');
+    const { lastFrame, flow, unmount } = await submitAndConfirm(kit);
+    const frame = lastFrame()!.replace(/\s+/g, ' ');
+    expect(frame).toContain('Nothing was saved');
+    expect(frame).toContain('enter try again');
+    expect(existsSync(kit)).toBe(true);
+
+    act(() => {
+      press('return', '\r');
+    });
+    await settle();
+    await settle();
+    await settle();
+    expect(setupMock).toHaveBeenCalledTimes(2);
+    expect(setupMock).toHaveBeenLastCalledWith(
+      'o1gw2.fromkit',
+      expect.anything(),
+    );
+    expect(flow.submitConnection).toHaveBeenCalled();
+    expect(existsSync(kit)).toBe(false);
+    unmount();
+  });
+
+  it('warns of a possible interception and offers no way around it', async () => {
+    failEnrolmentOnce('identity_mismatch');
+    const { lastFrame, unmount } = await submitAndConfirm('o1gw2.abc');
+    const frame = lastFrame()!.replace(/\s+/g, ' ');
+    expect(frame).toContain('intercepting');
+    expect(frame).toContain('Do not use a direct connection');
+    expect(openMock).not.toHaveBeenCalled();
+    unmount();
+  });
+
+  it('tries only the tunnel again when it fails after the code was used', async () => {
+    openMock.mockRejectedValueOnce(
+      new O1ConnectError('tunnel_unavailable', 'down'),
+    );
+    const { lastFrame, flow, unmount } = await submitAndConfirm('o1gw2.abc');
+    expect(lastFrame()).toContain('enter try again');
+    act(() => {
+      press('return', '\r');
+    });
+    await settle();
+    await settle();
+    expect(setupMock).toHaveBeenCalledTimes(1);
+    expect(openMock).toHaveBeenCalledTimes(2);
+    expect(flow.submitConnection).toHaveBeenCalled();
+    unmount();
+  });
+
+  it('sends a device the gateway refuses back to a new code, without opening again', async () => {
+    openMock.mockRejectedValueOnce(
+      new O1ConnectError('device_refused', 'refused'),
+    );
+    const { lastFrame, flow, unmount } = await submitAndConfirm('o1gw2.abc');
+    const frame = lastFrame()!.replace(/\s+/g, ' ');
+    expect(frame).toContain('disconnected or set up on another machine');
+    expect(frame).toContain('enter paste another code');
+    act(() => {
+      press('return', '\r');
+    });
+    await settle();
+    expect(lastFrame()).toContain('connection code');
+    expect(openMock).toHaveBeenCalledTimes(1);
+    expect(flow.submitConnection).not.toHaveBeenCalled();
+    unmount();
+  });
+
+  it('explains a library error and asks for another code', async () => {
     setupMock.mockRejectedValueOnce(new O1ConnectError('invalid_code', 'bad'));
     const flow = makeFlow();
     const { lastFrame, unmount } = renderWithProviders(
@@ -312,7 +495,7 @@ describe('ConnectionCodeStep', () => {
       press('return', '\r');
     });
     await settle();
-    expect(lastFrame()).toContain('enter try again');
+    expect(lastFrame()).toContain('enter paste another code');
     act(() => {
       press('return', '\r');
     });

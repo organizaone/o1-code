@@ -16,8 +16,9 @@ import {
 } from '@organizaone/o1-code-core/providers/model-discovery.js';
 import type { ProviderConfig } from '@organizaone/o1-code-core/providers/types.js';
 import {
+  checkO1ConnectStore,
   describeO1ConnectError,
-  forgetO1Connect,
+  isO1ConnectError,
   o1ConnectBaseUrlFor,
   openO1Connect,
   setAsideUnreadableSecretStore,
@@ -31,6 +32,7 @@ import { useKeypress } from '../hooks/useKeypress.js';
 import { t } from '../../i18n/index.js';
 import { extendedTheme, theme } from '../semantic-colors.js';
 import { maskKey } from './mask-key.js';
+import { localizeO1ConnectDescription } from './o1-connect-message.js';
 import type { ProviderSetupFlow } from './useProviderSetupFlow.js';
 
 type Phase =
@@ -41,16 +43,19 @@ type Phase =
       info: SetupInfo;
       answer: (confirmed: boolean) => void;
     }
-  | { kind: 'opening' }
+  | { kind: 'working'; message: string }
   | {
       kind: 'unreadable';
       message: string;
       filePath: string;
       retry: () => void;
     }
-  | { kind: 'error'; message: string };
+  /** `retry` runs the failed stage again; without it, enter asks for another code. */
+  | { kind: 'error'; message: string; retry?: () => void };
 
-const CODE_PREFIX = 'o1gw1.';
+// An `o1gw1.` code is read as a code too, so the library refuses it by name
+// instead of the text being tried as a path.
+const CODE_PREFIXES = ['o1gw2.', 'o1gw1.'];
 
 function protocolOf(authType: AuthType): ProviderProtocol {
   if (authType === AuthType.USE_ANTHROPIC) return 'anthropic';
@@ -61,7 +66,9 @@ function protocolOf(authType: AuthType): ProviderProtocol {
 /** The code itself, or the code read from a kit's `o1-connect.code` file. */
 function readCode(input: string): { code: string; kitFile?: string } {
   const trimmed = input.trim();
-  if (trimmed.startsWith(CODE_PREFIX)) return { code: trimmed };
+  if (CODE_PREFIXES.some((prefix) => trimmed.startsWith(prefix))) {
+    return { code: trimmed };
+  }
   try {
     if (fs.existsSync(trimmed) && fs.statSync(trimmed).isFile()) {
       return {
@@ -75,12 +82,22 @@ function readCode(input: string): { code: string; kitFile?: string } {
   return { code: trimmed };
 }
 
+function removeKitFile(kitFile: string | undefined): void {
+  if (!kitFile) return;
+  try {
+    fs.rmSync(kitFile, { force: true });
+  } catch {
+    // A kit file that stays behind is the user's; its code no longer works.
+  }
+}
+
 /**
  * "o1-gateway device code" (contract §3.4): reads the connection code (or
  * the kit's `o1-connect.code`), shows every fingerprint the code pins and
- * asks for an explicit yes, saves the configuration, then opens the tunnel
- * once to list the models through it. The device token never leaves the
- * library's store; the kit file is deleted once its code is saved.
+ * asks for an explicit yes, enrols this machine with the code (its one use:
+ * the library makes the device's key here and saves it in its store), then
+ * opens the tunnel once to list the models through it. The kit file is
+ * deleted once its code was used, by this setup or before it.
  */
 export function ConnectionCodeStep({
   config,
@@ -94,65 +111,53 @@ export function ConnectionCodeStep({
   const [code, setCode] = useState('');
   const [answer, setAnswer] = useState('');
   const controllerRef = useRef<AbortController | null>(null);
-  // The fingerprints already confirmed for this code, so a retry after the
-  // secret store was set aside does not ask for them a second time.
+  // The fingerprints already confirmed for this code, so trying the same
+  // code again after the tunnel could not be opened does not ask for them a
+  // second time.
   const confirmedRef = useRef<string | null>(null);
   const flowRef = useRef(flow);
   flowRef.current = flow;
 
   useEffect(() => () => controllerRef.current?.abort(), []);
 
-  const fail = (error: unknown, retry: () => void) => {
-    const described = describeO1ConnectError(error);
-    if (described.forgetAndSetUpAgain) {
-      void forgetO1Connect().catch(() => undefined);
-    }
+  const begin = (): AbortSignal => {
+    const controller = new AbortController();
+    controllerRef.current = controller;
+    return controller.signal;
+  };
+
+  const showFailure = (
+    described: ReturnType<typeof describeO1ConnectError>,
+    retry: () => void,
+    mayRetry: boolean,
+  ) => {
+    const message = localizeO1ConnectDescription(described);
     if (described.unreadableSecretFile) {
       setAnswer('');
       setPhase({
         kind: 'unreadable',
-        message: described.message,
+        message,
         filePath: described.unreadableSecretFile,
         retry,
       });
       return;
     }
-    setPhase({ kind: 'error', message: described.message });
+    setPhase({
+      kind: 'error',
+      message,
+      ...(mayRetry ? { retry } : {}),
+    });
   };
 
-  const start = (connectionCode: string, kitFile: string | undefined) => {
-    const controller = new AbortController();
-    controllerRef.current = controller;
-    const { signal } = controller;
-    const baseUrl = flowRef.current.state.baseUrl;
+  /** Opens the tunnel of the configuration just saved and lists the models through it. */
+  const listModels = () => {
+    const signal = begin();
     const authType = flowRef.current.state.protocol;
     const run = async () => {
-      await setupO1Connect(connectionCode, {
-        onFingerprint: (fingerprints, info) => {
-          const key = fingerprints.join('\n');
-          if (confirmedRef.current === key) return true;
-          return new Promise<boolean>((resolve) => {
-            setPhase({
-              kind: 'confirm',
-              fingerprints,
-              info,
-              answer: (confirmed) => {
-                if (confirmed) confirmedRef.current = key;
-                resolve(confirmed);
-              },
-            });
-          });
-        },
+      setPhase({
+        kind: 'working',
+        message: t('Saved. Opening the tunnel and listing your models…'),
       });
-      if (signal.aborted) return;
-      if (kitFile) {
-        try {
-          fs.rmSync(kitFile, { force: true });
-        } catch {
-          // The code is saved; a kit file that stays behind is the user's.
-        }
-      }
-      setPhase({ kind: 'opening' });
       const session = await openO1Connect();
       let check: ProviderKeyCheck | undefined;
       try {
@@ -169,14 +174,89 @@ export function ConnectionCodeStep({
         await session.close().catch(() => undefined);
       }
       if (signal.aborted) return;
-      // `baseUrl` stays the proxy's: the session reopens the tunnel itself.
-      void baseUrl;
       flowRef.current.submitConnection(
         check.status === 'rejected' ? undefined : check,
       );
     };
     void run().catch((error: unknown) => {
-      if (!signal.aborted) fail(error, () => start(connectionCode, kitFile));
+      if (signal.aborted) return;
+      // The code is spent by now: only the tunnel is tried again, and a
+      // configuration that cannot come back was already forgotten.
+      showFailure(
+        describeO1ConnectError(error, { stage: 'open' }),
+        listModels,
+        isO1ConnectError(error) && error.code === 'tunnel_unavailable',
+      );
+    });
+  };
+
+  const start = (connectionCode: string, kitFile: string | undefined) => {
+    const signal = begin();
+    // Set once the fingerprints were confirmed: from there the library
+    // enrols, and a failure to save comes after the code's one use.
+    let enrolling = false;
+    const enrol = () => {
+      enrolling = true;
+      setPhase({
+        kind: 'working',
+        message: t(
+          'Making this device’s key and enrolling it through the tunnel…',
+        ),
+      });
+    };
+    const run = async () => {
+      setPhase({ kind: 'working', message: t('Checking the secret store…') });
+      // Before the code is used: a store that cannot be read is set aside
+      // first, while the code still works.
+      await checkO1ConnectStore();
+      if (signal.aborted) return;
+      await setupO1Connect(connectionCode, {
+        onFingerprint: (fingerprints, info) => {
+          const key = fingerprints.join('\n');
+          if (confirmedRef.current === key) {
+            enrol();
+            return true;
+          }
+          return new Promise<boolean>((resolve) => {
+            setPhase({
+              kind: 'confirm',
+              fingerprints,
+              info,
+              answer: (confirmed) => {
+                if (confirmed) {
+                  confirmedRef.current = key;
+                  enrol();
+                }
+                resolve(confirmed);
+              },
+            });
+          });
+        },
+      });
+      removeKitFile(kitFile);
+      if (signal.aborted) return;
+      listModels();
+    };
+    void run().catch((error: unknown) => {
+      const described = describeO1ConnectError(error, {
+        stage: 'setup',
+        code: connectionCode,
+      });
+      if (described.codeIsDead) removeKitFile(kitFile);
+      if (signal.aborted) return;
+      const codeWasSpent =
+        enrolling && isO1ConnectError(error) && error.code === 'store_failed';
+      showFailure(
+        codeWasSpent
+          ? {
+              message: `${localizeO1ConnectDescription(described)} ${t(
+                'The code was used by this attempt and nothing was saved: make a new one.',
+              )}`,
+            }
+          : described,
+        () => start(connectionCode, kitFile),
+        described.retrySameCode === true,
+      );
     });
   };
 
@@ -205,7 +285,7 @@ export function ConnectionCodeStep({
       return;
     }
     const { filePath, retry } = phase;
-    setPhase({ kind: 'opening' });
+    setPhase({ kind: 'working', message: t('Checking the secret store…') });
     void setAsideUnreadableSecretStore(filePath).then(retry, (error: unknown) =>
       setPhase({
         kind: 'error',
@@ -224,10 +304,16 @@ export function ConnectionCodeStep({
       }
       if (key.name === 'return' && phase.kind === 'error') {
         setAnswer('');
+        if (phase.retry) {
+          phase.retry();
+          return;
+        }
+        // The code that failed cannot work again: the field starts empty.
+        setCode('');
         setPhase({ kind: 'input' });
       }
     },
-    { isActive: phase.kind === 'error' || phase.kind === 'opening' },
+    { isActive: phase.kind === 'error' || phase.kind === 'working' },
   );
 
   return (
@@ -245,10 +331,17 @@ export function ConnectionCodeStep({
               value={code}
               onChange={setCode}
               onSubmit={submitCode}
-              placeholder="o1gw1.…"
+              placeholder="o1gw2.…"
               mask={maskKey}
               isActive
             />
+          </Box>
+          <Box marginTop={1}>
+            <Text color={extendedTheme.text.muted}>
+              {t(
+                'A code works once, within 30 minutes of being made. This device’s key is made on this machine and never leaves it.',
+              )}
+            </Text>
           </Box>
           <Box marginTop={1}>
             <Text color={extendedTheme.text.muted}>
@@ -293,14 +386,12 @@ export function ConnectionCodeStep({
           </Box>
         </>
       )}
-      {phase.kind === 'opening' && (
+      {phase.kind === 'working' && (
         <Box>
           <Box marginRight={1}>
             <Spinner color={extendedTheme.ui.brand} />
           </Box>
-          <Text color={extendedTheme.text.muted}>
-            {t('Saved. Opening the tunnel and listing your models…')}
-          </Text>
+          <Text color={extendedTheme.text.muted}>{phase.message}</Text>
         </Box>
       )}
       {phase.kind === 'unreadable' && (
@@ -333,7 +424,9 @@ export function ConnectionCodeStep({
           <Text color={theme.status.error}>{phase.message}</Text>
           <Box marginTop={1}>
             <Text color={extendedTheme.text.muted}>
-              {t('enter try again · esc back')}
+              {phase.retry
+                ? t('enter try again · esc back')
+                : t('enter paste another code · esc back')}
             </Text>
           </Box>
         </Box>

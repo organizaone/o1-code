@@ -28,29 +28,44 @@ const sha256 = (file: string): string =>
     .digest('hex');
 
 describe('vendored o1-connect library', () => {
+  // Setup is online from 13.0.0 on, so these stop at the confirmation: the
+  // answer is no, and nothing is sent or saved.
   it.each([undefined, ['https://failover.example']])(
-    'preserves optional failover hosts in setup and stored credentials: %s',
+    'shows a code’s optional failover hosts at the confirmation: %s',
     async (urls) => {
       const store = new MemorySecretStore();
       const payload = {
         url: 'https://primary.example',
         device: 'test-device',
         pins: [`sha256/${Buffer.alloc(32).toString('base64')}`],
-        token: 'a'.repeat(64),
+        enroll: 'a'.repeat(64),
+        expires: '2099-01-01T00:00:00.000Z',
         ...(urls ? { urls } : {}),
       };
-      const code = `o1gw1.${Buffer.from(JSON.stringify(payload)).toString('base64url')}`;
-      const result = await setup(code, {
-        store,
-        onFingerprint: (_fingerprints, info) => {
-          expect(info.urls).toEqual(urls);
-          return true;
-        },
-      });
-      expect(result.urls).toEqual(urls);
-      expect(JSON.parse((await store.get('aipp-connect'))!).urls).toEqual(urls);
+      const code = `o1gw2.${Buffer.from(JSON.stringify(payload)).toString('base64url')}`;
+      const shown: unknown[] = [];
+      await expect(
+        setup(code, {
+          store,
+          onFingerprint: (_fingerprints, info) => {
+            shown.push(info.urls);
+            return false;
+          },
+        }),
+      ).rejects.toMatchObject({ code: 'fingerprint_rejected' });
+      expect(shown).toEqual([urls]);
+      expect(await store.get('aipp-connect')).toBeNull();
     },
   );
+
+  it('refuses a code from before one-use codes by name', async () => {
+    const store = new MemorySecretStore();
+    const old = `o1gw1.${Buffer.from('{}').toString('base64url')}`;
+    const refused = setup(old, { store, onFingerprint: () => true });
+    await expect(refused).rejects.toMatchObject({ code: 'invalid_code' });
+    await expect(refused).rejects.toThrow('o1gw1.');
+    expect(await store.get('aipp-connect')).toBeNull();
+  });
   const manifest = JSON.parse(
     readFileSync(path.join(vendorDir, 'VENDOR.json'), 'utf8'),
   ) as {
@@ -68,7 +83,6 @@ describe('vendored o1-connect library', () => {
           target: URL;
           port: number;
           localKeyHash: string;
-          deviceToken: string;
         }): Promise<Server>;
         hashLocalKey(key: string): string;
       } = await import(
@@ -106,7 +120,6 @@ describe('vendored o1-connect library', () => {
         target: new URL(`http://127.0.0.1:${address.port}`),
         port: 0,
         localKeyHash: testModule.hashLocalKey(localKey),
-        deviceToken: 'synthetic-device-only',
       });
       const localAddress = local.address();
       if (!localAddress || typeof localAddress === 'string')

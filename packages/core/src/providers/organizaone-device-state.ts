@@ -7,6 +7,7 @@
 import { getErrorHeader } from '../utils/retryPolicy.js';
 import { getErrorStatus } from '../utils/errors.js';
 import { getRateLimitErrorDetails } from '../utils/rateLimit.js';
+import { isO1ConnectDeviceRefused } from '../utils/o1-connect-device-refused.js';
 import {
   ORGANIZAONE_ANTHROPIC_BASE_URL,
   isOrganizaOneBaseUrl,
@@ -16,8 +17,12 @@ export const ORGANIZAONE_ACCOUNT_PATH = '/account';
 const DEVICE_STATE_HEADER = 'x-o1gw-device-state';
 export const KEY_EXPIRY_WARNING_DAYS = 7;
 
+const TUNNEL_REVOKED =
+  'OrganizaOne no longer accepts this device: it was disconnected, removed, or set up on another machine. Paste a new connection code with /auth.';
+
 /**
- * Why a device token stopped working, from the proxy's 401 (contract §2.6):
+ * Why a device's key stopped working, from the proxy's 401 (contract §2.6) or,
+ * through the tunnel, from the endpoint's 502 that names the key (§3.2):
  * the key expired (its owner renews it on the account page, or the user
  * signs in again), the device is suspended (only its owner or an admin can
  * resume it), or the device was removed or its key replaced (a plain
@@ -42,6 +47,11 @@ export function describeOrganizaOneUnauthorized(
   // still the proxy's.
   const tunnel = options.tunnel === true;
   if (!tunnel && !isOrganizaOneBaseUrl(baseUrl)) return null;
+  // Inside the tunnel the gateway's refusal of the device's key never reaches
+  // the app as a 401: the loopback endpoint answers 502 and names the key.
+  if (tunnel && isO1ConnectDeviceRefused(error)) {
+    return { via: 'o1-connect', kind: 'revoked', message: TUNNEL_REVOKED };
+  }
   if (getErrorStatus(error) !== 401) return null;
   const via = tunnel ? ({ via: 'o1-connect' } as const) : {};
   const state = getErrorHeader(error, DEVICE_STATE_HEADER);
@@ -74,7 +84,7 @@ export function describeOrganizaOneUnauthorized(
     ...via,
     kind: 'revoked',
     message: tunnel
-      ? 'OrganizaOne no longer accepts this device: it was removed or given a new connection code. Paste a new connection code with /auth.'
+      ? TUNNEL_REVOKED
       : 'OrganizaOne no longer accepts this device: it was removed or its key was replaced. Sign in again with /auth.',
   };
 }

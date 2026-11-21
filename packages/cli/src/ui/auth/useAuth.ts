@@ -23,7 +23,9 @@ import { createLoadedSettingsAdapter } from '../../config/loadedSettingsAdapter.
 import { AuthState, MessageType } from '../types.js';
 import type { HistoryItemWithoutId } from '../types.js';
 import { t } from '../../i18n/index.js';
+import { isO1ConnectError } from '@organizaone/o1-code-core/providers/o1-connect/session.js';
 import { onLowRateLimit } from '@organizaone/o1-code-core/providers/organizaone-limits.js';
+import { localizeO1ConnectError } from './o1-connect-message.js';
 import {
   formatLowRateLimit,
   loadOrganizaOneKeySummary,
@@ -146,9 +148,11 @@ export const useAuthCommand = (
     (error: unknown, protocolForTelemetry?: AuthType) => {
       setIsAuthenticating(false);
       setExternalAuthState(null);
-      const msg = t('Failed to authenticate. Message: {{message}}', {
-        message: getErrorMessage(error),
-      });
+      const msg = isO1ConnectError(error)
+        ? localizeO1ConnectError(error, { stage: 'open' })
+        : t('Failed to authenticate. Message: {{message}}', {
+            message: getErrorMessage(error),
+          });
       onAuthError(msg);
       // Prefer the explicit argument over the closed-over pendingAuthType:
       // setPendingAuthType(protocol) queues an async React update, but a

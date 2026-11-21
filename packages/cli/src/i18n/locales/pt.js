@@ -1174,6 +1174,53 @@ export default {
     'O arquivo antigo fica ao lado como .bak. Digite replace para deixá-lo de lado e salvar a conexão:',
   'Nothing was moved: the secret store was left as it was.':
     'Nada foi movido: o armazenamento de segredos ficou como estava.',
+  'A code works once, within 30 minutes of being made. This device’s key is made on this machine and never leaves it.':
+    'Um código funciona uma única vez, em até 30 minutos depois de criado. A chave deste dispositivo é criada nesta máquina e nunca sai dela.',
+  'Checking the secret store…': 'Verificando o armazenamento de segredos…',
+  'Making this device’s key and enrolling it through the tunnel…':
+    'Criando a chave deste dispositivo e registrando-a pelo túnel…',
+  'enter paste another code · esc back':
+    'enter colar outro código · esc voltar',
+  'The code was used by this attempt and nothing was saved: make a new one.':
+    'O código foi usado nesta tentativa e nada foi salvo: crie um novo.',
+  'This connection code is from an older version (it starts with o1gw1.) and no longer works. Make a new one on the account page or in the console and paste it.':
+    'Este código de conexão é de uma versão antiga (começa com o1gw1.) e não funciona mais. Crie um novo na página da conta ou no console e cole aqui.',
+  'That is not a connection code the gateway accepts: it does not start with o1gw2., it is damaged, or a newer code replaced it. Make a new one and paste it.':
+    'Este não é um código de conexão que o gateway aceita: não começa com o1gw2., está danificado ou foi substituído por um código mais novo. Crie um novo e cole aqui.',
+  'This connection code was already used: a code works once. Make a new one and paste it. If you did not use it, someone else did: check the device on your account page and use Disconnect if the connected machine is not yours.':
+    'Este código de conexão já foi usado: um código funciona uma única vez. Crie um novo e cole aqui. Se não foi você quem usou, outra pessoa usou: confira o dispositivo na página da sua conta e use Desconectar (Disconnect) se a máquina conectada não for sua.',
+  'This connection code expired: a code works for 30 minutes after it is made. Make a new one and paste it.':
+    'Este código de conexão expirou: um código funciona por 30 minutos depois de criado. Crie um novo e cole aqui.',
+  'This device was disconnected or set up on another machine: the gateway no longer accepts its key. The connection saved here was removed. Paste a new connection code with /auth.':
+    'Este dispositivo foi desconectado ou configurado em outra máquina: o gateway não aceita mais a chave dele. A conexão salva aqui foi removida. Cole um novo código de conexão com /auth.',
+  'No o1-gateway connection is saved on this machine. Paste a connection code with /auth to set one up.':
+    'Não há conexão o1-gateway salva nesta máquina. Cole um código de conexão com /auth para configurar uma.',
+  'This o1-gateway setup is from an older version and cannot be used. The connection saved here was removed. Paste a new connection code with /auth.':
+    'Esta configuração do o1-gateway é de uma versão antiga e não pode ser usada. A conexão salva aqui foi removida. Cole um novo código de conexão com /auth.',
+  'The secret store cannot be read: {{reason}}. Setting up the connection code again offers to keep it as a .bak and start a new one.':
+    'O armazenamento de segredos não pode ser lido: {{reason}}. Configurar o código de conexão de novo oferece mantê-lo como .bak e começar um novo.',
+  'The secret store refused the connection ({{reason}}).':
+    'O armazenamento de segredos recusou a conexão ({{reason}}).',
+  'The secret store refused the connection (locked or unavailable).':
+    'O armazenamento de segredos recusou a conexão (bloqueado ou indisponível).',
+  "The proxy's key is not the one you pinned: this network may be intercepting the connection. Nothing was sent. Do not use a direct connection on this network.":
+    'A chave do proxy não é a que você fixou: esta rede pode estar interceptando a conexão. Nada foi enviado. Não use uma conexão direta nesta rede.',
+  'The tunnel to o1-gateway could not be opened (network, proxy, or a device that may not tunnel). Nothing was saved, and the code was not used: it still works inside its 30 minutes.':
+    'Não foi possível abrir o túnel para o o1-gateway (rede, proxy ou um dispositivo sem permissão de túnel). Nada foi salvo e o código não foi usado: ele continua valendo dentro dos 30 minutos.',
+  'The tunnel to o1-gateway could not be opened (network, proxy, or a device that may not tunnel). Try again later; if it persists, paste a new connection code.':
+    'Não foi possível abrir o túnel para o o1-gateway (rede, proxy ou um dispositivo sem permissão de túnel). Tente de novo mais tarde; se continuar, cole um novo código de conexão.',
+  'No loopback port could be opened for the tunnel: {{reason}}':
+    'Não foi possível abrir uma porta local para o túnel: {{reason}}',
+  'The gateway would not open the remote session: {{reason}}':
+    'O gateway não abriu a sessão remota: {{reason}}',
+  'The address answered, but not as a remote session gateway. Check the connection and try again.':
+    'O endereço respondeu, mas não como um gateway de sessões remotas. Confira a conexão e tente de novo.',
+  'The question was answered elsewhere before a viewer could.':
+    'A pergunta foi respondida em outro lugar antes que um espectador pudesse responder.',
+  'OrganizaOne no longer accepts this device: it was disconnected, removed, or set up on another machine. Paste a new connection code with /auth.':
+    'A OrganizaOne não aceita mais este dispositivo: ele foi desconectado, removido ou configurado em outra máquina. Cole um novo código de conexão com /auth.',
+  'OrganizaOne no longer accepts this device: it was removed or its key was replaced. Sign in again with /auth.':
+    'A OrganizaOne não aceita mais este dispositivo: ele foi removido ou a chave dele foi substituída. Entre de novo com /auth.',
   '{{used}}/{{limit}} requests per minute':
     '{{used}}/{{limit}} requisições por minuto',
   '{{used}}/{{limit}} tokens per minute':

@@ -54,6 +54,7 @@ import {
   isRetryableUpstreamError,
   type RetryErrorClassificationContext,
 } from '../utils/retryErrorClassification.js';
+import { isO1ConnectDeviceRefused } from '../utils/o1-connect-device-refused.js';
 import type { Config } from '../config/config.js';
 import type {
   ContentGenerator,
@@ -5249,6 +5250,9 @@ export class LlmChat {
           );
         }
         if (status === 429) return true;
+        // The tunnel's 502 for a device key the gateway refuses stays a 502
+        // until the device is set up again.
+        if (isO1ConnectDeviceRefused(error)) return false;
         if (status && status >= 500 && status < 600) return true;
 
         // Everything an HTTP status cannot decide — provider rate-limit codes
