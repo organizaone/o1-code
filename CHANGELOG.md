@@ -7,6 +7,8 @@ follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.31.0] - 2026-11-21
+
 ### Changed
 
 - O1-Code is now licensed under GPL-3.0-only. Files that came from other projects stay under
