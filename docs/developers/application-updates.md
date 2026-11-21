@@ -1,4 +1,4 @@
-<!-- Copyright 2026 o1-code contributors. SPDX-License-Identifier: Apache-2.0 -->
+<!-- Copyright 2026 o1-code contributors. SPDX-License-Identifier: GPL-3.0-only -->
 
 # Application updates
 

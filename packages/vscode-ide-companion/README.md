@@ -15,4 +15,4 @@ and its SHA-256 checksum are written to `packages/vscode-ide-companion/`. It nee
 Open the panel with the O1-Code icon in the editor title bar or `O1-Code: Open` in the Command
 Palette. Report problems at [issues](https://github.com/organizaone/o1-code/issues). By installing
 it you accept the [terms](https://github.com/organizaone/o1-code/blob/main/docs/users/support/tos-privacy.md).
-Licensed under [Apache-2.0](https://github.com/organizaone/o1-code/blob/main/LICENSE).
+Licensed under [GPL-3.0-only](https://github.com/organizaone/o1-code/blob/main/LICENSE).

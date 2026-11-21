@@ -72,6 +72,6 @@ o1-code
 
 ## License
 
-Apache-2.0. See
+GPL-3.0-only, with files from other works under Apache-2.0. See
 [LICENSE](https://github.com/organizaone/o1-code/blob/main/LICENSE) and
 [NOTICE](https://github.com/organizaone/o1-code/blob/main/NOTICE).

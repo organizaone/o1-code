@@ -10,5 +10,5 @@ runs the `o1-code --acp` command you built from source; the steps are in
 
 The agent reads its model and authentication from `~/.o1-code/settings.json`. When something fails,
 **Zed: Open Log** and **Dev: Open ACP Logs** show what happened; report it at
-[issues](https://github.com/organizaone/o1-code/issues). Licensed under Apache-2.0; see
+[issues](https://github.com/organizaone/o1-code/issues). Licensed under GPL-3.0-only; see
 [LICENSE](LICENSE) and [NOTICE](NOTICE).

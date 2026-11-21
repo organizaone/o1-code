@@ -1,7 +1,7 @@
 /**
  * @license
  * Copyright 2026 o1-code contributors
- * SPDX-License-Identifier: Apache-2.0
+ * SPDX-License-Identifier: GPL-3.0-only
  *
  * Detects model servers running on this machine. Each probe asks an endpoint
  * only that server serves (Ollama's `/api/tags`, LM Studio's `/api/v0/models`),

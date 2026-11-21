@@ -9,7 +9,7 @@
   <a href="https://www.npmjs.com/package/@organizaone/o1-code"><img alt="npm version" src="https://img.shields.io/npm/v/@organizaone/o1-code"></a>
   <a href="https://www.npmjs.com/package/@organizaone/o1-code"><img alt="npm downloads" src="https://img.shields.io/npm/dm/@organizaone/o1-code"></a>
   <a href="https://nodejs.org/"><img alt="Node.js" src="https://img.shields.io/node/v/@organizaone/o1-code"></a>
-  <a href="./LICENSE"><img alt="License: Apache-2.0" src="https://img.shields.io/badge/license-Apache--2.0-blue"></a>
+  <a href="./LICENSE"><img alt="License: GPL-3.0-only" src="https://img.shields.io/badge/license-GPL--3.0--only-blue"></a>
   <a href="https://github.com/organizaone/o1-code/actions/workflows/o1-ci.yml"><img alt="CI" src="https://github.com/organizaone/o1-code/actions/workflows/o1-ci.yml/badge.svg?branch=main"></a>
   <a href="https://github.com/organizaone/o1-code/releases"><img alt="Release" src="https://img.shields.io/github/v/release/organizaone/o1-code"></a>
 </p>
@@ -156,7 +156,8 @@ add input validation to POST /todos: reject an empty title with a 400, and add a
   [Terms of service and privacy](./docs/users/support/tos-privacy.md).
 - **Extension mechanisms first.** Skills, hooks, MCP, rules, output styles, themes and
   `modelProviders` before changes to the core.
-- **Apache-2.0, respected.** `LICENSE`, `NOTICE` and third-party copyright headers are kept.
+- **Free software, licenses respected.** The project is GPL-3.0-only; the files that came from
+  other works stay under Apache-2.0, with their copyright headers and `NOTICE` kept.
 
 ## Contributing
 
@@ -165,4 +166,6 @@ propose a feature. Security issues go through [SECURITY.md](./SECURITY.md).
 
 ## License
 
-Apache-2.0, see [LICENSE](./LICENSE) and [NOTICE](./NOTICE).
+GPL-3.0-only, see [LICENSE](./LICENSE). [NOTICE](./NOTICE) holds the additional permission for the
+o1-connect library, which stays under its own license, and the notice for the files that stay under
+Apache-2.0. The TypeScript SDK (`packages/sdk-typescript`) is Apache-2.0.

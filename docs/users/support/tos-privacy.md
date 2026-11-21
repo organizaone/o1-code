@@ -1,6 +1,6 @@
 # O1-Code: Terms of Service and Privacy Notice
 
-O1-Code is an open-source AI coding assistant, licensed under Apache-2.0. It does not run a model
+O1-Code is an open-source AI coding assistant, licensed under GPL-3.0-only. It does not run a model
 service of its own: you connect it to a model provider, and that provider's terms apply to what you
 send it.
 

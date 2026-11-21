@@ -265,8 +265,9 @@ const serveBridgeBinPath = join(
 await esbuild.build(serveBridgeBinBuildOptions(rootDir, serveBridgeBinPath));
 assertExecutableBin(serveBridgeBinPath);
 
-// Copy LICENSE from root directory to dist
-const licenseSource = join(rootDir, '..', '..', 'LICENSE');
+// The SDK keeps the Apache-2.0 license and ships its own copy of the text;
+// the repository root's LICENSE is the GPL-3.0 of the rest of the project.
+const licenseSource = join(rootDir, 'LICENSE');
 const licenseTarget = join(rootDir, 'dist', 'LICENSE');
 if (existsSync(licenseSource)) {
   try {

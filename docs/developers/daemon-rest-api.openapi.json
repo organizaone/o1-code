@@ -5,8 +5,8 @@
     "version": "v1",
     "description": "The supported 25-operation REST/SSE integration surface for o1-code serve. The daemon registers a wider route surface, including other public, capability-gated routes that are not part of this compatibility promise.",
     "license": {
-      "name": "Apache-2.0",
-      "identifier": "Apache-2.0"
+      "name": "GPL-3.0-only",
+      "identifier": "GPL-3.0-only"
     }
   },
   "externalDocs": {

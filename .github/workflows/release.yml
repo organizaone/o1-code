@@ -1,5 +1,5 @@
 # Copyright 2026 o1-code contributors
-# SPDX-License-Identifier: Apache-2.0
+# SPDX-License-Identifier: GPL-3.0-only
 #
 # o1-code npm, standalone and IDE companion release. A pushed vX.Y.Z tag (or a manual run naming an existing
 # tag) restores the bundle that the CI workflow built and published for the

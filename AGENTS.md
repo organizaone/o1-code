@@ -5,7 +5,7 @@ one, never a copy.
 
 ## What this repository is
 
-o1-code is a terminal coding agent, licensed under Apache-2.0. It works with any model provider
+o1-code is a terminal coding agent, licensed under GPL-3.0-only. It works with any model provider
 given by URL, OpenAI-compatible or Anthropic. The principles are in `README.md`, the state of each
 package and what comes next in `ROADMAP.md`, how to propose and weigh a feature in
 `CONTRIBUTING.md`. Changes are recorded in the git history and in `CHANGELOG.md`.
@@ -16,9 +16,13 @@ package and what comes next in `ROADMAP.md`, how to propose and weigh a feature 
    themes, and `modelProviders` remain the cheapest path for a lot of things, but the core is ours to
    change when they do not suffice. A large feature, or one inspired by another project, gets an
    evaluation card as a GitHub issue, following "Proposing a feature" in `CONTRIBUTING.md`.
-2. **License.** The Apache-2.0 §4(b) modification notice is the global one in `NOTICE`. Third-party
-   copyright headers stay in the files (§4(c)); never remove or rewrite them. New files carry
-   `Copyright 2026 o1-code contributors`.
+2. **License.** The project is GPL-3.0-only, with the additional permission in `NOTICE` for the
+   vendored o1-connect library, which stays under its own license. Files from other works stay
+   under Apache-2.0: its §4(b) modification notice is the global one in `NOTICE`, and third-party
+   copyright headers stay in the files (§4(c)); never remove or rewrite them, and never change
+   their license line. `packages/sdk-typescript` stays Apache-2.0 as a whole and bundles no
+   GPL-licensed file. New files carry `Copyright 2026 o1-code contributors` and
+   `SPDX-License-Identifier: GPL-3.0-only`; in the SDK, `Apache-2.0`.
 3. **Identity comes from `brand.json`.** New code reads from there; a branding change is a direct
    edit to the code. No third-party name as identity on a user surface; `node scripts/o1/brand-lint.mjs`
    is the gate. A provider's name appears only where it names that provider and its models.

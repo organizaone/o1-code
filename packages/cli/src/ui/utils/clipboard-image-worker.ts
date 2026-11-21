@@ -1,6 +1,6 @@
 /**
  * Copyright 2026 o1-code contributors
- * SPDX-License-Identifier: Apache-2.0
+ * SPDX-License-Identifier: GPL-3.0-only
  */
 import { Worker } from 'node:worker_threads';
 import { open, rm } from 'node:fs/promises';
