@@ -1,7 +1,7 @@
 /**
  * @license
  * Copyright 2026 o1-code contributors
- * SPDX-License-Identifier: Apache-2.0
+ * SPDX-License-Identifier: GPL-3.0-only
  */
 
 const CLOSING_TAG_LINE = /\r?\n[ \t]*<\/(think|thinking)[ \t]*>[ \t\r\n]*$/i;

@@ -1,5 +1,5 @@
 # Copyright 2026 o1-code contributors
-# SPDX-License-Identifier: Apache-2.0
+# SPDX-License-Identifier: GPL-3.0-only
 #
 # Installs o1-code for the current user on Windows, with its own Node.js
 # runtime. Nothing is installed system-wide and administrator rights are not

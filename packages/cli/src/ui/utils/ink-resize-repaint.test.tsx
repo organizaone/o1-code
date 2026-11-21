@@ -1,7 +1,7 @@
 /**
  * @license
  * Copyright 2026 o1-code contributors
- * SPDX-License-Identifier: Apache-2.0
+ * SPDX-License-Identifier: GPL-3.0-only
  */
 
 // Pins a behavior of patches/ink+7.0.3.patch: on the alternate screen, any

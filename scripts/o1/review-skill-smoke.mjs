@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 // Copyright 2026 o1-code contributors
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: GPL-3.0-only
 // Exercise the compiled CLI and bundled skill against loopback HTTP. Do not
 // replace activation/registration with mocks: that hides the original defect.
 import assert from 'node:assert/strict';

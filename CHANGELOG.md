@@ -9,6 +9,8 @@ follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Changed
 
+- O1-Code is now licensed under GPL-3.0-only. Files that came from other projects stay under
+  Apache-2.0, and so does the TypeScript SDK. The o1-connect library keeps its own license.
 - The o1-gateway device code now follows o1-gateway 13.0.0. A connection code works once, within
   30 minutes of being made, and the device's key is made on this machine and never leaves it. A
   code or a saved connection from an earlier version no longer works: make a new code. When the

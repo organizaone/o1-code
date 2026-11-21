@@ -102,8 +102,8 @@ Decision rules:
 1. **Direct acceptance:** Impact ≥ 3, Effort ≤ 3 and Cost to port ≤ 3.
 2. **Needs a written justification:** Cost to port 4, or high maintenance cost.
 3. **Cost to port 5** becomes an original idea; the card records the origin as inspiration.
-4. **Automatic rejection:** an incompatible license (Apache-2.0-compatible only: MIT, BSD, Apache;
-   never GPL); requires Rust, Go or administrator rights; introduces third-party telemetry; depends
+4. **Automatic rejection:** an incompatible license (GPL-3.0-compatible only: MIT, BSD, Apache-2.0,
+   GPL-3.0; never a proprietary or GPL-2.0-only one); requires Rust, Go or administrator rights; introduces third-party telemetry; depends
    on something out of scope (`ROADMAP.md`); or sits outside a vendor's terms of use.
 5. **Tie:** the lower Effort, then the lower maintenance cost.
 
@@ -138,13 +138,21 @@ store under the preset's id.
 
 ## Licensing
 
-o1-code is Apache-2.0. Every change keeps this true:
+o1-code is GPL-3.0-only. Every change keeps this true:
 
-- `LICENSE` is the unchanged Apache-2.0 text; `NOTICE` carries the project's own line, the
-  modification notice of §4(b) and the third-party notices the license requires.
-- Third-party copyright headers in files stay as they are (§4(c)); new files carry
-  `Copyright 2026 o1-code contributors`. Removing or rewriting a third-party header is a Critical
-  in the review rules of `AGENTS.md`.
+- `LICENSE` is the unchanged GPL-3.0 text. `NOTICE` carries the project's own line, the additional
+  permission (GPL-3.0 §7) for the vendored o1-connect library, the Apache-2.0 modification notice
+  of §4(b), the Apache-2.0 text and the third-party notices those licenses require.
+- Files from other works stay under Apache-2.0, with their copyright headers and license line as
+  they are (§4(c)). Removing or rewriting a third-party header is a Critical in the review rules
+  of `AGENTS.md`.
+- New files carry `Copyright 2026 o1-code contributors` and
+  `SPDX-License-Identifier: GPL-3.0-only`. By contributing, you license your contribution under
+  GPL-3.0-only with that additional permission.
+- The TypeScript SDK (`packages/sdk-typescript`) stays Apache-2.0, with its own `LICENSE`: it must
+  not bundle a GPL-licensed file, and its new files carry `SPDX-License-Identifier: Apache-2.0`.
+- The o1-connect library in `packages/core/vendor/o1-connect` is not free software and is not
+  covered by the GPL; it stays under its own license.
 - No third-party name, logo or domain is used as product, package, binary, configuration folder
   or documentation identity; a provider's name appears only to name that provider and its models.
   `node scripts/o1/brand-lint.mjs` is the gate.

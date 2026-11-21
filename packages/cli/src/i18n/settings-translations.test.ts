@@ -1,4 +1,4 @@
-// Copyright 2026 o1-code contributors. SPDX-License-Identifier: Apache-2.0
+// Copyright 2026 o1-code contributors. SPDX-License-Identifier: GPL-3.0-only
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import os from 'node:os';
 import path from 'node:path';
