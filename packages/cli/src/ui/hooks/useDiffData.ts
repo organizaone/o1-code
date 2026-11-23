@@ -6,7 +6,7 @@
 
 import { ConfigContext } from '../contexts/ConfigContext.js';
 import { useContext, useEffect, useState } from 'react';
-import type { Hunk } from 'diff';
+import type { StructuredPatchHunk as Hunk } from 'diff';
 import { createDebugLogger } from '@organizaone/o1-code-core/utils/debugLogger.js';
 import {
   fetchGitDiff,

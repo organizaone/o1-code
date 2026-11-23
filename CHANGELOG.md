@@ -15,6 +15,11 @@ follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - The shell confirmation now shows the whole command; the end of each wrapped line was hidden.
 - In auto mode, a command with a URL argument no longer stalls the session on Windows.
 
+### Security
+
+- Dependencies with known advisories were updated: hono, qs, fast-uri, ip-address, the MCP SDK,
+  express-rate-limit and diff.
+
 ## [0.31.0] - 2026-11-21
 
 ### Changed
