@@ -13,6 +13,7 @@ import {
   GROUP_COLOR_OPTIONS,
 } from '@organizaone/o1-code-core/services/session-organization-service.js';
 import { Storage } from '@organizaone/o1-code-core/config/storage.js';
+import { SessionService } from '@organizaone/o1-code-core';
 import type {
   AcpSessionBridge,
   BridgeSessionSummary,
@@ -79,6 +80,185 @@ describe('merged session catalog pagination', () => {
       bridge: { listWorkspaceSessions: list } as unknown as AcpSessionBridge,
     };
   }
+
+  function chatsDir(): string {
+    return path.join(
+      new Storage(workspaceCwd, runtimeBaseDir).getProjectDir(),
+      'chats',
+    );
+  }
+
+  function prUrl(number: number): string {
+    return `https://github.com/example/project/pull/${number}`;
+  }
+
+  async function writeSidecars(
+    session: BridgeSessionSummary,
+    sidecars: { worktree?: string; prs?: number[] },
+  ): Promise<void> {
+    const chats = chatsDir();
+    await fs.mkdir(chats, { recursive: true });
+    if (sidecars.worktree !== undefined) {
+      await fs.writeFile(
+        path.join(chats, `${session.sessionId}.worktree.json`),
+        JSON.stringify({
+          slug: sidecars.worktree,
+          worktreePath: path.join(directory, sidecars.worktree),
+          worktreeBranch: `branch-${sidecars.worktree}`,
+          originalCwd: workspaceCwd,
+          originalBranch: 'main',
+          originalHeadCommit: 'head-sha',
+        }),
+      );
+    }
+    if (sidecars.prs !== undefined) {
+      await fs.writeFile(
+        path.join(chats, `${session.sessionId}.pr.json`),
+        JSON.stringify({
+          prs: sidecars.prs.map((number) => ({
+            number,
+            url: prUrl(number),
+            createdAt: session.createdAt,
+            state: 'merged',
+          })),
+        }),
+      );
+    }
+  }
+
+  function spySidecarPaths() {
+    return {
+      worktree: vi.spyOn(
+        SessionService.prototype,
+        'getWorktreeSessionPathForArchiveState',
+      ),
+      pr: vi.spyOn(SessionService.prototype, 'getPrSessionPathForArchiveState'),
+    };
+  }
+
+  it.each([undefined, 'organized'] as const)(
+    'reads sidecars only for the rows of the returned page (%s)',
+    async (view) => {
+      const first = summary(2);
+      const second = summary(1);
+      const liveOnly = summary(0);
+      await persist(first);
+      await persist(second);
+      const { bridge } = bridgeFor([liveOnly]);
+      const options = { size: 1, ...(view ? { view } : {}) };
+      const readOptions = { runtimeBaseDir, paginateMerged: true };
+      const reads = spySidecarPaths();
+
+      const firstPage = await listWorkspaceSessionsForResponse(
+        bridge,
+        workspaceCwd,
+        options,
+        readOptions,
+      );
+      expect(firstPage.sessions.map((row) => row.sessionId)).toEqual([
+        first.sessionId,
+      ]);
+      expect(reads.worktree.mock.calls).toEqual([[first.sessionId, 'active']]);
+      expect(reads.pr.mock.calls).toEqual([[first.sessionId, 'active']]);
+
+      const secondPage = await listWorkspaceSessionsForResponse(
+        bridge,
+        workspaceCwd,
+        { ...options, cursor: firstPage.nextCursor },
+        readOptions,
+      );
+      const lastPage = await listWorkspaceSessionsForResponse(
+        bridge,
+        workspaceCwd,
+        { ...options, cursor: secondPage.nextCursor },
+        readOptions,
+      );
+      expect(secondPage.sessions.map((row) => row.sessionId)).toEqual([
+        second.sessionId,
+      ]);
+      expect(lastPage.sessions.map((row) => row.sessionId)).toEqual([
+        liveOnly.sessionId,
+      ]);
+      expect(lastPage.nextCursor).toBeUndefined();
+      expect(reads.worktree.mock.calls).toEqual([
+        [first.sessionId, 'active'],
+        [second.sessionId, 'active'],
+      ]);
+      expect(reads.pr.mock.calls).toEqual([
+        [first.sessionId, 'active'],
+        [second.sessionId, 'active'],
+        [liveOnly.sessionId, 'active'],
+      ]);
+    },
+  );
+
+  it.each([undefined, 'organized'] as const)(
+    'keeps page membership, cursors and sidecar fields across pages (%s)',
+    async (view) => {
+      const [liveOnly, plain, merged, stored] = [0, 1, 2, 3].map(summary);
+      for (const session of [plain, merged, stored]) await persist(session);
+      await writeSidecars(stored, { worktree: 'stored', prs: [30] });
+      await writeSidecars(merged, { worktree: 'merged', prs: [20, 21] });
+      await writeSidecars(liveOnly, { prs: [10] });
+      const { bridge } = bridgeFor([
+        // The live entry knows one sidecar binding plus a newer one of its own.
+        {
+          ...merged,
+          prs: [
+            { number: 21, url: prUrl(21), state: 'open' },
+            { number: 22, url: prUrl(22) },
+          ],
+        },
+        { ...liveOnly, prs: [{ number: 11, url: prUrl(11) }] },
+      ]);
+      const options = { size: 2, ...(view ? { view } : {}) };
+      const readOptions = { runtimeBaseDir, paginateMerged: true };
+
+      const firstPage = await listWorkspaceSessionsForResponse(
+        bridge,
+        workspaceCwd,
+        options,
+        readOptions,
+      );
+      expect(firstPage.nextCursor).toEqual(expect.any(String));
+      const lastPage = await listWorkspaceSessionsForResponse(
+        bridge,
+        workspaceCwd,
+        { ...options, cursor: firstPage.nextCursor },
+        readOptions,
+      );
+      expect(lastPage.nextCursor).toBeUndefined();
+
+      const rows = [...firstPage.sessions, ...lastPage.sessions];
+      expect(rows.map((row) => row.sessionId)).toEqual(
+        [stored, merged, plain, liveOnly].map((row) => row.sessionId),
+      );
+      expect(firstPage.sessions).toHaveLength(2);
+      const fields = rows.map((row) => ({
+        worktree: row.worktree?.slug,
+        prs: row.prs?.map((pr) => [pr.number, pr.state]),
+      }));
+      expect(fields).toEqual([
+        { worktree: 'stored', prs: [[30, 'merged']] },
+        {
+          worktree: 'merged',
+          prs: [
+            [20, 'merged'],
+            [21, 'merged'],
+            [22, undefined],
+          ],
+        },
+        { worktree: undefined, prs: undefined },
+        {
+          worktree: undefined,
+          prs: [
+            [10, 'merged'],
+            [11, undefined],
+          ],
+        },
+      ]);
+    },
+  );
 
   it('paginates persisted and live-only rows without dropping or duplicating merged rows', async () => {
     await persist(summary(0));

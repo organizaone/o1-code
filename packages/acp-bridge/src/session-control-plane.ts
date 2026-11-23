@@ -6847,17 +6847,19 @@ export function createSessionControlPlane(
     historyPageSize: number,
     liveReplayMode: 'full' | 'summary',
   ): Promise<ReturnType<typeof replayFieldsFor>> {
-    // A pending permission/question lives only in the in-memory journal — it
-    // is never persisted to the chat transcript — and the turns that park on
-    // one without an RPC prompt (Goal and background-notification turns)
-    // never flip promptActive, so the !promptActive check below does not
-    // cover them. Serving the persisted page with an empty liveJournal here
-    // would strand the interaction: the session summary still advertises it
-    // (input-needed badge) while the re-opening client receives nothing to
-    // answer.
-    if (entry.pendingInteractions.size > 0) {
-      return replayFieldsFor(entry, 'load', liveReplayMode);
-    }
+    // An active foreground, Goal or background turn owns content the
+    // persisted transcript does not have yet, so a page read now would be
+    // discarded. A pending permission/question lives only in the in-memory
+    // journal — it is never persisted to the chat transcript — and the turns
+    // that park on one without an RPC prompt never flip promptActive. Serving
+    // the persisted page with an empty liveJournal here would strand the
+    // interaction: the session summary still advertises it (input-needed
+    // badge) while the re-opening client receives nothing to answer.
+    const isLive = () =>
+      entry.promptActive ||
+      entry.goalTurnActive === true ||
+      entry.backgroundTurn !== undefined ||
+      entry.pendingInteractions.size > 0;
     for (let attempt = 0; attempt < 2; attempt++) {
       try {
         const lastEventId = entry.events.lastEventId;
@@ -6867,6 +6869,9 @@ export function createSessionControlPlane(
         let cursor: string | undefined;
         let page: BridgeSessionTranscriptPage;
         do {
+          // Before every read, including a retry and an empty-page cursor
+          // follow-up: activity may have started while the last one waited.
+          if (isLive()) return replayFieldsFor(entry, 'load', liveReplayMode);
           page = await requestSessionTranscriptPage({
             sessionId: entry.sessionId,
             ...(cursor ? { cursor } : { direction: 'backward' }),
@@ -6898,8 +6903,7 @@ export function createSessionControlPlane(
         );
         if (
           byId.get(entry.sessionId) === entry &&
-          !entry.promptActive &&
-          !entry.backgroundTurn &&
+          !isLive() &&
           entry.events.epoch === eventEpoch &&
           entry.events.lastEventId === lastEventId
         ) {
