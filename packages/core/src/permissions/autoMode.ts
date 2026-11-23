@@ -263,18 +263,20 @@ function getAutoModeWritePathCandidates(filePath: string): string[] {
   return [...candidates];
 }
 
+function matchesProtectedWritePattern(candidate: string): boolean {
+  const normalized = normalizePathForAutoModePattern(candidate);
+  return (
+    matchesConfiguredContextFile(normalized) ||
+    matchesO1CodeHomeSurface(normalized) ||
+    PERSISTENCE_PATH_PATTERNS.some((pattern) => pattern.test(normalized)) ||
+    SELF_MODIFICATION_PATH_PATTERNS.some((pattern) => pattern.test(normalized))
+  );
+}
+
 export function isAutoModeProtectedWritePath(filePath: string): boolean {
-  return getAutoModeWritePathCandidates(filePath).some((candidate) => {
-    const normalized = normalizePathForAutoModePattern(candidate);
-    return (
-      matchesConfiguredContextFile(normalized) ||
-      matchesO1CodeHomeSurface(normalized) ||
-      PERSISTENCE_PATH_PATTERNS.some((pattern) => pattern.test(normalized)) ||
-      SELF_MODIFICATION_PATH_PATTERNS.some((pattern) =>
-        pattern.test(normalized),
-      )
-    );
-  });
+  return getAutoModeWritePathCandidates(filePath).some(
+    matchesProtectedWritePattern,
+  );
 }
 
 /**
@@ -418,14 +420,40 @@ function rawFlagValue(token: string, line: string): string | undefined {
   return undefined;
 }
 
+/**
+ * A network URL inside a shell token. `file:` is left out: it names a real
+ * filesystem path and keeps the resolution below.
+ */
+const NETWORK_URL_PATTERN =
+  /\b(?!file:)[A-Za-z][A-Za-z0-9+.-]*:\/\/[^\s'"`()<>,;]*/gi;
+
 function containsProtectedPathFragment(token: string, cwd: string): boolean {
-  for (const candidate of token.match(/[A-Za-z0-9_./~-]+/g) ?? []) {
-    const resolved = path.isAbsolute(candidate)
-      ? candidate
-      : path.join(cwd, candidate);
-    if (isAutoModeProtectedWritePath(resolved)) return true;
+  // Resolving the `//host/...` fragment of a URL makes Windows look up a UNC
+  // share, which blocks the event loop for as long as the network takes. A
+  // URL is matched by its text alone; the rest of the token is resolved.
+  const urls = token.match(NETWORK_URL_PATTERN) ?? [];
+  for (const url of urls) {
+    for (const fragment of pathFragments(url)) {
+      if (matchesProtectedWritePattern(resolveFragment(fragment, cwd))) {
+        return true;
+      }
+    }
+  }
+  const rest = token.replace(NETWORK_URL_PATTERN, ' ');
+  for (const fragment of pathFragments(rest)) {
+    if (isAutoModeProtectedWritePath(resolveFragment(fragment, cwd))) {
+      return true;
+    }
   }
   return false;
+}
+
+function pathFragments(text: string): string[] {
+  return text.match(/[A-Za-z0-9_./~-]+/g) ?? [];
+}
+
+function resolveFragment(fragment: string, cwd: string): string {
+  return path.isAbsolute(fragment) ? fragment : path.join(cwd, fragment);
 }
 
 function stripRawRedirectTargetToken(token: string): string {

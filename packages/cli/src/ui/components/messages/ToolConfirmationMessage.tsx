@@ -290,8 +290,9 @@ export const ToolConfirmationMessage: React.FC<
     return Math.max(availableTerminalHeight - surroundingElementsHeight, 1);
   }
 
-  // The warning box uses marginLeft={1} and paddingX={1}. Regular mode also
-  // renders inside the outer box's padding={1}.
+  // The warning and body boxes use marginLeft={1} and paddingX={1}. Regular
+  // mode also renders inside the outer one-column frame. Text wrapped at any
+  // wider width loses its last columns.
   const warningContentWidth = Math.max(
     contentWidth - 3 - (compactMode ? 0 : 2),
     1,
@@ -573,7 +574,7 @@ export const ToolConfirmationMessage: React.FC<
         <Box paddingX={1} marginLeft={1}>
           <MaxSizedBox
             maxHeight={bodyContentHeight}
-            maxWidth={Math.max(contentWidth, 1)}
+            maxWidth={warningContentWidth}
             overflowDirection="bottom"
           >
             <Box>

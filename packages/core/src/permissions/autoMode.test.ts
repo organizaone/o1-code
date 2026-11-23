@@ -618,6 +618,69 @@ describe('shouldForceAutoModeReviewForAllow', () => {
     ).toBe(true);
   });
 
+  describe('URL arguments', () => {
+    const forcesReview = (command: string) =>
+      shouldForceAutoModeReviewForAllow(
+        ctx({ toolName: ToolNames.SHELL, command, cwd: '/repo' }),
+      );
+    const spyOnRealpath = (aliases: Record<string, string> = {}) =>
+      vi.spyOn(fs.realpathSync, 'native').mockImplementation((filePath) => {
+        const alias = aliases[String(filePath)];
+        if (alias) return alias;
+        throw Object.assign(new Error('missing test path'), {
+          code: 'ENOENT',
+        });
+      });
+    const probedHost = (spy: ReturnType<typeof spyOnRealpath>, host: string) =>
+      spy.mock.calls.some(([filePath]) => String(filePath).includes(host));
+
+    // Resolving `//raw.example.com/...` on Windows is a UNC lookup that
+    // blocked the session for as long as the network took.
+    it.each([
+      'curl -sS --proxy http://127.0.0.1:7890 -o catalog.json https://raw.example.com/org/repo/main/catalog.json',
+      'wget -Ocatalog.json HTTPS://raw.example.com/catalog.json',
+      'python3 -c \'download("ftp://raw.example.com/catalog.json")\'',
+    ])('never resolves the URL in %s', (command) => {
+      const realpathSpy = spyOnRealpath();
+      try {
+        expect(forcesReview(command)).toBe(false);
+        expect(probedHost(realpathSpy, 'raw.example.com')).toBe(false);
+        expect(probedHost(realpathSpy, '127.0.0.1')).toBe(false);
+      } finally {
+        realpathSpy.mockRestore();
+      }
+    });
+
+    it('still reviews a protected path carried inside a URL', () => {
+      const realpathSpy = spyOnRealpath();
+      try {
+        expect(
+          forcesReview(
+            'curl -o out.json "https://raw.example.com/?dest=.o1-code/settings.json"',
+          ),
+        ).toBe(true);
+        expect(probedHost(realpathSpy, 'raw.example.com')).toBe(false);
+      } finally {
+        realpathSpy.mockRestore();
+      }
+    });
+
+    it.each([
+      'cp //fileserver/share/alias output.txt',
+      'curl file://fileserver/share/alias -o output.txt',
+    ])('still resolves the filesystem path in %s', (command) => {
+      const realpathSpy = spyOnRealpath({
+        '//fileserver/share/alias': '/repo/.o1-code/settings.json',
+      });
+      try {
+        expect(forcesReview(command)).toBe(true);
+        expect(realpathSpy).toHaveBeenCalledWith('//fileserver/share/alias');
+      } finally {
+        realpathSpy.mockRestore();
+      }
+    });
+  });
+
   it('returns false for ordinary writes after `cd` into project subdirs', () => {
     // Counter-case for the cd-tracking check above: cd-into-src + write a
     // generated file should NOT force AUTO review. Otherwise every

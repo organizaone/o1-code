@@ -34,6 +34,20 @@ const debugLogger = createDebugLogger('PERMISSIONS');
 function toPosixPath(p: string): string {
   return p.replace(/\\/g, '/');
 }
+
+/**
+ * A Windows absolute path: a drive root (`C:\dir`, `C:/dir`) or a UNC root
+ * (`\\server\share`). Detected lexically, not with `path.isAbsolute`, so one
+ * settings file resolves the same on every host.
+ */
+function isWindowsAbsolutePath(p: string): boolean {
+  return /^[A-Za-z]:[\\/]/.test(p) || isUncPath(p);
+}
+
+function isUncPath(p: string): boolean {
+  return /^\\\\[^\\/]/.test(p);
+}
+
 import type {
   PermissionCheckContext,
   PermissionRule,
@@ -670,6 +684,23 @@ const FILE_TARGETED_TOOLS = new Set([
 ]);
 
 /**
+ * Spell an absolute directory in rule grammar so that
+ * {@link resolvePathPattern} maps it back onto the same directory. POSIX
+ * roots take the `//` prefix (`//foo` → `/foo`), drive roots take it too
+ * (`//C:/foo` → `C:/foo`). A UNC root keeps its leading backslashes, because
+ * `//server/share` already means the POSIX directory `/server/share`.
+ */
+function toAbsolutePathSpecifier(dirPath: string): string {
+  if (isUncPath(dirPath)) {
+    return `\\\\${toPosixPath(dirPath).slice(2).replace(/\/+$/, '')}`;
+  }
+  if (isWindowsAbsolutePath(dirPath)) {
+    return `//${toPosixPath(dirPath).replace(/\/+$/, '')}`;
+  }
+  return dirPath.startsWith('/') ? `/${dirPath}` : dirPath;
+}
+
+/**
  * Build minimum-scope permission rule strings from a permission check context.
  *
  * This is the **single, centralised** function for generating rules to be
@@ -713,17 +744,11 @@ export function buildPermissionRules(ctx: PermissionCheckContext): string[] {
       if (ctx.filePath) {
         // For file-targeted tools, scope to the containing directory;
         // for directory-targeted tools the path is already a directory.
+        const windowsPath = isWindowsAbsolutePath(ctx.filePath);
         const dirPath = FILE_TARGETED_TOOLS.has(canonicalName)
-          ? path.dirname(ctx.filePath)
+          ? (windowsPath ? path.win32 : path).dirname(ctx.filePath)
           : ctx.filePath;
-        // Use the `//` prefix for absolute filesystem paths in rule grammar.
-        // Append `/**` so the gitignore-style glob matches all files in the
-        // directory recursively (picomatch uses `**` for recursive descent).
-        // resolvePathPattern("//foo/**") → "/foo/**" — round-trips correctly.
-        const specifier = dirPath.startsWith('/')
-          ? `/${dirPath}/**`
-          : `${dirPath}/**`;
-        return [`${displayName}(${specifier})`];
+        return [`${displayName}(${toAbsolutePathSpecifier(dirPath)}/**)`];
       }
       return [displayName];
 
@@ -1426,15 +1451,27 @@ function stripLeadingVariableAssignments(command: string): string {
  *
  * WARNING: `/Users/alice/file` is NOT an absolute path — it's relative to
  * the project root. Use `//Users/alice/file` for absolute paths.
+ *
+ * A Windows absolute path keeps its root: `C:/dir/**`, `C:\dir\**` and
+ * `//C:/dir/**` resolve to `C:/dir/**`, and `\\server\share\**` resolves to
+ * `//server/share/**`.
  */
 export function resolvePathPattern(
   specifier: string,
   projectRoot: string,
   cwd: string,
 ): string {
+  if (isWindowsAbsolutePath(specifier)) {
+    return toPosixPath(specifier);
+  }
+
   if (specifier.startsWith('//')) {
     // Absolute path from filesystem root: `//path` → `/path`
-    return specifier.substring(1);
+    const absolute = specifier.substring(1);
+    // No file path starts with `/C:/`; the drive letter is the root.
+    return /^\/[A-Za-z]:[\\/]/.test(absolute)
+      ? toPosixPath(absolute.substring(1))
+      : absolute;
   }
 
   if (specifier.startsWith('~/')) {

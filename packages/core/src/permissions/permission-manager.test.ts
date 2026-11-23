@@ -970,6 +970,23 @@ describe('resolvePathPattern', () => {
       '/project/Users/alice/file',
     );
   });
+
+  // Joined onto cwd, a Windows absolute pattern became `<cwd>/C:/keys/**` and
+  // no file ever matched it, so a deny rule on that path denied nothing.
+  it.each(['C:/keys/**', 'C:\\keys\\**', '//C:/keys/**', '//C:\\keys\\**'])(
+    'keeps the drive root of %s',
+    (specifier) => {
+      expect(resolvePathPattern(specifier, projectRoot, cwd)).toBe(
+        'C:/keys/**',
+      );
+    },
+  );
+
+  it('keeps the UNC root of \\\\server\\share', () => {
+    expect(
+      resolvePathPattern('\\\\server\\share\\keys\\**', projectRoot, cwd),
+    ).toBe('//server/share/keys/**');
+  });
 });
 
 // ─── matchesPathPattern ──────────────────────────────────────────────────────
@@ -1022,6 +1039,34 @@ describe('matchesPathPattern', () => {
     expect(
       matchesPathPattern('//project/*', '/project/out\r', projectRoot, cwd),
     ).toBe(true);
+  });
+
+  it.each(['C:/keys/**', 'C:\\keys\\**', '//C:/keys/**'])(
+    'matches drive-letter paths against %s and nothing outside it',
+    (specifier) => {
+      const matches = (filePath: string) =>
+        matchesPathPattern(specifier, filePath, projectRoot, cwd);
+      expect(matches('C:\\keys\\id_rsa')).toBe(true);
+      expect(matches('C:/keys/nested/id_rsa')).toBe(true);
+      expect(matches('C:\\other\\id_rsa')).toBe(false);
+      expect(matches('D:\\keys\\id_rsa')).toBe(false);
+      expect(matches('/project/keys/id_rsa')).toBe(false);
+      expect(matches('/project/C:/keys/id_rsa')).toBe(false);
+    },
+  );
+
+  it('matches UNC paths against a \\\\server\\share rule and nothing outside it', () => {
+    const matches = (filePath: string) =>
+      matchesPathPattern(
+        '\\\\server\\share\\keys\\**',
+        filePath,
+        projectRoot,
+        cwd,
+      );
+    expect(matches('\\\\server\\share\\keys\\id_rsa')).toBe(true);
+    expect(matches('\\\\server\\share\\other\\id_rsa')).toBe(false);
+    expect(matches('\\\\elsewhere\\share\\keys\\id_rsa')).toBe(false);
+    expect(matches('/server/share/keys/id_rsa')).toBe(false);
   });
 
   it('** matches recursively across directories', async () => {
@@ -4065,6 +4110,44 @@ describe('buildPermissionRules', () => {
     it('falls back to bare display name when no filePath', async () => {
       const rules = buildPermissionRules({ toolName: 'read_file' });
       expect(rules).toEqual(['Read']);
+    });
+
+    // "Always Allow" on Windows used to persist `Read(C:\work\docs/**)`, which
+    // resolved under cwd and never matched again, so the prompt kept coming.
+    it.each([
+      ['read_file', 'C:\\work\\docs\\guide.md', 'Read(//C:/work/docs/**)'],
+      ['read_file', 'C:/work/docs/guide.md', 'Read(//C:/work/docs/**)'],
+      ['glob', 'C:\\work\\docs', 'Read(//C:/work/docs/**)'],
+      ['glob', 'C:\\', 'Read(//C:/**)'],
+      [
+        'read_file',
+        '\\\\server\\share\\docs\\guide.md',
+        'Read(\\\\server/share/docs/**)',
+      ],
+    ])('writes a matchable rule for %s on %s', (toolName, filePath, rule) => {
+      expect(buildPermissionRules({ toolName, filePath })).toEqual([rule]);
+    });
+
+    it.each([
+      [
+        'C:\\work\\docs\\guide.md',
+        'C:\\work\\docs\\api\\ref.md',
+        'C:\\work\\x',
+      ],
+      [
+        '\\\\server\\share\\docs\\guide.md',
+        '\\\\server\\share\\docs\\api\\ref.md',
+        '\\\\server\\share\\x',
+      ],
+    ])('round-trips the Windows rule for %s', (filePath, sibling, outside) => {
+      const [rule] = buildPermissionRules({ toolName: 'read_file', filePath });
+      const parsed = parseRule(rule!);
+      const ctx = { projectRoot: '/some/project', cwd: '/some/project' };
+      const matches = (candidate: string) =>
+        matchesRule(parsed, 'read_file', undefined, candidate, undefined, ctx);
+      expect(matches(filePath)).toBe(true);
+      expect(matches(sibling)).toBe(true);
+      expect(matches(outside)).toBe(false);
     });
   });
 
