@@ -22,6 +22,10 @@ follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - Loading a session with long background replies is much smaller, and loading during a Goal no
   longer shows an older version of the conversation. The session list is faster with many
   sessions.
+- In the Web Shell, terminals and previews open over plain HTTP, the @-mention menu no longer
+  empties while you type, and files that start with a byte order mark can be saved.
+- The TypeScript SDK stops delivering events after a cancel, and a header passed in any case
+  replaces the SDK's own.
 
 ### Security
 

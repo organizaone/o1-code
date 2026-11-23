@@ -5,7 +5,7 @@
  */
 
 import { describe, it, expect } from 'vitest';
-import { parseSseStream } from '../../src/daemon/sse.js';
+import { parseSseStream, SseFramingError } from '../../src/daemon/sse.js';
 import type { DaemonEvent } from '../../src/daemon/types.js';
 
 function bodyFromString(s: string): ReadableStream<Uint8Array> {
@@ -39,6 +39,119 @@ async function collect(
   }
   return out;
 }
+
+describe('parseSseStream after abort', () => {
+  const frames = (separator: string) =>
+    [1, 2, 3]
+      .map((id) => `data: ${JSON.stringify({ id, v: 1, type: 'x' })}`)
+      .join(separator) + separator;
+
+  it.each(['\n\n', '\r\n\r\n'])(
+    'stops a buffered batch at the abort (%j)',
+    async (separator) => {
+      const controller = new AbortController();
+      let cancelled = false;
+      const body = new ReadableStream<Uint8Array>({
+        start(stream) {
+          stream.enqueue(new TextEncoder().encode(frames(separator)));
+        },
+        cancel() {
+          cancelled = true;
+        },
+      });
+      const ids: number[] = [];
+      for await (const event of parseSseStream(body, controller.signal)) {
+        ids.push(event.id!);
+        controller.abort();
+      }
+      expect(ids).toEqual([1]);
+      expect(cancelled).toBe(true);
+    },
+  );
+
+  it('stops a batch from an already-closed stream at the abort', async () => {
+    const controller = new AbortController();
+    const ids: number[] = [];
+    for await (const event of parseSseStream(
+      bodyFromString(frames('\n\n')),
+      controller.signal,
+    )) {
+      ids.push(event.id!);
+      controller.abort();
+    }
+    expect(ids).toEqual([1]);
+  });
+
+  it('does not deliver a read that settles during cancellation', async () => {
+    const controller = new AbortController();
+    const body = new ReadableStream<Uint8Array>({
+      pull(stream) {
+        stream.enqueue(
+          new TextEncoder().encode('data: {"v":1,"type":"x"}\n\n'),
+        );
+        controller.abort();
+      },
+    });
+    expect(await collect(parseSseStream(body, controller.signal))).toEqual([]);
+  });
+
+  it('does not flush a buffered tail once abort settles a parked read', async () => {
+    const controller = new AbortController();
+    let pulls = 0;
+    let cancelled = false;
+    let onParkedRead!: () => void;
+    const parkedRead = new Promise<void>((resolve) => {
+      onParkedRead = resolve;
+    });
+    const body = new ReadableStream<Uint8Array>(
+      {
+        pull(stream) {
+          if (++pulls === 1) {
+            stream.enqueue(
+              new TextEncoder().encode('data: {"id":7,"v":1,"type":"x"}'),
+            );
+          } else {
+            onParkedRead();
+          }
+        },
+        cancel() {
+          cancelled = true;
+        },
+      },
+      // No prefetch: the second pull must be the parser's next read, made
+      // after it kept the unterminated frame in its buffer.
+      { highWaterMark: 0 },
+    );
+    const pending = collect(parseSseStream(body, controller.signal));
+    await parkedRead;
+    controller.abort();
+
+    await expect(pending).resolves.toEqual([]);
+    expect(cancelled).toBe(true);
+    expect(pulls).toBe(2);
+  });
+
+  it('completes cleanly when an oversized read settles during cancellation', async () => {
+    const controller = new AbortController();
+    let source!: ReadableStreamDefaultController<Uint8Array>;
+    const body = new ReadableStream<Uint8Array>({
+      start(stream) {
+        source = stream;
+      },
+    });
+    const pending = collect(parseSseStream(body, controller.signal));
+    source.enqueue(new Uint8Array(16 * 1024 * 1024 + 1).fill(0x78));
+    controller.abort();
+
+    await expect(pending).resolves.toEqual([]);
+  });
+
+  it('still rejects an oversized separator-free read without an abort', async () => {
+    await expect(
+      collect(parseSseStream(bodyFromString('x'.repeat(16 * 1024 * 1024 + 1)))),
+    ).rejects.toBeInstanceOf(SseFramingError);
+  });
+});
 
 describe('parseSseStream', () => {
   it('parses a single frame', async () => {
