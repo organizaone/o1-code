@@ -8,6 +8,7 @@ import { randomBytes, randomUUID } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import { createServer, type Server } from 'node:http';
 import { createServer as createSecureServer } from 'node:https';
+import type { Socket } from 'node:net';
 import type { Application } from 'express';
 import type { SleepInhibitorHandle } from '@organizaone/o1-code-core';
 import { sleepInhibitor } from '@organizaone/o1-code-core';
@@ -16,6 +17,7 @@ import type { CredentialStore } from './credentials.js';
 import { tagListener } from './listener-identity.js';
 import { selectLanAddress, type LanCandidate } from './lan-interfaces.js';
 import { writeStderrLine } from '../../utils/stdioHelpers.js';
+import { enableSocketKeepAlive } from '../sse-admission.js';
 
 /** Key under which the LAN origin is registered in the mutable CORS allowlist. */
 const CORS_KEY = 'local-control';
@@ -120,6 +122,7 @@ export interface LocalControlServiceDeps {
 export class LocalControlService {
   readonly #deps: LocalControlServiceDeps;
   #server: Server | undefined;
+  #sockets = new Set<Socket>();
   #token: PairingToken | undefined;
   #selected: LanCandidate | undefined;
   #sleep: SleepInhibitorHandle | undefined;
@@ -198,6 +201,8 @@ export class LocalControlService {
     // and a request can arrive between `listen()` resolving and the next line
     // of this function running.
     tagListener(server, { kind: 'local-control', authority, origin });
+    enableSocketKeepAlive(server);
+    const sockets = trackSockets(server);
 
     // Register the credential and the origin BEFORE the socket accepts
     // anything. Reversed, there is a window where the LAN listener is up but
@@ -222,6 +227,7 @@ export class LocalControlService {
       );
     });
     this.#server = server;
+    this.#sockets = sockets;
     this.#token = token;
     this.#selected = selected;
     this.#url = url;
@@ -247,8 +253,10 @@ export class LocalControlService {
 
   async #disable(): Promise<LocalControlStatus> {
     const server = this.#server;
+    const sockets = this.#sockets;
     const token = this.#token;
     this.#server = undefined;
+    this.#sockets = new Set();
     this.#token = undefined;
     this.#selected = undefined;
     this.#url = undefined;
@@ -260,7 +268,7 @@ export class LocalControlService {
 
     if (server) {
       this.#deps.detachWebSocket(server);
-      await close(server);
+      await close(server, sockets);
     }
     return { active: false };
   }
@@ -333,12 +341,25 @@ function listen(server: Server, port: number, host: string): Promise<void> {
   });
 }
 
-function close(server: Server): Promise<void> {
+function trackSockets(server: Server): Set<Socket> {
+  const sockets = new Set<Socket>();
+  server.on('connection', (socket: Socket) => {
+    sockets.add(socket);
+    socket.once('close', () => sockets.delete(socket));
+  });
+  return sockets;
+}
+
+function close(server: Server, sockets: Set<Socket>): Promise<void> {
   return new Promise((resolve) => {
     // `closeAllConnections` cuts keep-alive sockets that `close()` alone would
     // wait on indefinitely. Without it, disable() would resolve only once the
-    // phone happened to disconnect.
+    // phone happened to disconnect. Upgraded (WebSocket) sockets are detached
+    // from the HTTP server and out of its reach, so a paired peer that never
+    // answers the close frame would hang disable(); destroy those directly.
     server.closeAllConnections?.();
+    for (const socket of sockets) socket.destroy();
+    sockets.clear();
     server.close(() => resolve());
   });
 }

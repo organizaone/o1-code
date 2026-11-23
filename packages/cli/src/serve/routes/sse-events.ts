@@ -33,6 +33,10 @@ import {
   parseLastEventId,
   parseMaxQueuedQuery,
 } from '../server/request-helpers.js';
+import {
+  effectiveWriterIdleTimeoutMs,
+  forceCloseSocket,
+} from '../sse-admission.js';
 import { parseEventEpochHeader } from '../sse-last-event-id.js';
 import { omitSkillDetailsForSdkSurface } from '../skill-details-redaction.js';
 import { redactWorkflowsFromAvailableCommandsEvent } from '../workflow-session-gate.js';
@@ -47,6 +51,10 @@ import {
 let activeSseCount = 0;
 
 const SSE_STREAM_ID_HEADER = 'X-O1Code-SSE-Stream-Id';
+// Bounds how long an evicted stream may wait for its terminal frame to flush
+// before the socket is reset; a peer that never reads would otherwise keep
+// the listener slot the eviction was meant to free.
+const EVICTION_FORCE_CLOSE_MS = 5_000;
 // Keep in sync with the REST transport's response-header validator.
 const SSE_STREAM_ID_RE =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
@@ -121,7 +129,10 @@ interface RegisterSseEventsRoutesDeps {
   bridge: AcpSessionBridge;
   workspaceRegistry: WorkspaceRegistry;
   daemonLog?: DaemonLogger;
+  /** Raw option: unset arms the default budget, 0 disables the reaper. */
   writerIdleTimeoutMs?: number;
+  /** Resolved admission cap; `undefined` admits without limit. */
+  maxSseConnections?: number;
   sendBridgeError: SendBridgeError;
   virtualSubagentSessions?: VirtualSubagentSessions;
   conversationRuntimeActivity?: ConversationRuntimeActivityGate;
@@ -174,12 +185,46 @@ export function registerSseEventsRoutes(
   app: Application,
   deps: RegisterSseEventsRoutesDeps,
 ): void {
-  const { workspaceRegistry, daemonLog, sendBridgeError, writerIdleTimeoutMs } =
+  const { workspaceRegistry, daemonLog, sendBridgeError, maxSseConnections } =
     deps;
+  const writerIdleTimeoutMs = effectiveWriterIdleTimeoutMs(
+    deps.writerIdleTimeoutMs,
+  );
 
   app.get('/session/:id/events', async (req, res) => {
     const sessionId = req.params['id'];
     const diagnosticSessionId = boundedDiagnosticString(sessionId);
+    // Checked before the subscription handshake. Without it, long-lived
+    // streams fill `server.maxConnections` and Node then drops every new
+    // socket at accept time, /health included, with no response at all.
+    if (
+      maxSseConnections !== undefined &&
+      activeSseCount >= maxSseConnections
+    ) {
+      try {
+        const context = {
+          sessionId: diagnosticSessionId,
+          active: activeSseCount,
+          limit: maxSseConnections,
+        };
+        if (daemonLog) {
+          daemonLog.warn('SSE connection limit reached', context);
+        } else {
+          writeStderrLine(
+            `o1-code serve: SSE connection limit reached ${JSON.stringify(context)}`,
+          );
+        }
+      } catch {
+        // The refusal must still be sent when diagnostics fail.
+      }
+      res.setHeader('Retry-After', '5');
+      res.status(503).json({
+        error: `Too many concurrent SSE streams (limit ${maxSseConnections}).`,
+        code: 'sse_connection_limit_exceeded',
+        limit: maxSseConnections,
+      });
+      return;
+    }
     const streamId = randomUUID();
     const clientId = parseSseClientId(req.headers['x-o1code-client-id']);
     const connectReason = parseSseConnectReason(req.query['connectReason']);
@@ -634,9 +679,9 @@ export function registerSseEventsRoutes(
     // to "now" because cleanup runs only after the FIRST stall, and
     // the SSE handshake itself counts as activity.
     //
-    // Gated on `trackWriterIdle` so the default (flag unset) avoids
-    // a per-chunk `Date.now()` on a chatty stream — SSE writers can
-    // be in the hundreds-to-thousands of frames per session.
+    // On by default (60s budget, comfortably above the 15s heartbeat);
+    // `writerIdleTimeoutMs: 0` disables it and skips the per-chunk
+    // `Date.now()`.
     const trackWriterIdle =
       writerIdleTimeoutMs !== undefined && writerIdleTimeoutMs > 0;
     let lastWriteAt = trackWriterIdle ? Date.now() : 0;
@@ -734,7 +779,7 @@ export function registerSseEventsRoutes(
     // dropping flows, peer process frozen, etc.) and we force a
     // terminal `client_evicted` frame + cleanup. The historical "Stage
     // 2 may add an explicit application-level idle timeout" gap
-    // referenced here is now closed when the flag is set.
+    // referenced here is now closed, by default, unless the flag is 0.
     const heartbeatTimer = setInterval(() => {
       if (!res.writableEnded) {
         // Heartbeat writes are best-effort; failure swallowed via the
@@ -745,8 +790,8 @@ export function registerSseEventsRoutes(
     heartbeatTimer.unref();
 
     // T2.9: declare the idle-timer slot up-front so `cleanup` below can
-    // clear it unconditionally. The actual interval is armed only when
-    // `--writer-idle-timeout-ms` is configured.
+    // clear it unconditionally. The actual interval is armed unless
+    // `--writer-idle-timeout-ms` is 0.
     let idleTimer: NodeJS.Timeout | undefined;
 
     const cleanup = () => {
@@ -755,7 +800,7 @@ export function registerSseEventsRoutes(
       abort.abort();
     };
 
-    // T2.9: arm the SSE writer idle timeout (if configured). Distinct
+    // T2.9: arm the SSE writer idle timeout (unless disabled). Distinct
     // from the heartbeat above: heartbeat = "try to ping every 15s";
     // this = "if no write SUCCEEDED for N ms, force-evict." Values
     // BELOW the 15s heartbeat interval WILL evict otherwise-healthy
@@ -856,6 +901,15 @@ export function registerSseEventsRoutes(
         } catch {
           /* socket already destroyed; nothing more to do. */
         }
+        // A stalled peer never drains, so `end()` alone neither finishes
+        // the response nor frees the listener slot.
+        const socket = res.socket;
+        const forceClose = setTimeout(
+          () => forceCloseSocket(socket),
+          EVICTION_FORCE_CLOSE_MS,
+        );
+        forceClose.unref();
+        res.once('close', () => clearTimeout(forceClose));
       }, checkIntervalMs);
       idleTimer.unref();
     }

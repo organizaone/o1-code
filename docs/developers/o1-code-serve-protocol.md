@@ -716,7 +716,7 @@ Response shape:
     "eventRingSize": 8000,
     "compactedReplayMaxBytes": 4194304,
     "promptDeadlineMs": null,
-    "writerIdleTimeoutMs": null,
+    "writerIdleTimeoutMs": 60000,
     "channelIdleTimeoutMs": 0,
     "sessionIdleTimeoutMs": 1800000,
     "acpConnectionCap": 64
@@ -760,6 +760,9 @@ Response shape:
   }
 }
 ```
+
+`limits.writerIdleTimeoutMs` is the writer budget in effect: `60000` when the
+flag is unset, `null` when it was set to `0`.
 
 Multi-workspace responses also include top-level `workspaces[]` rows with
 `{ id, cwd, displayName?, primary, trusted }`. The optional display name is
@@ -3512,6 +3515,13 @@ Backpressure:
 - Override only the frame cap via `?maxQueued=N` (range `[16, 2048]`) on the SSE request. There is deliberately no `?maxQueuedBytes`; clients cannot raise daemon memory budget.
 - When a subscriber's live frame backlog or live byte backlog crosses 75% full the bus force-pushes a `slow_client_warning` synthetic frame to that subscriber (once per overflow episode; re-armed after both measurements drain below 37.5%). The stream stays open — the warning is a heads-up so the client can drain faster or detach + reconnect cleanly.
 - If the live frame cap overflows, the bus emits `client_evicted` with `reason: "queue_overflow"`. If the live byte cap overflows, it emits `reason: "queue_bytes_overflow"`. In both cases the terminal frame is force-pushed and the subscription closes.
+
+Admission and stalled writers:
+
+- The daemon admits at most `--max-sse-connections` concurrent streams on this route, across all sessions. The default is 80% of `--max-connections` (204 at the default 256), so `/health`, the Web Shell, and the JSON routes always keep the remaining listener headroom. Explicit values are floored to at least 1 and clamped to that 80% share; `0` or `Infinity` removes the cap, and so does `--max-connections 0`. Negative or `NaN` values fail at boot.
+- A stream over the cap is refused before the handshake with `503`, `Retry-After: 5`, and `{"error": "...", "code": "sse_connection_limit_exceeded", "limit": 204}`. Like the per-session `429 subscriber_limit_exceeded`, it is a back-off signal, not a stream.
+- A stream with no successful write for `--writer-idle-timeout-ms` (default `60000`; heartbeats every 15s keep a healthy idle stream alive) is evicted with a terminal `client_evicted` frame carrying `reason: "writer_idle_timeout"`, `idleForMs`, and `timeoutMs`. If the peer still does not read, the socket is reset 5s later so the listener slot is freed. `--writer-idle-timeout-ms 0` disables the reaper.
+- Every listener enables TCP keepalive (30s idle delay) on accepted sockets, so the kernel reaps half-open peers dropped by a NAT. A live peer that stopped reading still ACKs keepalive probes; that case belongs to the writer reaper.
 
 ### `POST /session/:id/permission/:requestId`
 

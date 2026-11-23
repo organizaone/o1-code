@@ -49,13 +49,16 @@ import type {
 import type { TotalSessionAdmissionSnapshot } from './total-session-admission.js';
 import type { WorkspaceRegistry } from './workspace-registry.js';
 import { isInternalWorkspaceRuntime } from './workspace-runtime-visibility.js';
+import {
+  DEFAULT_LISTENER_MAX_CONNECTIONS,
+  effectiveWriterIdleTimeoutMs,
+} from './sse-admission.js';
 
 // Re-export so downstream consumers (server.ts, routes, the SDK type mirror)
 // import the bucket shape from the status module alongside the rest of the
 // response contract, matching how DaemonPerfSnapshot is sourced.
 export type { DaemonMetricsBucket };
 
-const DEFAULT_LISTENER_MAX_CONNECTIONS = 256;
 const SECTION_TIMEOUT_MS = 1_000;
 const CAPACITY_WARNING_RATIO = 0.8;
 
@@ -956,7 +959,8 @@ export async function buildDaemonStatusResponse(
       maxJournalEvents: bridgeSnapshot.limits.maxJournalEvents,
       maxJournalBytes: bridgeSnapshot.limits.maxJournalBytes,
       promptDeadlineMs: positiveFiniteOrNull(input.opts.promptDeadlineMs),
-      writerIdleTimeoutMs: positiveFiniteOrNull(input.opts.writerIdleTimeoutMs),
+      writerIdleTimeoutMs:
+        effectiveWriterIdleTimeoutMs(input.opts.writerIdleTimeoutMs) ?? null,
       channelIdleTimeoutMs: bridgeSnapshot.limits.channelIdleTimeoutMs,
       sessionIdleTimeoutMs: bridgeSnapshot.limits.sessionIdleTimeoutMs,
       sessionPromptSettledCloseGraceMs:

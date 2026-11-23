@@ -8800,7 +8800,7 @@ describe('runO1CodeServe runtime startup failures', () => {
           maxJournalEvents: 10_000,
           maxJournalBytes: 8 * 1024 * 1024,
           promptDeadlineMs: null,
-          writerIdleTimeoutMs: null,
+          writerIdleTimeoutMs: 60_000,
           channelIdleTimeoutMs: 0,
           sessionIdleTimeoutMs: 1_800_000,
           sessionPromptSettledCloseGraceMs: 0,

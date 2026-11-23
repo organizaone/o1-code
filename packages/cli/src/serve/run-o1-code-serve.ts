@@ -202,6 +202,11 @@ import {
   type DaemonStartupSnapshot,
   type DaemonStatusResponse,
 } from './daemon-status.js';
+import {
+  assertValidMaxSseConnections,
+  effectiveWriterIdleTimeoutMs,
+  enableSocketKeepAlive,
+} from './sse-admission.js';
 import { DaemonMetricsRing } from './daemon-metrics-ring.js';
 import { computeCpuPercent } from '../runtime/cpu-percent.js';
 import { createLargePipeFrameObserver } from './large-pipe-frame-observer.js';
@@ -1417,7 +1422,8 @@ function createBootstrapServeApp(input: {
         maxJournalEvents: opts.maxJournalEvents ?? DEFAULT_MAX_JOURNAL_EVENTS,
         maxJournalBytes: opts.maxJournalBytes ?? DEFAULT_MAX_JOURNAL_BYTES,
         promptDeadlineMs: positiveFiniteOrNull(opts.promptDeadlineMs),
-        writerIdleTimeoutMs: positiveFiniteOrNull(opts.writerIdleTimeoutMs),
+        writerIdleTimeoutMs:
+          effectiveWriterIdleTimeoutMs(opts.writerIdleTimeoutMs) ?? null,
         channelIdleTimeoutMs: channelIdleTimeoutMs(opts.channelIdleTimeoutMs),
         sessionIdleTimeoutMs: sessionIdleTimeoutMs(opts.sessionIdleTimeoutMs),
         sessionPromptSettledCloseGraceMs: sessionPromptSettledCloseGraceMs(
@@ -1945,12 +1951,16 @@ async function runO1CodeServeImpl(
       O1CODE_SERVE_PROMPT_DEADLINE_MS_ENV,
       process.env[O1CODE_SERVE_PROMPT_DEADLINE_MS_ENV],
     );
+  const writerIdleTimeoutEnv =
+    process.env[O1CODE_SERVE_WRITER_IDLE_TIMEOUT_MS_ENV];
   const writerIdleTimeoutMs =
     optsIn.writerIdleTimeoutMs ??
-    parseDeadlineEnv(
-      O1CODE_SERVE_WRITER_IDLE_TIMEOUT_MS_ENV,
-      process.env[O1CODE_SERVE_WRITER_IDLE_TIMEOUT_MS_ENV],
-    );
+    (writerIdleTimeoutEnv?.trim() === '0'
+      ? 0
+      : parseDeadlineEnv(
+          O1CODE_SERVE_WRITER_IDLE_TIMEOUT_MS_ENV,
+          writerIdleTimeoutEnv,
+        ));
   const clientMcpOverWsEnv = process.env[O1CODE_SERVE_CLIENT_MCP_OVER_WS_ENV];
   const rawWorkspaces = resolveWorkspaceInputs(optsIn.workspace);
   const rawWorkspace = rawWorkspaces[0]!;
@@ -2593,12 +2603,16 @@ async function runO1CodeServeImpl(
     normalizeMaxJournalBytes(opts.maxJournalBytes);
   }
   if (opts.writerIdleTimeoutMs !== undefined) {
-    if (!isPositiveIntegerMs(opts.writerIdleTimeoutMs)) {
+    if (
+      opts.writerIdleTimeoutMs !== 0 &&
+      !isPositiveIntegerMs(opts.writerIdleTimeoutMs)
+    ) {
       throw new TypeError(
-        `Invalid writerIdleTimeoutMs: ${opts.writerIdleTimeoutMs}. Must be a positive integer (milliseconds).`,
+        `Invalid writerIdleTimeoutMs: ${opts.writerIdleTimeoutMs}. Must be a non-negative integer (milliseconds, 0 = disabled).`,
       );
     }
   }
+  assertValidMaxSseConnections(opts.maxSseConnections);
   if (opts.channelIdleTimeoutMs !== undefined) {
     if (
       !Number.isFinite(opts.channelIdleTimeoutMs) ||
@@ -7206,6 +7220,7 @@ async function runO1CodeServeImpl(
     } else {
       server = deps.httpServerFactory?.(app) ?? createServer(app);
     }
+    enableSocketKeepAlive(server);
     serveAppLifecycle.bindServer(server, {
       startupReady: serveAppStartupReady,
       drainHost: () => {

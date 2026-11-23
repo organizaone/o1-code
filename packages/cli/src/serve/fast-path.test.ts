@@ -690,6 +690,7 @@ describe('serve fast path argument parsing', () => {
         ['--max-pending-prompts-per-session', '5'],
       ],
       ['max-connections', ['--max-connections', '256']],
+      ['max-sse-connections', ['--max-sse-connections', '100']],
       ['event-ring-size', ['--event-ring-size', '8000']],
       [
         'compacted-replay-max-bytes',

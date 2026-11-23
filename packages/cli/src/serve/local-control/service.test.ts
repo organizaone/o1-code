@@ -6,7 +6,7 @@
 
 import express from 'express';
 import { createServer, type Server } from 'node:http';
-import type { AddressInfo } from 'node:net';
+import { connect, Socket, type AddressInfo } from 'node:net';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { MutableOriginAllowlist } from '../auth.js';
 import { CredentialStore } from './credentials.js';
@@ -211,5 +211,77 @@ describe('LocalControlService', () => {
     );
 
     await new Promise<void>((resolve) => blocker.close(() => resolve()));
+  });
+
+  it('enables TCP keepalive on accepted LAN sockets', async () => {
+    const port = await unusedPort();
+    const keepAlive = vi.spyOn(Socket.prototype, 'setKeepAlive');
+    const service = new LocalControlService({
+      app: express(),
+      credentials: new CredentialStore(),
+      originAllowlist: new MutableOriginAllowlist({
+        allowAny: false,
+        origins: new Set(),
+      }),
+      attachWebSocket: vi.fn(),
+      detachWebSocket: vi.fn(),
+      getPort: () => port,
+    });
+    await service.enable();
+    const client = connect(port, '127.0.0.1');
+    try {
+      await vi.waitFor(() =>
+        expect(keepAlive).toHaveBeenCalledWith(true, 30_000),
+      );
+    } finally {
+      client.destroy();
+      keepAlive.mockRestore();
+      await service.disable();
+    }
+  });
+
+  it('disable resolves over an upgraded peer that never answers close', async () => {
+    // Upgraded sockets are out of reach of closeAllConnections(); the upgrade
+    // is accepted raw so the test does not depend on the ACP transport.
+    const port = await unusedPort();
+    const service = new LocalControlService({
+      app: express(),
+      credentials: new CredentialStore(),
+      originAllowlist: new MutableOriginAllowlist({
+        allowAny: false,
+        origins: new Set(),
+      }),
+      attachWebSocket: (server) => {
+        server.on('upgrade', (_req, socket) => {
+          socket.write(
+            'HTTP/1.1 101 Switching Protocols\r\nUpgrade: websocket\r\nConnection: Upgrade\r\n\r\n',
+          );
+        });
+      },
+      detachWebSocket: vi.fn(),
+      getPort: () => port,
+    });
+    await service.enable();
+    const client = await new Promise<Socket>((resolve, reject) => {
+      const socket = connect(port, '127.0.0.1', () => {
+        socket.write(
+          'GET /acp HTTP/1.1\r\nHost: 127.0.0.1\r\nConnection: Upgrade\r\nUpgrade: websocket\r\nSec-WebSocket-Key: dGhlIHNhbXBsZSBub25jZQ==\r\nSec-WebSocket-Version: 13\r\n\r\n',
+        );
+      });
+      socket.once('data', () => resolve(socket));
+      socket.on('error', reject);
+    });
+    let timer: NodeJS.Timeout | undefined;
+    try {
+      const bound = new Promise<'timeout'>((resolve) => {
+        timer = setTimeout(() => resolve('timeout'), 2_000);
+      });
+      await expect(
+        Promise.race([service.disable().then(() => 'closed' as const), bound]),
+      ).resolves.toBe('closed');
+    } finally {
+      clearTimeout(timer);
+      client.destroy();
+    }
   });
 });
