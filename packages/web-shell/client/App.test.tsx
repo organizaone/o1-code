@@ -4246,6 +4246,53 @@ describe('task activity key', () => {
     ).toBe('true');
   });
 
+  it('opens a terminal tab when crypto.randomUUID is unavailable', async () => {
+    mockConnection.capabilities.features = ['web_terminal'];
+    window.localStorage.setItem(
+      'o1-code-web-shell-right-panel-state',
+      JSON.stringify({
+        v: 1,
+        '/tmp/project\0session-1': { open: true, activeTabId: null, tabs: [] },
+      }),
+    );
+    const { container } = renderApp({ rightPanel: { items: ['terminal'] } });
+    await flush();
+    await flush();
+    const openTerminal = Array.from(
+      container.querySelectorAll<HTMLButtonElement>(
+        '[data-testid="right-panel-empty-actions"] button',
+      ),
+    ).find((button) => button.textContent?.includes('Terminal'));
+    expect(openTerminal).toBeDefined();
+
+    // Plain-HTTP remote origins are not secure contexts, so the browser does
+    // not expose randomUUID there.
+    const descriptor = Object.getOwnPropertyDescriptor(
+      globalThis.crypto,
+      'randomUUID',
+    );
+    Object.defineProperty(globalThis.crypto, 'randomUUID', {
+      value: undefined,
+      configurable: true,
+    });
+    try {
+      act(() => openTerminal?.click());
+      await flush();
+    } finally {
+      if (descriptor) {
+        Object.defineProperty(globalThis.crypto, 'randomUUID', descriptor);
+      } else {
+        delete (globalThis.crypto as { randomUUID?: unknown }).randomUUID;
+      }
+    }
+
+    expect(
+      container
+        .querySelector('[data-terminal-id^="terminal:"]')
+        ?.getAttribute('data-terminal-id'),
+    ).toMatch(/^terminal:[0-9a-f-]{36}$/);
+  });
+
   it('releases a detached terminal when its persisted session is evicted', async () => {
     mockConnection.capabilities.features = ['web_terminal'];
     window.localStorage.setItem(

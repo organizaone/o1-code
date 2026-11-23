@@ -4,6 +4,7 @@ import { openSourceEntry } from './components/panels/SourcesSection';
 import { isSessionWriterBlockedCode } from './daemon/session/session-context';
 import { TurnNotificationNavigationContext } from './daemon/session/turn-notification-context';
 import { useBrowserNotificationSettings } from './browser-turn-notifications';
+import { randomUUID } from './utils/random-uuid';
 import {
   parseWebPreviewUrl,
   type WebPreviewState,
@@ -4897,7 +4898,7 @@ export function App({
     pushToast('error', t('sideTask.createFailed'));
   }, [createSideTask, pushToast, t]);
   const openWebPreviewTab = useCallback(() => {
-    const id = `web-preview:${crypto.randomUUID()}`;
+    const id = `web-preview:${randomUUID()}`;
     setArtifactPanelTabs((tabs) => [
       ...tabs,
       {
@@ -4930,7 +4931,7 @@ export function App({
     [],
   );
   const openTerminalTab = useCallback(() => {
-    const id = `terminal:${crypto.randomUUID()}`;
+    const id = `terminal:${randomUUID()}`;
     const count = artifactPanelTabsRef.current.filter(
       (tab) => tab.kind === 'terminal',
     ).length;

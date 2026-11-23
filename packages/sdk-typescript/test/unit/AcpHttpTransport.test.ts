@@ -205,6 +205,42 @@ describe('AcpHttpTransport', () => {
 
       transport.dispose();
     });
+
+    it('sends one authorization header when the caller overrides it in another case', async () => {
+      const { fetch } = initAwareFetch({ connectionIdHeader: 'conn-1' });
+      let rawHeaders: Record<string, string> | undefined;
+      const captureFetch: typeof globalThis.fetch = async (input, init) => {
+        if (
+          typeof init?.body === 'string' &&
+          JSON.parse(init.body).method === 'session/new'
+        ) {
+          rawHeaders = init.headers as Record<string, string>;
+        }
+        return fetch(input, init);
+      };
+      const transport = new AcpHttpTransport(
+        'http://d',
+        'transport',
+        captureFetch,
+      );
+
+      try {
+        const response = await transport.fetch('http://d/session', {
+          method: 'POST',
+          headers: { authorization: 'Bearer caller' },
+          body: JSON.stringify({ model: 'test' }),
+        });
+
+        expect(response.status).toBe(200);
+        const authorization = Object.entries(rawHeaders ?? {}).filter(
+          ([name]) => name.toLowerCase() === 'authorization',
+        );
+        expect(authorization).toEqual([['authorization', 'Bearer caller']]);
+        expect(new Headers(rawHeaders).get('acp-connection-id')).toBe('conn-1');
+      } finally {
+        transport.dispose();
+      }
+    });
   });
 
   // ---- ConnectionId extraction ------------------------------------------

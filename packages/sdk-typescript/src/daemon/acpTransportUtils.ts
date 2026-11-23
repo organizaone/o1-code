@@ -125,7 +125,10 @@ export function composeAbortSignals(signals: AbortSignal[]): AbortSignal {
 
 /**
  * Merge transport-specific headers with caller-provided headers from
- * `RequestInit`. Caller headers take precedence for any conflicts.
+ * `RequestInit`. Caller headers take precedence for any conflicts. Header
+ * names are case-insensitive, so the result carries each name once, in
+ * lowercase: a caller's `authorization` replaces the transport's
+ * `Authorization` instead of being sent next to it.
  */
 export function mergeHeaders(
   transportHeaders: Record<string, string>,
@@ -133,17 +136,13 @@ export function mergeHeaders(
 ): Record<string, string> {
   if (!initHeaders) return transportHeaders;
 
-  const merged = { ...transportHeaders };
-  if (initHeaders instanceof Headers) {
-    initHeaders.forEach((value, key) => {
-      merged[key] = value;
-    });
-  } else if (Array.isArray(initHeaders)) {
-    for (const [key, value] of initHeaders) {
-      merged[key] = value;
-    }
-  } else {
-    Object.assign(merged, initHeaders);
-  }
-  return merged;
+  const merged = new Headers(transportHeaders);
+  new Headers(initHeaders).forEach((value, key) => {
+    merged.set(key, value);
+  });
+  const headers: Record<string, string> = {};
+  merged.forEach((value, key) => {
+    headers[key] = value;
+  });
+  return headers;
 }

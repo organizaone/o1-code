@@ -5,7 +5,49 @@
  */
 
 import { describe, expect, it } from 'vitest';
-import { jsonRpcErrorToHttpStatusWithData } from '../../src/daemon/acpTransportUtils.js';
+import {
+  jsonRpcErrorToHttpStatusWithData,
+  mergeHeaders,
+} from '../../src/daemon/acpTransportUtils.js';
+
+describe('mergeHeaders', () => {
+  const callerHeaders: Array<[string, HeadersInit]> = [
+    ['object', { authorization: 'Bearer caller' }],
+    ['tuples', [['authorization', 'Bearer caller']]],
+    ['Headers', new Headers({ authorization: 'Bearer caller' })],
+  ];
+
+  it.each(callerHeaders)(
+    'lets a caller header override a differently cased one (%s)',
+    (_name, headers) => {
+      const defaults = { Authorization: 'Bearer transport' };
+      const merged = mergeHeaders(defaults, headers);
+      expect(
+        Object.keys(merged).filter((k) => k.toLowerCase() === 'authorization'),
+      ).toHaveLength(1);
+      expect(new Headers(merged).get('authorization')).toBe('Bearer caller');
+      expect(defaults).toEqual({ Authorization: 'Bearer transport' });
+    },
+  );
+
+  it('keeps unrelated transport headers next to the caller ones', () => {
+    const headers = new Headers(
+      mergeHeaders(
+        { Authorization: 'Bearer transport', Accept: 'application/json' },
+        { Authorization: 'Bearer caller', 'X-Request-ID': 'request-1' },
+      ),
+    );
+    expect(headers.get('authorization')).toBe('Bearer caller');
+    expect(headers.get('accept')).toBe('application/json');
+    expect(headers.get('x-request-id')).toBe('request-1');
+  });
+
+  it('returns the transport headers untouched without caller headers', () => {
+    expect(
+      mergeHeaders({ Authorization: 'Bearer transport' }, undefined),
+    ).toEqual({ Authorization: 'Bearer transport' });
+  });
+});
 
 describe('jsonRpcErrorToHttpStatusWithData', () => {
   it.each(['session_archived', 'session_conflict', 'session_archiving'])(

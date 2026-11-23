@@ -90,15 +90,31 @@ export function getCached<K, V>(
   cache: Map<K, Promise<V>>,
   key: K,
   load: () => Promise<V>,
-) {
-  let promise = cache.get(key);
-  if (!promise) {
-    promise = load().catch((error) => {
-      cache.delete(key);
+  signal: AbortSignal,
+): Promise<V> {
+  const cached = cache.get(key);
+  if (cached) return cached;
+  // An entry is owned by the lookup that started it: once that lookup is
+  // aborted while pending, a later query must start its own request instead of
+  // inheriting the abort. Compare identity before evicting, since a late
+  // settle of the aborted entry must not drop the replacement.
+  const discard = () => {
+    if (cache.get(key) === promise) cache.delete(key);
+  };
+  const promise = load().then(
+    (value) => {
+      signal.removeEventListener('abort', discard);
+      return value;
+    },
+    (error: unknown) => {
+      signal.removeEventListener('abort', discard);
+      discard();
       throw error;
-    });
-    cache.set(key, promise);
-  }
+    },
+  );
+  cache.set(key, promise);
+  if (signal.aborted) discard();
+  else signal.addEventListener('abort', discard, { once: true });
   return promise;
 }
 
@@ -385,8 +401,11 @@ export function createFileProvider(
         try {
           const { dirPath, entryQuery } = splitFileQuery(query, currentDir);
           const lowerQuery = entryQuery.toLowerCase();
-          const listing = await getCached(getCache().directories, dirPath, () =>
-            listDirectory(dirPath, { signal }),
+          const listing = await getCached(
+            getCache().directories,
+            dirPath,
+            () => listDirectory(dirPath, { signal }),
+            signal,
           );
           if (signal.aborted) return [];
           const entries = listing.entries
@@ -450,8 +469,11 @@ export function createFileProvider(
       }
       try {
         const pattern = fileSearchGlobPattern(query);
-        const result = await getCached(getCache().globResults, pattern, () =>
-          globWorkspace(pattern, { maxResults: ITEM_LIMIT, signal }),
+        const result = await getCached(
+          getCache().globResults,
+          pattern,
+          () => globWorkspace(pattern, { maxResults: ITEM_LIMIT, signal }),
+          signal,
         );
         if (signal.aborted) return [];
         return result.matches
