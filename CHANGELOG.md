@@ -7,6 +7,8 @@ follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.31.1] - 2026-11-23
+
 ### Fixed
 
 - Permission rules that name a Windows drive (`C:\keys\**`) or a network share
