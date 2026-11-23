@@ -309,6 +309,51 @@ describe('ToolConfirmationMessage', () => {
     expect(frame).not.toContain('lines hidden');
   });
 
+  // The command used to be wrapped at the outer width while the frame, padding
+  // and margin took columns from it, so the end of every wrapped row was cut.
+  it.each([
+    [40, false],
+    [70, false],
+    [40, true],
+    [70, true],
+  ] as const)(
+    'shows every character of a wrapped exec command at width %i (compact=%s)',
+    (width, compactMode) => {
+      const payload = Array.from(
+        { length: 20 },
+        (_, index) => `seg${index.toString().padStart(2, '0')}-`,
+      ).join('');
+      const command = `printf 'BEGIN_${payload}_END'`;
+      const { lastFrame, unmount } = renderWithProviders(
+        <Box width={width}>
+          <ToolConfirmationMessage
+            confirmationDetails={{
+              type: 'exec',
+              title: 'Confirm Shell Command',
+              command,
+              rootCommand: 'printf',
+              onConfirm: vi.fn(),
+            }}
+            config={mockConfig}
+            availableTerminalHeight={40}
+            contentWidth={width}
+            compactMode={compactMode}
+          />
+        </Box>,
+      );
+      try {
+        const frame = lastFrame() ?? '';
+        // Join the rows without whitespace or frame glyphs, so a wrapped
+        // command reads back as one string only if no column was dropped.
+        const visible = frame.replace(/[^\x21-\x7e]/gu, '');
+        expect(frame).not.toContain('hidden');
+        expect(visible).toContain(command.replace(/\s/gu, ''));
+      } finally {
+        unmount();
+      }
+    },
+  );
+
   // Regression coverage: exec confirmations carry a
   // user-facing warning for command substitution. Previously such
   // commands were hard-denied at L4 with an opaque "denied by

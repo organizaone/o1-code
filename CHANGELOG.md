@@ -7,6 +7,14 @@ follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Fixed
+
+- Permission rules that name a Windows drive (`C:\keys\**`) or a network share
+  (`\\server\share\**`) now match. Before, they matched nothing, and "Always Allow" on such a
+  path was asked again.
+- The shell confirmation now shows the whole command; the end of each wrapped line was hidden.
+- In auto mode, a command with a URL argument no longer stalls the session on Windows.
+
 ## [0.31.0] - 2026-11-21
 
 ### Changed
