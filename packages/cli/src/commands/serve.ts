@@ -198,6 +198,7 @@ interface ServeArgs {
   'max-total-sessions'?: number;
   'max-pending-prompts-per-session': number;
   'max-connections': number;
+  'max-sse-connections'?: number;
   'event-ring-size': number;
   'compacted-replay-max-bytes': number;
   'max-journal-events'?: number;
@@ -320,6 +321,14 @@ export const serveCommand: CommandModule<unknown, ServeArgs> = {
           'Listener-level TCP connection cap (server.maxConnections). Bounds raw ' +
           'sockets — slow/phantom SSE clients get rejected at accept time once full. ' +
           'Set to 0 to disable.',
+      })
+      .option('max-sse-connections', {
+        type: 'number',
+        description:
+          'Concurrent session event streams (GET /session/:id/events) before new ' +
+          'ones get 503 sse_connection_limit_exceeded. Default: 80% of ' +
+          '--max-connections, so /health and short requests keep headroom; ' +
+          'larger values are clamped to that share. Set to 0 to disable.',
       })
       .option('require-auth', {
         type: 'boolean',
@@ -581,8 +590,8 @@ export const serveCommand: CommandModule<unknown, ServeArgs> = {
       .option('writer-idle-timeout-ms', {
         type: 'number',
         description:
-          'Per-SSE-connection idle deadline (ms). ' +
-          'Falls back to O1CODE_SERVE_WRITER_IDLE_TIMEOUT_MS. Positive integer.',
+          'Evict a session event stream with no successful write for this long (ms). ' +
+          'Falls back to O1CODE_SERVE_WRITER_IDLE_TIMEOUT_MS. Default: 60000; 0 disables.',
       })
       .option('channel-idle-timeout-ms', {
         type: 'number',
@@ -860,6 +869,9 @@ export const serveCommand: CommandModule<unknown, ServeArgs> = {
           : {}),
         maxPendingPromptsPerSession,
         maxConnections: argv['max-connections'],
+        ...(argv['max-sse-connections'] !== undefined
+          ? { maxSseConnections: argv['max-sse-connections'] }
+          : {}),
         eventRingSize: argv['event-ring-size'],
         compactedReplayMaxBytes: argv['compacted-replay-max-bytes'],
         ...(argv['max-journal-events'] !== undefined

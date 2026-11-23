@@ -14,6 +14,14 @@ follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   path was asked again.
 - The shell confirmation now shows the whole command; the end of each wrapped line was hidden.
 - In auto mode, a command with a URL argument no longer stalls the session on Windows.
+- `o1-code serve` keeps answering when many clients hold event streams open without reading:
+  streams take at most 80% of the connections, and a client that receives nothing for 60
+  seconds is closed. `--max-sse-connections` and `--writer-idle-timeout-ms 0` change this.
+- `o1-code serve` and Local Control no longer hang on shutdown when a connected client does not
+  answer.
+- Loading a session with long background replies is much smaller, and loading during a Goal no
+  longer shows an older version of the conversation. The session list is faster with many
+  sessions.
 
 ### Security
 

@@ -33924,7 +33924,6 @@ describe('runO1CodeServe', () => {
   );
 
   it.each([
-    ['zero', 0],
     ['negative', -5],
     ['float', 1.5],
     ['NaN', Number.NaN],
@@ -38516,6 +38515,154 @@ describe('T2.9 prompt absolute deadline', () => {
   });
 });
 
+describe('SSE listener headroom', () => {
+  let handle: RunHandle | undefined;
+  const streams: AbortController[] = [];
+  afterEach(async () => {
+    for (const stream of streams.splice(0)) stream.abort();
+    vi.restoreAllMocks();
+    if (handle) {
+      await handle.close();
+      handle = undefined;
+    }
+  });
+
+  const parkedBridge = () =>
+    fakeBridge({
+      // eslint-disable-next-line require-yield
+      async *subscribeImpl() {
+        await new Promise(() => {});
+      },
+    });
+
+  const openStream = async (port: number): Promise<Response> => {
+    const controller = new AbortController();
+    streams.push(controller);
+    return fetch(`http://127.0.0.1:${port}/session/sess-A/events`, {
+      signal: controller.signal,
+    });
+  };
+
+  it('refuses SSE past 80% of the listener budget while /health answers', async () => {
+    handle = await runO1CodeServe(
+      {
+        hostname: '127.0.0.1',
+        port: 0,
+        mode: 'http-bridge',
+        maxConnections: 10,
+      },
+      { bridge: parkedBridge() },
+    );
+    const port = (handle.server.address() as { port: number }).port;
+    const baseline = getActiveSseCount();
+
+    for (let i = 0; i < 8; i++) {
+      expect((await openStream(port)).status).toBe(200);
+    }
+    expect(getActiveSseCount()).toBe(baseline + 8);
+
+    const refused = await openStream(port);
+    expect(refused.status).toBe(503);
+    expect(refused.headers.get('retry-after')).toBe('5');
+    expect(await refused.json()).toMatchObject({
+      code: 'sse_connection_limit_exceeded',
+      limit: 8,
+    });
+
+    const health = await fetch(`http://127.0.0.1:${port}/health`);
+    expect(health.status).toBe(200);
+    await health.body?.cancel();
+
+    streams[0]!.abort();
+    await vi.waitFor(() => expect(getActiveSseCount()).toBe(baseline + 7));
+    expect((await openStream(port)).status).toBe(200);
+  });
+
+  it('clamps an explicit cap to the listener share and disables it at 0', async () => {
+    const { resolveMaxSseConnections } = await import('./sse-admission.js');
+    expect(resolveMaxSseConnections(undefined, undefined)).toBe(204);
+    expect(resolveMaxSseConnections(500, 256)).toBe(204);
+    expect(resolveMaxSseConnections(10, 256)).toBe(10);
+    expect(resolveMaxSseConnections(0.5, 256)).toBe(1);
+    expect(resolveMaxSseConnections(0, 256)).toBeUndefined();
+    expect(resolveMaxSseConnections(undefined, 0)).toBeUndefined();
+    expect(resolveMaxSseConnections(12, Infinity)).toBe(12);
+  });
+
+  it.each([
+    ['negative', -1],
+    ['NaN', Number.NaN],
+  ])(
+    'rejects invalid maxSseConnections (%s) at boot',
+    async (_label, value) => {
+      await expect(
+        runO1CodeServe({
+          hostname: '127.0.0.1',
+          port: 0,
+          mode: 'http-bridge',
+          maxSseConnections: value,
+        }),
+      ).rejects.toThrow(/maxSseConnections/);
+    },
+  );
+
+  it('arms the writer idle reaper at 60s when the flag is unset', async () => {
+    const intervalSpy = vi.spyOn(globalThis, 'setInterval');
+    handle = await runO1CodeServe(
+      { hostname: '127.0.0.1', port: 0, mode: 'http-bridge' },
+      { bridge: parkedBridge() },
+    );
+    const port = (handle.server.address() as { port: number }).port;
+    intervalSpy.mockClear();
+    const res = await openStream(port);
+    expect(res.status).toBe(200);
+
+    // The reaper polls at min(5s, budget / 4); the heartbeat is 15s.
+    const reaperCall = intervalSpy.mock.calls.find(([, ms]) => ms === 5_000);
+    expect(reaperCall).toBeDefined();
+    const tick = reaperCall![0] as () => void;
+    const now = Date.now();
+    vi.spyOn(Date, 'now').mockReturnValue(now + 61_000);
+    tick();
+
+    const text = await res.text();
+    expect(text).toContain('event: client_evicted');
+    expect(text).toContain('"reason":"writer_idle_timeout"');
+    expect(text).toContain('"timeoutMs":60000');
+  });
+
+  it('does not arm the writer idle reaper when the flag is 0', async () => {
+    const intervalSpy = vi.spyOn(globalThis, 'setInterval');
+    handle = await runO1CodeServe(
+      {
+        hostname: '127.0.0.1',
+        port: 0,
+        mode: 'http-bridge',
+        writerIdleTimeoutMs: 0,
+      },
+      { bridge: parkedBridge() },
+    );
+    const port = (handle.server.address() as { port: number }).port;
+    intervalSpy.mockClear();
+    expect((await openStream(port)).status).toBe(200);
+    expect(intervalSpy.mock.calls.some(([, ms]) => ms === 15_000)).toBe(true);
+    expect(intervalSpy.mock.calls.some(([, ms]) => ms === 5_000)).toBe(false);
+  });
+
+  it('enables TCP keepalive on sockets accepted by the primary listener', async () => {
+    const net = await import('node:net');
+    const keepAlive = vi.spyOn(net.Socket.prototype, 'setKeepAlive');
+    handle = await runO1CodeServe(
+      { hostname: '127.0.0.1', port: 0, mode: 'http-bridge' },
+      { bridge: parkedBridge() },
+    );
+    const port = (handle.server.address() as { port: number }).port;
+    const health = await fetch(`http://127.0.0.1:${port}/health`);
+    await health.body?.cancel();
+    expect(keepAlive).toHaveBeenCalledWith(true, 30_000);
+  });
+});
+
 describe('T2.9 SSE writer idle timeout', () => {
   let handle: RunHandle | undefined;
   afterEach(async () => {
@@ -38600,11 +38747,11 @@ describe('T2.9 SSE writer idle timeout', () => {
     });
   });
 
-  it('does not evict when the writer idle timeout is unset (legacy contract)', async () => {
-    // Without `writerIdleTimeoutMs`, the existing 15s-heartbeat-only
-    // behavior must be preserved bit-for-bit. We open a stream, read
-    // a real event, then wait ~600ms — no client_evicted frame may
-    // appear in that window.
+  it('does not evict a healthy stream under the default writer idle budget', async () => {
+    // Without `writerIdleTimeoutMs` the 60s default applies; a stream
+    // that just wrote a real event must not be evicted. We open a
+    // stream, read the event, then wait ~600ms — no client_evicted
+    // frame may appear in that window.
     const bridge = fakeBridge({
       async *subscribeImpl(_sessionId, _opts) {
         yield { id: 1, v: 1, type: 'session_update', data: { ok: true } };

@@ -207,6 +207,7 @@ type ChunkIdentity = {
   parentToolCallId?: string;
   subagentType?: string;
   sourceRecordIds?: string[];
+  backgroundTurn?: unknown;
   promptId?: string;
   originatorClientId?: string;
   sessionId?: string;
@@ -220,7 +221,8 @@ function withIdentity(
   if (
     identity.parentToolCallId !== undefined ||
     identity.subagentType !== undefined ||
-    identity.sourceRecordIds !== undefined
+    identity.sourceRecordIds !== undefined ||
+    identity.backgroundTurn !== undefined
   ) {
     update['_meta'] = {
       ...(identity.parentToolCallId === undefined
@@ -229,6 +231,9 @@ function withIdentity(
       ...(identity.subagentType === undefined
         ? {}
         : { subagentType: identity.subagentType }),
+      ...(identity.backgroundTurn === undefined
+        ? {}
+        : { backgroundTurn: identity.backgroundTurn }),
       ...(identity.sourceRecordIds === undefined
         ? {}
         : {
@@ -707,6 +712,116 @@ describe('TurnBoundaryCompactionEngine', () => {
       ]);
       expect(snap.liveJournal.map((event) => event.id)).toEqual([2, 4]);
       expect(snap.lastEventId).toBe(4);
+    });
+
+    describe('background-turn chunks', () => {
+      const backgroundTurn = {
+        turnId: 'background-a',
+        taskId: 'task-a',
+        kind: 'shell',
+        sourceTurnId: 'source-a',
+        startedAt: 1000,
+      } as const;
+
+      function backgroundTurnOf(event: BridgeEvent): unknown {
+        return (
+          event.data as { update: { _meta: { backgroundTurn: unknown } } }
+        ).update._meta.backgroundTurn;
+      }
+
+      it.each([
+        ['message', makeTextChunk],
+        ['thought', makeThoughtChunk],
+      ])(
+        'merges consecutive %s chunks of one background turn in full, summary and compacted replay',
+        (_kind, makeChunk) => {
+          const engine = new TurnBoundaryCompactionEngine();
+          ['first ', 'second ', 'third'].forEach((text, index) =>
+            engine.ingest(
+              withIdentity(makeChunk(index + 1, text), { backgroundTurn }),
+            ),
+          );
+
+          const expectMerged = (events: BridgeEvent[]) => {
+            expect(events).toHaveLength(1);
+            expect(extractTexts(events)).toEqual(['first second third']);
+            expect(events[0]?.id).toBe(3);
+            expect(backgroundTurnOf(events[0]!)).toEqual(backgroundTurn);
+          };
+          expectMerged(engine.snapshot().liveJournal);
+          expectMerged(engine.snapshot('summary').liveJournal);
+
+          engine.ingest(makeTurnComplete(4));
+          const terminal = engine.snapshot();
+          expect(terminal.liveJournal).toEqual([]);
+          expect(terminal.compactedTurns.map((event) => event.type)).toEqual([
+            'session_update',
+            'turn_complete',
+          ]);
+          expectMerged(
+            terminal.compactedTurns.filter(
+              (event) => event.type === 'session_update',
+            ),
+          );
+        },
+      );
+
+      it.each([
+        {
+          name: 'a different turnId',
+          first: backgroundTurn,
+          second: { ...backgroundTurn, turnId: 'background-b' },
+        },
+        {
+          name: 'the same turnId with a different taskId',
+          first: backgroundTurn,
+          second: { ...backgroundTurn, taskId: 'task-b' },
+        },
+        {
+          name: 'the same turnId with a different startedAt',
+          first: backgroundTurn,
+          second: { ...backgroundTurn, startedAt: 1001 },
+        },
+        {
+          name: 'a label only on the first chunk',
+          first: { ...backgroundTurn, label: 'Background task' },
+          second: backgroundTurn,
+        },
+        {
+          name: 'a background turn only on the first chunk',
+          first: backgroundTurn,
+          second: undefined,
+        },
+        {
+          name: 'invalid metadata',
+          first: { turnId: 'background-a' },
+          second: { turnId: 'background-a' },
+        },
+        {
+          name: 'an unmodeled field only on the first chunk',
+          first: { ...backgroundTurn, extension: 'retain-me' },
+          second: backgroundTurn,
+        },
+      ])(
+        'keeps chunks discrete in full and summary replay with $name',
+        ({ first, second }) => {
+          const firstChunk = withIdentity(makeTextChunk(1, 'first'), {
+            backgroundTurn: first,
+          });
+          const secondChunk = withIdentity(makeTextChunk(2, 'second'), {
+            backgroundTurn: second,
+          });
+          const engine = new TurnBoundaryCompactionEngine();
+          engine.ingest(firstChunk);
+          engine.ingest(secondChunk);
+
+          for (const mode of ['full', 'summary'] as const) {
+            const snapshot = engine.snapshot(mode);
+            expect(snapshot.liveJournal).toEqual([firstChunk, secondChunk]);
+            expect(snapshot.lastEventId).toBe(2);
+          }
+        },
+      );
     });
 
     it('preserves tool boundaries in live replay', () => {

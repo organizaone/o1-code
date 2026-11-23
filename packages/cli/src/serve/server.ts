@@ -170,6 +170,7 @@ import {
   getActiveSseCount,
   registerSseEventsRoutes,
 } from './routes/sse-events.js';
+import { resolveMaxSseConnections } from './sse-admission.js';
 import {
   registerWorkspaceQualifiedVoiceRoutes,
   registerWorkspaceVoiceRoutes,
@@ -2691,6 +2692,10 @@ export function createServeApp(
     workspaceRegistry,
     daemonLog,
     writerIdleTimeoutMs: opts.writerIdleTimeoutMs,
+    maxSseConnections: resolveMaxSseConnections(
+      opts.maxSseConnections,
+      opts.maxConnections,
+    ),
     sendBridgeError,
     virtualSubagentSessions,
     conversationRuntimeActivity,

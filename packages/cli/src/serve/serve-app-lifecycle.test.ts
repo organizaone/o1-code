@@ -4,7 +4,8 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { createServer, get } from 'node:http';
+import { createServer, get, request } from 'node:http';
+import { connect, type Socket } from 'node:net';
 import express from 'express';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
@@ -275,4 +276,90 @@ describe('ServeAppLifecycle', () => {
       retryable: true,
     });
   });
+
+  it('destroys an upgraded socket whose peer never answers close', async () => {
+    const app = express();
+    const lifecycle = installServeAppLifecycle(app);
+    const server = createServer(app);
+    servers.add(server);
+    // Accept the upgrade raw and hold the socket, like a WebSocket transport
+    // waiting on a close frame the peer never sends back.
+    server.on('upgrade', (_req, socket) => {
+      socket.write(
+        'HTTP/1.1 101 Switching Protocols\r\nUpgrade: websocket\r\nConnection: Upgrade\r\n\r\n',
+      );
+    });
+    lifecycle.bindServer(server);
+    server.listen(0, '127.0.0.1');
+    await new Promise<void>((resolve) => server.once('listening', resolve));
+    const address = server.address();
+    if (!address || typeof address === 'string') throw new Error('No address');
+    const client = await openUpgradedSocket(address.port);
+    try {
+      const started = Date.now();
+      await expect(lifecycle.close({ timeoutMs: 50 })).resolves.toBeUndefined();
+      // The secondary timeout (2s) rejects when the socket survives the sweep.
+      expect(Date.now() - started).toBeLessThan(1_500);
+      expect(server.listening).toBe(false);
+    } finally {
+      client.destroy();
+    }
+  });
+
+  it('keeps the request-handler fall-through for upgrades no transport owns', async () => {
+    const app = express();
+    app.use((_req, res) => {
+      res.status(404).type('text/plain').send('Not Found');
+    });
+    const lifecycle = installServeAppLifecycle(app);
+    const server = createServer(app);
+    servers.add(server);
+    lifecycle.bindServer(server);
+    server.listen(0, '127.0.0.1');
+    await new Promise<void>((resolve) => server.once('listening', resolve));
+    const address = server.address();
+    if (!address || typeof address === 'string') throw new Error('No address');
+
+    const req = request({
+      host: '127.0.0.1',
+      port: address.port,
+      path: '/acp',
+      headers: {
+        Connection: 'Upgrade',
+        Upgrade: 'websocket',
+        'Sec-WebSocket-Key': 'dGhlIHNhbXBsZSBub25jZQ==',
+        'Sec-WebSocket-Version': '13',
+      },
+    });
+    const status = new Promise<number>((resolve, reject) => {
+      req.on('response', (res) => {
+        res.resume();
+        res.on('end', () => resolve(res.statusCode ?? 0));
+      });
+      req.on('upgrade', (_res, socket) => {
+        socket.destroy();
+        reject(new Error('upgrade emitted instead of request fall-through'));
+      });
+      req.on('error', reject);
+    });
+    req.end();
+    try {
+      await expect(status).resolves.toBe(404);
+    } finally {
+      req.destroy();
+    }
+    await lifecycle.close();
+  });
 });
+
+function openUpgradedSocket(port: number): Promise<Socket> {
+  return new Promise((resolve, reject) => {
+    const socket = connect(port, '127.0.0.1', () => {
+      socket.write(
+        'GET /acp HTTP/1.1\r\nHost: 127.0.0.1\r\nConnection: Upgrade\r\nUpgrade: websocket\r\nSec-WebSocket-Key: dGhlIHNhbXBsZSBub25jZQ==\r\nSec-WebSocket-Version: 13\r\n\r\n',
+      );
+    });
+    socket.once('data', () => resolve(socket));
+    socket.on('error', reject);
+  });
+}

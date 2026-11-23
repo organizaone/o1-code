@@ -5,6 +5,7 @@
  */
 
 import type { Server } from 'node:http';
+import type { Socket } from 'node:net';
 import type { Application } from 'express';
 import { conversationRuntimeUnavailableError } from './conversations/conversation-runtime-errors.js';
 
@@ -51,6 +52,12 @@ export class ServeAppLifecycleController implements ServeAppLifecycle {
   private closePending?: Promise<void>;
   private appDrain?: () => Promise<void>;
   private hostDrain?: () => Promise<void>;
+  // Upgraded (WebSocket/ACP) sockets are detached from the HTTP server, so
+  // `closeAllConnections()` never reaches them; the force timers destroy what
+  // is still tracked here. Tracked from 'connection', not 'upgrade': adding an
+  // 'upgrade' listener would disable Node's fall-through to the request
+  // handler for upgrades no transport owns.
+  private readonly openSockets = new Set<Socket>();
   private bootStarter?: () => Promise<void> | void;
   private bootPending?: Promise<void>;
   private bootStarted = false;
@@ -67,11 +74,15 @@ export class ServeAppLifecycleController implements ServeAppLifecycle {
     this.server = server;
     this.hostDrain = options.drainHost;
     this.startupReady = options.startupReady === undefined;
+    server.on('connection', (socket: Socket) => {
+      this.openSockets.add(socket);
+      socket.once('close', () => this.openSockets.delete(socket));
+    });
     server.once('listening', () => {
       this.listenerReady = true;
       if (this.sealed) {
         server.close();
-        server.closeAllConnections();
+        this.forceCloseConnections(server);
         return;
       }
       this.openAdmissionIfReady();
@@ -226,6 +237,12 @@ export class ServeAppLifecycleController implements ServeAppLifecycle {
     }
   }
 
+  private forceCloseConnections(server: Server): void {
+    server.closeAllConnections();
+    for (const socket of this.openSockets) socket.destroy();
+    this.openSockets.clear();
+  }
+
   private closeListener(timeoutMs: number): Promise<void> {
     if (
       !this.server ||
@@ -242,7 +259,7 @@ export class ServeAppLifecycleController implements ServeAppLifecycle {
       let secondaryTimer: NodeJS.Timeout | undefined;
       const forceTimer = setTimeout(
         () => {
-          server.closeAllConnections();
+          this.forceCloseConnections(server);
           secondaryTimer = setTimeout(() => {
             reject(new Error('The serve listener did not confirm shutdown.'));
           }, SECONDARY_CLOSE_TIMEOUT_MS);
@@ -278,7 +295,7 @@ export class ServeAppLifecycleController implements ServeAppLifecycle {
       };
       const forceTimer = setTimeout(
         () => {
-          server.closeAllConnections();
+          this.forceCloseConnections(server);
           secondaryTimer = setTimeout(() => {
             server.off('close', onClose);
             reject(new Error('The serve listener did not confirm shutdown.'));

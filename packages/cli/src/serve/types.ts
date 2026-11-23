@@ -125,6 +125,14 @@ export interface ServeOptions {
    */
   maxConnections?: number;
   /**
+   * Concurrent `GET /session/:id/events` streams before new ones get 503
+   * `sse_connection_limit_exceeded`. Default: 80% of `maxConnections` (204 at
+   * 256), leaving the rest of the listener for short requests such as
+   * `/health`. Explicit values are clamped to that share; 0 / Infinity
+   * remove the cap.
+   */
+  maxSseConnections?: number;
+  /**
    * Per-session SSE replay ring depth. Threaded into the bridge as
    * `BridgeOptions.eventRingSize` and used at every `new EventBus(...)`
    * construction site. Defaults to 8000. Must be a positive
@@ -330,7 +338,8 @@ export interface ServeOptions {
    */
   promptDeadlineMs?: number;
   /**
-   * Per-SSE-connection idle deadline.
+   * Per-SSE-connection idle deadline: a stream with no successful write for
+   * this long is evicted. Default: 60000 when unset; 0 disables it.
    */
   writerIdleTimeoutMs?: number;
   /** ACP child auto-reap delay. Keepalive windows may extend it. */

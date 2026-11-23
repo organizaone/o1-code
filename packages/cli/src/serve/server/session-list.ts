@@ -31,7 +31,9 @@ import { writeStderrLine } from '../../utils/stdioHelpers.js';
 import { createSessionOrganizationService } from '../session-organization-helpers.js';
 import {
   PersistedSessionListCache,
+  waitForSessionListLoad,
   type PersistedSessionListSnapshot,
+  type SessionListLoad,
 } from './persisted-session-list-cache.js';
 import { laterActivityTimestamp } from './activity-timestamp.js';
 import { classifyTopLevelConversationSource } from '../../runtime/live-session-source.js';
@@ -691,15 +693,7 @@ async function liveOnlySummary(
   sessionService: SessionService,
   signal?: AbortSignal,
 ): Promise<BridgeSessionSummary> {
-  const summary: BridgeSessionSummary = {
-    ...live,
-    createdAt: live.createdAt,
-    clientCount: live.clientCount,
-    hasActivePrompt: live.hasActivePrompt,
-    backgroundTurn: live.backgroundTurn,
-    hasRunningBackgroundTasks: live.hasRunningBackgroundTasks,
-    isArchived: false,
-  };
+  const summary = liveOnlySummaryWithoutSidecar(live);
   let sidecar: Awaited<ReturnType<typeof readSessionPrs>>;
   try {
     const sidecarPath = sessionService.getPrSessionPathForArchiveState(
@@ -719,6 +713,21 @@ async function liveOnlySummary(
   return summary;
 }
 
+/** {@link liveOnlySummary} before its PR sidecar is read. */
+function liveOnlySummaryWithoutSidecar(
+  live: BridgeSessionSummary,
+): BridgeSessionSummary {
+  return {
+    ...live,
+    createdAt: live.createdAt,
+    clientCount: live.clientCount,
+    hasActivePrompt: live.hasActivePrompt,
+    backgroundTurn: live.backgroundTurn,
+    hasRunningBackgroundTasks: live.hasRunningBackgroundTasks,
+    isArchived: false,
+  };
+}
+
 function clonePersistedSummary(
   session: Readonly<BridgeSessionSummary>,
 ): BridgeSessionSummary {
@@ -726,6 +735,114 @@ function clonePersistedSummary(
     ...session,
     ...(session.worktree ? { worktree: { ...session.worktree } } : {}),
   };
+}
+
+// Keyed by the cached snapshot row, so a row's sidecars are read once, on its
+// first returned page, shared by concurrent requests, and expire with the
+// snapshot, as when the scan read them.
+const persistedSidecarLoads = new WeakMap<
+  Readonly<BridgeSessionSummary>,
+  SessionListLoad<Readonly<BridgeSessionSummary>>
+>();
+
+async function readPersistedSidecars(
+  session: Readonly<BridgeSessionSummary>,
+  sessionService: SessionService,
+  archiveState: SessionArchiveState,
+  signal?: AbortSignal,
+): Promise<BridgeSessionSummary> {
+  signal?.throwIfAborted();
+  let load = persistedSidecarLoads.get(session);
+  if (!load || load.controller.signal.aborted) {
+    const controller = new AbortController();
+    const read = async (): Promise<Readonly<BridgeSessionSummary>> => {
+      const readSignal = controller.signal;
+      readSignal.throwIfAborted();
+      const rows = new Map([
+        [session.sessionId, clonePersistedSummary(session)],
+      ]);
+      await enrichWorktreeSidecars(
+        rows,
+        sessionService,
+        archiveState,
+        readSignal,
+      );
+      await enrichPrSidecars(rows, sessionService, archiveState, readSignal);
+      readSignal.throwIfAborted();
+      return rows.get(session.sessionId)!;
+    };
+    const started: SessionListLoad<Readonly<BridgeSessionSummary>> = {
+      controller,
+      waiterCount: 0,
+      settled: false,
+      promise: Promise.resolve()
+        .then(read)
+        .catch((error: unknown) => {
+          // Only a completed read is kept; the next request retries.
+          if (persistedSidecarLoads.get(session) === started) {
+            persistedSidecarLoads.delete(session);
+          }
+          throw error;
+        })
+        .finally(() => {
+          started.settled = true;
+        }),
+    };
+    persistedSidecarLoads.set(session, started);
+    load = started;
+  }
+  return clonePersistedSummary(await waitForSessionListLoad(load, signal));
+}
+
+/**
+ * Fills the sidecar fields (worktree, PR bindings) of a selected catalog page.
+ * Each row is rebuilt the way the full scan used to build it — persisted row
+ * plus sidecars, then the same live merges in the same order — and only the
+ * sidecar fields are copied back, so organization, sort keys and the cursor
+ * computed from the page stay untouched.
+ */
+async function enrichCatalogPage(
+  page: readonly BridgeSessionSummary[],
+  persistedById: ReadonlyMap<string, Readonly<BridgeSessionSummary>>,
+  liveRows: readonly BridgeSessionSummary[],
+  sessionService: SessionService,
+  archiveState: SessionArchiveState,
+  signal?: AbortSignal,
+): Promise<void> {
+  const selectedIds = new Set(page.map((session) => session.sessionId));
+  const detailsById = new Map<string, BridgeSessionSummary>();
+  for (const { sessionId } of page) {
+    const stored = persistedById.get(sessionId);
+    if (stored) {
+      detailsById.set(
+        sessionId,
+        await readPersistedSidecars(
+          stored,
+          sessionService,
+          archiveState,
+          signal,
+        ),
+      );
+    }
+  }
+  for (const live of liveRows) {
+    signal?.throwIfAborted();
+    if (!selectedIds.has(live.sessionId)) continue;
+    const existing = detailsById.get(live.sessionId);
+    detailsById.set(
+      live.sessionId,
+      existing
+        ? mergeLiveSessionSummary(existing, live)
+        : await liveOnlySummary(live, sessionService, signal),
+    );
+  }
+  signal?.throwIfAborted();
+  for (const session of page) {
+    const details = detailsById.get(session.sessionId);
+    if (!details) continue;
+    if (details.worktree !== undefined) session.worktree = details.worktree;
+    if (details.prs !== undefined) session.prs = details.prs;
+  }
 }
 
 async function loadAllPersistedSummaries(
@@ -770,14 +887,9 @@ async function loadAllPersistedSummaries(
   const bySessionId = new Map(
     sessions.map((session) => [session.sessionId, session]),
   );
-  await enrichWorktreeSidecars(
-    bySessionId,
-    sessionService,
-    archiveState,
-    signal,
-  );
-  await enrichPrSidecars(bySessionId, sessionService, archiveState, signal);
   signal.throwIfAborted();
+  // Sidecars are read later, for the returned page only (enrichCatalogPage):
+  // they never affect membership, order or the cursor.
   return {
     sessions: [...bySessionId.values()],
     truncated,
@@ -1035,7 +1147,9 @@ async function listOrganizedWorkspaceSessionsForResponse(
     readOptions.signal,
   );
   readOptions.signal?.throwIfAborted();
+  const persistedById = new Map<string, Readonly<BridgeSessionSummary>>();
   for (const session of persisted.sessions) {
+    persistedById.set(session.sessionId, session);
     bySessionId.set(
       session.sessionId,
       applyOrganization(
@@ -1052,6 +1166,9 @@ async function listOrganizedWorkspaceSessionsForResponse(
     ]),
   );
   const liveSessionIds = new Set<string>();
+  // The live rows merged into the catalog, in merge order, replayed on the
+  // page once its sidecars are read.
+  const liveRows: BridgeSessionSummary[] = [];
 
   if (readOptions.mergeLive !== false && archiveState !== 'archived') {
     try {
@@ -1072,6 +1189,7 @@ async function listOrganizedWorkspaceSessionsForResponse(
               organization,
             ),
           );
+          liveRows.push(live);
         } else if (
           // Preserve legacy first-page-only insertion unless the caller
           // requests pagination across the complete merged catalog.
@@ -1094,10 +1212,11 @@ async function listOrganizedWorkspaceSessionsForResponse(
           bySessionId.set(
             live.sessionId,
             applyOrganization(
-              await liveOnlySummary(live, sessionService, readOptions.signal),
+              liveOnlySummaryWithoutSidecar(live),
               organization,
             ),
           );
+          liveRows.push(live);
         }
       }
     } catch (error) {
@@ -1186,6 +1305,14 @@ async function listOrganizedWorkspaceSessionsForResponse(
       emitted,
     );
   }
+  await enrichCatalogPage(
+    page,
+    persistedById,
+    liveRows,
+    sessionService,
+    archiveState,
+    readOptions.signal,
+  );
   return {
     sessions: page,
     ...(readOptions.includeGroups
@@ -1229,6 +1356,9 @@ async function listWorkspaceSessionsByMetadataForResponse(
   const canonicalizeStandaloneIds =
     filter.conversationKind === 'standalone-top-level';
   const conflictedStandaloneIds = new Set<string>();
+  // Keyed by the listed (possibly canonical) id; the value keeps the stored
+  // id its sidecars are named after.
+  const persistedById = new Map<string, Readonly<BridgeSessionSummary>>();
   const persistedTimeById = new Map<string, number>();
   for (const session of persisted.sessions) {
     let sessionId = session.sessionId;
@@ -1239,11 +1369,13 @@ async function listWorkspaceSessionsByMetadataForResponse(
       if (conflictedStandaloneIds.has(sessionId)) continue;
       if (bySessionId.has(sessionId)) {
         bySessionId.delete(sessionId);
+        persistedById.delete(sessionId);
         persistedTimeById.delete(sessionId);
         conflictedStandaloneIds.add(sessionId);
         continue;
       }
     }
+    persistedById.set(sessionId, session);
     bySessionId.set(sessionId, {
       ...clonePersistedSummary(session),
       sessionId,
@@ -1252,6 +1384,7 @@ async function listWorkspaceSessionsByMetadataForResponse(
   }
   // Activity floors: the key a row falls back to once its live entry is gone.
   const liveSessionIds = new Set<string>();
+  const liveRows: BridgeSessionSummary[] = [];
 
   let liveMergeFailed = false;
   if (readOptions.mergeLive !== false && archiveState !== 'archived') {
@@ -1277,6 +1410,7 @@ async function listWorkspaceSessionsByMetadataForResponse(
             sessionId,
             mergeLiveSessionSummary(existing, canonicalLive),
           );
+          liveRows.push(canonicalLive);
         } else if (
           // See the matching comment in
           // `listOrganizedWorkspaceSessionsForResponse`: an untruncated scan
@@ -1291,12 +1425,9 @@ async function listWorkspaceSessionsByMetadataForResponse(
         ) {
           bySessionId.set(
             sessionId,
-            await liveOnlySummary(
-              canonicalLive,
-              sessionService,
-              readOptions.signal,
-            ),
+            liveOnlySummaryWithoutSidecar(canonicalLive),
           );
+          liveRows.push(canonicalLive);
         }
       }
     } catch (error) {
@@ -1373,6 +1504,14 @@ async function listWorkspaceSessionsByMetadataForResponse(
       emitted,
     );
   }
+  await enrichCatalogPage(
+    page,
+    persistedById,
+    liveRows,
+    sessionService,
+    archiveState,
+    readOptions.signal,
+  );
   return {
     sessions: page,
     ...(nextCursor !== undefined ? { nextCursor } : {}),
