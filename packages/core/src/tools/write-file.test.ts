@@ -311,6 +311,34 @@ describe('WriteFileTool', () => {
       );
     });
 
+    it('blocks writing a secret to private project memory', () => {
+      const prev = process.env['O1CODE_MEMORY_LOCAL'];
+      process.env['O1CODE_MEMORY_LOCAL'] = '1';
+      clearAutoMemoryRootCache();
+      try {
+        const params = {
+          file_path: path.join(
+            rootDir,
+            '.o1-code',
+            'memory',
+            'reference',
+            'deploy.md',
+          ),
+          content: `token = ghp_${'a'.repeat(36)}`,
+        };
+        expect(() => tool.build(params)).toThrow(
+          /sent to the model in future sessions/i,
+        );
+      } finally {
+        if (prev === undefined) {
+          delete process.env['O1CODE_MEMORY_LOCAL'];
+        } else {
+          process.env['O1CODE_MEMORY_LOCAL'] = prev;
+        }
+        clearAutoMemoryRootCache();
+      }
+    });
+
     it('blocks a secret added to team-memory content before execute', async () => {
       const filePath = path.join(
         rootDir,

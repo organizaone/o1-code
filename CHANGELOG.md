@@ -7,6 +7,14 @@ follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Security
+
+- Memory no longer stores API keys, tokens or private keys in any of its folders; before, only
+  team memory was checked.
+- Saved memories are treated as information, not instructions: automatic saving uses only what
+  you say, and a memory that asks to run a command, open a URL or send data is ignored and
+  reported.
+
 ## [0.31.1] - 2026-11-23
 
 ### Fixed

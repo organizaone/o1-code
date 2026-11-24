@@ -77,6 +77,8 @@ Auto-memory files live at `~/.o1-code/projects/<project>/memory/`. All branches 
 
 Everything saved is plain markdown — you can open, edit, or delete any file at any time.
 
+Writes to any memory directory are scanned for credentials (API keys, tokens, private keys); a detected secret is rejected, never written. Memory is treated as information, not instructions: automatic saving draws only on what you say yourself, not on text that came from a web page, a file, or a tool, and a memory that asks O1-Code to run a command, open a URL, change permissions, or send data is ignored and reported to you.
+
 #### Pinned memory
 
 Put hand-curated documents that automatic memory maintenance should preserve

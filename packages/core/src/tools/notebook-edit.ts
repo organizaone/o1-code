@@ -57,7 +57,7 @@ import type {
 } from './modifiable-tool.js';
 import { CommitAttributionService } from '../services/commitAttribution.js';
 import { createDebugLogger } from '../utils/debugLogger.js';
-import { checkTeamMemorySecrets } from '../memory/team-memory-secret-guard.js';
+import { checkMemorySecrets } from '../memory/memory-secret-guard.js';
 
 const debugLogger = createDebugLogger('NOTEBOOK_EDIT');
 
@@ -587,17 +587,17 @@ class NotebookEditInvocation extends BaseToolInvocation<
     // Scan the serialized notebook that will hit disk: a notebook under
     // .o1-code/team-memory/ could otherwise carry credentials past the guard
     // that write-file.ts/edit.ts enforce. Block before any disk side effects.
-    const teamMemoryError = checkTeamMemorySecrets(
+    const memorySecretError = checkMemorySecrets(
       this.params.notebook_path,
       prepared.updatedContent,
       this.config.getProjectRoot(),
     );
-    if (teamMemoryError) {
+    if (memorySecretError) {
       return {
-        llmContent: `[ERROR: ${teamMemoryError}]`,
-        returnDisplay: teamMemoryError,
+        llmContent: `[ERROR: ${memorySecretError}]`,
+        returnDisplay: memorySecretError,
         error: {
-          message: teamMemoryError,
+          message: memorySecretError,
           type: ToolErrorType.INVALID_TOOL_PARAMS,
         },
       };
@@ -830,13 +830,13 @@ export class NotebookEditTool
     // execute() still scans the full serialized notebook, which catches secrets
     // split across cells that this single-cell check cannot.
     if (typeof params.new_source === 'string') {
-      const teamMemoryError = checkTeamMemorySecrets(
+      const memorySecretError = checkMemorySecrets(
         params.notebook_path,
         params.new_source,
         this.config.getProjectRoot(),
       );
-      if (teamMemoryError) {
-        return teamMemoryError;
+      if (memorySecretError) {
+        return memorySecretError;
       }
     }
 
