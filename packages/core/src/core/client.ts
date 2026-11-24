@@ -102,6 +102,7 @@ import type { UserPromptRecordPayload } from '../services/chatRecordingService.j
 import type { RelevantAutoMemoryPromptResult } from '../memory/manager.js';
 import { AUTO_SKILL_THRESHOLD } from '../memory/manager.js';
 import { buildRelevantAutoMemoryPrompt } from '../memory/recall.js';
+import { recordAutoMemoryRecalls } from '../memory/usage.js';
 import { isManagedMemoryPath } from '../memory/paths.js';
 import { isProjectSkillPath } from '../skills/skill-paths.js';
 import { ToolNames, canonicalToolName } from '../tools/tool-names.js';
@@ -1440,6 +1441,15 @@ export class LlmClient {
     );
   }
 
+  private recordRecalledMemories(
+    docs: RelevantAutoMemoryPromptResult['selectedDocs'],
+  ): void {
+    void recordAutoMemoryRecalls(
+      this.config.getProjectRoot(),
+      docs.map((doc) => doc.filePath),
+    );
+  }
+
   /** @internal */
   finishManagedAutoMemoryRecall(): void {
     this.cancelPendingMemoryPrefetch('no_safe_delivery_point');
@@ -1549,6 +1559,7 @@ export class LlmClient {
         this.surfacedRelevantAutoMemoryPaths.add(doc.filePath);
         handle.fastDeliveredPaths.add(doc.filePath);
       }
+      this.recordRecalledMemories(fast.selectedDocs);
       logMemoryRecallDelivery(
         this.config,
         new MemoryRecallDeliveryEvent({
@@ -1587,6 +1598,7 @@ export class LlmClient {
       for (const doc of deduped.selectedDocs) {
         this.surfacedRelevantAutoMemoryPaths.add(doc.filePath);
       }
+      this.recordRecalledMemories(deduped.selectedDocs);
       this.logMemoryPrefetchDelivery(handle, deliveryPoint, deduped);
     } else {
       this.logMemoryPrefetchDelivery(

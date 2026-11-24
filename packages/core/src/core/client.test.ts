@@ -446,6 +446,15 @@ vi.mock('../omni/memory-side-query.js', async (importOriginal) => ({
   runOmniMemorySideQuery: runOmniMemorySideQueryMock,
 }));
 
+// Recall usage is written to disk next to the memory directory; keep the
+// client tests (which use fake project roots) off the real filesystem.
+const recordAutoMemoryRecallsMock = vi.hoisted(() =>
+  vi.fn().mockResolvedValue(undefined),
+);
+vi.mock('../memory/usage.js', () => ({
+  recordAutoMemoryRecalls: recordAutoMemoryRecallsMock,
+}));
+
 /**
  * Array.fromAsync ponyfill, which will be available in es 2024.
  *
@@ -7270,6 +7279,15 @@ hello
           delivery_point: 'initial',
           strategy: 'heuristic',
         }),
+      );
+      // Only what reached the model counts as used.
+      expect(recordAutoMemoryRecallsMock).toHaveBeenCalledWith(
+        expect.any(String),
+        ['/m/fast.md'],
+      );
+      expect(recordAutoMemoryRecallsMock).not.toHaveBeenCalledWith(
+        expect.any(String),
+        ['/m/refined.md'],
       );
     });
 

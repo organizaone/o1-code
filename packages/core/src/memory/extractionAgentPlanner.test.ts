@@ -91,6 +91,7 @@ describe('runAutoMemoryExtractionByAgent', () => {
       touchedTopics: ['user'],
       touchedProjectScope: true,
       touchedUserScope: false,
+      memoryFilesWritten: ['/tmp/auto-memory/user/prefs.md'],
       hasToolActivity: true,
       systemMessage: 'Managed auto-memory updated: user.md',
     });
@@ -188,6 +189,7 @@ describe('runAutoMemoryExtractionByAgent', () => {
       touchedTopics: [],
       touchedProjectScope: false,
       touchedUserScope: false,
+      memoryFilesWritten: [],
       hasToolActivity: false,
       systemMessage: undefined,
     });

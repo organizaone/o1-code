@@ -33,6 +33,8 @@ export interface AutoMemoryMetadata {
   lastDreamSessionId?: string;
   lastDreamTouchedTopics?: AutoMemoryType[];
   lastDreamStatus?: 'updated' | 'noop';
+  /** Digest of the project memory files when the last automatic Dream finished. */
+  lastDreamFingerprint?: string;
   recentSessionIdsSinceDream?: string[];
 }
 

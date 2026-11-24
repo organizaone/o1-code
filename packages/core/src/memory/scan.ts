@@ -14,6 +14,7 @@ import {
   getTeamAutoMemoryRoot,
   getUserAutoMemoryRoot,
 } from './paths.js';
+import { MEMORY_EXTERNAL_CONTENT_KEY } from './provenance.js';
 
 const debugLogger = createDebugLogger('AUTO_MEMORY_SCAN');
 
@@ -28,6 +29,8 @@ export interface ScannedAutoMemoryDocument {
   description: string;
   body: string;
   mtimeMs: number;
+  /** Set when the memory was saved in a session that read web or MCP content. */
+  externalContent?: boolean;
 }
 
 function parseFrontmatterValue(
@@ -81,6 +84,10 @@ export function parseAutoMemoryTopicDocument(
     description: parseFrontmatterValue(frontmatter, 'description') ?? '',
     body: bodyContent.trim(),
     mtimeMs,
+    ...(parseFrontmatterValue(frontmatter, MEMORY_EXTERNAL_CONTENT_KEY) ===
+    'true'
+      ? { externalContent: true }
+      : {}),
   };
 }
 

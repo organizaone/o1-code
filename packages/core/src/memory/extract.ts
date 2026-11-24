@@ -20,6 +20,10 @@ import {
 } from './store.js';
 import { runAutoMemoryExtractionByAgent } from './extractionAgentPlanner.js';
 import {
+  historyReadExternalContent,
+  stampMemoryProvenance,
+} from './provenance.js';
+import {
   rebuildManagedAutoMemoryIndex,
   rebuildUserAutoMemoryIndex,
 } from './indexer.js';
@@ -199,6 +203,15 @@ export async function runAutoMemoryExtract(params: {
     params.config,
     params.projectRoot,
   );
+
+  if (agentResult.memoryFilesWritten.length > 0) {
+    await stampMemoryProvenance(agentResult.memoryFilesWritten, {
+      sessionId: params.sessionId,
+      externalContent: historyReadExternalContent(
+        params.history.slice(startOffset),
+      ),
+    });
+  }
 
   if (agentResult.touchedTopics.length > 0) {
     await bumpMetadata(

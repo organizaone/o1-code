@@ -93,11 +93,48 @@ describe('auto-memory extraction', () => {
     });
   });
 
+  it('records the session and external content on the files the agent wrote', async () => {
+    const memoryFile = path.join(tempDir, 'reference', 'tracker.md');
+    await fs.mkdir(path.dirname(memoryFile), { recursive: true });
+    await fs.writeFile(
+      memoryFile,
+      '---\nname: Tracker\ndescription: bugs\ntype: reference\n---\n\nBugs live in INGEST.\n',
+    );
+    vi.mocked(runAutoMemoryExtractionByAgent).mockResolvedValue({
+      touchedTopics: ['reference'],
+      touchedProjectScope: true,
+      touchedUserScope: false,
+      memoryFilesWritten: [memoryFile],
+      hasToolActivity: true,
+      systemMessage: undefined,
+    });
+
+    await runAutoMemoryExtract({
+      projectRoot,
+      sessionId: 'session-1',
+      config: mockConfig,
+      history: [
+        { role: 'user', parts: [{ text: 'bugs are tracked in INGEST' }] },
+        {
+          role: 'model',
+          parts: [{ functionCall: { name: 'mcp__tracker__search', args: {} } }],
+        },
+        { role: 'model', parts: [{ text: 'Noted.' }] },
+      ],
+    });
+
+    const content = await fs.readFile(memoryFile, 'utf-8');
+    expect(content).toContain('session: session-1');
+    expect(content).toContain('external_content: true');
+    expect(content).toContain('Bugs live in INGEST.');
+  });
+
   it('updates cursor and avoids duplicate writes for repeated extraction', async () => {
     vi.mocked(runAutoMemoryExtractionByAgent).mockResolvedValue({
       touchedTopics: [],
       touchedProjectScope: false,
       touchedUserScope: false,
+      memoryFilesWritten: [],
       hasToolActivity: true,
       systemMessage: undefined,
     });
@@ -225,6 +262,7 @@ describe('auto-memory extraction', () => {
         touchedTopics: ['user'],
         touchedProjectScope: true,
         touchedUserScope: false,
+        memoryFilesWritten: [],
         hasToolActivity: true,
         systemMessage: undefined,
       });
@@ -252,6 +290,7 @@ describe('auto-memory extraction', () => {
         touchedTopics: ['user'],
         touchedProjectScope: true,
         touchedUserScope: true,
+        memoryFilesWritten: [],
         hasToolActivity: true,
         systemMessage: undefined,
       });
@@ -282,6 +321,7 @@ describe('auto-memory extraction', () => {
         touchedTopics: ['user', 'project'],
         touchedProjectScope: true,
         touchedUserScope: true,
+        memoryFilesWritten: [],
         hasToolActivity: true,
         systemMessage: undefined,
       });
@@ -303,6 +343,7 @@ describe('auto-memory extraction', () => {
         touchedTopics: ['user'],
         touchedProjectScope: false,
         touchedUserScope: false,
+        memoryFilesWritten: [],
         hasToolActivity: true,
         systemMessage: undefined,
       });
@@ -324,6 +365,7 @@ describe('auto-memory extraction', () => {
         touchedTopics: ['project'],
         touchedProjectScope: true,
         touchedUserScope: false,
+        memoryFilesWritten: [],
         hasToolActivity: true,
         systemMessage: undefined,
       });
@@ -355,6 +397,7 @@ describe('auto-memory extraction', () => {
         touchedTopics: ['user'],
         touchedProjectScope: false,
         touchedUserScope: true,
+        memoryFilesWritten: [],
         hasToolActivity: true,
         systemMessage: undefined,
       });
@@ -394,6 +437,7 @@ describe('auto-memory extraction', () => {
         touchedTopics: ['user'],
         touchedProjectScope: true,
         touchedUserScope: false,
+        memoryFilesWritten: [],
         hasToolActivity: true,
         systemMessage: undefined,
       });
@@ -452,6 +496,7 @@ describe('auto-memory extraction', () => {
         touchedTopics: [],
         touchedProjectScope: false,
         touchedUserScope: false,
+        memoryFilesWritten: [],
         hasToolActivity: true,
         systemMessage: undefined,
       });
@@ -500,6 +545,7 @@ describe('auto-memory extraction', () => {
         touchedTopics: ['user'],
         touchedProjectScope: true,
         touchedUserScope: false,
+        memoryFilesWritten: [],
         hasToolActivity: true,
         systemMessage: undefined,
       });
@@ -526,6 +572,7 @@ describe('auto-memory extraction', () => {
         touchedTopics: ['user'],
         touchedProjectScope: true,
         touchedUserScope: false,
+        memoryFilesWritten: [],
         hasToolActivity: true,
         systemMessage: undefined,
       });
@@ -571,6 +618,7 @@ describe('auto-memory extraction', () => {
         touchedTopics: ['user'],
         touchedProjectScope: true,
         touchedUserScope: false,
+        memoryFilesWritten: [],
         hasToolActivity: true,
         systemMessage: undefined,
       });
@@ -661,6 +709,7 @@ describe('auto-memory extraction', () => {
         touchedTopics: ['user'],
         touchedProjectScope: true,
         touchedUserScope: false,
+        memoryFilesWritten: [],
         hasToolActivity: true,
         systemMessage: undefined,
       });
@@ -710,6 +759,7 @@ describe('auto-memory extraction', () => {
         touchedTopics: [],
         touchedProjectScope: false,
         touchedUserScope: false,
+        memoryFilesWritten: [],
         hasToolActivity: false,
         systemMessage: undefined,
       });
@@ -735,6 +785,7 @@ describe('auto-memory extraction', () => {
         touchedTopics: [],
         touchedProjectScope: false,
         touchedUserScope: false,
+        memoryFilesWritten: [],
         hasToolActivity: true,
         systemMessage: undefined,
       });

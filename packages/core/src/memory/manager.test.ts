@@ -17,6 +17,7 @@ import {
 } from './paths.js';
 import type { Config } from '../config/config.js';
 import { ToolNames } from '../tools/tool-names.js';
+import { ensureAutoMemoryUsageTracking } from './usage.js';
 
 // ─── Mocks ────────────────────────────────────────────────────────────────────
 
@@ -1044,6 +1045,93 @@ describe('MemoryManager', () => {
       });
 
       expect(result).toEqual({ status: 'skipped', skippedReason: 'min_hours' });
+    });
+
+    it('skips without a model call when memory is unchanged since the last dream', async () => {
+      const mgr = new MemoryManager(async () => ['s0', 's1', 's2', 's3', 's4']);
+      const config = makeMockConfig();
+      const memoryFile = path.join(
+        projectRoot,
+        '.o1-code',
+        'memory',
+        'feedback',
+        'terse.md',
+      );
+      await fs.mkdir(path.dirname(memoryFile), { recursive: true });
+      await fs.writeFile(
+        memoryFile,
+        '---\nname: Terse\ndescription: d\ntype: feedback\n---\n\nBe terse.\n',
+      );
+
+      const first = await mgr.scheduleDream({
+        projectRoot,
+        sessionId: 'sess-a',
+        config,
+        now: new Date('2026-04-02T10:00:00.000Z'),
+        minHoursBetweenDreams: 0,
+        minSessionsBetweenDreams: 1,
+      });
+      expect(first.status).toBe('scheduled');
+      await first.promise;
+
+      const second = await mgr.scheduleDream({
+        projectRoot,
+        sessionId: 'sess-b',
+        config,
+        now: new Date('2026-04-03T10:00:00.000Z'),
+        minHoursBetweenDreams: 0,
+        minSessionsBetweenDreams: 1,
+      });
+      expect(second).toEqual({ status: 'skipped', skippedReason: 'unchanged' });
+      expect(runManagedAutoMemoryDream).toHaveBeenCalledTimes(1);
+
+      await fs.appendFile(memoryFile, 'Even in reviews.\n');
+      const third = await mgr.scheduleDream({
+        projectRoot,
+        sessionId: 'sess-c',
+        config,
+        now: new Date('2026-04-04T10:00:00.000Z'),
+        minHoursBetweenDreams: 0,
+        minSessionsBetweenDreams: 1,
+      });
+      expect(third.status).toBe('scheduled');
+    });
+
+    it('passes memories recall has not used to the dream', async () => {
+      const mgr = new MemoryManager(async () => ['s0', 's1', 's2', 's3', 's4']);
+      const memoryFile = path.join(
+        projectRoot,
+        '.o1-code',
+        'memory',
+        'reference',
+        'old-board.md',
+      );
+      await fs.mkdir(path.dirname(memoryFile), { recursive: true });
+      await fs.writeFile(
+        memoryFile,
+        '---\nname: Board\ndescription: d\ntype: reference\n---\n\nOld board.\n',
+      );
+      const old = new Date('2026-01-01T00:00:00.000Z');
+      await fs.utimes(memoryFile, old, old);
+      await ensureAutoMemoryUsageTracking(projectRoot, old);
+
+      const result = await mgr.scheduleDream({
+        projectRoot,
+        sessionId: 'sess-a',
+        config: makeMockConfig(),
+        now: new Date('2026-04-02T10:00:00.000Z'),
+        minHoursBetweenDreams: 0,
+        minSessionsBetweenDreams: 1,
+      });
+      expect(result.status).toBe('scheduled');
+      await result.promise;
+      expect(runManagedAutoMemoryDream).toHaveBeenCalledWith(
+        projectRoot,
+        expect.any(Date),
+        expect.anything(),
+        expect.any(AbortSignal),
+        { unusedMemories: ['reference/old-board.md'] },
+      );
     });
 
     it('skips when session count is below threshold (via session scanner)', async () => {
