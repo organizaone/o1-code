@@ -7,6 +7,8 @@ follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.32.0] - 2026-11-24
+
 ### Security
 
 - Memory no longer stores API keys, tokens or private keys in any of its folders; before, only
