@@ -24,7 +24,13 @@ const DAY_MS = 86_400_000;
 
 interface UsageEntry {
   count: number;
-  lastRecalledAt: string;
+  lastRecalledAt?: string;
+  /** When Dream last reviewed this memory as unused and kept it. */
+  reviewedAt?: string;
+}
+
+function isAfter(timestamp: string | undefined, cutoffMs: number): boolean {
+  return timestamp !== undefined && Date.parse(timestamp) >= cutoffMs;
 }
 
 /**
@@ -68,15 +74,11 @@ async function readUsage(projectRoot: string): Promise<AutoMemoryUsage | null> {
 // for one project are serialized to keep a read-modify-write from losing a count.
 const pendingWrites = new Map<string, Promise<void>>();
 
-/** Record that recall delivered these memory files to the model. Best-effort. */
-export function recordAutoMemoryRecalls(
+function updateUsage(
   projectRoot: string,
-  filePaths: readonly string[],
-  now: Date = new Date(),
+  now: Date,
+  mutate: (usage: AutoMemoryUsage) => Promise<void> | void,
 ): Promise<void> {
-  if (filePaths.length === 0) {
-    return Promise.resolve();
-  }
   const previous = pendingWrites.get(projectRoot) ?? Promise.resolve();
   const next = previous.then(async () => {
     try {
@@ -85,14 +87,7 @@ export function recordAutoMemoryRecalls(
         trackingSince: now.toISOString(),
         entries: {},
       };
-      for (const filePath of new Set(filePaths)) {
-        const key = path.resolve(filePath);
-        const entry = usage.entries[key];
-        usage.entries[key] = {
-          count: (entry?.count ?? 0) + 1,
-          lastRecalledAt: now.toISOString(),
-        };
-      }
+      await mutate(usage);
       await fs.mkdir(getAutoMemoryProjectStateDir(projectRoot), {
         recursive: true,
       });
@@ -102,7 +97,7 @@ export function recordAutoMemoryRecalls(
         { encoding: 'utf-8' },
       );
     } catch (error) {
-      debugLogger.debug('Could not record memory recall usage', error);
+      debugLogger.debug('Could not update memory usage', error);
     }
   });
   pendingWrites.set(projectRoot, next);
@@ -112,6 +107,69 @@ export function recordAutoMemoryRecalls(
     }
   });
   return next;
+}
+
+/**
+ * Record that these memory files reached the model, through recall or because
+ * the agent read one. Best-effort.
+ */
+export function recordAutoMemoryRecalls(
+  projectRoot: string,
+  filePaths: readonly string[],
+  now: Date = new Date(),
+): Promise<void> {
+  if (filePaths.length === 0) {
+    return Promise.resolve();
+  }
+  return updateUsage(projectRoot, now, (usage) => {
+    for (const filePath of new Set(filePaths)) {
+      const key = path.resolve(filePath);
+      const entry = usage.entries[key];
+      usage.entries[key] = {
+        ...entry,
+        count: (entry?.count ?? 0) + 1,
+        lastRecalledAt: now.toISOString(),
+      };
+    }
+  });
+}
+
+/**
+ * Record that Dream reviewed these memories and kept the ones still on disk,
+ * so they are not offered again until another full window has passed. Also
+ * drops entries for files that no longer exist, so the record does not grow
+ * with every merged or deleted memory.
+ */
+export function markAutoMemoriesReviewed(
+  projectRoot: string,
+  filePaths: readonly string[],
+  now: Date = new Date(),
+): Promise<void> {
+  return updateUsage(projectRoot, now, async (usage) => {
+    for (const filePath of new Set(filePaths)) {
+      const key = path.resolve(filePath);
+      const entry = usage.entries[key];
+      usage.entries[key] = {
+        ...entry,
+        count: entry?.count ?? 0,
+        reviewedAt: now.toISOString(),
+      };
+    }
+    const keys = Object.keys(usage.entries);
+    const present = await Promise.all(
+      keys.map((key) =>
+        fs.access(key).then(
+          () => true,
+          () => false,
+        ),
+      ),
+    );
+    keys.forEach((key, index) => {
+      if (!present[index]) {
+        delete usage.entries[key];
+      }
+    });
+  });
 }
 
 /** Start the usage record if none exists, so its age counts from first use. */
@@ -141,9 +199,10 @@ export async function ensureAutoMemoryUsageTracking(
 }
 
 /**
- * Project memories that recall has not delivered for `days` days and that were
- * not edited in that time either. Pinned memories are never candidates. Empty
- * until usage has been tracked for at least `days` days.
+ * Project memories that have not reached the model for `days` days, were not
+ * edited in that time, and were not already reviewed by Dream in that time.
+ * Pinned memories are never candidates. Empty until usage has been tracked
+ * for at least `days` days. Returns paths relative to the project memory root.
  */
 export async function listUnusedAutoMemories(
   projectRoot: string,
@@ -165,7 +224,10 @@ export async function listUnusedAutoMemories(
     .filter((doc) => doc.mtimeMs < cutoff)
     .filter((doc) => {
       const entry = usage.entries[path.resolve(doc.filePath)];
-      return !entry || Date.parse(entry.lastRecalledAt) < cutoff;
+      return (
+        !isAfter(entry?.lastRecalledAt, cutoff) &&
+        !isAfter(entry?.reviewedAt, cutoff)
+      );
     })
     .map((doc) => doc.relativePath)
     .sort()

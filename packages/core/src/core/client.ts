@@ -103,7 +103,7 @@ import type { RelevantAutoMemoryPromptResult } from '../memory/manager.js';
 import { AUTO_SKILL_THRESHOLD } from '../memory/manager.js';
 import { buildRelevantAutoMemoryPrompt } from '../memory/recall.js';
 import { recordAutoMemoryRecalls } from '../memory/usage.js';
-import { isManagedMemoryPath } from '../memory/paths.js';
+import { isAnyAutoMemPath, isManagedMemoryPath } from '../memory/paths.js';
 import { isProjectSkillPath } from '../skills/skill-paths.js';
 import { ToolNames, canonicalToolName } from '../tools/tool-names.js';
 import {
@@ -3076,6 +3076,17 @@ export class LlmClient {
     args?: Record<string, unknown>,
   ): void {
     this.rememberCompletedToolName(toolName);
+
+    // Reading a memory file through its index line is use too; without this,
+    // a memory consulted that way would look unused to Dream.
+    const readPath = args?.['file_path'];
+    if (
+      toolName === ToolNames.READ_FILE &&
+      typeof readPath === 'string' &&
+      isAnyAutoMemPath(readPath, this.config.getProjectRoot())
+    ) {
+      void recordAutoMemoryRecalls(this.config.getProjectRoot(), [readPath]);
+    }
 
     if (args && SKILL_WRITE_TOOL_NAMES.has(toolName)) {
       const filePath = args['file_path'] ?? args['path'] ?? args['target_file'];

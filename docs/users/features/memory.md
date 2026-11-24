@@ -110,7 +110,7 @@ these files directly and can remove them with an explicit `/forget` request.
 
 O1-Code periodically goes through its saved memories to remove duplicates and clean up outdated entries. This runs automatically in the background once a day after enough sessions have accumulated. You can trigger it manually with `/dream` if you want it to run now.
 
-The automatic cleanup is skipped, without a model call, when no project memory file changed since the last cleanup and none is due for review. O1-Code notes each time a memory is brought into a conversation; a project memory that has not been used or edited for 30 days is handed to the cleanup to review, which removes it if it is stale and keeps it if it still records something you would expect O1-Code to know. Pinned memories are never reviewed this way.
+The automatic cleanup is skipped, without a model call, when no project memory file changed since the last cleanup and none is due for review. O1-Code notes each time a memory is brought into a conversation or read; a project memory that has not been used or edited for 30 days is handed to the cleanup to review, which removes it if it is stale and keeps it if it still records something you would expect O1-Code to know. A memory it keeps is not reviewed again for another 30 days. Pinned memories are never reviewed this way.
 
 Each memory saved automatically records, in its frontmatter, the session it came from (`session:`). When that session also read web pages or MCP content, the memory is marked `external_content: true`, and O1-Code confirms it with you before relying on it.
 

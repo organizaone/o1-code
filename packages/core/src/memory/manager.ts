@@ -52,6 +52,7 @@ import { isAnyAutoMemPath, isTeamAutoMemPath } from './paths.js';
 import {
   getAutoMemoryConsolidationLockPath,
   getAutoMemoryMetadataPath,
+  getAutoMemoryRoot,
 } from './paths.js';
 import { ensureAutoMemoryScaffold } from './store.js';
 import { runAutoMemoryExtract } from './extract.js';
@@ -60,6 +61,7 @@ import { computeAutoMemoryFingerprint } from './memory-fingerprint.js';
 import {
   ensureAutoMemoryUsageTracking,
   listUnusedAutoMemories,
+  markAutoMemoriesReviewed,
 } from './usage.js';
 import {
   forgetManagedAutoMemoryEntries,
@@ -1389,6 +1391,15 @@ export class MemoryManager {
           // paths in sync avoids surprises if a future change starts
           // reading it.
           nextMetadata.recentSessionIdsSinceDream = [];
+          // The files Dream kept after reviewing them stay out of the next
+          // review until another full window passes without use.
+          await markAutoMemoriesReviewed(
+            params.projectRoot,
+            unusedMemories.map((relativePath) =>
+              path.join(getAutoMemoryRoot(params.projectRoot), relativePath),
+            ),
+            now,
+          );
           nextMetadata.lastDreamFingerprint =
             await computeAutoMemoryFingerprint(params.projectRoot);
           await writeDreamMetadata(params.projectRoot, nextMetadata);

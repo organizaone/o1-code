@@ -11397,6 +11397,33 @@ hello
         expect(client['toolCallCount']).toBe(2);
       });
 
+      it('counts a read of a memory file as use, and nothing else', () => {
+        vi.spyOn(client['config'], 'getProjectRoot').mockReturnValue(
+          '/project',
+        );
+        recordAutoMemoryRecallsMock.mockClear();
+        const memoryFile = join(
+          '/project',
+          '.o1-code',
+          'memory',
+          'feedback',
+          'terse.md',
+        );
+
+        client.recordCompletedToolCall('read_file', { file_path: memoryFile });
+        client.recordCompletedToolCall('read_file', {
+          file_path: '/project/src/index.ts',
+        });
+        client.recordCompletedToolCall('write_file', {
+          file_path: memoryFile,
+        });
+
+        expect(recordAutoMemoryRecallsMock).toHaveBeenCalledTimes(1);
+        expect(recordAutoMemoryRecallsMock).toHaveBeenCalledWith('/project', [
+          memoryFile,
+        ]);
+      });
+
       it('should set skillsModifiedInSession=true when write_file targets a skill path', () => {
         vi.spyOn(client['config'], 'getProjectRoot').mockReturnValue(
           '/project',

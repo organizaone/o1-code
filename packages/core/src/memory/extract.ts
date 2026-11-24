@@ -205,11 +205,12 @@ export async function runAutoMemoryExtract(params: {
   );
 
   if (agentResult.memoryFilesWritten.length > 0) {
+    // The whole history, not just the new slice: the extraction agent sees the
+    // earlier turns too, so content fetched before the cursor can still shape
+    // what it saves now.
     await stampMemoryProvenance(agentResult.memoryFilesWritten, {
       sessionId: params.sessionId,
-      externalContent: historyReadExternalContent(
-        params.history.slice(startOffset),
-      ),
+      externalContent: historyReadExternalContent(params.history),
     });
   }
 

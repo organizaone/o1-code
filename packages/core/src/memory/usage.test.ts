@@ -14,6 +14,7 @@ import {
   ensureAutoMemoryUsageTracking,
   getAutoMemoryUsagePath,
   listUnusedAutoMemories,
+  markAutoMemoriesReviewed,
   recordAutoMemoryRecalls,
 } from './usage.js';
 
@@ -83,6 +84,32 @@ describe('auto-memory recall usage', () => {
       'feedback/never-used.md',
       'reference/used-long-ago.md',
     ]);
+  });
+
+  it('does not offer a reviewed memory again within the window, and drops deleted ones', async () => {
+    await ensureAutoMemoryUsageTracking(projectRoot, daysAgo(60));
+    const kept = await writeMemory('feedback/kept.md', 90);
+    const deleted = await writeMemory('reference/deleted.md', 90);
+    await recordAutoMemoryRecalls(projectRoot, [deleted], daysAgo(50));
+    expect(await listUnusedAutoMemories(projectRoot, NOW)).toEqual([
+      'feedback/kept.md',
+      'reference/deleted.md',
+    ]);
+
+    await fs.rm(deleted);
+    await markAutoMemoriesReviewed(projectRoot, [kept, deleted], NOW);
+
+    expect(await listUnusedAutoMemories(projectRoot, NOW)).toEqual([]);
+    expect(
+      await listUnusedAutoMemories(
+        projectRoot,
+        new Date(NOW.getTime() + 31 * DAY_MS),
+      ),
+    ).toEqual(['feedback/kept.md']);
+    const usage = JSON.parse(
+      await fs.readFile(getAutoMemoryUsagePath(projectRoot), 'utf-8'),
+    ) as { entries: Record<string, unknown> };
+    expect(Object.keys(usage.entries)).toEqual([path.resolve(kept)]);
   });
 
   it('changes the fingerprint when a memory changes, not when the index does', async () => {
