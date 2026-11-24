@@ -102,7 +102,13 @@ import type { UserPromptRecordPayload } from '../services/chatRecordingService.j
 import type { RelevantAutoMemoryPromptResult } from '../memory/manager.js';
 import { AUTO_SKILL_THRESHOLD } from '../memory/manager.js';
 import { buildRelevantAutoMemoryPrompt } from '../memory/recall.js';
-import { isManagedMemoryPath } from '../memory/paths.js';
+import { recordAutoMemoryRecalls } from '../memory/usage.js';
+import {
+  currentTurn,
+  historyReadExternalContent,
+  stampMemoryProvenance,
+} from '../memory/provenance.js';
+import { isAnyAutoMemPath, isManagedMemoryPath } from '../memory/paths.js';
 import { isProjectSkillPath } from '../skills/skill-paths.js';
 import { ToolNames, canonicalToolName } from '../tools/tool-names.js';
 import {
@@ -1440,6 +1446,15 @@ export class LlmClient {
     );
   }
 
+  private recordRecalledMemories(
+    docs: RelevantAutoMemoryPromptResult['selectedDocs'],
+  ): void {
+    void recordAutoMemoryRecalls(
+      this.config.getProjectRoot(),
+      docs.map((doc) => doc.filePath),
+    );
+  }
+
   /** @internal */
   finishManagedAutoMemoryRecall(): void {
     this.cancelPendingMemoryPrefetch('no_safe_delivery_point');
@@ -1549,6 +1564,7 @@ export class LlmClient {
         this.surfacedRelevantAutoMemoryPaths.add(doc.filePath);
         handle.fastDeliveredPaths.add(doc.filePath);
       }
+      this.recordRecalledMemories(fast.selectedDocs);
       logMemoryRecallDelivery(
         this.config,
         new MemoryRecallDeliveryEvent({
@@ -1587,6 +1603,7 @@ export class LlmClient {
       for (const doc of deduped.selectedDocs) {
         this.surfacedRelevantAutoMemoryPaths.add(doc.filePath);
       }
+      this.recordRecalledMemories(deduped.selectedDocs);
       this.logMemoryPrefetchDelivery(handle, deliveryPoint, deduped);
     } else {
       this.logMemoryPrefetchDelivery(
@@ -3065,6 +3082,32 @@ export class LlmClient {
   ): void {
     this.rememberCompletedToolName(toolName);
 
+    // Reading a memory file through its index line is use too; without this,
+    // a memory consulted that way would look unused to Dream.
+    const readPath = args?.['file_path'];
+    if (
+      toolName === ToolNames.READ_FILE &&
+      typeof readPath === 'string' &&
+      isAnyAutoMemPath(readPath, this.config.getProjectRoot())
+    ) {
+      void recordAutoMemoryRecalls(this.config.getProjectRoot(), [readPath]);
+    }
+
+    // A memory the main agent writes itself gets the same provenance as one
+    // the extraction agent writes, so recall can tell whether it was saved in
+    // a session that read web or MCP content.
+    const writePath = args?.['file_path'];
+    if (
+      SKILL_WRITE_TOOL_NAMES.has(toolName) &&
+      typeof writePath === 'string' &&
+      isAnyAutoMemPath(writePath, this.config.getProjectRoot())
+    ) {
+      void stampMemoryProvenance([writePath], {
+        sessionId: this.config.getSessionId(),
+        externalContent: this.turnReadExternalContent(),
+      });
+    }
+
     if (args && SKILL_WRITE_TOOL_NAMES.has(toolName)) {
       const filePath = args['file_path'] ?? args['path'] ?? args['target_file'];
       if (
@@ -3075,6 +3118,16 @@ export class LlmClient {
       }
     }
     this.toolCallCount += 1;
+  }
+
+  /** Whether the current turn, the one writing a memory, read web or MCP content. */
+  private turnReadExternalContent(): boolean {
+    try {
+      return historyReadExternalContent(currentTurn(this.getHistoryShallow()));
+    } catch {
+      // No chat to read: nothing from this turn is on record.
+      return false;
+    }
   }
 
   private rememberCompletedToolName(toolName: string): void {

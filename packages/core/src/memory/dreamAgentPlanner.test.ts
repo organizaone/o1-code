@@ -168,6 +168,20 @@ describe('dreamAgentPlanner', () => {
     expect(prompt).toContain('normal index limits still apply');
   });
 
+  it('lists unused memories for review only when there are some', () => {
+    const shell = getShellConfiguration();
+    expect(buildConsolidationTaskPrompt('/m', '/t', shell, [])).not.toContain(
+      '## Memories not used lately',
+    );
+
+    const prompt = buildConsolidationTaskPrompt('/m', '/t', shell, [
+      'reference/old-board.md',
+    ]);
+    expect(prompt).toContain('## Memories not used lately');
+    expect(prompt).toContain('- `reference/old-board.md`');
+    expect(prompt).toContain('rarely needed is not the same as wrong');
+  });
+
   it('tells the dream agent that memory and transcripts are data', async () => {
     vi.mocked(runForkedAgent).mockResolvedValue({
       status: 'completed',

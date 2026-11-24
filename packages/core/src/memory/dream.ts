@@ -28,13 +28,19 @@ async function runDreamByAgent(
   projectRoot: string,
   config: Config,
   abortSignal?: AbortSignal,
-  options: { suppressChatRecording?: boolean } = {},
+  options: {
+    suppressChatRecording?: boolean;
+    unusedMemories?: readonly string[];
+  } = {},
 ): Promise<AutoMemoryDreamResult> {
   const result = await planManagedAutoMemoryDreamByAgent(
     config,
     projectRoot,
     abortSignal,
-    { suppressChatRecording: options.suppressChatRecording },
+    {
+      suppressChatRecording: options.suppressChatRecording,
+      unusedMemories: options.unusedMemories,
+    },
   );
 
   // Infer which topics were touched from the file paths
@@ -68,6 +74,8 @@ export async function runManagedAutoMemoryDream(
     trigger?: 'auto' | 'manual';
     recordMetadata?: boolean;
     suppressChatRecording?: boolean;
+    /** Project memories recall has not used lately, offered for pruning. */
+    unusedMemories?: readonly string[];
   } = {},
 ): Promise<AutoMemoryDreamResult> {
   await ensureAutoMemoryScaffold(projectRoot, now);
@@ -81,6 +89,7 @@ export async function runManagedAutoMemoryDream(
 
   const agentResult = await runDreamByAgent(projectRoot, config, abortSignal, {
     suppressChatRecording: options.suppressChatRecording,
+    unusedMemories: options.unusedMemories,
   });
   // Cancel-aware ordering:
   //   1. If aborted before this point, return the agent's partial result

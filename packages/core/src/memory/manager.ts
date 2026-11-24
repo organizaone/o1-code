@@ -52,10 +52,17 @@ import { isAnyAutoMemPath, isTeamAutoMemPath } from './paths.js';
 import {
   getAutoMemoryConsolidationLockPath,
   getAutoMemoryMetadataPath,
+  getAutoMemoryRoot,
 } from './paths.js';
 import { ensureAutoMemoryScaffold } from './store.js';
 import { runAutoMemoryExtract } from './extract.js';
 import { runManagedAutoMemoryDream } from './dream.js';
+import { computeAutoMemoryFingerprint } from './memory-fingerprint.js';
+import {
+  ensureAutoMemoryUsageTracking,
+  listUnusedAutoMemories,
+  markAutoMemoriesReviewed,
+} from './usage.js';
 import {
   forgetManagedAutoMemoryEntries,
   forgetManagedAutoMemoryMatches,
@@ -193,6 +200,7 @@ export interface DreamScheduleResult {
     | 'min_hours'
     | 'min_sessions'
     | 'scan_throttled'
+    | 'unchanged'
     | 'locked'
     | 'running'
     | 'memory_pressure';
@@ -1031,6 +1039,7 @@ export class MemoryManager {
       params.minSessionsBetweenDreams ?? DEFAULT_AUTO_DREAM_MIN_SESSIONS;
 
     await ensureAutoMemoryScaffold(params.projectRoot, now);
+    await ensureAutoMemoryUsageTracking(params.projectRoot, now);
     const metadata = await readDreamMetadata(params.projectRoot);
 
     if (metadata.lastDreamSessionId === params.sessionId) {
@@ -1040,6 +1049,22 @@ export class MemoryManager {
     const elapsedHours = hoursSince(metadata.lastDreamAt, now);
     if (elapsedHours !== null && elapsedHours < minHours) {
       return { status: 'skipped', skippedReason: 'min_hours' };
+    }
+
+    // Nothing to consolidate: the memory files are exactly as the last Dream
+    // left them and none has gone unused long enough to be reviewed. Checked
+    // before the session scan, and without starting a model call.
+    const unusedMemories = await listUnusedAutoMemories(
+      params.projectRoot,
+      now,
+    );
+    if (
+      unusedMemories.length === 0 &&
+      metadata.lastDreamFingerprint !== undefined &&
+      (await computeAutoMemoryFingerprint(params.projectRoot)) ===
+        metadata.lastDreamFingerprint
+    ) {
+      return { status: 'skipped', skippedReason: 'unchanged' };
     }
 
     // Throttle the expensive session-count filesystem scan.
@@ -1122,7 +1147,14 @@ export class MemoryManager {
 
     const promise = this.track(
       record.id,
-      this.runDream(record, dedupeKey, params, now, abortController.signal),
+      this.runDream(
+        record,
+        dedupeKey,
+        params,
+        now,
+        abortController.signal,
+        unusedMemories,
+      ),
     );
 
     return { status: 'scheduled', taskId: record.id, promise };
@@ -1255,6 +1287,7 @@ export class MemoryManager {
     params: ScheduleDreamParams,
     now: Date,
     abortSignal: AbortSignal,
+    unusedMemories: readonly string[] = [],
   ): Promise<MemoryTaskRecord> {
     const dreamStartMs = Date.now();
     try {
@@ -1279,6 +1312,7 @@ export class MemoryManager {
           now,
           params.config,
           abortSignal,
+          { unusedMemories },
         );
         // Defense-in-depth: runForkedAgent maps cancelled fork-agents
         // to a resolved `{status: 'cancelled'}` rather than a rejection.
@@ -1357,6 +1391,17 @@ export class MemoryManager {
           // paths in sync avoids surprises if a future change starts
           // reading it.
           nextMetadata.recentSessionIdsSinceDream = [];
+          // The files Dream kept after reviewing them stay out of the next
+          // review until another full window passes without use.
+          await markAutoMemoriesReviewed(
+            params.projectRoot,
+            unusedMemories.map((relativePath) =>
+              path.join(getAutoMemoryRoot(params.projectRoot), relativePath),
+            ),
+            now,
+          );
+          nextMetadata.lastDreamFingerprint =
+            await computeAutoMemoryFingerprint(params.projectRoot);
           await writeDreamMetadata(params.projectRoot, nextMetadata);
         } catch (metaError) {
           const message =

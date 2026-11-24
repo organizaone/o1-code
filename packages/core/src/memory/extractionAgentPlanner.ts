@@ -63,6 +63,8 @@ export interface AutoMemoryExtractionExecutionResult {
   touchedProjectScope: boolean;
   /** True when at least one file inside the user-level memory root was written/edited. */
   touchedUserScope: boolean;
+  /** Files the agent wrote or edited inside either managed memory root. */
+  memoryFilesWritten: string[];
   systemMessage?: string;
   hasToolActivity: boolean;
 }
@@ -192,6 +194,7 @@ function touchedTopicsFromFilePaths(
   topics: AutoMemoryType[];
   touchedProjectScope: boolean;
   touchedUserScope: boolean;
+  memoryFiles: string[];
 } {
   // Use startsWith against the directly-retrieved roots (rather than the
   // isAutoMemPath helper, which calls into paths.ts internals and would
@@ -215,6 +218,7 @@ function touchedTopicsFromFilePaths(
   const canonProject = canon(projectRootDir);
   const canonUser = canon(userRootDir);
   const topicSet = new Set<AutoMemoryType>();
+  const memoryFiles: string[] = [];
   let touchedProjectScope = false;
   let touchedUserScope = false;
 
@@ -230,6 +234,7 @@ function touchedTopicsFromFilePaths(
     } else {
       continue;
     }
+    memoryFiles.push(p);
     // +1 to also strip the `/` we just checked for.
     const rel = canonP.slice(canonRoot.length + 1);
     const segment = rel.split('/')[0] as AutoMemoryType;
@@ -246,6 +251,7 @@ function touchedTopicsFromFilePaths(
     topics: [...topicSet],
     touchedProjectScope,
     touchedUserScope,
+    memoryFiles,
   };
 }
 
@@ -299,13 +305,14 @@ export async function runAutoMemoryExtractionByAgent(
     );
   }
 
-  const { topics, touchedProjectScope, touchedUserScope } =
+  const { topics, touchedProjectScope, touchedUserScope, memoryFiles } =
     touchedTopicsFromFilePaths(result.filesWritten ?? [], projectRoot);
 
   return {
     touchedTopics: topics,
     touchedProjectScope,
     touchedUserScope,
+    memoryFilesWritten: memoryFiles,
     hasToolActivity: result.filesTouched.length > 0,
     systemMessage:
       topics.length > 0

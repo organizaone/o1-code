@@ -446,6 +446,22 @@ vi.mock('../omni/memory-side-query.js', async (importOriginal) => ({
   runOmniMemorySideQuery: runOmniMemorySideQueryMock,
 }));
 
+// Recall usage is written to disk next to the memory directory; keep the
+// client tests (which use fake project roots) off the real filesystem.
+const recordAutoMemoryRecallsMock = vi.hoisted(() =>
+  vi.fn().mockResolvedValue(undefined),
+);
+vi.mock('../memory/usage.js', () => ({
+  recordAutoMemoryRecalls: recordAutoMemoryRecallsMock,
+}));
+const stampMemoryProvenanceMock = vi.hoisted(() =>
+  vi.fn().mockResolvedValue(undefined),
+);
+vi.mock('../memory/provenance.js', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../memory/provenance.js')>()),
+  stampMemoryProvenance: stampMemoryProvenanceMock,
+}));
+
 /**
  * Array.fromAsync ponyfill, which will be available in es 2024.
  *
@@ -7271,6 +7287,15 @@ hello
           strategy: 'heuristic',
         }),
       );
+      // Only what reached the model counts as used.
+      expect(recordAutoMemoryRecallsMock).toHaveBeenCalledWith(
+        expect.any(String),
+        ['/m/fast.md'],
+      );
+      expect(recordAutoMemoryRecallsMock).not.toHaveBeenCalledWith(
+        expect.any(String),
+        ['/m/refined.md'],
+      );
     });
 
     it('still delivers the model-selected result at ToolResult after a fast initial delivery', async () => {
@@ -11377,6 +11402,98 @@ hello
         expect(client['toolCallCount']).toBe(1);
         client.recordCompletedToolCall('write_file');
         expect(client['toolCallCount']).toBe(2);
+      });
+
+      it('counts a read of a memory file as use, and nothing else', () => {
+        vi.spyOn(client['config'], 'getProjectRoot').mockReturnValue(
+          '/project',
+        );
+        recordAutoMemoryRecallsMock.mockClear();
+        const memoryFile = join(
+          '/project',
+          '.o1-code',
+          'memory',
+          'feedback',
+          'terse.md',
+        );
+
+        client.recordCompletedToolCall('read_file', { file_path: memoryFile });
+        client.recordCompletedToolCall('read_file', {
+          file_path: '/project/src/index.ts',
+        });
+        client.recordCompletedToolCall('write_file', {
+          file_path: memoryFile,
+        });
+
+        expect(recordAutoMemoryRecallsMock).toHaveBeenCalledTimes(1);
+        expect(recordAutoMemoryRecallsMock).toHaveBeenCalledWith('/project', [
+          memoryFile,
+        ]);
+      });
+
+      it('records provenance on a memory the main agent writes itself', () => {
+        vi.spyOn(client['config'], 'getProjectRoot').mockReturnValue(
+          '/project',
+        );
+        stampMemoryProvenanceMock.mockClear();
+        client['chat'] = {
+          getHistory: vi.fn().mockReturnValue([
+            {
+              role: 'model',
+              parts: [{ functionCall: { name: 'web_fetch', args: {} } }],
+            },
+          ]),
+        } as unknown as LlmChat;
+        const memoryFile = join(
+          '/project',
+          '.o1-code',
+          'memory',
+          'reference',
+          'deploys.md',
+        );
+
+        client.recordCompletedToolCall('write_file', {
+          file_path: '/project/src/index.ts',
+        });
+        client.recordCompletedToolCall('write_file', { file_path: memoryFile });
+
+        expect(stampMemoryProvenanceMock).toHaveBeenCalledTimes(1);
+        expect(stampMemoryProvenanceMock).toHaveBeenCalledWith([memoryFile], {
+          sessionId: expect.any(String),
+          externalContent: true,
+        });
+      });
+
+      it('does not mark a memory written in a later turn than the web read', () => {
+        vi.spyOn(client['config'], 'getProjectRoot').mockReturnValue(
+          '/project',
+        );
+        stampMemoryProvenanceMock.mockClear();
+        client['chat'] = {
+          getHistory: vi.fn().mockReturnValue([
+            { role: 'user', parts: [{ text: 'fetch example.com' }] },
+            {
+              role: 'model',
+              parts: [{ functionCall: { name: 'web_fetch', args: {} } }],
+            },
+            { role: 'user', parts: [{ text: 'we never use semicolons' }] },
+          ]),
+        } as unknown as LlmChat;
+
+        client.recordCompletedToolCall('write_file', {
+          file_path: join(
+            '/project',
+            '.o1-code',
+            'memory',
+            'feedback',
+            'js.md',
+          ),
+        });
+
+        expect(stampMemoryProvenanceMock).toHaveBeenCalledWith(
+          [expect.any(String)],
+          { sessionId: expect.any(String), externalContent: false },
+        );
       });
 
       it('should set skillsModifiedInSession=true when write_file targets a skill path', () => {

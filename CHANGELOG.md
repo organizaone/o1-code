@@ -15,6 +15,13 @@ follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   you say, and a memory that asks to run a command, open a URL or send data is ignored and
   reported.
 
+### Changed
+
+- Each memory records the session it came from, and one saved from a part of the conversation
+  that read web or MCP content is confirmed with you before it is used.
+- Memory cleanup reviews project memories unused for 30 days, and skips its model call when
+  nothing changed.
+
 ## [0.31.1] - 2026-11-23
 
 ### Fixed
