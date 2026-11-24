@@ -33,6 +33,25 @@ export function isExternalContentToolName(name: string): boolean {
   return EXTERNAL_CONTENT_TOOLS.has(name) || name.startsWith('mcp__');
 }
 
+/**
+ * The current turn: everything from the last user text message on. Tool
+ * results also arrive as user messages, so only a part with text counts.
+ */
+export function currentTurn(history: readonly Content[]): readonly Content[] {
+  for (let i = history.length - 1; i >= 0; i--) {
+    const message = history[i];
+    if (
+      message.role === 'user' &&
+      (message.parts ?? []).some(
+        (part) => typeof part.text === 'string' && part.text.trim() !== '',
+      )
+    ) {
+      return history.slice(i);
+    }
+  }
+  return history;
+}
+
 /** True when any turn in `history` called a tool that brings in web or MCP content. */
 export function historyReadExternalContent(
   history: readonly Content[],

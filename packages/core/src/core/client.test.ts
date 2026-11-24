@@ -11464,6 +11464,38 @@ hello
         });
       });
 
+      it('does not mark a memory written in a later turn than the web read', () => {
+        vi.spyOn(client['config'], 'getProjectRoot').mockReturnValue(
+          '/project',
+        );
+        stampMemoryProvenanceMock.mockClear();
+        client['chat'] = {
+          getHistory: vi.fn().mockReturnValue([
+            { role: 'user', parts: [{ text: 'fetch example.com' }] },
+            {
+              role: 'model',
+              parts: [{ functionCall: { name: 'web_fetch', args: {} } }],
+            },
+            { role: 'user', parts: [{ text: 'we never use semicolons' }] },
+          ]),
+        } as unknown as LlmChat;
+
+        client.recordCompletedToolCall('write_file', {
+          file_path: join(
+            '/project',
+            '.o1-code',
+            'memory',
+            'feedback',
+            'js.md',
+          ),
+        });
+
+        expect(stampMemoryProvenanceMock).toHaveBeenCalledWith(
+          [expect.any(String)],
+          { sessionId: expect.any(String), externalContent: false },
+        );
+      });
+
       it('should set skillsModifiedInSession=true when write_file targets a skill path', () => {
         vi.spyOn(client['config'], 'getProjectRoot').mockReturnValue(
           '/project',

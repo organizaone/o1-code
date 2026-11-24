@@ -8,6 +8,7 @@ import type { Content } from '@google/genai';
 import { describe, expect, it } from 'vitest';
 import {
   applyMemoryProvenance,
+  currentTurn,
   historyReadExternalContent,
   isExternalContentToolName,
 } from './provenance.js';
@@ -65,6 +66,30 @@ describe('external content detection', () => {
         },
       ]),
     ).toBe(true);
+  });
+});
+
+describe('currentTurn', () => {
+  it('starts at the last user text message, not at a tool result', () => {
+    const history: Content[] = [
+      { role: 'user', parts: [{ text: 'first' }] },
+      {
+        role: 'model',
+        parts: [{ functionCall: { name: 'web_fetch', args: {} } }],
+      },
+      { role: 'user', parts: [{ text: 'second' }] },
+      {
+        role: 'model',
+        parts: [{ functionCall: { name: 'read_file', args: {} } }],
+      },
+      {
+        role: 'user',
+        parts: [{ functionResponse: { name: 'read_file', response: {} } }],
+      },
+    ];
+    expect(currentTurn(history)).toEqual(history.slice(2));
+    expect(historyReadExternalContent(currentTurn(history))).toBe(false);
+    expect(currentTurn([])).toEqual([]);
   });
 });
 

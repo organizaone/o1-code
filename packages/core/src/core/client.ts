@@ -104,8 +104,8 @@ import { AUTO_SKILL_THRESHOLD } from '../memory/manager.js';
 import { buildRelevantAutoMemoryPrompt } from '../memory/recall.js';
 import { recordAutoMemoryRecalls } from '../memory/usage.js';
 import {
+  currentTurn,
   historyReadExternalContent,
-  isExternalContentToolName,
   stampMemoryProvenance,
 } from '../memory/provenance.js';
 import { isAnyAutoMemPath, isManagedMemoryPath } from '../memory/paths.js';
@@ -3104,7 +3104,7 @@ export class LlmClient {
     ) {
       void stampMemoryProvenance([writePath], {
         sessionId: this.config.getSessionId(),
-        externalContent: this.sessionReadExternalContent(),
+        externalContent: this.turnReadExternalContent(),
       });
     }
 
@@ -3120,12 +3120,13 @@ export class LlmClient {
     this.toolCallCount += 1;
   }
 
-  private sessionReadExternalContent(): boolean {
+  /** Whether the current turn, the one writing a memory, read web or MCP content. */
+  private turnReadExternalContent(): boolean {
     try {
-      return historyReadExternalContent(this.getHistoryShallow());
+      return historyReadExternalContent(currentTurn(this.getHistoryShallow()));
     } catch {
-      // No chat yet: fall back to the tools that completed in this process.
-      return this.recentCompletedToolNames.some(isExternalContentToolName);
+      // No chat to read: nothing from this turn is on record.
+      return false;
     }
   }
 
