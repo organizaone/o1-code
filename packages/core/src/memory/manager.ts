@@ -58,6 +58,7 @@ import { ensureAutoMemoryScaffold } from './store.js';
 import { runAutoMemoryExtract } from './extract.js';
 import { runManagedAutoMemoryDream } from './dream.js';
 import { computeAutoMemoryFingerprint } from './memory-fingerprint.js';
+import { currentTurn } from './provenance.js';
 import {
   ensureAutoMemoryUsageTracking,
   listUnusedAutoMemories,
@@ -341,11 +342,17 @@ function partWritesToMemory(part: Part, projectRoot: string): boolean {
   return false;
 }
 
+/**
+ * True when the current turn — everything since the last user text message —
+ * wrote a memory file. Only that turn is skipped: scanning the whole history
+ * would stop extraction for the rest of the session after one write by the
+ * main agent.
+ */
 function historyWritesToMemory(
   history: Content[],
   projectRoot: string,
 ): boolean {
-  return history.some((msg) =>
+  return currentTurn(history).some((msg) =>
     (msg.parts ?? []).some((p) => partWritesToMemory(p, projectRoot)),
   );
 }

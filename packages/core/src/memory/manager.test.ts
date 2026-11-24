@@ -330,6 +330,52 @@ describe('MemoryManager', () => {
       },
     );
 
+    it('skips only the turn that wrote memory, not the rest of the session', async () => {
+      vi.mocked(runAutoMemoryExtract).mockResolvedValue({
+        touchedTopics: [],
+        cursor: { sessionId: 'sess-1', updatedAt: new Date().toISOString() },
+      });
+      const memoryWrite = {
+        role: 'model',
+        parts: [
+          {
+            functionCall: {
+              name: 'write_file',
+              args: {
+                file_path: path.join(
+                  projectRoot,
+                  '.o1-code/memory/reference/deploys.md',
+                ),
+              },
+            },
+          },
+        ],
+      };
+      const mgr = new MemoryManager();
+      const writingTurn = [
+        { role: 'user', parts: [{ text: 'the deploy board is grafana/x' }] },
+        memoryWrite,
+      ];
+
+      const first = await mgr.scheduleExtract({
+        projectRoot,
+        sessionId: 'sess-1',
+        history: writingTurn,
+      });
+      expect(first.skippedReason).toBe('memory_tool');
+
+      await mgr.scheduleExtract({
+        projectRoot,
+        sessionId: 'sess-1',
+        history: [
+          ...writingTurn,
+          { role: 'user', parts: [{ text: 'we never use semicolons' }] },
+          { role: 'model', parts: [{ text: 'ok' }] },
+        ],
+      });
+      expect(vi.mocked(runAutoMemoryExtract)).toHaveBeenCalledTimes(1);
+    });
+
     it('does not treat an unrelated bridged call as a memory write', async () => {
       vi.mocked(runAutoMemoryExtract).mockResolvedValue({
         touchedTopics: [],
