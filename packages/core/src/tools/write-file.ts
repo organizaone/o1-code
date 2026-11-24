@@ -13,7 +13,7 @@ import {
   writeRuntimeFile,
 } from '../sandbox/runtime-file.js';
 import { isAnyAutoMemPath, isTeamAutoMemPath } from '../memory/paths.js';
-import { checkTeamMemorySecrets } from '../memory/team-memory-secret-guard.js';
+import { checkMemorySecrets } from '../memory/memory-secret-guard.js';
 import type {
   FileDiff,
   ToolArtifact,
@@ -325,19 +325,19 @@ class WriteFileToolInvocation extends BaseToolInvocation<
     let detectedLineEnding: LineEnding | undefined;
     const dirName = path.dirname(file_path);
 
-    const teamMemoryError = checkTeamMemorySecrets(
+    const memorySecretError = checkMemorySecrets(
       file_path,
       content,
       this.config.getProjectRoot(),
     );
-    if (teamMemoryError) {
+    if (memorySecretError) {
       // Must carry `error` so the framework treats the blocked write as a
       // failure (retry/telemetry), not a silent success. Mirrors edit.ts.
       return {
-        llmContent: `[ERROR: ${teamMemoryError}]`,
-        returnDisplay: teamMemoryError,
+        llmContent: `[ERROR: ${memorySecretError}]`,
+        returnDisplay: memorySecretError,
         error: {
-          message: teamMemoryError,
+          message: memorySecretError,
           type: ToolErrorType.INVALID_TOOL_PARAMS,
         },
       };
@@ -886,13 +886,13 @@ The user has the ability to modify \`content\`. If modified, this will be stated
       )}`;
     }
 
-    const teamMemoryError = checkTeamMemorySecrets(
+    const memorySecretError = checkMemorySecrets(
       filePath,
       params.content ?? '',
       this.config.getProjectRoot(),
     );
-    if (teamMemoryError) {
-      return teamMemoryError;
+    if (memorySecretError) {
+      return memorySecretError;
     }
 
     return null;

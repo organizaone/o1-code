@@ -27,7 +27,7 @@ import {
 } from '../sandbox/runtime-file.js';
 import type { SandboxFileVersion } from '../sandbox/file-version.js';
 import { isAnyAutoMemPath, isTeamAutoMemPath } from '../memory/paths.js';
-import { checkTeamMemorySecrets } from '../memory/team-memory-secret-guard.js';
+import { checkMemorySecrets } from '../memory/memory-secret-guard.js';
 import {
   FileEncoding,
   needsUtf8Bom,
@@ -355,24 +355,24 @@ class EditToolInvocation implements ToolInvocation<EditToolParams, ToolResult> {
     // Scan the full resulting content, not just new_string, so a secret split
     // across multiple edits (each fragment alone undetectable) is still caught.
     if (!error) {
-      const teamMemoryError = checkTeamMemorySecrets(
+      const memorySecretError = checkMemorySecrets(
         params.file_path,
         newContent,
         this.config.getProjectRoot(),
       );
-      if (teamMemoryError) {
+      if (memorySecretError) {
         // If the secret is already in the on-disk file, this edit can't clear it
         // — tell the user to remove the committed secret, not just retry.
         const preExisting =
           currentContent !== null &&
-          checkTeamMemorySecrets(
+          checkMemorySecrets(
             params.file_path,
             currentContent,
             this.config.getProjectRoot(),
           ) !== null;
         const message = preExisting
-          ? `${teamMemoryError} Note: the secret already exists in the current file content, so removing it from your edit alone is not enough — delete the committed secret from the file.`
-          : teamMemoryError;
+          ? `${memorySecretError} Note: the secret already exists in the current file content, so removing it from your edit alone is not enough — delete the existing secret from the file.`
+          : memorySecretError;
         error = {
           display: message,
           raw: message,
@@ -850,13 +850,13 @@ Expectation for required parameters:
       return `File path must be absolute: ${params.file_path}`;
     }
 
-    const teamMemoryError = checkTeamMemorySecrets(
+    const memorySecretError = checkMemorySecrets(
       params.file_path,
       params.new_string ?? '',
       this.config.getProjectRoot(),
     );
-    if (teamMemoryError) {
-      return teamMemoryError;
+    if (memorySecretError) {
+      return memorySecretError;
     }
 
     return null;
