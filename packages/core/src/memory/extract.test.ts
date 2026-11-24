@@ -79,6 +79,7 @@ describe('auto-memory extraction', () => {
     mockConfig = {
       getSessionId: vi.fn().mockReturnValue('session-1'),
       getModel: vi.fn().mockReturnValue('qwen3-coder-plus'),
+      getMemoryExtractionInterval: vi.fn().mockReturnValue(1),
     } as unknown as Config;
     vi.clearAllMocks();
     vi.mocked(getCacheSafeParamsSessionId).mockReturnValue('session-1');
@@ -167,6 +168,76 @@ describe('auto-memory extraction', () => {
 
     expect(cursor.sessionId).toBe('session-1');
     expect(cursor.processedOffset).toBe(2);
+  });
+
+  it('waits for the configured number of user messages, then covers them all', async () => {
+    vi.mocked(mockConfig.getMemoryExtractionInterval).mockReturnValue(3);
+    vi.mocked(runAutoMemoryExtractionByAgent).mockResolvedValue({
+      touchedTopics: [],
+      touchedProjectScope: false,
+      touchedUserScope: false,
+      memoryFilesWritten: [],
+      hasToolActivity: true,
+      systemMessage: undefined,
+    });
+    const turn = (text: string): Content[] => [
+      { role: 'user', parts: [{ text }] },
+      { role: 'model', parts: [{ text: 'ok' }] },
+    ];
+    const history: Content[] = [];
+
+    for (const text of ['one', 'two']) {
+      history.push(...turn(text));
+      const result = await runAutoMemoryExtract({
+        projectRoot,
+        sessionId: 'session-1',
+        config: mockConfig,
+        history: [...history],
+      });
+      expect(result.skippedReason).toBe('batching');
+    }
+    expect(runAutoMemoryExtractionByAgent).not.toHaveBeenCalled();
+
+    history.push(...turn('three'));
+    const third = await runAutoMemoryExtract({
+      projectRoot,
+      sessionId: 'session-1',
+      config: mockConfig,
+      history: [...history],
+    });
+
+    expect(third.skippedReason).toBeUndefined();
+    expect(runAutoMemoryExtractionByAgent).toHaveBeenCalledTimes(1);
+    const cursor = JSON.parse(
+      await fs.readFile(getAutoMemoryExtractCursorPath(projectRoot), 'utf-8'),
+    ) as { processedOffset: number };
+    expect(cursor.processedOffset).toBe(6);
+  });
+
+  it('extracts a short batch when forced by the idle run', async () => {
+    vi.mocked(mockConfig.getMemoryExtractionInterval).mockReturnValue(3);
+    vi.mocked(runAutoMemoryExtractionByAgent).mockResolvedValue({
+      touchedTopics: [],
+      touchedProjectScope: false,
+      touchedUserScope: false,
+      memoryFilesWritten: [],
+      hasToolActivity: true,
+      systemMessage: undefined,
+    });
+
+    const result = await runAutoMemoryExtract({
+      projectRoot,
+      sessionId: 'session-1',
+      config: mockConfig,
+      force: true,
+      history: [
+        { role: 'user', parts: [{ text: 'never mock the DB' }] },
+        { role: 'model', parts: [{ text: 'ok' }] },
+      ],
+    });
+
+    expect(result.skippedReason).toBeUndefined();
+    expect(runAutoMemoryExtractionByAgent).toHaveBeenCalledTimes(1);
   });
 
   it('skips a session mismatch without advancing the cursor', async () => {

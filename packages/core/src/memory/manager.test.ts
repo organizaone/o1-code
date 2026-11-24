@@ -8,7 +8,11 @@ import * as fs from 'node:fs/promises';
 import * as os from 'node:os';
 import * as path from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { globalMemoryManager, MemoryManager } from './manager.js';
+import {
+  EXTRACT_IDLE_FLUSH_MS,
+  globalMemoryManager,
+  MemoryManager,
+} from './manager.js';
 import { ensureAutoMemoryScaffold } from './store.js';
 import {
   getAutoMemoryMetadataPath,
@@ -159,6 +163,71 @@ describe('MemoryManager', () => {
       }
     });
 
+    it('extracts held-back messages once the session goes quiet', async () => {
+      vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
+      try {
+        const cursor = {
+          sessionId: 'sess-1',
+          updatedAt: new Date().toISOString(),
+        };
+        vi.mocked(runAutoMemoryExtract)
+          .mockResolvedValueOnce({
+            touchedTopics: [],
+            skippedReason: 'batching',
+            cursor,
+          })
+          .mockResolvedValueOnce({ touchedTopics: ['feedback'], cursor });
+        const mgr = new MemoryManager();
+        const params = {
+          projectRoot,
+          sessionId: 'sess-1',
+          history: [{ role: 'user', parts: [{ text: 'never mock the DB' }] }],
+        };
+
+        await mgr.scheduleExtract(params);
+        expect(runAutoMemoryExtract).toHaveBeenCalledTimes(1);
+
+        await vi.advanceTimersByTimeAsync(EXTRACT_IDLE_FLUSH_MS);
+        expect(runAutoMemoryExtract).toHaveBeenCalledTimes(2);
+        expect(vi.mocked(runAutoMemoryExtract).mock.calls[1]?.[0]).toEqual({
+          ...params,
+          force: true,
+        });
+      } finally {
+        vi.useRealTimers();
+      }
+    });
+
+    it('drops the idle run when a new request arrives or shutdown cancels it', async () => {
+      vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
+      try {
+        vi.mocked(runAutoMemoryExtract).mockResolvedValue({
+          touchedTopics: [],
+          skippedReason: 'batching',
+          cursor: { sessionId: 'sess-1', updatedAt: new Date().toISOString() },
+        });
+        const mgr = new MemoryManager();
+        const params = {
+          projectRoot,
+          sessionId: 'sess-1',
+          history: [{ role: 'user', parts: [{ text: 'hi' }] }],
+        };
+
+        await mgr.scheduleExtract(params);
+        await vi.advanceTimersByTimeAsync(EXTRACT_IDLE_FLUSH_MS / 2);
+        await mgr.scheduleExtract(params);
+        // The first timer was replaced, so half a window later nothing fires.
+        await vi.advanceTimersByTimeAsync(EXTRACT_IDLE_FLUSH_MS / 2);
+        expect(runAutoMemoryExtract).toHaveBeenCalledTimes(2);
+
+        mgr.cancelIdleExtract(projectRoot);
+        await vi.advanceTimersByTimeAsync(EXTRACT_IDLE_FLUSH_MS);
+        expect(runAutoMemoryExtract).toHaveBeenCalledTimes(2);
+      } finally {
+        vi.useRealTimers();
+      }
+    });
+
     it('runs extract and records a completed task', async () => {
       vi.mocked(runAutoMemoryExtract).mockResolvedValue({
         touchedTopics: ['user'],
@@ -260,6 +329,52 @@ describe('MemoryManager', () => {
         expect(vi.mocked(runAutoMemoryExtract)).not.toHaveBeenCalled();
       },
     );
+
+    it('skips only the turn that wrote memory, not the rest of the session', async () => {
+      vi.mocked(runAutoMemoryExtract).mockResolvedValue({
+        touchedTopics: [],
+        cursor: { sessionId: 'sess-1', updatedAt: new Date().toISOString() },
+      });
+      const memoryWrite = {
+        role: 'model',
+        parts: [
+          {
+            functionCall: {
+              name: 'write_file',
+              args: {
+                file_path: path.join(
+                  projectRoot,
+                  '.o1-code/memory/reference/deploys.md',
+                ),
+              },
+            },
+          },
+        ],
+      };
+      const mgr = new MemoryManager();
+      const writingTurn = [
+        { role: 'user', parts: [{ text: 'the deploy board is grafana/x' }] },
+        memoryWrite,
+      ];
+
+      const first = await mgr.scheduleExtract({
+        projectRoot,
+        sessionId: 'sess-1',
+        history: writingTurn,
+      });
+      expect(first.skippedReason).toBe('memory_tool');
+
+      await mgr.scheduleExtract({
+        projectRoot,
+        sessionId: 'sess-1',
+        history: [
+          ...writingTurn,
+          { role: 'user', parts: [{ text: 'we never use semicolons' }] },
+          { role: 'model', parts: [{ text: 'ok' }] },
+        ],
+      });
+      expect(vi.mocked(runAutoMemoryExtract)).toHaveBeenCalledTimes(1);
+    });
 
     it('does not treat an unrelated bridged call as a memory write', async () => {
       vi.mocked(runAutoMemoryExtract).mockResolvedValue({

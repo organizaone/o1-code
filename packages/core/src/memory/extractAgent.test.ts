@@ -24,6 +24,7 @@ describe('auto-memory extraction with agent planner', () => {
   let projectRoot: string;
   const mockConfig = {
     getSessionId: () => 'session-1',
+    getMemoryExtractionInterval: () => 1,
   } as Config;
 
   beforeEach(async () => {

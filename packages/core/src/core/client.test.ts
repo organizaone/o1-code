@@ -512,6 +512,7 @@ describe('Gemini Client (client.ts)', () => {
     scheduleDream: ReturnType<typeof vi.fn>;
     recall: ReturnType<typeof vi.fn>;
     scheduleSkillReview: ReturnType<typeof vi.fn>;
+    cancelIdleExtract: ReturnType<typeof vi.fn>;
   };
   beforeEach(async () => {
     vi.resetAllMocks();
@@ -561,6 +562,7 @@ describe('Gemini Client (client.ts)', () => {
         status: 'skipped',
         skippedReason: 'below_threshold',
       }),
+      cancelIdleExtract: vi.fn(),
     };
 
     mockGenerateContentFn = vi.fn().mockResolvedValue({
@@ -17305,6 +17307,7 @@ Other open files:
         scheduleExtract: scheduleExtractSpy,
         scheduleDream: scheduleDreamSpy,
         recall: vi.fn(),
+        cancelIdleExtract: vi.fn(),
         scheduleSkillReview: vi
           .fn()
           .mockReturnValue({ status: 'skipped', skippedReason: 'disabled' }),
@@ -17332,6 +17335,8 @@ Other open files:
 
       // After shutdown: the gate short-circuits before any scheduling.
       client.requestShutdown();
+      // A held-back batch must not start a model call during exit.
+      expect(mgr.cancelIdleExtract).toHaveBeenCalledTimes(1);
       runBgTasks(SendMessageType.UserQuery);
       expect(scheduleExtractSpy).not.toHaveBeenCalled();
       expect(scheduleDreamSpy).not.toHaveBeenCalled();
@@ -17346,6 +17351,7 @@ Other open files:
         scheduleExtract: vi.fn(),
         scheduleDream: vi.fn(),
         recall: vi.fn(),
+        cancelIdleExtract: vi.fn(),
         scheduleSkillReview: vi
           .fn()
           .mockReturnValue({ status: 'skipped', skippedReason: 'disabled' }),

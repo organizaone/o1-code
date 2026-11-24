@@ -2368,6 +2368,17 @@ const SETTINGS_SCHEMA = {
           "Max turns for background memory agents (extraction, dream, remember, skill review). Unset uses each agent's built-in default (5–8); 0 disables the turn limit.",
         showInDialog: false,
       },
+      extractionInterval: {
+        type: 'number',
+        label: 'Memory Extraction Interval',
+        category: 'Memory',
+        requiresRestart: true,
+        default: 3,
+        minimum: 1,
+        description:
+          'Number of new user messages before automatic memory extraction runs. Each run is a model call over the recent conversation; 1 runs it after every message.',
+        showInDialog: false,
+      },
       enableTeamMemory: {
         type: 'boolean',
         label: 'Enable Team Memory',

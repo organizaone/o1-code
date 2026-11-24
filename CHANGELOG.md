@@ -21,6 +21,8 @@ follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   that read web or MCP content is confirmed with you before it is used.
 - Memory cleanup reviews project memories unused for 30 days, and skips its model call when
   nothing changed.
+- Memory is saved every three of your messages, or after a minute without a new one, instead of
+  after every message. `memory.extractionInterval` changes the number.
 
 ## [0.31.1] - 2026-11-23
 
