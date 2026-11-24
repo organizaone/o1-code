@@ -145,6 +145,8 @@ export interface ScheduleExtractParams {
   history: Content[];
   now?: Date;
   config?: Config;
+  /** Run even when fewer user messages than the extraction interval are new. */
+  force?: boolean;
 }
 
 export interface ScheduleSkillReviewParams {
@@ -226,6 +228,13 @@ export const EXTRACT_TASK_TYPE = 'managed-auto-memory-extraction' as const;
 export const DREAM_TASK_TYPE = 'managed-auto-memory-dream' as const;
 export const SKILL_REVIEW_TASK_TYPE = 'managed-skill-extractor' as const;
 export const AUTO_SKILL_THRESHOLD = 20;
+
+/**
+ * After extraction is deferred by batching, the held-back messages are
+ * extracted anyway once the session has been quiet this long, so the last
+ * messages of a session are not lost when it ends before the batch fills.
+ */
+export const EXTRACT_IDLE_FLUSH_MS = 60_000;
 
 export const DEFAULT_AUTO_DREAM_MIN_HOURS = 24;
 export const DEFAULT_AUTO_DREAM_MIN_SESSIONS = 5;
@@ -476,6 +485,11 @@ export class MemoryManager {
   // ── Extract scheduling state ─────────────────────────────────────────────────
   private readonly extractRunning = new Set<string>();
   private readonly extractCurrentTaskId = new Map<string, string>();
+  /** Per project: the pending idle run for messages held back by batching. */
+  private readonly extractIdleTimers = new Map<
+    string,
+    ReturnType<typeof setTimeout>
+  >();
   private readonly extractQueued = new Map<
     string,
     { taskId: string; params: ScheduleExtractParams }
@@ -651,6 +665,8 @@ export class MemoryManager {
   ): Promise<
     ReturnType<typeof runAutoMemoryExtract> extends Promise<infer T> ? T : never
   > {
+    // A new request supersedes the idle run: it sees every held-back message.
+    this.cancelIdleExtract(params.projectRoot);
     if (historyWritesToMemory(params.history, params.projectRoot)) {
       const record = makeTaskRecord(
         'extract',
@@ -812,6 +828,9 @@ export class MemoryManager {
       const result = await runAutoMemoryExtract(params);
       const durationMs = Date.now() - t0;
       const skippedReason = result.skippedReason;
+      if (skippedReason === 'batching') {
+        this.scheduleIdleExtract(params);
+      }
       const status = skippedReason ? 'skipped' : 'completed';
       this.update(record, {
         status,
@@ -865,6 +884,37 @@ export class MemoryManager {
       this.extractCurrentTaskId.delete(params.projectRoot);
       this.extractRunning.delete(params.projectRoot);
       void this.startQueuedExtract(params.projectRoot);
+    }
+  }
+
+  private scheduleIdleExtract(params: ScheduleExtractParams): void {
+    this.cancelIdleExtract(params.projectRoot);
+    const timer = setTimeout(() => {
+      this.extractIdleTimers.delete(params.projectRoot);
+      void this.scheduleExtract({ ...params, force: true }).catch(
+        (error: unknown) => {
+          debugLogger.warn(
+            'Idle managed auto-memory extraction failed.',
+            error,
+          );
+        },
+      );
+    }, EXTRACT_IDLE_FLUSH_MS);
+    // Never keep the process alive just to flush memory.
+    timer.unref?.();
+    this.extractIdleTimers.set(params.projectRoot, timer);
+  }
+
+  /**
+   * Drop the pending idle extraction for a project, or for every project when
+   * none is given (shutdown). The held-back messages wait for the next run.
+   */
+  cancelIdleExtract(projectRoot?: string): void {
+    for (const [root, timer] of this.extractIdleTimers) {
+      if (projectRoot === undefined || root === projectRoot) {
+        clearTimeout(timer);
+        this.extractIdleTimers.delete(root);
+      }
     }
   }
 

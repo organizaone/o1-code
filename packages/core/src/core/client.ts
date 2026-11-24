@@ -1280,6 +1280,9 @@ export class LlmClient {
   requestShutdown(): void {
     this.shutdownRequested = true;
     this.cancelPendingMemoryPrefetch('shutdown');
+    this.config
+      .getMemoryManager()
+      .cancelIdleExtract(this.config.getProjectRoot());
   }
 
   /**

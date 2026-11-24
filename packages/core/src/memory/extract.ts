@@ -133,6 +133,8 @@ export async function runAutoMemoryExtract(params: {
   history: Content[];
   now?: Date;
   config?: Config;
+  /** Extract now, however few user messages are new (the idle run). */
+  force?: boolean;
 }): Promise<AutoMemoryExtractResult> {
   const now = params.now ?? new Date();
   if (!params.config) {
@@ -196,7 +198,10 @@ export async function runAutoMemoryExtract(params: {
   // Extraction is a model call over the recent conversation, so it waits until
   // a few user messages have accumulated instead of running after each one.
   // The cursor stays put: the next run covers every message since the last.
-  if (newUserMessages < params.config.getMemoryExtractionInterval()) {
+  if (
+    !params.force &&
+    newUserMessages < params.config.getMemoryExtractionInterval()
+  ) {
     debugLogger.debug(
       `Deferring auto-memory extract: ${newUserMessages} new user message(s).`,
     );

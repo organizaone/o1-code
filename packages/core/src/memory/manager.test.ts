@@ -8,7 +8,11 @@ import * as fs from 'node:fs/promises';
 import * as os from 'node:os';
 import * as path from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { globalMemoryManager, MemoryManager } from './manager.js';
+import {
+  EXTRACT_IDLE_FLUSH_MS,
+  globalMemoryManager,
+  MemoryManager,
+} from './manager.js';
 import { ensureAutoMemoryScaffold } from './store.js';
 import {
   getAutoMemoryMetadataPath,
@@ -156,6 +160,71 @@ describe('MemoryManager', () => {
         ).toBe(0);
       } finally {
         process.off('unhandledRejection', unhandled);
+      }
+    });
+
+    it('extracts held-back messages once the session goes quiet', async () => {
+      vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
+      try {
+        const cursor = {
+          sessionId: 'sess-1',
+          updatedAt: new Date().toISOString(),
+        };
+        vi.mocked(runAutoMemoryExtract)
+          .mockResolvedValueOnce({
+            touchedTopics: [],
+            skippedReason: 'batching',
+            cursor,
+          })
+          .mockResolvedValueOnce({ touchedTopics: ['feedback'], cursor });
+        const mgr = new MemoryManager();
+        const params = {
+          projectRoot,
+          sessionId: 'sess-1',
+          history: [{ role: 'user', parts: [{ text: 'never mock the DB' }] }],
+        };
+
+        await mgr.scheduleExtract(params);
+        expect(runAutoMemoryExtract).toHaveBeenCalledTimes(1);
+
+        await vi.advanceTimersByTimeAsync(EXTRACT_IDLE_FLUSH_MS);
+        expect(runAutoMemoryExtract).toHaveBeenCalledTimes(2);
+        expect(vi.mocked(runAutoMemoryExtract).mock.calls[1]?.[0]).toEqual({
+          ...params,
+          force: true,
+        });
+      } finally {
+        vi.useRealTimers();
+      }
+    });
+
+    it('drops the idle run when a new request arrives or shutdown cancels it', async () => {
+      vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
+      try {
+        vi.mocked(runAutoMemoryExtract).mockResolvedValue({
+          touchedTopics: [],
+          skippedReason: 'batching',
+          cursor: { sessionId: 'sess-1', updatedAt: new Date().toISOString() },
+        });
+        const mgr = new MemoryManager();
+        const params = {
+          projectRoot,
+          sessionId: 'sess-1',
+          history: [{ role: 'user', parts: [{ text: 'hi' }] }],
+        };
+
+        await mgr.scheduleExtract(params);
+        await vi.advanceTimersByTimeAsync(EXTRACT_IDLE_FLUSH_MS / 2);
+        await mgr.scheduleExtract(params);
+        // The first timer was replaced, so half a window later nothing fires.
+        await vi.advanceTimersByTimeAsync(EXTRACT_IDLE_FLUSH_MS / 2);
+        expect(runAutoMemoryExtract).toHaveBeenCalledTimes(2);
+
+        mgr.cancelIdleExtract(projectRoot);
+        await vi.advanceTimersByTimeAsync(EXTRACT_IDLE_FLUSH_MS);
+        expect(runAutoMemoryExtract).toHaveBeenCalledTimes(2);
+      } finally {
+        vi.useRealTimers();
       }
     });
 
