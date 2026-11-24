@@ -44,7 +44,8 @@ export interface AutoMemoryExtractResult {
     | 'queued'
     | 'memory_tool'
     | 'memory_pressure'
-    | 'session_mismatch';
+    | 'session_mismatch'
+    | 'batching';
   systemMessage?: string;
   cursor: AutoMemoryExtractCursor;
 }
@@ -177,12 +178,12 @@ export async function runAutoMemoryExtract(params: {
   // slice. partToString runs only on this small slice and without the
   // global whitespace regex — the .trim().length check preserves the old
   // behaviour of ignoring empty-text user turns.
-  const hasNewUserMessages = params.history
+  const newUserMessages = params.history
     .slice(startOffset)
-    .some(
+    .filter(
       (m) => m.role === 'user' && partToString(m.parts ?? []).trim().length > 0,
-    );
-  if (!hasNewUserMessages) {
+    ).length;
+  if (newUserMessages === 0) {
     const cursor: AutoMemoryExtractCursor = {
       sessionId: params.sessionId,
       processedOffset: params.history.length,
@@ -190,6 +191,20 @@ export async function runAutoMemoryExtract(params: {
     };
     await writeExtractCursor(params.projectRoot, cursor);
     return { touchedTopics: [], cursor };
+  }
+
+  // Extraction is a model call over the recent conversation, so it waits until
+  // a few user messages have accumulated instead of running after each one.
+  // The cursor stays put: the next run covers every message since the last.
+  if (newUserMessages < params.config.getMemoryExtractionInterval()) {
+    debugLogger.debug(
+      `Deferring auto-memory extract: ${newUserMessages} new user message(s).`,
+    );
+    return {
+      touchedTopics: [],
+      skippedReason: 'batching',
+      cursor: currentCursor,
+    };
   }
 
   const lateMismatch = getSessionMismatchResult(

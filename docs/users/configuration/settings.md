@@ -518,6 +518,7 @@ The bridge-availability and missing-bridge warning rules below describe direct t
 | `memory.enableTeamMemorySync`    | boolean | When team memory is enabled, automatically commit, fast-forward-pull, and push the `.o1-code/team-memory/` directory at session start so collaborators stay in sync. Requires a configured git upstream. | `false` |
 | `memory.agentTimeoutMinutes`     | number  | Max runtime in minutes for background memory agents (extraction, dream, remember, skill review). Unset uses each agent's built-in default (2–5 minutes); `0` disables the time limit.                    | unset   |
 | `memory.agentMaxTurns`           | number  | Max turns for background memory agents (extraction, dream, remember, skill review). Unset uses each agent's built-in default (5–8); `0` disables the turn limit.                                         | unset   |
+| `memory.extractionInterval`      | number  | Number of new user messages before automatic memory extraction runs. Each run is a model call over the recent conversation; `1` runs it after every message.                                             | `3`     |
 
 See [Memory](../features/memory.md) for details on how auto-memory works and how to use the `/memory`, `/remember`, and `/dream` commands.
 

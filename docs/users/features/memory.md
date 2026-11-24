@@ -54,7 +54,7 @@ Use `@path/to/file` anywhere in AGENTS.md. Relative paths resolve from the AGENT
 
 ## Auto-memory: what O1-Code learns about you
 
-Auto-memory runs in the background. After each of your conversations, O1-Code quietly saves useful things it learned — your preferences, feedback you gave, project context — so it can use them in future sessions without you repeating yourself.
+Auto-memory runs in the background. As you talk, O1-Code quietly saves useful things it learned — your preferences, feedback you gave, project context — so it can use them in future sessions without you repeating yourself. Saving is a model call over the recent conversation, so it runs once every three of your messages, covering all of them; `memory.extractionInterval` changes that number, and `1` runs it after every message. When you ask O1-Code to remember something, it saves it right away.
 
 This is different from AGENTS.md: you don't write it, O1-Code does.
 

@@ -1477,6 +1477,12 @@ export interface ConfigParameters {
    */
   memoryAgentMaxTurns?: number;
   /**
+   * New user messages that must accumulate before automatic memory extraction
+   * runs. Unset means {@link DEFAULT_MEMORY_EXTRACTION_INTERVAL}; 1 extracts
+   * after every message.
+   */
+  memoryExtractionInterval?: number;
+  /**
    * Lightweight model for background tasks (memory extraction, dream, /btw side questions).
    * When set and valid for the current auth type, forked agents use this model instead of
    * the main session model, reducing latency and cost.
@@ -1756,6 +1762,8 @@ export const GOAL_MAX_TURNS_CAP = 10_000;
  * deliberately.
  */
 export const GOAL_MAX_ACTIVE_MINUTES_CAP = 7 * 24 * 60;
+/** Default number of new user messages between automatic memory extractions. */
+export const DEFAULT_MEMORY_EXTRACTION_INTERVAL = 3;
 
 /**
  * True for the values `normalizeGoalMaxTurns` honours: `0` and its alias `-1`
@@ -3080,6 +3088,7 @@ export class Config {
   private readonly autoSkillConfirm: boolean;
   private readonly memoryAgentTimeoutMinutes: number | undefined;
   private readonly memoryAgentMaxTurns: number | undefined;
+  private readonly memoryExtractionInterval: number;
   private fastModel?: string;
   private readonly webSearchSettings?: WebSearchSettings;
   private webSearchNoticeEmitted = false;
@@ -3693,6 +3702,12 @@ export class Config {
       params.memoryAgentMaxTurns >= 0
         ? params.memoryAgentMaxTurns
         : undefined;
+    this.memoryExtractionInterval =
+      params.memoryExtractionInterval !== undefined &&
+      Number.isInteger(params.memoryExtractionInterval) &&
+      params.memoryExtractionInterval >= 1
+        ? params.memoryExtractionInterval
+        : DEFAULT_MEMORY_EXTRACTION_INTERVAL;
     this.fastModel = params.fastModel || undefined;
     this.webSearchSettings = params.webSearch;
     this.visionModel = params.visionModel || undefined;
@@ -10120,6 +10135,14 @@ export class Config {
    */
   getMemoryAgentMaxTurns(): number | undefined {
     return this.memoryAgentMaxTurns;
+  }
+
+  /**
+   * New user messages that must accumulate before automatic memory extraction
+   * runs. Resolves the `memory.extractionInterval` setting.
+   */
+  getMemoryExtractionInterval(): number {
+    return this.memoryExtractionInterval;
   }
 
   getPreventSystemSleepEnabled(): boolean {

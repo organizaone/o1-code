@@ -2776,6 +2776,7 @@ export async function loadCliConfig(
         : (settings.memory?.autoSkillConfirm ?? true),
     memoryAgentTimeoutMinutes: settings.memory?.agentTimeoutMinutes,
     memoryAgentMaxTurns: settings.memory?.agentMaxTurns,
+    memoryExtractionInterval: settings.memory?.extractionInterval,
     fastModel: settings.fastModel || undefined,
     // Bare and safe mode must switch the tool off explicitly: `undefined`
     // means "derive it" now that WebSearch is opt-out.

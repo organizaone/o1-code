@@ -1914,6 +1914,34 @@ describe('Server Config (config.ts)', () => {
     });
   });
 
+  describe('getMemoryExtractionInterval', () => {
+    it('defaults to three user messages', () => {
+      expect(new Config(baseParams).getMemoryExtractionInterval()).toBe(3);
+    });
+
+    it('passes through positive whole numbers, including 1', () => {
+      for (const interval of [1, 5]) {
+        expect(
+          new Config({
+            ...baseParams,
+            memoryExtractionInterval: interval,
+          }).getMemoryExtractionInterval(),
+        ).toBe(interval);
+      }
+    });
+
+    it('falls back to the default for 0, negative and fractional values', () => {
+      for (const interval of [0, -2, 1.5]) {
+        expect(
+          new Config({
+            ...baseParams,
+            memoryExtractionInterval: interval,
+          }).getMemoryExtractionInterval(),
+        ).toBe(3);
+      }
+    });
+  });
+
   describe('restorable ask_user_question preservation', () => {
     it('defaults to off when the restore switch is unset', () => {
       const config = new Config(baseParams);
