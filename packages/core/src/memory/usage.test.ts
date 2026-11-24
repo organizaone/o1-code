@@ -63,6 +63,17 @@ describe('auto-memory recall usage', () => {
     expect(usage.entries[path.resolve(b)]?.count).toBe(1);
   });
 
+  it('does not count a read of the MEMORY.md index as use', async () => {
+    await recordAutoMemoryRecalls(
+      projectRoot,
+      [path.join(getAutoMemoryRoot(projectRoot), 'MEMORY.md')],
+      NOW,
+    );
+    await expect(
+      fs.access(getAutoMemoryUsagePath(projectRoot)),
+    ).rejects.toThrow();
+  });
+
   it('lists nothing until usage has been tracked for the whole window', async () => {
     await writeMemory('feedback/old.md', 90);
     await ensureAutoMemoryUsageTracking(projectRoot, daysAgo(10));

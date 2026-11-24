@@ -9,6 +9,7 @@ import * as path from 'node:path';
 import { atomicWriteFile } from '../utils/atomicFileWrite.js';
 import { createDebugLogger } from '../utils/debugLogger.js';
 import {
+  AUTO_MEMORY_INDEX_FILENAME,
   AUTO_MEMORY_PINNED_DIRNAME,
   getAutoMemoryProjectStateDir,
 } from './paths.js';
@@ -118,11 +119,15 @@ export function recordAutoMemoryRecalls(
   filePaths: readonly string[],
   now: Date = new Date(),
 ): Promise<void> {
-  if (filePaths.length === 0) {
+  // The index is not a memory; reading it says nothing about any one entry.
+  const memoryFiles = filePaths.filter(
+    (filePath) => path.basename(filePath) !== AUTO_MEMORY_INDEX_FILENAME,
+  );
+  if (memoryFiles.length === 0) {
     return Promise.resolve();
   }
   return updateUsage(projectRoot, now, (usage) => {
-    for (const filePath of new Set(filePaths)) {
+    for (const filePath of new Set(memoryFiles)) {
       const key = path.resolve(filePath);
       const entry = usage.entries[key];
       usage.entries[key] = {

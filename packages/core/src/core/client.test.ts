@@ -454,6 +454,13 @@ const recordAutoMemoryRecallsMock = vi.hoisted(() =>
 vi.mock('../memory/usage.js', () => ({
   recordAutoMemoryRecalls: recordAutoMemoryRecallsMock,
 }));
+const stampMemoryProvenanceMock = vi.hoisted(() =>
+  vi.fn().mockResolvedValue(undefined),
+);
+vi.mock('../memory/provenance.js', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../memory/provenance.js')>()),
+  stampMemoryProvenance: stampMemoryProvenanceMock,
+}));
 
 /**
  * Array.fromAsync ponyfill, which will be available in es 2024.
@@ -11422,6 +11429,39 @@ hello
         expect(recordAutoMemoryRecallsMock).toHaveBeenCalledWith('/project', [
           memoryFile,
         ]);
+      });
+
+      it('records provenance on a memory the main agent writes itself', () => {
+        vi.spyOn(client['config'], 'getProjectRoot').mockReturnValue(
+          '/project',
+        );
+        stampMemoryProvenanceMock.mockClear();
+        client['chat'] = {
+          getHistory: vi.fn().mockReturnValue([
+            {
+              role: 'model',
+              parts: [{ functionCall: { name: 'web_fetch', args: {} } }],
+            },
+          ]),
+        } as unknown as LlmChat;
+        const memoryFile = join(
+          '/project',
+          '.o1-code',
+          'memory',
+          'reference',
+          'deploys.md',
+        );
+
+        client.recordCompletedToolCall('write_file', {
+          file_path: '/project/src/index.ts',
+        });
+        client.recordCompletedToolCall('write_file', { file_path: memoryFile });
+
+        expect(stampMemoryProvenanceMock).toHaveBeenCalledTimes(1);
+        expect(stampMemoryProvenanceMock).toHaveBeenCalledWith([memoryFile], {
+          sessionId: expect.any(String),
+          externalContent: true,
+        });
       });
 
       it('should set skillsModifiedInSession=true when write_file targets a skill path', () => {

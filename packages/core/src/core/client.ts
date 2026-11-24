@@ -103,6 +103,11 @@ import type { RelevantAutoMemoryPromptResult } from '../memory/manager.js';
 import { AUTO_SKILL_THRESHOLD } from '../memory/manager.js';
 import { buildRelevantAutoMemoryPrompt } from '../memory/recall.js';
 import { recordAutoMemoryRecalls } from '../memory/usage.js';
+import {
+  historyReadExternalContent,
+  isExternalContentToolName,
+  stampMemoryProvenance,
+} from '../memory/provenance.js';
 import { isAnyAutoMemPath, isManagedMemoryPath } from '../memory/paths.js';
 import { isProjectSkillPath } from '../skills/skill-paths.js';
 import { ToolNames, canonicalToolName } from '../tools/tool-names.js';
@@ -3088,6 +3093,21 @@ export class LlmClient {
       void recordAutoMemoryRecalls(this.config.getProjectRoot(), [readPath]);
     }
 
+    // A memory the main agent writes itself gets the same provenance as one
+    // the extraction agent writes, so recall can tell whether it was saved in
+    // a session that read web or MCP content.
+    const writePath = args?.['file_path'];
+    if (
+      SKILL_WRITE_TOOL_NAMES.has(toolName) &&
+      typeof writePath === 'string' &&
+      isAnyAutoMemPath(writePath, this.config.getProjectRoot())
+    ) {
+      void stampMemoryProvenance([writePath], {
+        sessionId: this.config.getSessionId(),
+        externalContent: this.sessionReadExternalContent(),
+      });
+    }
+
     if (args && SKILL_WRITE_TOOL_NAMES.has(toolName)) {
       const filePath = args['file_path'] ?? args['path'] ?? args['target_file'];
       if (
@@ -3098,6 +3118,15 @@ export class LlmClient {
       }
     }
     this.toolCallCount += 1;
+  }
+
+  private sessionReadExternalContent(): boolean {
+    try {
+      return historyReadExternalContent(this.getHistoryShallow());
+    } catch {
+      // No chat yet: fall back to the tools that completed in this process.
+      return this.recentCompletedToolNames.some(isExternalContentToolName);
+    }
   }
 
   private rememberCompletedToolName(toolName: string): void {
